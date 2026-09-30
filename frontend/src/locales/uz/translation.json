@@ -232,7 +232,7 @@
       "desc": "Chek summasi bo'yicha chegirma"
     },
     "inbounds": {
-      "title": "Kirim",
+      "title": "Kirim hujjatlari",
       "desc": "Xarid, qaytarish va almashinuv hujjatlari"
     }
   },
@@ -431,7 +431,8 @@
       "delete": "O'chirish",
       "block": "Bloklash",
       "sell": "Sotish",
-      "approve": "Tasdiqlash"
+      "approve": "Tasdiqlash",
+      "print": "Etiketka chop etish"
     }
   },
   "ref": {
@@ -739,5 +740,27 @@
     "already_returned": "{{count}} ta qaytarilgan",
     "over_limit": "\"{{name}}\": eng ko'pi {{count}} ta qaytarish mumkin",
     "add_to_document": "Hujjatga qo'shish"
+  },
+  "labels": {
+    "title": "Etiketka chop etish",
+    "hint": "Har bir dona uchun alohida etiketka chiqadi va chipiga takrorlanmas RFID kodi yoziladi",
+    "button": "Etiketka",
+    "all_hint": "Hujjatdagi barcha tovarlar uchun etiketka",
+    "size": "O'lcham",
+    "mm": "mm",
+    "write_rfid": "RFID kodini chipga yozish",
+    "only_new": "Faqat chop etilmaganlari",
+    "units": "Dona",
+    "printed": "Chop etilgan",
+    "count": "Etiketka soni",
+    "no_barcode": "Shtrix-kod va artikul yo'q — etiketkada faqat nom va RFID kodi bo'ladi",
+    "total": "Jami: {{count}} ta etiketka",
+    "print": "Printerga yuborish",
+    "sending": "Yuborilmoqda...",
+    "download": "ZPL faylni yuklab olish",
+    "sent": "{{count}} ta etiketka printerga yuborildi ({{printer}})",
+    "downloaded": "{{count}} ta etiketka faylga yozildi",
+    "printer_missing": "Printer manzili sozlanmagan (backend .env: LABEL_PRINTER_HOST). Hozircha ZPL faylni yuklab olib, printer dasturi orqali yuborish mumkin.",
+    "save_first": "Etiketka chiqarish uchun avval hujjatni saqlang"
   }
 }

@@ -1,7 +1,7 @@
 import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsIn, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { InboundDocumentType } from '../entities/inbound-document.entity';
 
@@ -71,3 +71,36 @@ export class CreateInboundDocumentDto {
 
 /** Turi hujjat yaratilgandan keyin o'zgarmaydi */
 export class UpdateInboundDocumentDto extends PartialType(OmitType(CreateInboundDocumentDto, ['type'] as const)) {}
+
+export class LabelItemDto {
+  @ApiProperty()
+  @IsUUID('4', { message: 'Tovar notog`ri tanlangan' })
+  materialId: string;
+
+  @ApiProperty({ example: 10, description: 'Nechta dona uchun etiketka (1-donadan boshlab)' })
+  @IsInt({ message: 'Etiketka soni butun son bo`lishi kerak' })
+  @Min(0)
+  @Max(1000)
+  count: number;
+}
+
+export class PrintLabelsDto {
+  @ApiProperty({ type: [LabelItemDto] })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => LabelItemDto)
+  items: LabelItemDto[];
+
+  @ApiProperty({ required: false, example: '50x30' })
+  @IsOptional() @IsString() @MaxLength(10)
+  size?: string;
+
+  @ApiProperty({ required: false, description: 'Faqat hali chop etilmagan donalar' })
+  @IsOptional() @IsBoolean()
+  onlyNew?: boolean;
+
+  @ApiProperty({ required: false, description: 'false - RFID chipsiz oddiy etiketka' })
+  @IsOptional() @IsBoolean()
+  rfid?: boolean;
+}

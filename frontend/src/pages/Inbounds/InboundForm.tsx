@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { ArrowLeft, CheckCircle2, FileInput, ImageOff, ListChecks, RotateCcw, Save, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileInput, ImageOff, ListChecks, Printer, RotateCcw, Save, Search, Trash2 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import Button from "../../components/ui/button/Button";
 import ProductScanInput from "../../components/documents/ProductScanInput";
@@ -14,6 +14,7 @@ import { errorMessage, readJson } from "../../utils/api";
 import { normalizeSearch } from "../../config/modules";
 import { localized } from "../../utils/localized";
 import { CustomerSalesModal, SaleItemsModal } from "./SaleModals";
+import LabelsModal from "./LabelsModal";
 import {
   INBOUND_TYPES, STATUS_STYLE, TYPE_STYLE, formatMoney, formatQuantity, isReturnType, parseNumber,
   type FormItem, type InboundStatus, type InboundType, type SaleDocument, type SaleItem,
@@ -78,6 +79,8 @@ export default function InboundForm() {
   // Sotuvdan tanlash oynalari
   const [saleModal, setSaleModal] = useState<{ number?: string } | null>(null);
   const [isSalesListOpen, setIsSalesListOpen] = useState(false);
+  // Etiketka oynasi: "all" - hujjatdagi hamma tovar, aks holda bitta tovar
+  const [labelTarget, setLabelTarget] = useState<string | null>(null);
 
   const suppliers = useReferenceList<ContractorRef>("/api/suppliers");
   const customers = useReferenceList<ContractorRef>("/api/customers");
@@ -88,6 +91,7 @@ export default function InboundForm() {
   const isDraft = status === "DRAFT";
   const mayEdit = isDraft && (id ? canUpdate("inbound-documents") : canCreate("inbound-documents"));
   const mayApprove = can("approve:inbound-documents");
+  const mayPrint = can("print:inbound-documents");
 
   /* --------------------------------- Yuklash --------------------------------- */
 
@@ -345,6 +349,13 @@ export default function InboundForm() {
     }
   };
 
+  /** Etiketka saqlangan hujjatdan chiqadi - kodlar serverdagi sonlarga bog'lanadi */
+  const openLabels = (target: string) => {
+    if (!id || isDirty) return setError(t("labels.save_first"));
+    setError("");
+    setLabelTarget(target);
+  };
+
   const openSalesList = () => {
     if (!header.contractorId) return setError(t("inbounds.choose_customer_first"));
     setIsSalesListOpen(true);
@@ -499,6 +510,15 @@ export default function InboundForm() {
                       />
                     </div>
                   )}
+                  {mayPrint && items.length > 0 && (
+                    <button
+                      onClick={() => openLabels("all")}
+                      title={t("labels.all_hint")}
+                      className="flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> {t("labels.button")}
+                    </button>
+                  )}
                   {/* Qaytarish va almashinuvda tovar sotuv hujjatidan olinadi */}
                   {isReturn && mayEdit && (
                     <>
@@ -537,13 +557,14 @@ export default function InboundForm() {
                       <th className={`${th} w-32 text-right`}>{t("inbounds.quantity")}</th>
                       <th className={`${th} w-40 text-right`}>{t("inbounds.price")}</th>
                       <th className={`${th} w-40 text-right`}>{t("inbounds.amount")}</th>
+                      {mayPrint && <th className={`${th} w-10`} />}
                       {mayEdit && <th className={`${th} w-10`} />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {shownItems.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-500">
+                        <td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500">
                           {items.length ? t("common.nothing_found") : isReturn ? t("inbounds.empty_return") : t("inbounds.empty_purchase")}
                         </td>
                       </tr>
@@ -600,6 +621,17 @@ export default function InboundForm() {
                               />
                             </td>
                             <td className="px-3 py-2 text-right text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">{formatMoney(quantity * price)}</td>
+                            {mayPrint && (
+                              <td className="px-3 py-2 text-right">
+                                <button
+                                  onClick={() => openLabels(item.materialId)}
+                                  title={t("labels.button")} aria-label={t("labels.button")}
+                                  className="rounded-md bg-brand-50 p-1 text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </button>
+                              </td>
+                            )}
                             {mayEdit && (
                               <td className="px-3 py-2 text-right">
                                 <button onClick={() => removeItem(item.key)} title={t("common.delete")} aria-label={t("common.delete")} className="text-gray-400 hover:text-red-500">
@@ -619,6 +651,7 @@ export default function InboundForm() {
                         <td className="px-3 py-2.5 pr-5 text-right">{formatQuantity(totals.quantity)}</td>
                         <td />
                         <td className="px-3 py-2.5 text-right whitespace-nowrap">{formatMoney(totals.amount)} <span className="text-xs font-normal text-gray-400">{currencyCode}</span></td>
+                        {mayPrint && <td />}
                         {mayEdit && <td />}
                       </tr>
                     </tfoot>
@@ -639,6 +672,14 @@ export default function InboundForm() {
           current={currentReturns}
           onAdd={addFromSale}
           onClose={() => setSaleModal(null)}
+        />
+      )}
+      {labelTarget && id && (
+        <LabelsModal
+          token={token}
+          documentId={id}
+          rows={labelTarget === "all" ? items : items.filter((item) => item.materialId === labelTarget)}
+          onClose={() => setLabelTarget(null)}
         />
       )}
       {isSalesListOpen && (

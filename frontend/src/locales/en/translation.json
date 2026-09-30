@@ -232,7 +232,7 @@
       "desc": "Discount by receipt total"
     },
     "inbounds": {
-      "title": "Inbound",
+      "title": "Inbound documents",
       "desc": "Purchase, return and exchange documents"
     }
   },
@@ -431,7 +431,8 @@
       "delete": "Delete",
       "block": "Block",
       "sell": "Sell",
-      "approve": "Approve"
+      "approve": "Approve",
+      "print": "Print labels"
     }
   },
   "ref": {
@@ -739,5 +740,27 @@
     "already_returned": "{{count}} returned",
     "over_limit": "\"{{name}}\": at most {{count}} can be returned",
     "add_to_document": "Add to document"
+  },
+  "labels": {
+    "title": "Print labels",
+    "hint": "Every single unit gets its own label with a unique RFID code written to the chip",
+    "button": "Labels",
+    "all_hint": "Labels for all products in the document",
+    "size": "Size",
+    "mm": "mm",
+    "write_rfid": "Write RFID code to the chip",
+    "only_new": "Only not yet printed",
+    "units": "Units",
+    "printed": "Printed",
+    "count": "Label count",
+    "no_barcode": "No barcode or SKU — the label will only show the name and RFID code",
+    "total": "Total: {{count}} labels",
+    "print": "Send to printer",
+    "sending": "Sending...",
+    "download": "Download ZPL file",
+    "sent": "{{count}} labels sent to the printer ({{printer}})",
+    "downloaded": "{{count}} labels written to the file",
+    "printer_missing": "Printer address is not configured (backend .env: LABEL_PRINTER_HOST). For now you can download the ZPL file and send it with the printer utility.",
+    "save_first": "Save the document first to print labels"
   }
 }
