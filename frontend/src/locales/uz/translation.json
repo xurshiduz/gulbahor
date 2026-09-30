@@ -987,6 +987,14 @@
     "new_sale": "Yangi chek",
     "receipt": "Chek",
     "cashier": "Kassir",
-    "thanks": "Xaridingiz uchun rahmat!"
+    "thanks": "Xaridingiz uchun rahmat!",
+    "new_customer": "Yangi mijoz",
+    "full_name": "F.I.O",
+    "full_name_placeholder": "Familiya Ism Otasining ismi",
+    "phone_invalid": "Telefon raqamni to'liq kiriting: +998 XX XXX XX XX",
+    "add_and_pick": "Qo'shish va tanlash",
+    "add_as_new": "\"{{value}}\" — yangi mijoz qilib qo'shish",
+    "customer_added": "{{name}} mijozlarga qo'shildi va chekka tanlandi",
+    "customer_exists": "Bu raqam bilan mijoz bor: {{name}} — o'sha tanlandi"
   }
 }

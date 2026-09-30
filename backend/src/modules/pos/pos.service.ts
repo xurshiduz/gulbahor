@@ -12,7 +12,8 @@ import { OutboundDocumentsService } from '../outbound-documents/outbound-documen
 import { StockRow, StockService } from '../stock/stock.service';
 import { CashRegistersService } from '../cash/cash-registers.service';
 import { roundMoney } from '../references/common/numeric';
-import { PosSaleDto } from './dto/pos.dto';
+import { PosCustomerDto, PosSaleDto } from './dto/pos.dto';
+import { CustomersService } from '../contractors/services/contractors.service';
 
 /**
  * Kassa (POS).
@@ -34,7 +35,28 @@ export class PosService {
     private readonly payments: PaymentsService,
     private readonly stock: StockService,
     private readonly cashRegisters: CashRegistersService,
+    private readonly customers: CustomersService,
   ) {}
+
+  /**
+   * Kassada yangi mijoz. Shu telefon raqamli mijoz bor bo'lsa yangisi
+   * yaratilmaydi - o'sha qaytariladi (`existing: true`), kassir uni tanlaydi.
+   */
+  async addCustomer(dto: PosCustomerDto) {
+    const digits = String(dto.phone || '').replace(/\D/g, '');
+    if (digits.length < 9) throw new BadRequestException('Telefon raqam to`liq emas');
+    // Raqam turli ko'rinishda yozilgan bo'lishi mumkin: "+998 90 123-45-67" / "901234567"
+    const found = await this.contractorRepo
+      .createQueryBuilder('c')
+      .where('c.type = :type', { type: ContractorType.CUSTOMER })
+      .andWhere("RIGHT(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), 9) = :tail", { tail: digits.slice(-9) })
+      .getOne();
+    const view = (row: Contractor) => ({ id: row.id, name: row.name, phone: row.phone });
+    if (found) return { ...view(found), existing: true };
+
+    const created = await this.customers.create({ name: dto.name, phone: dto.phone.trim(), birthDate: dto.birthDate } as any);
+    return { ...view(created as Contractor), existing: false };
+  }
 
   /** Kassa ochilganda kerak bo'ladigan hamma narsa: xodimga ochiq kassalar, valyutalar, to'lov turlari */
   async setup(user: any) {

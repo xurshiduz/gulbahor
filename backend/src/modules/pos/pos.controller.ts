@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard, RequirePermission } from '../auth/guards/permissions.guard';
 import { PosService } from './pos.service';
-import { PosSaleDto } from './dto/pos.dto';
+import { PosCustomerDto, PosSaleDto } from './dto/pos.dto';
 
 @ApiTags('POS')
 @ApiBearerAuth()
@@ -26,6 +26,11 @@ export class PosController {
   @Get('scan')
   @RequirePermission('read:pos')
   scan(@Query('code') code: string, @Query('cashRegisterId') cashRegisterId: string, @Req() req: any) { return this.service.scan(code, cashRegisterId, req.user); }
+
+  /** Kassada yangi mijoz (F.I.O, telefon, tug'ilgan kun). Shu raqamli mijoz bor bo'lsa - o'sha qaytadi */
+  @Post('customers')
+  @RequirePermission('sell:pos')
+  addCustomer(@Body() dto: PosCustomerDto) { return this.service.addCustomer(dto); }
 
   /** Chekni yopish: sotuv hujjati + pul tushumi */
   @Post('sales')

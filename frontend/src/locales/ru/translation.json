@@ -987,6 +987,14 @@
     "new_sale": "Новый чек",
     "receipt": "Чек",
     "cashier": "Кассир",
-    "thanks": "Спасибо за покупку!"
+    "thanks": "Спасибо за покупку!",
+    "new_customer": "Новый клиент",
+    "full_name": "Ф.И.О",
+    "full_name_placeholder": "Фамилия Имя Отчество",
+    "phone_invalid": "Введите номер полностью: +998 XX XXX XX XX",
+    "add_and_pick": "Добавить и выбрать",
+    "add_as_new": "«{{value}}» — добавить как нового клиента",
+    "customer_added": "{{name}} добавлен в клиенты и выбран в чек",
+    "customer_exists": "Клиент с этим номером уже есть: {{name}} — выбран он"
   }
 }

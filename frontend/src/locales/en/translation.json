@@ -987,6 +987,14 @@
     "new_sale": "New receipt",
     "receipt": "Receipt",
     "cashier": "Cashier",
-    "thanks": "Thank you for your purchase!"
+    "thanks": "Thank you for your purchase!",
+    "new_customer": "New customer",
+    "full_name": "Full name",
+    "full_name_placeholder": "Last name First name",
+    "phone_invalid": "Enter the full number: +998 XX XXX XX XX",
+    "add_and_pick": "Add and select",
+    "add_as_new": "Add \"{{value}}\" as a new customer",
+    "customer_added": "{{name}} added to customers and selected",
+    "customer_exists": "A customer with this number exists: {{name}} — selected"
   }
 }

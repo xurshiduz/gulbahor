@@ -106,6 +106,8 @@ birinchi bosishda to'liq ekranga o'tadi. Chek yopilganda tasdiqlangan chiqim huj
   tiyinigacha taqsimlanadi - qaytarishda tovar to'langan narxida qaytadi.
 - To'lov bir necha usulda va valyutada; qaytim so'mda. To'liq to'lanmasa - faqat
   mijoz tanlanganda (qarzga).
+- Yangi mijoz kassaning o'zida qo'shiladi: F.I.O, telefon, tug'ilgan kun. Shu raqamli mijoz bor bo'lsa
+  yangisi yaratilmaydi - o'sha tanlanadi.
 - Kechiktirilgan cheklar shu kompyuterda saqlanadi. Tugmalar: F2 qidiruv, F8 kechiktirish, F9 to'lov.
 - Kassaga omborxona biriktirilmagan bo'lsa sotib bo'lmaydi.
 

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayNotEmpty, IsArray, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf, ValidateNested,
+  ArrayMaxSize, ArrayNotEmpty, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested,
 } from 'class-validator';
 
 const filled = (key: string) => (o: any) => o[key] !== null && o[key] !== undefined && o[key] !== '';
@@ -93,4 +93,25 @@ export class PosSaleDto {
   @ApiProperty({ required: false })
   @IsOptional() @IsString() @MaxLength(2000)
   description?: string;
+}
+
+/** Kassada yangi mijoz qo'shish: F.I.O, telefon va tug'ilgan kun */
+export class PosCustomerDto {
+  @ApiProperty({ example: 'Karimova Dilnoza' })
+  @IsString()
+  @IsNotEmpty({ message: 'F.I.O kiritilishi shart' })
+  @MaxLength(160)
+  name: string;
+
+  @ApiProperty({ example: '+998901234567' })
+  @IsString()
+  @IsNotEmpty({ message: 'Telefon raqam kiritilishi shart' })
+  @MaxLength(30)
+  @Matches(/^\+?[\d\s()-]{7,30}$/, { message: 'Telefon raqam notog`ri' })
+  phone: string;
+
+  @ApiProperty({ example: '1990-05-17', description: 'Tug`ilgan kun' })
+  @IsNotEmpty({ message: 'Tug`ilgan kun kiritilishi shart' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Tug`ilgan kun notog`ri' })
+  birthDate: string;
 }

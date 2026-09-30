@@ -657,7 +657,18 @@ export default function Pos() {
         <CustomerModal
           customers={setup.customers}
           selectedId={customerId}
+          auth={auth}
           onPick={(id) => { setCustomerId(id); setModal(""); focusSearch(); }}
+          onCreated={(created, existing) => {
+            // Yangi mijoz ro'yxatga qo'shiladi va darhol chekka tanlanadi
+            if (!setup.customers.some((item) => item.id === created.id)) {
+              setSetup({ ...setup, customers: [...setup.customers, created].sort((a, b) => a.name.localeCompare(b.name)) });
+            }
+            setCustomerId(created.id);
+            setModal("");
+            notify(existing ? t("pos.customer_exists", { name: created.name }) : t("pos.customer_added", { name: created.name }), existing ? "info" : "success");
+            focusSearch();
+          }}
           onClose={() => { setModal(""); focusSearch(); }}
         />
       )}
@@ -776,15 +787,107 @@ function Modal({ title, onClose, children, wide, hideHeader }: { title: string; 
   );
 }
 
-function CustomerModal({ customers, selectedId, onPick, onClose }: {
-  customers: Customer[]; selectedId: string; onPick: (id: string) => void; onClose: () => void;
+/** "+998 90 123 45 67" ko'rinishida: faqat raqamlar, 12 tagacha, bo'shliqlar bilan */
+function formatPhone(value: string) {
+  let digits = value.replace(/\D/g, "");
+  if (!digits.startsWith("998")) digits = `998${digits.replace(/^998/, "")}`;
+  digits = digits.slice(0, 12);
+  const parts = [digits.slice(0, 3), digits.slice(3, 5), digits.slice(5, 8), digits.slice(8, 10), digits.slice(10, 12)].filter(Boolean);
+  return `+${parts.join(" ")}`;
+}
+
+function CustomerModal({ customers, selectedId, auth, onPick, onCreated, onClose }: {
+  customers: Customer[]; selectedId: string; auth: Record<string, string>;
+  onPick: (id: string) => void;
+  onCreated: (customer: Customer, existing: boolean) => void;
+  onClose: () => void;
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
+  const [isNew, setIsNew] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "+998 ", birthDate: "" });
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const q = normalizeSearch(query);
   const digits = query.replace(/\D/g, "");
   const shown = customers.filter((item) =>
     !q || normalizeSearch(item.name).includes(q) || (digits.length >= 3 && (item.phone || "").replace(/\D/g, "").includes(digits))).slice(0, 100);
+
+  /** Qidiruvda yozilgani formaga o'tadi: raqam bo'lsa - telefonga, matn bo'lsa - F.I.O ga */
+  const openNew = () => {
+    const isPhone = digits.length >= 3 && digits.length >= query.replace(/\s/g, "").length - 1;
+    setForm({ name: isPhone ? "" : query.trim(), phone: isPhone ? formatPhone(digits) : "+998 ", birthDate: "" });
+    setError("");
+    setIsNew(true);
+  };
+
+  const save = async () => {
+    const name = form.name.trim();
+    if (!name) return setError(t("ref.required_field", { field: t("pos.full_name") }));
+    if (form.phone.replace(/\D/g, "").length !== 12) return setError(t("pos.phone_invalid"));
+    if (!form.birthDate) return setError(t("ref.required_field", { field: t("contractors.birth_date") }));
+    try {
+      setIsSaving(true);
+      setError("");
+      const res = await fetch("/api/pos/customers", {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone: form.phone.replace(/\s/g, ""), birthDate: form.birthDate }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(errorMessage(data, t("common.save_error")));
+      onCreated({ id: data.id, name: data.name, phone: data.phone }, !!data.existing);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const fieldClass = "h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm focus:border-brand-400 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800";
+
+  if (isNew) {
+    return (
+      <Modal title={t("pos.new_customer")} onClose={onClose}>
+        <form className="space-y-4 p-5" onSubmit={(e) => { e.preventDefault(); save(); }}>
+          <label className="block text-sm font-medium">
+            {t("pos.full_name")} <span className="text-red-500">*</span>
+            <input
+              autoFocus={!form.name} name="name" type="text" maxLength={160} value={form.name}
+              onChange={(e) => { setForm({ ...form, name: e.target.value }); setError(""); }}
+              placeholder={t("pos.full_name_placeholder")}
+              className={`mt-1 ${fieldClass}`}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            {t("profile.phone")} <span className="text-red-500">*</span>
+            <input
+              autoFocus={!!form.name} name="phone" type="tel" inputMode="tel" value={form.phone}
+              onChange={(e) => { setForm({ ...form, phone: formatPhone(e.target.value) }); setError(""); }}
+              className={`mt-1 ${fieldClass} font-mono tracking-wide`}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            {t("contractors.birth_date")} <span className="text-red-500">*</span>
+            <input
+              name="birthDate" type="date" value={form.birthDate} max={dayjs().format("YYYY-MM-DD")}
+              onChange={(e) => { setForm({ ...form, birthDate: e.target.value }); setError(""); }}
+              className={`mt-1 ${fieldClass}`}
+            />
+          </label>
+          {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 dark:bg-red-500/10 dark:text-red-400">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={() => setIsNew(false)} className="h-11 rounded-xl border border-gray-300 px-4 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/5">
+              {t("inbounds.back")}
+            </button>
+            <button type="submit" disabled={isSaving} className="flex h-11 items-center gap-2 rounded-xl bg-brand-500 px-5 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-50">
+              <UserPlus className="h-4 w-4" /> {isSaving ? t("common.saving") : t("pos.add_and_pick")}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={t("pos.pick_customer")} onClose={onClose}>
@@ -797,6 +900,12 @@ function CustomerModal({ customers, selectedId, onPick, onClose }: {
             className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm focus:border-brand-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
           />
         </div>
+        <button
+          onClick={openNew}
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-300 text-sm font-semibold text-brand-600 hover:bg-brand-50 dark:border-brand-500/40 dark:text-brand-400 dark:hover:bg-brand-500/10"
+        >
+          <UserPlus className="h-4 w-4" /> {t("pos.new_customer")}
+        </button>
       </div>
       <ul className="divide-y divide-gray-100 dark:divide-gray-800">
         <li>
@@ -815,7 +924,12 @@ function CustomerModal({ customers, selectedId, onPick, onClose }: {
             </button>
           </li>
         ))}
-        {shown.length === 0 && <li className="p-6 text-center text-sm text-gray-500">{t("common.nothing_found")}</li>}
+        {shown.length === 0 && (
+          <li className="p-6 text-center text-sm text-gray-500">
+            {t("common.nothing_found")}
+            {query.trim() && <button onClick={openNew} className="mt-2 block w-full text-brand-600 hover:underline dark:text-brand-400">{t("pos.add_as_new", { value: query.trim() })}</button>}
+          </li>
+        )}
       </ul>
     </Modal>
   );
