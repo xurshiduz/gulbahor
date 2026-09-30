@@ -1,0 +1,19 @@
+# Bog'liqliklar va yig'ilgan fayllar
+node_modules/
+dist/
+build/
+
+# Muhit sozlamalari - har bir serverda o'ziniki bo'ladi, git'ga tushmaydi
+.env
+.env.*
+!.env.example
+
+# Loglar va vaqtinchalik fayllar
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Tahrirlagich sozlamalari
+.vscode/
+.idea/

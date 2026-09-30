@@ -1,0 +1,13 @@
+# Maxfiy sozlamalar - hech qachon repozitoriyga tushmasin
+.env
+.env.*
+!.env.example
+
+# Zaxira nusxalar
+backups/
+
+node_modules/
+dist/
+uploads/
+*.log
+

@@ -1,0 +1,92 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router";
+import SignIn from "./pages/AuthPages/SignIn";
+import NotFound from "./pages/NotFound";
+import AppLayout from "./layout/AppLayout";
+import { ScrollToTop } from "./components/common/ScrollToTop";
+import Home from "./pages/Dashboard/Home";
+import Users from "./pages/Users/Users";
+import Roles from "./pages/Users/Roles";
+import Profile from "./pages/AuthPages/Profile";
+import Sessions from "./pages/AuthPages/Sessions";
+import Organizations from "./pages/Administration/Organizations";
+import Branches from "./pages/Administration/Branches";
+import Warehouses from "./pages/Administration/Warehouses";
+import Customers from "./pages/Contractors/Customers";
+import Suppliers from "./pages/Contractors/Suppliers";
+import GiftCertificates from "./pages/Marketing/GiftCertificates";
+import { CarouselPromotions, DiscountPromotions, GiftPromotions, ReceiptPromotions } from "./pages/Marketing/Promotions";
+import Currencies from "./pages/Accounting/Currencies";
+import CurrencyRates from "./pages/Accounting/CurrencyRates";
+import { ExpenseTypes, PaymentTypes } from "./pages/Accounting/NamedReference";
+import Materials from "./pages/Materials/Materials";
+import Categories from "./pages/References/Categories";
+import Brands from "./pages/References/Brands";
+import Units from "./pages/References/Units";
+import Colors from "./pages/References/Colors";
+import Sizes from "./pages/References/Sizes";
+import Countries from "./pages/References/Countries";
+import Regions from "./pages/References/Regions";
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <ScrollToTop />
+        <Routes>
+          {/* Dashboard Layout (Protected) */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route index path="/" element={<Home />} />
+              <Route path="/users" element={<Users />} />
+              <Route path="/roles" element={<Roles />} />
+
+              {/* Ma'muriyat */}
+              <Route path="/organizations" element={<Organizations />} />
+              <Route path="/branches" element={<Branches />} />
+              <Route path="/warehouses" element={<Warehouses />} />
+
+              {/* Kontragentlar */}
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/suppliers" element={<Suppliers />} />
+
+              {/* Marketing vositalari */}
+              <Route path="/gift-certificates" element={<GiftCertificates />} />
+              <Route path="/promotions/discounts" element={<DiscountPromotions />} />
+              <Route path="/promotions/gifts" element={<GiftPromotions />} />
+              <Route path="/promotions/carousel" element={<CarouselPromotions />} />
+              <Route path="/promotions/receipt" element={<ReceiptPromotions />} />
+
+              {/* Buhgalteriya */}
+              <Route path="/currencies" element={<Currencies />} />
+              <Route path="/currency-rates" element={<CurrencyRates />} />
+              <Route path="/payment-types" element={<PaymentTypes />} />
+              <Route path="/expense-types" element={<ExpenseTypes />} />
+
+              <Route path="/materials" element={<Materials />} />
+
+              {/* Material ma'lumotlari */}
+              <Route path="/categories" element={<Categories />} />
+              <Route path="/brands" element={<Brands />} />
+              <Route path="/units" element={<Units />} />
+              <Route path="/colors" element={<Colors />} />
+              <Route path="/sizes" element={<Sizes />} />
+              <Route path="/countries" element={<Countries />} />
+              <Route path="/regions" element={<Regions />} />
+
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/sessions" element={<Sessions />} />
+            </Route>
+          </Route>
+
+          {/* Auth Layout */}
+          <Route path="/signin" element={<SignIn />} />
+
+          {/* Fallback Route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+}
