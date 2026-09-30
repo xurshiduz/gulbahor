@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserCircle, ShieldCheck, Building2, GitBranch, Warehouse, Layers, Tag, Ruler, Palette, Shirt, Globe, MapPin,
-  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText,
+  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus,
 } from "lucide-react";
 
 export interface ModuleItem {
@@ -37,6 +37,9 @@ export const MODULES: ModuleItem[] = [
   // Kontragentlar
   { key: "customers", path: "/customers", resource: "customers", icon: <Users />, color: "bg-rose-500" },
   { key: "suppliers", path: "/suppliers", resource: "suppliers", icon: <Truck />, color: "bg-orange-600" },
+
+  // Hujjatlar
+  { key: "inbounds", path: "/inbounds", resource: "inbound-documents", icon: <PackagePlus />, color: "bg-amber-500" },
 
   // Marketing vositalari
   { key: "giftCertificates", path: "/gift-certificates", resource: "gift-certificates", icon: <Gift />, color: "bg-pink-600" },

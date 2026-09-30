@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -17,6 +17,16 @@ export class MaterialsController {
   @Get()
   @RequirePermission('read:materials', 'read:promotions')
   findAll() { return this.service.findAll(); }
+
+  /** Skaner: shtrix-kod yoki artikul bo'yicha bitta tovar (hujjat formalari uchun) */
+  @Get('by-barcode')
+  @RequirePermission('read:materials', 'read:inbound-documents')
+  findByCode(@Query('code') code: string) { return this.service.findByCode(code); }
+
+  /** Qidiruv oynasi: nom / artikul / shtrix-kod / MXIK */
+  @Get('search')
+  @RequirePermission('read:materials', 'read:inbound-documents')
+  search(@Query('q') q?: string, @Query('limit') limit?: string) { return this.service.search(q, Number(limit) || 30); }
 
   @Get(':id')
   @RequirePermission('read:materials', 'read:promotions')

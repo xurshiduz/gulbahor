@@ -53,6 +53,46 @@ export class MaterialsService extends ReferenceService<Material> {
     return sortImages(await super.findOne(id));
   }
 
+  /** Hujjat formalaridagi tanlash uchun yengil ko'rinish (birlik, rang, o'lcham, rasm bilan) */
+  private pickerQuery() {
+    return this.repo
+      .createQueryBuilder('m')
+      .leftJoinAndSelect('m.unit', 'unit')
+      .leftJoinAndSelect('m.color', 'color')
+      .leftJoinAndSelect('m.size', 'size')
+      .leftJoinAndSelect('m.brand', 'brand')
+      .leftJoinAndSelect('m.category', 'category')
+      .leftJoinAndSelect('m.images', 'images')
+      .where('m.isActive = true');
+  }
+
+  /** Skaner: shtrix-kod yoki artikul aynan mos kelgan tovar */
+  async findByCode(code: string) {
+    const value = String(code || '').trim().toLowerCase();
+    if (!value) throw new BadRequestException('Kod kiritilmagan');
+    const material = await this.pickerQuery()
+      .andWhere('(LOWER(m.barcode) = :value OR LOWER(m.sku) = :value)', { value })
+      .getOne();
+    if (!material) throw new NotFoundException(`"${code}" kodli tovar topilmadi`);
+    return sortImages(material);
+  }
+
+  /** Qidiruv oynasi: nom, artikul, shtrix-kod yoki MXIK bo'yicha (har bir so'z alohida izlanadi) */
+  async search(q: string, limit = 30) {
+    const words = String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+    const qb = this.pickerQuery();
+    words.forEach((word, index) => {
+      qb.andWhere(
+        `(LOWER(m.name) LIKE :w${index} OR LOWER(m.sku) LIKE :w${index} OR LOWER(m.barcode) LIKE :w${index} OR m.mxikCode LIKE :w${index})`,
+        // % va _ LIKE da maxsus belgi - oddiy belgi sifatida izlansin
+        { [`w${index}`]: `%${word.replace(/[%_]/g, (ch) => `\\${ch}`)}%` },
+      );
+    });
+    // take() bog'lanishli so'rovda id bo'yicha ikki bosqichda ishlaydi - rasmlar soni natijani qisqartirmaydi
+    const materials = await qb.orderBy('m.name', 'ASC').take(Math.min(Math.max(limit, 1), 100)).getMany();
+    return materials.map(sortImages);
+  }
+
   protected async prepare(dto: DeepPartial<Material>, existing?: Material) {
     const data = trimFields(dto, TEXT_FIELDS);
 

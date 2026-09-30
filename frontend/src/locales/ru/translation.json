@@ -230,6 +230,10 @@
     "receiptPromotions": {
       "title": "Акции на чек",
       "desc": "Скидка по сумме чека"
+    },
+    "inbounds": {
+      "title": "Приход",
+      "desc": "Документы закупки, возврата и обмена"
     }
   },
   "profile": {
@@ -417,7 +421,8 @@
       "suppliers": "Поставщики",
       "materials": "Материалы",
       "gift-certificates": "Подарочные сертификаты",
-      "promotions": "Акции"
+      "promotions": "Акции",
+      "inbound-documents": "Приходные документы"
     },
     "actions": {
       "read": "Просмотр",
@@ -425,7 +430,8 @@
       "update": "Изменение",
       "delete": "Удаление",
       "block": "Блокировка",
-      "sell": "Продажа"
+      "sell": "Продажа",
+      "approve": "Подтверждение"
     }
   },
   "ref": {
@@ -653,5 +659,85 @@
     "status_USED": "Использован",
     "status_CANCELLED": "Аннулирован",
     "status_EXPIRED": "Срок истёк"
+  },
+  "documents": {
+    "scan_placeholder": "Отсканируйте штрих-код и нажмите Enter...",
+    "scan_not_found": "Товар с кодом «{{code}}» не найден",
+    "search_button": "Поиск",
+    "search_placeholder": "Название, артикул, штрих-код или ИКПУ...",
+    "add_more": "Ещё",
+    "search_hint": "Товаров: {{count}} · Esc — закрыть"
+  },
+  "inbounds": {
+    "create": "Создать",
+    "type_PURCHASE": "Закупка",
+    "type_RETURN": "Возврат",
+    "type_EXCHANGE": "Обмен",
+    "type_PURCHASE_desc": "Товар от поставщика",
+    "type_RETURN_desc": "Клиент возвращает купленный товар",
+    "type_EXCHANGE_desc": "Клиент возвращает товар для обмена на другой",
+    "new_PURCHASE": "Новая закупка",
+    "new_RETURN": "Новый возврат",
+    "new_EXCHANGE": "Новый обмен",
+    "new_document": "Новый документ",
+    "all_types": "Все типы",
+    "all_statuses": "Все статусы",
+    "status_DRAFT": "Черновик",
+    "status_APPROVED": "Подтверждён",
+    "list_search": "Номер, контрагент, отправление...",
+    "number": "Номер",
+    "date": "Дата",
+    "type": "Тип",
+    "contractor": "Контрагент",
+    "supplier": "Поставщик",
+    "customer": "Клиент",
+    "warehouse": "Склад",
+    "shipment": "Номер отправления",
+    "currency": "Валюта",
+    "description": "Примечание",
+    "positions": "Позиций",
+    "quantity": "Кол-во",
+    "price": "Цена",
+    "amount": "Сумма",
+    "unit": "Ед.",
+    "total": "Итого",
+    "created_by": "Создал",
+    "approved_by": "Подтвердил",
+    "products": "Товары",
+    "product": "Товар",
+    "summary": "Позиций: {{positions}} · {{quantity}} шт",
+    "items_search": "Поиск по списку...",
+    "empty_purchase": "Товары не добавлены. Отсканируйте штрих-код или выберите через «Поиск».",
+    "empty_return": "Товары не добавлены. Выберите по номеру чека или из продаж клиента.",
+    "unsaved": "несохранённые изменения",
+    "approve": "Подтвердить",
+    "revert": "Вернуть в черновик",
+    "back": "К списку",
+    "approve_confirm": "Подтвердить документ? После подтверждения его нельзя изменить.",
+    "revert_confirm": "Вернуть документ в черновик?",
+    "empty_error": "Нельзя подтвердить документ без товаров",
+    "quantity_error": "«{{name}}»: количество должно быть больше нуля",
+    "price_error": "«{{name}}»: неверная цена",
+    "customer_locked": "После добавления товаров клиента изменить нельзя.",
+    "choose_customer_first": "Сначала выберите клиента",
+    "by_receipt": "По номеру чека",
+    "receipt": "Чек",
+    "customer_sales": "Документы продаж клиента",
+    "customer_sales_search": "Название или штрих-код товара, номер чека...",
+    "customer_sales_empty": "Документы продаж этого клиента не найдены",
+    "returnable_count": "можно вернуть: {{count}}",
+    "fully_returned": "возвращено полностью",
+    "sale_title": "Выбор из документа продажи",
+    "sale_number_placeholder": "Номер чека (документа)",
+    "find": "Найти",
+    "sale_hint": "Введите номер чека — появятся товары документа, и вы укажете возвращаемое количество.",
+    "sale_not_found": "Документ продажи не найден",
+    "sale_other_customer": "Этот чек принадлежит другому клиенту: {{name}}",
+    "sold": "Продано",
+    "returnable": "Можно вернуть",
+    "return_quantity": "Возврат",
+    "already_returned": "возвращено: {{count}}",
+    "over_limit": "«{{name}}»: можно вернуть не более {{count}}",
+    "add_to_document": "Добавить в документ"
   }
 }

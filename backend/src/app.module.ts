@@ -11,6 +11,8 @@ import { AccountingModule } from './modules/accounting/accounting.module';
 import { ContractorsModule } from './modules/contractors/contractors.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
+import { OutboundDocumentsModule } from './modules/outbound-documents/outbound-documents.module';
+import { InboundDocumentsModule } from './modules/inbound-documents/inbound-documents.module';
 import { AppService } from './app.service';
 
 @Module({
@@ -42,6 +44,8 @@ import { AppService } from './app.service';
     ContractorsModule,
     MaterialsModule,
     MarketingModule,
+    OutboundDocumentsModule,
+    InboundDocumentsModule,
   ],
   providers: [AppService],
 })

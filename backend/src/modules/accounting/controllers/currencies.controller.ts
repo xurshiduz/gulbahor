@@ -13,11 +13,11 @@ export class CurrenciesController {
   constructor(private readonly service: CurrenciesService) {}
 
   @Get()
-  @RequirePermission('read:currencies', 'read:currency-rates', 'read:customers', 'read:suppliers')
+  @RequirePermission('read:currencies', 'read:currency-rates', 'read:customers', 'read:suppliers', 'read:inbound-documents')
   findAll() { return this.service.findAll(); }
 
   @Get(':id')
-  @RequirePermission('read:currencies', 'read:currency-rates', 'read:customers', 'read:suppliers')
+  @RequirePermission('read:currencies', 'read:currency-rates', 'read:customers', 'read:suppliers', 'read:inbound-documents')
   findOne(@Param('id', ParseUUIDPipe) id: string) { return this.service.findOne(id); }
 
   @Post()

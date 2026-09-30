@@ -13,11 +13,11 @@ export class SuppliersController {
   constructor(private readonly service: SuppliersService) {}
 
   @Get()
-  @RequirePermission('read:suppliers')
+  @RequirePermission('read:suppliers', 'read:inbound-documents')
   findAll() { return this.service.findAll(); }
 
   @Get(':id')
-  @RequirePermission('read:suppliers')
+  @RequirePermission('read:suppliers', 'read:inbound-documents')
   findOne(@Param('id', ParseUUIDPipe) id: string) { return this.service.findOne(id); }
 
   @Post()

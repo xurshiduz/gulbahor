@@ -58,6 +58,9 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   { resource: 'customers', resourceLabel: 'Mijozlar', actions: FULL },
   { resource: 'suppliers', resourceLabel: 'Yetkazib beruvchilar', actions: FULL },
 
+  // Hujjatlar
+  { resource: 'inbound-documents', resourceLabel: 'Kirim hujjatlari', actions: [...FULL, { action: 'approve', label: 'Tasdiqlash' }] },
+
   // Marketing vositalari
   { resource: 'gift-certificates', resourceLabel: "Sovg'a sertifikatlari", actions: [...FULL, { action: 'sell', label: 'Sotish' }] },
   { resource: 'promotions', resourceLabel: 'Aksiyalar', actions: FULL },

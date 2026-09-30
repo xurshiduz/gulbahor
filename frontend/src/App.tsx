@@ -13,6 +13,8 @@ import Branches from "./pages/Administration/Branches";
 import Warehouses from "./pages/Administration/Warehouses";
 import Customers from "./pages/Contractors/Customers";
 import Suppliers from "./pages/Contractors/Suppliers";
+import InboundsList from "./pages/Inbounds/InboundsList";
+import InboundForm from "./pages/Inbounds/InboundForm";
 import GiftCertificates from "./pages/Marketing/GiftCertificates";
 import { CarouselPromotions, DiscountPromotions, GiftPromotions, ReceiptPromotions } from "./pages/Marketing/Promotions";
 import Currencies from "./pages/Accounting/Currencies";
@@ -50,6 +52,11 @@ export default function App() {
               {/* Kontragentlar */}
               <Route path="/customers" element={<Customers />} />
               <Route path="/suppliers" element={<Suppliers />} />
+
+              {/* Kirim hujjatlari */}
+              <Route path="/inbounds" element={<InboundsList />} />
+              <Route path="/inbounds/create" element={<InboundForm />} />
+              <Route path="/inbounds/:id" element={<InboundForm />} />
 
               {/* Marketing vositalari */}
               <Route path="/gift-certificates" element={<GiftCertificates />} />

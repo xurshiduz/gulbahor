@@ -13,11 +13,11 @@ export class WarehousesController {
   constructor(private readonly service: WarehousesService) {}
 
   @Get()
-  @RequirePermission('read:warehouses')
+  @RequirePermission('read:warehouses', 'read:inbound-documents')
   findAll() { return this.service.findAll(); }
 
   @Get(':id')
-  @RequirePermission('read:warehouses')
+  @RequirePermission('read:warehouses', 'read:inbound-documents')
   findOne(@Param('id', ParseUUIDPipe) id: string) { return this.service.findOne(id); }
 
   @Post()

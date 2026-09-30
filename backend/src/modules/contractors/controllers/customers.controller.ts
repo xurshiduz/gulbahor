@@ -13,11 +13,11 @@ export class CustomersController {
   constructor(private readonly service: CustomersService) {}
 
   @Get()
-  @RequirePermission('read:customers', 'sell:gift-certificates')
+  @RequirePermission('read:customers', 'sell:gift-certificates', 'read:inbound-documents')
   findAll() { return this.service.findAll(); }
 
   @Get(':id')
-  @RequirePermission('read:customers', 'sell:gift-certificates')
+  @RequirePermission('read:customers', 'sell:gift-certificates', 'read:inbound-documents')
   findOne(@Param('id', ParseUUIDPipe) id: string) { return this.service.findOne(id); }
 
   @Post()

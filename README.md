@@ -40,6 +40,7 @@ keyin profildan o'zgartiring.
 | Ma'muriyat: tashkilotlar (rekvizitlar), filiallar, omborxonalar | `backend/src/modules/administration`, `frontend/src/pages/Administration` |
 | Buhgalteriya: valyuta turlari, valyuta kursi, to'lov turlari, harajat turlari | `backend/src/modules/accounting`, `frontend/src/pages/Accounting` |
 | Kontragentlar: mijozlar, yetkazib beruvchilar (mahalliy / import) | `backend/src/modules/contractors`, `frontend/src/pages/Contractors` |
+| Kirim hujjatlari: xarid (skaner + qidiruv), qaytarish va almashinuv (chek raqami yoki mijozning sotuvlaridan tanlash). Chiqim (sotuv) hujjatlari uchun hozircha faqat jadval va qidiruv bor — yaratish formasi hali yo'q | `backend/src/modules/inbound-documents`, `outbound-documents`, `frontend/src/pages/Inbounds`, `frontend/src/components/documents` |
 | Marketing vositalari: sovg'a sertifikatlari (yaratish, sotish, bekor qilish), aksiyalar — chegirma, N+M sovg'a, karusel, chek bo'yicha. Aksiyalar hozircha faqat ta'riflanadi; sotuvda qo'llash sotuv moduli bilan qo'shiladi | `backend/src/modules/marketing`, `frontend/src/pages/Marketing` |
 | Materiallar: xususiyatlar ma'lumotnomalardan, rasmlar (asosiysi belgilanadi), MXIK, TN VED, QQS | `backend/src/modules/materials`, `frontend/src/pages/Materials`; rasmlar `backend/uploads/materials` da |
 | Material ma'lumotlari: kategoriyalar, brendlar, o'lchov birliklari, ranglar, o'lchamlar, davlatlar, viloyatlar | `backend/src/modules/references`, `frontend/src/pages/References` |

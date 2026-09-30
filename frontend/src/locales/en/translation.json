@@ -230,6 +230,10 @@
     "receiptPromotions": {
       "title": "Receipt promotions",
       "desc": "Discount by receipt total"
+    },
+    "inbounds": {
+      "title": "Inbound",
+      "desc": "Purchase, return and exchange documents"
     }
   },
   "profile": {
@@ -417,7 +421,8 @@
       "suppliers": "Suppliers",
       "materials": "Materials",
       "gift-certificates": "Gift certificates",
-      "promotions": "Promotions"
+      "promotions": "Promotions",
+      "inbound-documents": "Inbound documents"
     },
     "actions": {
       "read": "View",
@@ -425,7 +430,8 @@
       "update": "Edit",
       "delete": "Delete",
       "block": "Block",
-      "sell": "Sell"
+      "sell": "Sell",
+      "approve": "Approve"
     }
   },
   "ref": {
@@ -653,5 +659,85 @@
     "status_USED": "Used",
     "status_CANCELLED": "Cancelled",
     "status_EXPIRED": "Expired"
+  },
+  "documents": {
+    "scan_placeholder": "Scan a barcode and press Enter...",
+    "scan_not_found": "No product found with code \"{{code}}\"",
+    "search_button": "Search",
+    "search_placeholder": "Name, SKU, barcode or MXIK...",
+    "add_more": "More",
+    "search_hint": "{{count}} products · Esc to close"
+  },
+  "inbounds": {
+    "create": "Create",
+    "type_PURCHASE": "Purchase",
+    "type_RETURN": "Return",
+    "type_EXCHANGE": "Exchange",
+    "type_PURCHASE_desc": "Goods received from a supplier",
+    "type_RETURN_desc": "A customer returns purchased goods",
+    "type_EXCHANGE_desc": "A customer returns goods to exchange them for others",
+    "new_PURCHASE": "New purchase",
+    "new_RETURN": "New return",
+    "new_EXCHANGE": "New exchange",
+    "new_document": "New document",
+    "all_types": "All types",
+    "all_statuses": "All statuses",
+    "status_DRAFT": "Draft",
+    "status_APPROVED": "Approved",
+    "list_search": "Number, contractor, shipment...",
+    "number": "Number",
+    "date": "Date",
+    "type": "Type",
+    "contractor": "Contractor",
+    "supplier": "Supplier",
+    "customer": "Customer",
+    "warehouse": "Warehouse",
+    "shipment": "Shipment number",
+    "currency": "Currency",
+    "description": "Note",
+    "positions": "Lines",
+    "quantity": "Qty",
+    "price": "Price",
+    "amount": "Amount",
+    "unit": "Unit",
+    "total": "Total",
+    "created_by": "Created by",
+    "approved_by": "Approved by",
+    "products": "Products",
+    "product": "Product",
+    "summary": "{{positions}} lines · {{quantity}} pcs",
+    "items_search": "Search the list...",
+    "empty_purchase": "No products added. Scan a barcode or choose through Search.",
+    "empty_return": "No products added. Choose by receipt number or from the customer's sales.",
+    "unsaved": "unsaved changes",
+    "approve": "Approve",
+    "revert": "Return to draft",
+    "back": "Back to list",
+    "approve_confirm": "Approve this document? Once approved, it can't be changed.",
+    "revert_confirm": "Return this document to draft?",
+    "empty_error": "A document without products can't be approved",
+    "quantity_error": "\"{{name}}\": quantity must be greater than zero",
+    "price_error": "\"{{name}}\": invalid price",
+    "customer_locked": "The customer can't be changed after products are added.",
+    "choose_customer_first": "Choose a customer first",
+    "by_receipt": "By receipt number",
+    "receipt": "Receipt",
+    "customer_sales": "Customer's sales documents",
+    "customer_sales_search": "Product name or barcode, receipt number...",
+    "customer_sales_empty": "No sales documents found for this customer",
+    "returnable_count": "{{count}} can be returned",
+    "fully_returned": "fully returned",
+    "sale_title": "Choose from a sales document",
+    "sale_number_placeholder": "Receipt (document) number",
+    "find": "Find",
+    "sale_hint": "Enter the receipt number — the document's products appear and you enter the quantity to return.",
+    "sale_not_found": "Sales document not found",
+    "sale_other_customer": "This receipt belongs to another customer: {{name}}",
+    "sold": "Sold",
+    "returnable": "Can return",
+    "return_quantity": "Returning",
+    "already_returned": "{{count}} returned",
+    "over_limit": "\"{{name}}\": at most {{count}} can be returned",
+    "add_to_document": "Add to document"
   }
 }

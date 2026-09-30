@@ -230,6 +230,10 @@
     "receiptPromotions": {
       "title": "Chek aksiyalari",
       "desc": "Chek summasi bo'yicha chegirma"
+    },
+    "inbounds": {
+      "title": "Kirim",
+      "desc": "Xarid, qaytarish va almashinuv hujjatlari"
     }
   },
   "profile": {
@@ -417,7 +421,8 @@
       "suppliers": "Yetkazib beruvchilar",
       "materials": "Materiallar",
       "gift-certificates": "Sovg'a sertifikatlari",
-      "promotions": "Aksiyalar"
+      "promotions": "Aksiyalar",
+      "inbound-documents": "Kirim hujjatlari"
     },
     "actions": {
       "read": "Ko'rish",
@@ -425,7 +430,8 @@
       "update": "O'zgartirish",
       "delete": "O'chirish",
       "block": "Bloklash",
-      "sell": "Sotish"
+      "sell": "Sotish",
+      "approve": "Tasdiqlash"
     }
   },
   "ref": {
@@ -653,5 +659,85 @@
     "status_USED": "Ishlatilgan",
     "status_CANCELLED": "Bekor qilingan",
     "status_EXPIRED": "Muddati o'tgan"
+  },
+  "documents": {
+    "scan_placeholder": "Shtrix-kodni skanerlang va Enter bosing...",
+    "scan_not_found": "\"{{code}}\" kodli tovar topilmadi",
+    "search_button": "Qidiruv",
+    "search_placeholder": "Nom, artikul, shtrix-kod yoki MXIK...",
+    "add_more": "Yana",
+    "search_hint": "{{count}} ta tovar · Esc — yopish"
+  },
+  "inbounds": {
+    "create": "Yaratish",
+    "type_PURCHASE": "Xarid",
+    "type_RETURN": "Qaytarish",
+    "type_EXCHANGE": "Almashinuv",
+    "type_PURCHASE_desc": "Yetkazib beruvchidan kelgan tovar",
+    "type_RETURN_desc": "Mijoz sotib olgan tovarni qaytaradi",
+    "type_EXCHANGE_desc": "Mijoz tovarni boshqasiga almashtirish uchun qaytaradi",
+    "new_PURCHASE": "Yangi xarid",
+    "new_RETURN": "Yangi qaytarish",
+    "new_EXCHANGE": "Yangi almashinuv",
+    "new_document": "Yangi hujjat",
+    "all_types": "Barcha turlar",
+    "all_statuses": "Barcha holatlar",
+    "status_DRAFT": "Qoralama",
+    "status_APPROVED": "Tasdiqlangan",
+    "list_search": "Raqam, kontragent, jo'natma...",
+    "number": "Raqami",
+    "date": "Sana",
+    "type": "Turi",
+    "contractor": "Kontragent",
+    "supplier": "Yetkazib beruvchi",
+    "customer": "Mijoz",
+    "warehouse": "Omborxona",
+    "shipment": "Jo'natma raqami",
+    "currency": "Valyuta",
+    "description": "Izoh",
+    "positions": "Pozitsiya",
+    "quantity": "Soni",
+    "price": "Narxi",
+    "amount": "Summa",
+    "unit": "Birlik",
+    "total": "Jami",
+    "created_by": "Yaratdi",
+    "approved_by": "Tasdiqladi",
+    "products": "Tovarlar",
+    "product": "Tovar",
+    "summary": "{{positions}} ta pozitsiya · {{quantity}} dona",
+    "items_search": "Ro'yxatdan qidirish...",
+    "empty_purchase": "Tovar qo'shilmagan. Shtrix-kodni skanerlang yoki \"Qidiruv\" orqali tanlang.",
+    "empty_return": "Tovar qo'shilmagan. Chek raqami yoki mijozning sotuvlari orqali tanlang.",
+    "unsaved": "saqlanmagan o'zgarishlar",
+    "approve": "Tasdiqlash",
+    "revert": "Qoralamaga qaytarish",
+    "back": "Ro'yxatga qaytish",
+    "approve_confirm": "Hujjat tasdiqlansinmi? Tasdiqlangach uni o'zgartirib bo'lmaydi.",
+    "revert_confirm": "Hujjat qoralamaga qaytarilsinmi?",
+    "empty_error": "Tovar qo'shilmagan hujjatni tasdiqlab bo'lmaydi",
+    "quantity_error": "\"{{name}}\": soni noldan katta bo'lishi kerak",
+    "price_error": "\"{{name}}\": narx noto'g'ri",
+    "customer_locked": "Tovar qo'shilgach mijoz o'zgartirilmaydi.",
+    "choose_customer_first": "Avval mijozni tanlang",
+    "by_receipt": "Chek raqami bo'yicha",
+    "receipt": "Chek",
+    "customer_sales": "Mijozning sotuv hujjatlari",
+    "customer_sales_search": "Tovar nomi yoki shtrix-kodi, chek raqami...",
+    "customer_sales_empty": "Bu mijozning sotuv hujjatlari topilmadi",
+    "returnable_count": "{{count}} ta qaytarish mumkin",
+    "fully_returned": "to'liq qaytarilgan",
+    "sale_title": "Sotuv (chiqim) hujjatidan tanlash",
+    "sale_number_placeholder": "Chek (hujjat) raqami",
+    "find": "Topish",
+    "sale_hint": "Chek raqamini kiriting — hujjatdagi tovarlar chiqadi va qaytariladigan sonini yozasiz.",
+    "sale_not_found": "Sotuv hujjati topilmadi",
+    "sale_other_customer": "Bu chek boshqa mijozga tegishli: {{name}}",
+    "sold": "Sotilgan",
+    "returnable": "Qaytarish mumkin",
+    "return_quantity": "Qaytariladi",
+    "already_returned": "{{count}} ta qaytarilgan",
+    "over_limit": "\"{{name}}\": eng ko'pi {{count}} ta qaytarish mumkin",
+    "add_to_document": "Hujjatga qo'shish"
   }
 }
