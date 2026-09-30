@@ -275,6 +275,10 @@
     "marketplaceIntegrations": {
       "title": "Marketplaces",
       "desc": "Uzum Market, Wildberries, Ozon — stock upload"
+    },
+    "inventory": {
+      "title": "Stock count",
+      "desc": "Counting with an RFID scanner, shortage and surplus report"
     }
   },
   "profile": {
@@ -471,7 +475,8 @@
       "cash-registers": "Cash registers",
       "cash-balance": "Cash balance",
       "cash-withdrawals": "Cash withdrawals",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "inventory": "Stock count"
     },
     "actions": {
       "read": "View",
@@ -482,7 +487,8 @@
       "sell": "Sell",
       "approve": "Approve",
       "print": "Print labels",
-      "sync": "Upload stock"
+      "sync": "Upload stock",
+      "scan": "Count (scanner)"
     }
   },
   "ref": {
@@ -1110,5 +1116,73 @@
     "is_cash": "Cash",
     "is_cash_hint": "At the cash desk \"Cash — UZS\" and \"Cash — foreign currency\" are recorded under this type. Only one such type exists.",
     "cash_badge": "cash"
+  },
+  "inventory": {
+    "new": "New stock count",
+    "create": "Create",
+    "start_date": "Start date",
+    "end_date": "End date",
+    "period": "Period",
+    "responsible": "Responsible",
+    "counted": "Counted",
+    "expected": "Expected",
+    "shortage": "Shortage",
+    "surplus": "Surplus",
+    "difference": "Difference",
+    "status_PLANNED": "Planned",
+    "status_IN_PROGRESS": "Counting",
+    "status_COMPLETED": "Completed",
+    "status_CANCELLED": "Cancelled",
+    "start": "Start",
+    "open_scanner": "Open scanner",
+    "finish": "Finish",
+    "reopen": "Reopen",
+    "cancel": "Cancel",
+    "finish_confirm": "Finish the stock count? The result is compared with the warehouse stock and locked.",
+    "reopen_confirm": "Reopen? The report is removed, counted items are kept and counting can continue.",
+    "cancel_confirm": "Cancel the stock count?",
+    "started": "Started",
+    "finished": "Finished",
+    "planned_hint": "Press \"Start\" to begin counting, then open the scanner page on the RFID device.",
+    "planned_future": "Counting is planned to start on {{date}}. You can start now if needed.",
+    "sku_hint": "products",
+    "unknown": "Unknown",
+    "unknown_hint": "tags not printed by us",
+    "scanner_hint": "Open this address in the RFID scanner's browser (while signed in):",
+    "copied": "Copied",
+    "recent_scans": "Recently read",
+    "no_scans": "Nothing counted yet",
+    "unknown_tag": "Unknown tag",
+    "positions": "{{count}} positions",
+    "at_cost": "at cost",
+    "accuracy": "Accuracy",
+    "matched": "{{count}} positions match",
+    "sale_value": "At sale price: shortage {{shortage}} UZS, surplus {{surplus}} UZS",
+    "net": "Net difference (cost): {{value}} UZS",
+    "filter_all": "All",
+    "filter_shortage": "Shortage",
+    "filter_surplus": "Surplus",
+    "filter_match": "Match",
+    "cost_price": "Cost",
+    "diff_cost": "Diff. (cost)",
+    "diff_sale": "Diff. (sale)",
+    "unknown_tags": "Unknown tags: {{count}}",
+    "unknown_tags_hint": "These tags are not among our labels (another store's tag or damaged). Find the item and reprint its label.",
+    "scanner": "scanner",
+    "offline": "Offline",
+    "not_started": "The stock count has not started yet.",
+    "closed": "This stock count is closed — counting is not accepted.",
+    "view_report": "View report",
+    "scan_placeholder": "RFID tag or barcode...",
+    "session": "New: {{fresh}} · repeats: {{duplicate}}",
+    "pending": "Sending {{count}} codes",
+    "pending_first": "Wait until all codes are sent",
+    "scan_hint": "Press the scanner trigger and sweep over the items",
+    "undo": "Undo last",
+    "scan_new": "New",
+    "scan_duplicate": "Repeat",
+    "scan_unknown": "Unknown",
+    "scan_barcode": "+1",
+    "scan_not_found": "Not found"
   }
 }

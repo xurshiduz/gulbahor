@@ -43,6 +43,7 @@ keyin profildan o'zgartiring.
 | Kirim hujjatlari: xarid (skaner + qidiruv), qaytarish va almashinuv (chek raqami yoki mijozning sotuvlaridan tanlash) | `backend/src/modules/inbound-documents`, `frontend/src/pages/Inbounds`, `frontend/src/components/documents` |
 | Chiqim hujjatlari — barcha sotuvlar: mijoz, omborxona, izoh, tovarlar (skaner + qidiruv, soni, sotuv narxi); tasdiqlangach kirimda undan qaytarish qilinadi | `backend/src/modules/outbound-documents`, `frontend/src/pages/Outbounds` |
 | Ombor qoldig'i: filial / omborxona / umumiy; SKU, dona, kirim va sotuv summasi, kutilayotgan foyda, omborlar kesimi | `backend/src/modules/stock`, `frontend/src/pages/Stock` |
+| Inventarizatsiya: filial, ombor, sanalar, mas'ul; RFID skaner (brauzer) yoki shtrix-kod bilan sanash; kamomad / ortiqcha hisoboti | `backend/src/modules/inventory`, `frontend/src/pages/Inventory` |
 | Kassa (POS): alohida to'liq ekranli oyna — skaner, kategoriya va o'lcham filtri, chegirmalar, kechiktirilgan cheklar, bir necha usul va valyutada to'lov, qaytim, qarzga sotish, 80 mm chek | `backend/src/modules/pos`, `frontend/src/pages/Pos` |
 | Integratsiyalar: to'lov (Payme, Click Pass, UDS, Arca, Uzum) va marketpleyslarga qoldiq (Uzum Market, Wildberries, Ozon); kalitlar bazada shifrlangan | `backend/src/modules/integrations`, `frontend/src/pages/Integrations` |
 | Etiketka va RFID: kirim hujjatidagi har bir dona uchun alohida etiketka va takrorlanmas RFID kodi (EPC); ZPL ko'rinishida RFID printerga (Chainway CP30) yuboriladi yoki fayl qilib yuklab olinadi | `backend/src/modules/inbound-documents/labels`, `entities/rfid-tag.entity.ts`, `frontend/src/pages/Inbounds/LabelsModal.tsx` |
@@ -95,6 +96,24 @@ Alohida qoldiq jadvali yo'q: qoldiq **tasdiqlangan** kirim (+) va chiqim (-)
 hujjatlaridan hisoblanadi. Kirim summasi - o'rtacha kirim narxida (valyutadagi xarid
 hujjat sanasidagi kurs bilan so'mga o'giriladi), sotuv summasi - tovar kartochkasidagi
 sotuv narxida (kiritilmagan bo'lsa oxirgi sotilgan narxda).
+
+## Inventarizatsiya
+
+1. Yaratiladi: filial, ombor, rejadagi boshlash / tugash sanasi, mas'ul. Bitta omborda bir vaqtda
+   bitta ochiq inventarizatsiya bo'ladi.
+2. "Boshlash" dan keyin RFID skaner qurilmasining brauzerida  ochiladi
+   (tafsilot sahifasida manzil va nusxalash tugmasi bor). Skaner "klaviatura" rejimida ishlaydi:
+   o'qilgan har bir kod + Enter. Kodlar to'planib har 0.4 soniyada yuboriladi, tarmoq uzilsa
+   qurilmada saqlanib qayta yuboriladi.
+   - RFID metka (EPC) - har dona bir marta sanaladi, takror o'qishlar jim o'tkaziladi. EPC kichik
+     harfda, bo'shliq bilan yoki oldida PC so'zi bilan (28 / 32 hex) kelsa ham tanadi.
+   - Metka etiketka chop etishda yaratilgan  bo'yicha tovarga bog'lanadi; bizda
+     yo'q metka "noma'lum" deb alohida ko'rsatiladi.
+   - Shtrix-kod yoki artikul - har skanerlash +1 dona. "Oxirgisini bekor qilish" tugmasi bor.
+3. "Tugatish" - omborning tizimdagi qoldig'i bilan solishtirilib natija qotiriladi: bo'lishi
+   kerak, sanaldi, kamomad va ortiqcha (dona, tannarx va sotuv narxida), aniqlik %. CSV va chop
+   etish bor. "Qayta ochish" - natija o'chadi, sanalganlar qoladi.
+- Hisobot qoldiqni o'zgartirmaydi (hisobdan chiqarish / kirim hujjati hali yo'q).
 
 ## Kassa (POS)
 

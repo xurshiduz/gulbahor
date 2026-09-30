@@ -20,7 +20,10 @@ import { useAuth } from "../../context/AuthContext";
  * MODULES'da yo'q, lekin huquqqa bog'liq sahifalar. `action` berilsa
  * "Ko'rish" o'rniga o'sha harakat ham yetarli.
  */
-const EXTRA_ROUTES: { path: string; resource: string; action?: string }[] = [];
+const EXTRA_ROUTES: { path: string; resource: string; action?: string }[] = [
+  // Faqat sanash huquqi bor xodim ham skaner sahifasini ochadi
+  { path: "/inventory", resource: "inventory", action: "scan" },
+];
 
 /** Bosh sahifa va shaxsiy sahifalar - huquqsiz ham ochiq */
 const OPEN_PATHS = ["/", "/profile", "/sessions"];

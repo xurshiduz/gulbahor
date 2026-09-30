@@ -25,6 +25,9 @@ import CashBalance from "./pages/Cash/CashBalance";
 import CashWithdrawals from "./pages/Cash/CashWithdrawals";
 import PermissionGate from "./components/auth/PermissionGate";
 import { MarketplaceIntegrations, PaymentIntegrations } from "./pages/Integrations/Integrations";
+import InventoryList from "./pages/Inventory/InventoryList";
+import InventoryDetail from "./pages/Inventory/InventoryDetail";
+import InventoryScan from "./pages/Inventory/InventoryScan";
 import GiftCertificates from "./pages/Marketing/GiftCertificates";
 import { CarouselPromotions, DiscountPromotions, GiftPromotions, ReceiptPromotions } from "./pages/Marketing/Promotions";
 import Currencies from "./pages/Accounting/Currencies";
@@ -74,8 +77,10 @@ export default function App() {
               <Route path="/outbounds/create" element={<OutboundForm />} />
               <Route path="/outbounds/:id" element={<OutboundForm />} />
 
-              {/* Ombor qoldig'i */}
+              {/* Ombor qoldig'i va inventarizatsiya */}
               <Route path="/stock" element={<Stock />} />
+              <Route path="/inventory" element={<InventoryList />} />
+              <Route path="/inventory/:id" element={<InventoryDetail />} />
 
               {/* Marketing vositalari */}
               <Route path="/gift-certificates" element={<GiftCertificates />} />
@@ -115,6 +120,8 @@ export default function App() {
 
             {/* Kassa (POS) - menyusiz, to'liq ekranli alohida oyna */}
             <Route path="/pos" element={<PermissionGate><Pos /></PermissionGate>} />
+            {/* Inventarizatsiya skaneri - RFID qurilma brauzeri uchun, menyusiz */}
+            <Route path="/inventory/:id/scan" element={<PermissionGate><InventoryScan /></PermissionGate>} />
           </Route>
 
           {/* Auth Layout */}

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { GridIcon, UserCircleIcon, ChevronDownIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { usePermissions } from "../hooks/usePermissions";
-import { Boxes, Building2, Calculator, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Plug, Users } from "lucide-react";
+import { Boxes, Building2, Calculator, ClipboardList, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Plug, Users } from "lucide-react";
 import { openPos } from "../utils/pos";
 
 /**
@@ -104,6 +104,12 @@ const AppSidebar: React.FC = () => {
       name: t("modules.stock.title"),
       path: "/stock",
       resource: "stock",
+    },
+    {
+      icon: <ClipboardList />,
+      name: t("modules.inventory.title"),
+      path: "/inventory",
+      resource: "inventory",
     },
     {
       icon: <MonitorSmartphone />,

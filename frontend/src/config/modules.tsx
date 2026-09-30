@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserCircle, ShieldCheck, Building2, GitBranch, Warehouse, Layers, Tag, Ruler, Palette, Shirt, Globe, MapPin,
-  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet, Boxes, MonitorSmartphone, Landmark, BarChart3, HandCoins, ArrowDownLeft, Plug, Store,
+  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet, Boxes, MonitorSmartphone, Landmark, BarChart3, HandCoins, ArrowDownLeft, Plug, Store, ClipboardList,
 } from "lucide-react";
 
 export interface ModuleItem {
@@ -44,6 +44,7 @@ export const MODULES: ModuleItem[] = [
 
   { key: "outbounds", path: "/outbounds", resource: "outbound-documents", icon: <PackageMinus />, color: "bg-emerald-600" },
   { key: "stock", path: "/stock", resource: "stock", icon: <Boxes />, color: "bg-indigo-600" },
+  { key: "inventory", path: "/inventory", resource: "inventory", icon: <ClipboardList />, color: "bg-cyan-700" },
   { key: "pos", path: "/pos", resource: "pos", icon: <MonitorSmartphone />, color: "bg-brand-600" },
 
   // Marketing vositalari

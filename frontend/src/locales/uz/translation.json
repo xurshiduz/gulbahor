@@ -275,6 +275,10 @@
     "marketplaceIntegrations": {
       "title": "Marketpleyslar",
       "desc": "Uzum Market, Wildberries, Ozon - qoldiqni yuborish"
+    },
+    "inventory": {
+      "title": "Inventarizatsiya",
+      "desc": "RFID skaner bilan sanash, kamomad va ortiqcha hisoboti"
     }
   },
   "profile": {
@@ -471,7 +475,8 @@
       "cash-registers": "Kassalar",
       "cash-balance": "Kassadagi qoldiq",
       "cash-withdrawals": "Kassadan olingan pul",
-      "integrations": "Integratsiyalar"
+      "integrations": "Integratsiyalar",
+      "inventory": "Inventarizatsiya"
     },
     "actions": {
       "read": "Ko'rish",
@@ -482,7 +487,8 @@
       "sell": "Sotish",
       "approve": "Tasdiqlash",
       "print": "Etiketka chop etish",
-      "sync": "Qoldiqni yuborish"
+      "sync": "Qoldiqni yuborish",
+      "scan": "Sanash (skaner)"
     }
   },
   "ref": {
@@ -1110,5 +1116,73 @@
     "is_cash": "Naqd pul",
     "is_cash_hint": "Kassada \"Naqd — so'm\" va \"Naqd — valyuta\" shu turga yoziladi. Bunday tur bittagina bo'ladi.",
     "cash_badge": "naqd"
+  },
+  "inventory": {
+    "new": "Yangi inventarizatsiya",
+    "create": "Yaratish",
+    "start_date": "Boshlash sanasi",
+    "end_date": "Tugash sanasi",
+    "period": "Muddati",
+    "responsible": "Mas'ul",
+    "counted": "Sanaldi",
+    "expected": "Bo'lishi kerak",
+    "shortage": "Kamomad",
+    "surplus": "Ortiqcha",
+    "difference": "Farq",
+    "status_PLANNED": "Rejalashtirilgan",
+    "status_IN_PROGRESS": "Sanalmoqda",
+    "status_COMPLETED": "Tugatilgan",
+    "status_CANCELLED": "Bekor qilingan",
+    "start": "Boshlash",
+    "open_scanner": "Skanerni ochish",
+    "finish": "Tugatish",
+    "reopen": "Qayta ochish",
+    "cancel": "Bekor qilish",
+    "finish_confirm": "Inventarizatsiya tugatilsinmi? Ombordagi qoldiq bilan solishtirilib hisobot qotiriladi.",
+    "reopen_confirm": "Qayta ochilsinmi? Hisobot o'chiriladi, sanalganlar saqlanadi va sanashni davom ettirish mumkin.",
+    "cancel_confirm": "Inventarizatsiya bekor qilinsinmi?",
+    "started": "Boshlandi",
+    "finished": "Tugatildi",
+    "planned_hint": "Sanashni boshlash uchun \"Boshlash\" tugmasini bosing. Keyin RFID skaner qurilmasida skaner sahifasini oching.",
+    "planned_future": "Rejaga ko'ra sanash {{date}} kuni boshlanadi. Kerak bo'lsa hozir ham boshlash mumkin.",
+    "sku_hint": "tovar turi",
+    "unknown": "Noma'lum",
+    "unknown_hint": "bizda chop etilmagan metkalar",
+    "scanner_hint": "RFID skaner qurilmasining brauzerida shu manzilni oching (tizimga kirgan holda):",
+    "copied": "Nusxalandi",
+    "recent_scans": "Oxirgi o'qilganlar",
+    "no_scans": "Hali hech narsa sanalmadi",
+    "unknown_tag": "Noma'lum metka",
+    "positions": "{{count}} ta pozitsiya",
+    "at_cost": "tannarxda",
+    "accuracy": "Aniqlik",
+    "matched": "{{count}} ta pozitsiya mos keldi",
+    "sale_value": "Sotuv narxida: kamomad {{shortage}} so'm, ortiqcha {{surplus}} so'm",
+    "net": "Sof farq (tannarx): {{value}} so'm",
+    "filter_all": "Hammasi",
+    "filter_shortage": "Kamomad",
+    "filter_surplus": "Ortiqcha",
+    "filter_match": "Mos",
+    "cost_price": "Tannarx",
+    "diff_cost": "Farq (tannarx)",
+    "diff_sale": "Farq (sotuv)",
+    "unknown_tags": "Noma'lum metkalar: {{count}} ta",
+    "unknown_tags_hint": "Bu metkalar bizning etiketkalarimizda yo'q (boshqa do'kon metkasi yoki shikastlangan). Tovarni topib, etiketkasini qayta chop eting.",
+    "scanner": "skaner",
+    "offline": "Tarmoq yo'q",
+    "not_started": "Inventarizatsiya hali boshlanmagan.",
+    "closed": "Bu inventarizatsiya yopilgan - sanash qabul qilinmaydi.",
+    "view_report": "Hisobotni ko'rish",
+    "scan_placeholder": "RFID metka yoki shtrix-kod...",
+    "session": "Yangi: {{fresh}} · takror: {{duplicate}}",
+    "pending": "{{count}} ta kod yuborilmoqda",
+    "pending_first": "Hamma kodlar yuborilishini kuting",
+    "scan_hint": "Skaner tugmasini bosib, tovarlar ustidan yurgizing",
+    "undo": "Oxirgisini bekor qilish",
+    "scan_new": "Yangi",
+    "scan_duplicate": "Takror",
+    "scan_unknown": "Noma'lum",
+    "scan_barcode": "+1",
+    "scan_not_found": "Topilmadi"
   }
 }

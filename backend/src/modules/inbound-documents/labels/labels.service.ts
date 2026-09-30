@@ -5,6 +5,7 @@ import { In, Repository } from 'typeorm';
 import { InboundDocument } from '../entities/inbound-document.entity';
 import { InboundDocumentItem } from '../entities/inbound-document-item.entity';
 import { RfidTag } from '../entities/rfid-tag.entity';
+import { normalizeEpc } from './epc';
 import { DEFAULT_LABEL_SIZE, LABEL_SIZES, LabelData, buildLabelZpl } from './zpl';
 
 /** Bir martada chop etiladigan etiketkalar chegarasi - xato bilan minglab yuborilmasin */
@@ -229,7 +230,7 @@ export class LabelsService {
   /** RFID kodi bo'yicha tovarni topadi (skaner o'qigan EPC -> qaysi tovar, qaysi kirim) */
   async findByEpc(epc: string) {
     const tag = await this.tagRepo.findOne({
-      where: { epc: String(epc || '').trim().toUpperCase() },
+      where: { epc: normalizeEpc(epc) || String(epc || '').trim().toUpperCase() },
       relations: { material: { unit: true, color: true, size: true, brand: true }, inboundDocument: true },
     });
     if (!tag) throw new NotFoundException('Bunday RFID kod topilmadi');

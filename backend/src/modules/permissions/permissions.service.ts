@@ -64,6 +64,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
 
   { resource: 'outbound-documents', resourceLabel: 'Chiqim hujjatlari', actions: [...FULL, { action: 'approve', label: 'Tasdiqlash' }] },
   { resource: 'stock', resourceLabel: "Ombor qoldig'i", actions: [VIEW] },
+  { resource: 'inventory', resourceLabel: 'Inventarizatsiya', actions: [...FULL, { action: 'scan', label: 'Sanash (skaner)' }] },
   { resource: 'pos', resourceLabel: 'Kassa (POS)', actions: [VIEW, { action: 'sell', label: 'Sotish' }] },
   { resource: 'integrations', resourceLabel: 'Integratsiyalar', actions: [VIEW, UPDATE, { action: 'sync', label: 'Qoldiqni yuborish' }] },
 
