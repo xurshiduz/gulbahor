@@ -101,13 +101,13 @@ sotuv narxida (kiritilmagan bo'lsa oxirgi sotilgan narxda).
 
 1. Yaratiladi: filial, ombor, rejadagi boshlash / tugash sanasi, mas'ul. Bitta omborda bir vaqtda
    bitta ochiq inventarizatsiya bo'ladi.
-2. "Boshlash" dan keyin RFID skaner qurilmasining brauzerida  ochiladi
+2. "Boshlash" dan keyin RFID skaner qurilmasining brauzerida `/inventory/<id>/scan` ochiladi
    (tafsilot sahifasida manzil va nusxalash tugmasi bor). Skaner "klaviatura" rejimida ishlaydi:
    o'qilgan har bir kod + Enter. Kodlar to'planib har 0.4 soniyada yuboriladi, tarmoq uzilsa
    qurilmada saqlanib qayta yuboriladi.
    - RFID metka (EPC) - har dona bir marta sanaladi, takror o'qishlar jim o'tkaziladi. EPC kichik
      harfda, bo'shliq bilan yoki oldida PC so'zi bilan (28 / 32 hex) kelsa ham tanadi.
-   - Metka etiketka chop etishda yaratilgan  bo'yicha tovarga bog'lanadi; bizda
+   - Metka etiketka chop etishda yaratilgan `rfid_tags` bo'yicha tovarga bog'lanadi; bizda
      yo'q metka "noma'lum" deb alohida ko'rsatiladi.
    - Shtrix-kod yoki artikul - har skanerlash +1 dona. "Oxirgisini bekor qilish" tugmasi bor.
 3. "Tugatish" - omborning tizimdagi qoldig'i bilan solishtirilib natija qotiriladi: bo'lishi
