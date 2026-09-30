@@ -18,6 +18,7 @@ import { CashModule } from './modules/cash/cash.module';
 import { PosModule } from './modules/pos/pos.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { AppService } from './app.service';
 
 @Module({
@@ -56,6 +57,7 @@ import { AppService } from './app.service';
     PosModule,
     IntegrationsModule,
     InventoryModule,
+    ReportsModule,
   ],
   providers: [AppService],
 })

@@ -37,6 +37,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     resourceLabel: 'Bosh sahifa',
     actions: [VIEW],
   },
+  // Bosh sahifadagi rahbar hisoboti: butun kompaniya savdosi, foydasi, harajatlari
+  { resource: 'executive-report', resourceLabel: 'Rahbar hisoboti', actions: [VIEW] },
   {
     resource: 'users',
     resourceLabel: 'Foydalanuvchilar',
