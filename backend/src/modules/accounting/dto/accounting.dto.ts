@@ -1,6 +1,7 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { ExpenseTarget } from '../entities/expense-type.entity';
+import { PaymentDirection } from '../entities/payment.entity';
 
 const filled = (key: string) => (o: any) => o[key] !== null && o[key] !== undefined && o[key] !== '';
 
@@ -80,23 +81,33 @@ export class UpdateExpenseTypeDto extends PartialType(CreateExpenseTypeDto) {}
 
 /* ---------------------------------- To'lovlar --------------------------------- */
 
-/** Yaratish va o'zgartirishda bir xil - to'lov har doim to'liq yuboriladi */
+/** Yaratish va o'zgartirishda bir xil - yozuv har doim to'liq yuboriladi */
 export class PaymentDto {
+  @ApiProperty({ required: false, enum: PaymentDirection, description: 'EXPENSE - harajat (sukut), INCOME - pul tushumi' })
+  @IsOptional()
+  @IsIn(Object.values(PaymentDirection), { message: 'Yozuv turi notog`ri' })
+  direction?: PaymentDirection;
   @ApiProperty({ required: false, example: '2026-09-30', description: 'Bo`sh bo`lsa - bugun' })
   @IsOptional() @ValidateIf(filled('paymentDate'))
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Sana YYYY-MM-DD ko`rinishida bo`lishi kerak' })
   paymentDate?: string;
 
-  @ApiProperty()
-  @IsUUID('4', { message: 'Harajat turi tanlanishi shart' })
-  expenseTypeId: string;
+  @ApiProperty({ required: false, description: 'Harajatda shart' })
+  @IsOptional() @ValidateIf(filled('expenseTypeId'))
+  @IsUUID('4', { message: 'Harajat turi notog`ri tanlangan' })
+  expenseTypeId?: string;
 
   @ApiProperty({ required: false, nullable: true, description: 'Harajat turi kirim hujjatiga bog`langan bo`lsa' })
   @IsOptional() @ValidateIf(filled('inboundDocumentId'))
   @IsUUID('4', { message: 'Kirim hujjati notog`ri tanlangan' })
   inboundDocumentId?: string | null;
 
-  @ApiProperty({ required: false, nullable: true, description: 'Harajat turi yetkazib beruvchi yoki mijozga bog`langan bo`lsa' })
+  @ApiProperty({ required: false, nullable: true, description: 'Tushum: pul qaysi sotuv bo`yicha tushdi' })
+  @IsOptional() @ValidateIf(filled('outboundDocumentId'))
+  @IsUUID('4', { message: 'Chiqim hujjati notog`ri tanlangan' })
+  outboundDocumentId?: string | null;
+
+  @ApiProperty({ required: false, nullable: true, description: 'Harajatda bog`lanishga qarab; tushumda - kimdan' })
   @IsOptional() @ValidateIf(filled('contractorId'))
   @IsUUID('4', { message: 'Kontragent notog`ri tanlangan' })
   contractorId?: string | null;
@@ -105,6 +116,10 @@ export class PaymentDto {
   @IsOptional() @ValidateIf(filled('paymentTypeId'))
   @IsUUID('4', { message: 'To`lov turi notog`ri tanlangan' })
   paymentTypeId?: string | null;
+
+  @ApiProperty({ description: 'Pul qaysi kassaga tushdi / qaysi kassadan chiqdi' })
+  @IsUUID('4', { message: 'Kassa tanlanishi shart' })
+  cashRegisterId: string;
 
   @ApiProperty()
   @IsUUID('4', { message: 'Valyuta tanlanishi shart' })

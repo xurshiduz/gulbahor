@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserCircle, ShieldCheck, Building2, GitBranch, Warehouse, Layers, Tag, Ruler, Palette, Shirt, Globe, MapPin,
-  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet,
+  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet, Boxes, MonitorSmartphone, Landmark, BarChart3, HandCoins, ArrowDownLeft,
 } from "lucide-react";
 
 export interface ModuleItem {
@@ -33,6 +33,7 @@ export const MODULES: ModuleItem[] = [
   { key: "organizations", path: "/organizations", resource: "organizations", icon: <Building2 />, color: "bg-slate-600" },
   { key: "branches", path: "/branches", resource: "branches", icon: <GitBranch />, color: "bg-blue-500" },
   { key: "warehouses", path: "/warehouses", resource: "warehouses", icon: <Warehouse />, color: "bg-amber-600" },
+  { key: "cashRegisters", path: "/cash-registers", resource: "cash-registers", icon: <Landmark />, color: "bg-emerald-700" },
 
   // Kontragentlar
   { key: "customers", path: "/customers", resource: "customers", icon: <Users />, color: "bg-rose-500" },
@@ -42,6 +43,8 @@ export const MODULES: ModuleItem[] = [
   { key: "inbounds", path: "/inbounds", resource: "inbound-documents", icon: <PackagePlus />, color: "bg-amber-500" },
 
   { key: "outbounds", path: "/outbounds", resource: "outbound-documents", icon: <PackageMinus />, color: "bg-emerald-600" },
+  { key: "stock", path: "/stock", resource: "stock", icon: <Boxes />, color: "bg-indigo-600" },
+  { key: "pos", path: "/pos", resource: "pos", icon: <MonitorSmartphone />, color: "bg-brand-600" },
 
   // Marketing vositalari
   { key: "giftCertificates", path: "/gift-certificates", resource: "gift-certificates", icon: <Gift />, color: "bg-pink-600" },
@@ -51,7 +54,10 @@ export const MODULES: ModuleItem[] = [
   { key: "receiptPromotions", path: "/promotions/receipt", resource: "promotions", icon: <ReceiptText />, color: "bg-amber-600" },
 
   // Buhgalteriya
-  { key: "payments", path: "/payments", resource: "payments", icon: <Wallet />, color: "bg-teal-600" },
+  { key: "expenses", path: "/expenses", resource: "payments", icon: <Wallet />, color: "bg-red-600" },
+  { key: "receipts", path: "/receipts", resource: "payments", icon: <ArrowDownLeft />, color: "bg-green-600" },
+  { key: "cashBalance", path: "/cash-balance", resource: "cash-balance", icon: <BarChart3 />, color: "bg-teal-600" },
+  { key: "cashWithdrawals", path: "/cash-withdrawals", resource: "cash-withdrawals", icon: <HandCoins />, color: "bg-amber-500" },
   { key: "currencies", path: "/currencies", resource: "currencies", icon: <Coins />, color: "bg-yellow-600" },
   { key: "currencyRates", path: "/currency-rates", resource: "currency-rates", icon: <TrendingUp />, color: "bg-emerald-500" },
   { key: "paymentTypes", path: "/payment-types", resource: "payment-types", icon: <CreditCard />, color: "bg-green-600" },

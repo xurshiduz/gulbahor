@@ -28,9 +28,10 @@ export class CreateOutboundDocumentDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Sana notog`ri' })
   documentDate?: string;
 
-  @ApiProperty()
-  @IsUUID('4', { message: 'Mijoz tanlanishi shart' })
-  customerId: string;
+  @ApiProperty({ required: false, nullable: true, description: 'Kassada bo`sh bo`lishi mumkin - chakana xaridor' })
+  @IsOptional() @ValidateIf(filled('customerId'))
+  @IsUUID('4', { message: 'Mijoz notog`ri tanlangan' })
+  customerId?: string | null;
 
   @ApiProperty()
   @IsUUID('4', { message: 'Omborxona tanlanishi shart' })

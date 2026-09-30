@@ -69,6 +69,13 @@ export class CreateMaterialDto {
   @Min(0) @Max(100)
   vatRate?: number | null;
 
+  @ApiProperty({ required: false, nullable: true, example: 350000, description: 'Sotuv narxi (so`m) - kassada shu narx' })
+  @IsOptional() @ValidateIf((o) => o.salePrice !== null)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Sotuv narxi son bo`lishi kerak' })
+  @Min(0, { message: 'Sotuv narxi manfiy bo`lmaydi' })
+  @Max(9999999999999)
+  salePrice?: number | null;
+
   @ApiProperty({ required: false, default: false, description: 'Majburiy raqamli markirovka' })
   @IsOptional() @IsBoolean()
   isMarked?: boolean;

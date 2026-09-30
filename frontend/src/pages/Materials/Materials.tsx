@@ -50,6 +50,7 @@ interface Material {
   packageCode: string | null;
   tnvedCode: string | null;
   vatRate: number | null;
+  salePrice: number | null;
   isMarked: boolean;
   isActive: boolean;
   images: MaterialImage[];
@@ -68,7 +69,7 @@ const VAT_RATES = ["0", "12"];
 
 const BLANK = {
   name: "", sku: "", barcode: "", categoryId: "", unitId: "", brandId: "", colorId: "", sizeId: "", countryId: "",
-  description: "", mxikCode: "", packageCode: "", tnvedCode: "", vatRate: "", isMarked: false, isActive: true,
+  description: "", mxikCode: "", packageCode: "", tnvedCode: "", vatRate: "", salePrice: "", isMarked: false, isActive: true,
 };
 type Form = typeof BLANK;
 
@@ -208,6 +209,7 @@ export default function Materials() {
       sizeId: row.sizeId || "", countryId: row.countryId || "", description: row.description || "",
       mxikCode: row.mxikCode || "", packageCode: row.packageCode || "", tnvedCode: row.tnvedCode || "",
       vatRate: row.vatRate === null ? "" : String(row.vatRate), isMarked: row.isMarked, isActive: row.isActive,
+      salePrice: row.salePrice === null || row.salePrice === undefined ? "" : String(row.salePrice),
     } : BLANK);
     const saved: FormImage[] = (row?.images || []).map((image) => ({ key: image.id, kind: "saved", id: image.id, url: image.url }));
     setImages(saved);
@@ -272,6 +274,7 @@ export default function Materials() {
       sizeId: form.sizeId || null,
       countryId: form.countryId || null,
       vatRate: form.vatRate === "" ? null : Number(form.vatRate),
+      salePrice: form.salePrice === "" ? null : Number(String(form.salePrice).replace(/\s/g, "").replace(",", ".")),
     };
 
     const request = async (url: string, init: RequestInit) => {
@@ -571,6 +574,14 @@ export default function Materials() {
                   <input ref={fileInput} type="file" accept={IMAGE_TYPES.join(",")} multiple hidden onChange={pickFiles} />
                   <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("materials.image_hint", { count: MAX_IMAGES })}</p>
                 </div>
+
+                <Field label={t("materials.sale_price")} hint={t("materials.sale_price_hint")} half>
+                  <input
+                    type="text" inputMode="decimal" value={form.salePrice} placeholder="350000"
+                    onChange={(e) => set("salePrice", e.target.value.replace(/[^\d.,\s]/g, ""))}
+                    className={`${inputClass} text-right font-semibold`}
+                  />
+                </Field>
 
                 <SectionTitle>{t("materials.section_tax")}</SectionTitle>
                 <Field label={t("materials.mxik")} hint={t("materials.mxik_hint")} half>

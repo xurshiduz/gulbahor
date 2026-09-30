@@ -53,6 +53,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   { resource: 'organizations', resourceLabel: 'Tashkilotlar', actions: FULL },
   { resource: 'branches', resourceLabel: 'Filiallar', actions: FULL },
   { resource: 'warehouses', resourceLabel: 'Omborxonalar', actions: FULL },
+  { resource: 'cash-registers', resourceLabel: 'Kassalar', actions: FULL },
 
   // Kontragentlar
   { resource: 'customers', resourceLabel: 'Mijozlar', actions: FULL },
@@ -62,6 +63,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   { resource: 'inbound-documents', resourceLabel: 'Kirim hujjatlari', actions: [...FULL, { action: 'approve', label: 'Tasdiqlash' }, { action: 'print', label: 'Etiketka chop etish' }] },
 
   { resource: 'outbound-documents', resourceLabel: 'Chiqim hujjatlari', actions: [...FULL, { action: 'approve', label: 'Tasdiqlash' }] },
+  { resource: 'stock', resourceLabel: "Ombor qoldig'i", actions: [VIEW] },
+  { resource: 'pos', resourceLabel: 'Kassa (POS)', actions: [VIEW, { action: 'sell', label: 'Sotish' }] },
 
   // Marketing vositalari
   { resource: 'gift-certificates', resourceLabel: "Sovg'a sertifikatlari", actions: [...FULL, { action: 'sell', label: 'Sotish' }] },
@@ -72,7 +75,9 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   { resource: 'currency-rates', resourceLabel: 'Valyuta kursi', actions: FULL },
   { resource: 'payment-types', resourceLabel: "To'lov turlari", actions: FULL },
   { resource: 'expense-types', resourceLabel: 'Harajat turlari', actions: FULL },
-  { resource: 'payments', resourceLabel: "To'lovlar", actions: FULL },
+  { resource: 'payments', resourceLabel: "Harajat va pul tushumlari", actions: FULL },
+  { resource: 'cash-balance', resourceLabel: "Kassadagi qoldiq", actions: [VIEW] },
+  { resource: 'cash-withdrawals', resourceLabel: 'Kassadan olingan pul', actions: [VIEW, CREATE, DELETE] },
 
   // Materiallar
   { resource: 'materials', resourceLabel: 'Materiallar', actions: FULL },

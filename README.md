@@ -37,11 +37,13 @@ keyin profildan o'zgartiring.
 | Avtobloklash PIN kod | `frontend/src/components/auth/ScreenLock.tsx`, `context/AuthContext.tsx` |
 | Kirish tarixi va bildirishnomalar | `login_history` jadvali, `frontend/src/pages/AuthPages/Sessions.tsx` |
 | Tillar: o'zbek, rus, ingliz | `frontend/src/i18n.ts`, `frontend/src/locales/*/translation.json` |
-| Ma'muriyat: tashkilotlar (rekvizitlar), filiallar, omborxonalar | `backend/src/modules/administration`, `frontend/src/pages/Administration` |
-| Buhgalteriya: to'lovlar (harajatlar), valyuta turlari, valyuta kursi, to'lov turlari, harajat turlari (bog'lanishi bilan) | `backend/src/modules/accounting`, `frontend/src/pages/Accounting` |
+| Ma'muriyat: tashkilotlar (rekvizitlar), filiallar, omborxonalar, kassalar (kassirlari va sotuv ombori bilan) | `backend/src/modules/administration`, `cash`, `frontend/src/pages/Administration`, `pages/Cash/CashRegisters.tsx` |
+| Buhgalteriya: harajatlar, pul tushumlari, kassadagi qoldiq (sanadan-sanagacha), kassadan olingan pul, valyuta turlari va kursi, to'lov turlari, harajat turlari (bog'lanishi bilan) | `backend/src/modules/accounting`, `cash`, `frontend/src/pages/Accounting`, `pages/Cash` |
 | Kontragentlar: mijozlar, yetkazib beruvchilar (mahalliy / import) | `backend/src/modules/contractors`, `frontend/src/pages/Contractors` |
 | Kirim hujjatlari: xarid (skaner + qidiruv), qaytarish va almashinuv (chek raqami yoki mijozning sotuvlaridan tanlash) | `backend/src/modules/inbound-documents`, `frontend/src/pages/Inbounds`, `frontend/src/components/documents` |
 | Chiqim hujjatlari — barcha sotuvlar: mijoz, omborxona, izoh, tovarlar (skaner + qidiruv, soni, sotuv narxi); tasdiqlangach kirimda undan qaytarish qilinadi | `backend/src/modules/outbound-documents`, `frontend/src/pages/Outbounds` |
+| Ombor qoldig'i: filial / omborxona / umumiy; SKU, dona, kirim va sotuv summasi, kutilayotgan foyda, omborlar kesimi | `backend/src/modules/stock`, `frontend/src/pages/Stock` |
+| Kassa (POS): alohida to'liq ekranli oyna — skaner, kategoriya va o'lcham filtri, chegirmalar, kechiktirilgan cheklar, bir necha usul va valyutada to'lov, qaytim, qarzga sotish, 80 mm chek | `backend/src/modules/pos`, `frontend/src/pages/Pos` |
 | Etiketka va RFID: kirim hujjatidagi har bir dona uchun alohida etiketka va takrorlanmas RFID kodi (EPC); ZPL ko'rinishida RFID printerga (Chainway CP30) yuboriladi yoki fayl qilib yuklab olinadi | `backend/src/modules/inbound-documents/labels`, `entities/rfid-tag.entity.ts`, `frontend/src/pages/Inbounds/LabelsModal.tsx` |
 | Marketing vositalari: sovg'a sertifikatlari (yaratish, sotish, bekor qilish), aksiyalar — chegirma, N+M sovg'a, karusel, chek bo'yicha. Aksiyalar hozircha faqat ta'riflanadi; sotuvda qo'llash sotuv moduli bilan qo'shiladi | `backend/src/modules/marketing`, `frontend/src/pages/Marketing` |
 | Materiallar: xususiyatlar ma'lumotnomalardan, rasmlar (asosiysi belgilanadi), MXIK, TN VED, QQS | `backend/src/modules/materials`, `frontend/src/pages/Materials`; rasmlar `backend/uploads/materials` da |
@@ -61,18 +63,51 @@ berilgan sahifa yetarli.
 3. Tarjima: uchala `locales/*/translation.json` ga `modules.<key>` va
    `permissions.resources.<resurs>` yozing.
 
-## To'lovlar
+## Harajatlar va pul tushumlari
 
-Harajat turida **bog'lanish** tanlanadi: umumiy, kirim hujjatiga, yetkazib beruvchiga
-yoki mijozga. To'lov (Buhgalteriya -> To'lovlar) kiritilganda shunga qarab kirim
-hujjati yoki kontragent so'raladi; kirim hujjatiga to'lovda kontragent hujjatdan olinadi.
+Ikkalasi bitta `payments` jadvalida, `direction` (EXPENSE / INCOME) bilan. Har bir
+yozuv **kassaga** bog'lanadi - kassadagi qoldiq shundan hisoblanadi.
 
-- Summa to'lov valyutasida yoziladi. So'mda kurs kerak emas.
+- Harajat: harajat turida **bog'lanish** tanlanadi - umumiy, kirim hujjatiga,
+  yetkazib beruvchiga yoki mijozga; kiritilganda shunga qarab hujjat yoki kontragent
+  so'raladi (kirim hujjatida kontragent hujjatdan olinadi).
+- Pul tushumi: chiqim (sotuv) hujjati bo'yicha yoki to'g'ridan-to'g'ri kontragentdan.
+- Summa o'z valyutasida yoziladi. So'mda kurs kerak emas.
 - Boshqa valyutada kurs to'lov sanasidagi amaldagi kursdan (shu sanagacha kiritilgan
   oxirgisi) o'zi to'ldiriladi va o'zgartirilishi mumkin; so'mdagi summa (summa x kurs,
   qo'lda tuzatsa bo'ladi) to'lov bilan birga saqlanadi - kurs keyin o'zgarsa ham
   to'lov qancha so'm bo'lgani o'zgarmaydi.
-- To'lov yozilgan kirim hujjati, harajat turi va kontragent o'chirilmaydi.
+- Pul yozilgan kirim / chiqim hujjati, harajat turi, kassa va kontragent o'chirilmaydi.
+
+## Kassalar va kassadagi qoldiq
+
+- **Kassalar** (Ma'muriyat): filialga tegishli, kassirlari va sotuv ombori bilan.
+  Kassiri belgilanmagan kassa hammaga ochiq; administratorlar hamma kassani ko'radi.
+- **Kassadagi qoldiq**: kassa x valyuta x to'lov turi bo'yicha, har biri o'z valyutasida.
+  Sana oralig'ida: boshidagi qoldiq, tushum, harajat, olingan pul va oxiridagi qoldiq.
+- **Kassadan olingan pul**: kim, qaysi kassirdan, qancha olgani; olingan paytdagi va
+  kassada qolgan summa saqlanadi. Qoldiqdan ko'p olib bo'lmaydi.
+
+## Ombor qoldig'i
+
+Alohida qoldiq jadvali yo'q: qoldiq **tasdiqlangan** kirim (+) va chiqim (-)
+hujjatlaridan hisoblanadi. Kirim summasi - o'rtacha kirim narxida (valyutadagi xarid
+hujjat sanasidagi kurs bilan so'mga o'giriladi), sotuv summasi - tovar kartochkasidagi
+sotuv narxida (kiritilmagan bo'lsa oxirgi sotilgan narxda).
+
+## Kassa (POS)
+
+Menyudagi yoki yuqori paneldagi "Kassa" tugmasi `/pos` ni alohida oynada ochadi,
+birinchi bosishda to'liq ekranga o'tadi. Chek yopilganda tasdiqlangan chiqim hujjati
+(`CH..`) va har bir to'lov usuli bo'yicha pul tushumi kassaga yoziladi.
+
+- Narx - material kartochkasidagi **sotuv narxi**; chekda o'zgartirsa bo'ladi.
+- Qator chegirmasi (%) va chek chegirmasi (% yoki so'm); chek chegirmasi qatorlarga
+  tiyinigacha taqsimlanadi - qaytarishda tovar to'langan narxida qaytadi.
+- To'lov bir necha usulda va valyutada; qaytim so'mda. To'liq to'lanmasa - faqat
+  mijoz tanlanganda (qarzga).
+- Kechiktirilgan cheklar shu kompyuterda saqlanadi. Tugmalar: F2 qidiruv, F8 kechiktirish, F9 to'lov.
+- Kassaga omborxona biriktirilmagan bo'lsa sotib bo'lmaydi.
 
 ## Etiketka va RFID
 

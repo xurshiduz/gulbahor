@@ -13,6 +13,9 @@ import { MaterialsModule } from './modules/materials/materials.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { OutboundDocumentsModule } from './modules/outbound-documents/outbound-documents.module';
 import { InboundDocumentsModule } from './modules/inbound-documents/inbound-documents.module';
+import { StockModule } from './modules/stock/stock.module';
+import { CashModule } from './modules/cash/cash.module';
+import { PosModule } from './modules/pos/pos.module';
 import { AppService } from './app.service';
 
 @Module({
@@ -46,6 +49,9 @@ import { AppService } from './app.service';
     MarketingModule,
     OutboundDocumentsModule,
     InboundDocumentsModule,
+    StockModule,
+    CashModule,
+    PosModule,
   ],
   providers: [AppService],
 })

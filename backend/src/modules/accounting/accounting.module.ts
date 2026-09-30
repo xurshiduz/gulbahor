@@ -17,13 +17,20 @@ import { PaymentsService } from './services/payments.service';
 import { PaymentsController } from './controllers/payments.controller';
 import { Contractor } from '../contractors/entities/contractor.entity';
 import { InboundDocument } from '../inbound-documents/entities/inbound-document.entity';
+import { OutboundDocument } from '../outbound-documents/entities/outbound-document.entity';
+import { CashRegister } from '../cash/entities/cash-register.entity';
+import { CashModule } from '../cash/cash.module';
 import { AccountingSeedService } from './accounting-seed.service';
 
-/** Buhgalteriya: valyuta turlari, valyuta kurslari, to'lov turlari, harajat turlari, to'lovlar */
+/** Buhgalteriya: valyutalar va kurslar, to'lov va harajat turlari, harajatlar va pul tushumlari */
 @Module({
-  imports: [TypeOrmModule.forFeature([Currency, CurrencyRate, PaymentType, ExpenseType, Payment, Contractor, InboundDocument])],
+  imports: [
+    TypeOrmModule.forFeature([Currency, CurrencyRate, PaymentType, ExpenseType, Payment, Contractor, InboundDocument, OutboundDocument, CashRegister]),
+    // Pul harakati kassaga yoziladi - kassaga ruxsat shu yerdan tekshiriladi
+    CashModule,
+  ],
   providers: [CurrenciesService, CurrencyRatesService, PaymentTypesService, ExpenseTypesService, PaymentsService, AccountingSeedService],
   controllers: [CurrenciesController, CurrencyRatesController, PaymentTypesController, ExpenseTypesController, PaymentsController],
-  exports: [CurrenciesService, CurrencyRatesService, PaymentTypesService, ExpenseTypesService, AccountingSeedService],
+  exports: [CurrenciesService, CurrencyRatesService, PaymentTypesService, ExpenseTypesService, PaymentsService, AccountingSeedService],
 })
 export class AccountingModule {}

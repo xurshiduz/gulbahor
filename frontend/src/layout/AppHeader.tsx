@@ -7,9 +7,15 @@ import UserDropdown from "../components/header/UserDropdown";
 import LanguageDropdown from "../components/header/LanguageDropdown";
 import SearchModal from "../components/header/SearchModal";
 import ImpersonationBanner from "../components/header/ImpersonationBanner";
+import { useTranslation } from "react-i18next";
+import { MonitorSmartphone } from "lucide-react";
+import { usePermissions } from "../hooks/usePermissions";
+import { openPos } from "../utils/pos";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
+  const { t } = useTranslation();
+  const { canView } = usePermissions();
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
   const handleToggle = () => {
@@ -70,6 +76,16 @@ const AppHeader: React.FC = () => {
           } items-center justify-between w-full gap-3 px-4 py-2 lg:flex shadow-theme-md lg:justify-end lg:px-0 lg:shadow-none`}
         >
           <div className="flex items-center gap-1.5">
+            {/* Kassa - alohida to'liq ekranli oynada */}
+            {canView("pos") && (
+              <button
+                onClick={openPos}
+                className="mr-1 flex h-9 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-600"
+              >
+                <MonitorSmartphone className="h-4 w-4" />
+                {t("pos.open")}
+              </button>
+            )}
             <LanguageDropdown />
             {/* Sinxronizatsiya va Tozalash - Administratsiya -> Tizim boshqarish sahifasiga ko'chdi */}
             <ThemeToggleButton />

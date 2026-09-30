@@ -124,6 +124,9 @@ export class OutboundDocumentsService {
       const customer = await this.contractorRepo.findOne({ where: { id: dto.customerId, type: ContractorType.CUSTOMER } });
       if (!customer) throw new NotFoundException('Mijoz topilmadi');
       header.customerId = customer.id;
+    } else if (dto.customerId === null) {
+      // Kassadagi chakana sotuv - mijoz ko'rsatilmaydi
+      header.customerId = null;
     }
     if (dto.warehouseId) {
       const warehouse = await this.warehouseRepo.findOne({ where: { id: dto.warehouseId } });
@@ -136,9 +139,7 @@ export class OutboundDocumentsService {
     }
     if (dto.description !== undefined) header.description = String(dto.description || '').trim() || null;
 
-    if (!existing && (!header.customerId || !header.warehouseId)) {
-      throw new BadRequestException('Mijoz va omborxona tanlanishi shart');
-    }
+    if (!existing && !header.warehouseId) throw new BadRequestException('Omborxona tanlanishi shart');
     return header;
   }
 
@@ -181,7 +182,7 @@ export class OutboundDocumentsService {
     if (!document) throw new NotFoundException('Chiqim hujjati topilmadi');
     if (document.status === OutboundDocumentStatus.APPROVED) return this.findOne(id);
     if (!document.items.length) throw new BadRequestException('Tovar qo`shilmagan hujjatni tasdiqlab bo`lmaydi');
-    if (!document.customerId || !document.warehouseId) throw new BadRequestException('Mijoz va omborxona tanlanishi shart');
+    if (!document.warehouseId) throw new BadRequestException('Omborxona tanlanishi shart');
 
     await this.documentRepo.update(id, { status: OutboundDocumentStatus.APPROVED, approvedById: userId || null, approvedAt: new Date() });
     return this.findOne(id);
@@ -212,7 +213,15 @@ export class OutboundDocumentsService {
       throw new BadRequestException('Tasdiqlangan hujjatni o`chirib bo`lmaydi - avval qoralamaga qaytaring');
     }
     if (await this.hasReturns(id)) throw new BadRequestException('Bu hujjat bo`yicha qaytarish qilingan - uni o`chirib bo`lmaydi');
-    await this.documentRepo.remove(document);
+    try {
+      await this.documentRepo.remove(document);
+    } catch (error: any) {
+      // 23503 - hujjatga pul tushumi bog'langan
+      if (error?.code === '23503' || error?.driverError?.code === '23503') {
+        throw new BadRequestException('Bu hujjat bo`yicha pul tushumi yozilgan - avval uni o`chiring');
+      }
+      throw error;
+    }
     return { success: true };
   }
 

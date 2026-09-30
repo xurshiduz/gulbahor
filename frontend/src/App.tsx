@@ -17,7 +17,13 @@ import InboundsList from "./pages/Inbounds/InboundsList";
 import InboundForm from "./pages/Inbounds/InboundForm";
 import OutboundsList from "./pages/Outbounds/OutboundsList";
 import OutboundForm from "./pages/Outbounds/OutboundForm";
-import Payments from "./pages/Accounting/Payments";
+import { Expenses, Receipts } from "./pages/Accounting/Payments";
+import Stock from "./pages/Stock/Stock";
+import Pos from "./pages/Pos/Pos";
+import CashRegisters from "./pages/Cash/CashRegisters";
+import CashBalance from "./pages/Cash/CashBalance";
+import CashWithdrawals from "./pages/Cash/CashWithdrawals";
+import PermissionGate from "./components/auth/PermissionGate";
 import GiftCertificates from "./pages/Marketing/GiftCertificates";
 import { CarouselPromotions, DiscountPromotions, GiftPromotions, ReceiptPromotions } from "./pages/Marketing/Promotions";
 import Currencies from "./pages/Accounting/Currencies";
@@ -51,6 +57,7 @@ export default function App() {
               <Route path="/organizations" element={<Organizations />} />
               <Route path="/branches" element={<Branches />} />
               <Route path="/warehouses" element={<Warehouses />} />
+              <Route path="/cash-registers" element={<CashRegisters />} />
 
               {/* Kontragentlar */}
               <Route path="/customers" element={<Customers />} />
@@ -66,6 +73,9 @@ export default function App() {
               <Route path="/outbounds/create" element={<OutboundForm />} />
               <Route path="/outbounds/:id" element={<OutboundForm />} />
 
+              {/* Ombor qoldig'i */}
+              <Route path="/stock" element={<Stock />} />
+
               {/* Marketing vositalari */}
               <Route path="/gift-certificates" element={<GiftCertificates />} />
               <Route path="/promotions/discounts" element={<DiscountPromotions />} />
@@ -74,7 +84,10 @@ export default function App() {
               <Route path="/promotions/receipt" element={<ReceiptPromotions />} />
 
               {/* Buhgalteriya */}
-              <Route path="/payments" element={<Payments />} />
+              <Route path="/expenses" element={<Expenses />} />
+              <Route path="/receipts" element={<Receipts />} />
+              <Route path="/cash-balance" element={<CashBalance />} />
+              <Route path="/cash-withdrawals" element={<CashWithdrawals />} />
               <Route path="/currencies" element={<Currencies />} />
               <Route path="/currency-rates" element={<CurrencyRates />} />
               <Route path="/payment-types" element={<PaymentTypes />} />
@@ -94,6 +107,9 @@ export default function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/sessions" element={<Sessions />} />
             </Route>
+
+            {/* Kassa (POS) - menyusiz, to'liq ekranli alohida oyna */}
+            <Route path="/pos" element={<PermissionGate><Pos /></PermissionGate>} />
           </Route>
 
           {/* Auth Layout */}

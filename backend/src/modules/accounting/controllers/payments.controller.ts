@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard, RequirePermission } from '../../auth/guards/permissions.guard';
 import { PaymentsService } from '../services/payments.service';
 import { PaymentDto } from '../dto/accounting.dto';
+import { PaymentDirection } from '../entities/payment.entity';
 
 @ApiTags('Accounting')
 @ApiBearerAuth()
@@ -12,19 +13,22 @@ import { PaymentDto } from '../dto/accounting.dto';
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
+  /** direction: EXPENSE - harajatlar (sukut bo'yicha), INCOME - pul tushumlari */
   @Get()
   @RequirePermission('read:payments')
-  findAll() { return this.service.findAll(); }
+  findAll(@Query('direction') direction?: string) {
+    return this.service.findAll(direction === PaymentDirection.INCOME ? PaymentDirection.INCOME : PaymentDirection.EXPENSE);
+  }
 
   /** Sanadagi amaldagi kurs - formada kurs maydonini to'ldirish uchun */
   @Get('rate')
   @RequirePermission('read:payments')
   rate(@Query('currencyId', ParseUUIDPipe) currencyId: string, @Query('date') date?: string) { return this.service.rateFor(currencyId, date); }
 
-  /** Forma uchun tanlovlar: harajat turlari, valyutalar, kontragentlar, kirim hujjatlari */
+  /** Forma uchun tanlovlar: harajat turlari, valyutalar, kontragentlar, kirim va chiqim hujjatlari */
   @Get('options')
   @RequirePermission('read:payments')
-  options() { return this.service.options(); }
+  options(@Req() req: any) { return this.service.options(req.user); }
 
   @Get(':id')
   @RequirePermission('read:payments')
@@ -32,11 +36,11 @@ export class PaymentsController {
 
   @Post()
   @RequirePermission('create:payments')
-  create(@Body() dto: PaymentDto, @Req() req: any) { return this.service.create(dto, req.user?.id); }
+  create(@Body() dto: PaymentDto, @Req() req: any) { return this.service.create(dto, req.user); }
 
   @Put(':id')
   @RequirePermission('update:payments')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PaymentDto) { return this.service.update(id, dto); }
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PaymentDto, @Req() req: any) { return this.service.update(id, dto, req.user); }
 
   @Delete(':id')
   @RequirePermission('delete:payments')

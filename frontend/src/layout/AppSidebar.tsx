@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import { GridIcon, UserCircleIcon, ChevronDownIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { usePermissions } from "../hooks/usePermissions";
-import { Building2, Calculator, Layers, Megaphone, Package, PackageMinus, PackagePlus, Users } from "lucide-react";
+import { Boxes, Building2, Calculator, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Users } from "lucide-react";
+import { openPos } from "../utils/pos";
 
 /**
  * Menyu punkti. `resource` - shu bo'limni ko'rish huquqi (bo'lmasa hammaga
@@ -22,6 +23,8 @@ interface NavItem {
   icon?: React.ReactNode;
   name: string;
   path?: string;
+  /** Bosilganda alohida oynada ochiladi (kassa) */
+  onOpen?: () => void;
   resource?: string;
   permission?: string;
   subItems?: NavSubItem[];
@@ -73,6 +76,7 @@ const AppSidebar: React.FC = () => {
         { name: t("modules.organizations.title"), path: "/organizations", resource: "organizations" },
         { name: t("modules.branches.title"), path: "/branches", resource: "branches" },
         { name: t("modules.warehouses.title"), path: "/warehouses", resource: "warehouses" },
+        { name: t("modules.cashRegisters.title"), path: "/cash-registers", resource: "cash-registers" },
       ],
     },
     {
@@ -96,6 +100,19 @@ const AppSidebar: React.FC = () => {
       resource: "outbound-documents",
     },
     {
+      icon: <Boxes />,
+      name: t("modules.stock.title"),
+      path: "/stock",
+      resource: "stock",
+    },
+    {
+      icon: <MonitorSmartphone />,
+      name: t("modules.pos.title"),
+      path: "/pos",
+      resource: "pos",
+      onOpen: openPos,
+    },
+    {
       icon: <Megaphone />,
       name: t("sidebar.marketing"),
       subItems: [
@@ -110,7 +127,10 @@ const AppSidebar: React.FC = () => {
       icon: <Calculator />,
       name: t("sidebar.accounting"),
       subItems: [
-        { name: t("modules.payments.title"), path: "/payments", resource: "payments" },
+        { name: t("modules.expenses.title"), path: "/expenses", resource: "payments" },
+        { name: t("modules.receipts.title"), path: "/receipts", resource: "payments" },
+        { name: t("modules.cashBalance.title"), path: "/cash-balance", resource: "cash-balance" },
+        { name: t("modules.cashWithdrawals.title"), path: "/cash-withdrawals", resource: "cash-withdrawals" },
         { name: t("modules.currencies.title"), path: "/currencies", resource: "currencies" },
         { name: t("modules.currencyRates.title"), path: "/currency-rates", resource: "currency-rates" },
         { name: t("modules.paymentTypes.title"), path: "/payment-types", resource: "payment-types" },
@@ -263,7 +283,11 @@ const AppSidebar: React.FC = () => {
                     ) : (
                       <Link
                         to={nav.path!}
-                        onClick={closeOnMobile}
+                        onClick={(event) => {
+                          // Kassa alohida to'liq ekranli oynada ochiladi
+                          if (nav.onOpen) { event.preventDefault(); nav.onOpen(); }
+                          closeOnMobile();
+                        }}
                         className={`menu-item group ${
                           isActive(nav.path!) ? "menu-item-active" : "menu-item-inactive"
                         }`}

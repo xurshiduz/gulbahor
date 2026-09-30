@@ -95,6 +95,10 @@ export class Material {
   @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true, transformer: numeric })
   vatRate: number;
 
+  /** Sotuv narxi (so'm) - kassada shu narx chiqadi */
+  @Column({ type: 'numeric', precision: 18, scale: 2, nullable: true, transformer: numeric })
+  salePrice: number;
+
   /** Majburiy raqamli markirovka (DataMatrix) talab qilinadigan tovar */
   @Column({ default: false })
   isMarked: boolean;
