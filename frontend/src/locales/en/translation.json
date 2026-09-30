@@ -46,7 +46,8 @@
     "material_data": "Material data",
     "accounting": "Accounting",
     "contractors": "Contractors",
-    "marketing": "Marketing tools"
+    "marketing": "Marketing tools",
+    "integrations": "Integrations"
   },
   "access": {
     "denied_text": "Your role doesn't include permission to view this page. Contact an administrator if you need access.",
@@ -266,6 +267,14 @@
     "receipts": {
       "title": "Money received",
       "desc": "Money from sales and counterparties"
+    },
+    "paymentIntegrations": {
+      "title": "Payment integrations",
+      "desc": "Payme, Click Pass, UDS, Arca, Uzum"
+    },
+    "marketplaceIntegrations": {
+      "title": "Marketplaces",
+      "desc": "Uzum Market, Wildberries, Ozon — stock upload"
     }
   },
   "profile": {
@@ -461,7 +470,8 @@
       "pos": "Cash desk (POS)",
       "cash-registers": "Cash registers",
       "cash-balance": "Cash balance",
-      "cash-withdrawals": "Cash withdrawals"
+      "cash-withdrawals": "Cash withdrawals",
+      "integrations": "Integrations"
     },
     "actions": {
       "read": "View",
@@ -471,7 +481,8 @@
       "block": "Block",
       "sell": "Sell",
       "approve": "Approve",
-      "print": "Print labels"
+      "print": "Print labels",
+      "sync": "Upload stock"
     }
   },
   "ref": {
@@ -995,6 +1006,95 @@
     "add_and_pick": "Add and select",
     "add_as_new": "Add \"{{value}}\" as a new customer",
     "customer_added": "{{name}} added to customers and selected",
-    "customer_exists": "A customer with this number exists: {{name}} — selected"
+    "customer_exists": "A customer with this number exists: {{name}} — selected",
+    "int_paid": "{{provider}}: paid",
+    "int_cancel": "Cancel",
+    "int_wait": "Waiting for payment confirmation...",
+    "int_wait_payme": "Receipt sent to {{phone}} — wait for the customer to pay in the Payme app...",
+    "int_click_code": "Scan the Click Pass code",
+    "int_charge": "Charge",
+    "int_send_receipt": "Send receipt",
+    "int_uds_code": "UDS code (6 digits)",
+    "int_uds_check": "Check",
+    "int_uds_balance": "Balance: {{points}} · can spend: {{max}}",
+    "int_uds_spend": "Spend points",
+    "int_uds_check_first": "Check the UDS code first",
+    "int_uds_max": "At most {{count}} points can be spent",
+    "int_rrn": "RRN from the terminal slip",
+    "int_confirm": "Confirm",
+    "int_rrn_required": "Enter the RRN / transaction number from the terminal slip",
+    "int_manual_hint": "First complete the payment via {{provider}}, then enter the number from the slip",
+    "int_amount_required": "Enter the amount",
+    "int_not_paid": "Payment via {{provider}} is not complete",
+    "int_close_confirm": "Completed payments will be cancelled (money goes back to the customer). Close?"
+  },
+  "integrations": {
+    "intro_PAYMENT": "Accept payments right at the cash desk. Keys are stored in the database, encrypted.",
+    "intro_MARKETPLACE": "Upload stock from your warehouses to marketplaces — manually or automatically. Products are matched by barcode (Ozon — by SKU).",
+    "desc_PAYME": "The receipt is sent to the customer's phone and paid in the Payme app",
+    "desc_CLICK": "Scan the Click Pass QR from the customer's app — the money is charged instantly",
+    "desc_UDS": "Loyalty: pay with points by the customer's code, plus cashback",
+    "desc_ARCA": "Bank terminal: enter the RRN from the slip after payment",
+    "desc_UZUM_PAY": "Payment via Uzum: the transaction number is entered",
+    "desc_UZUM_MARKET": "FBS stock — matched to Uzum SKUs by barcode",
+    "desc_WILDBERRIES": "Stock in the seller's warehouse (Marketplace API)",
+    "desc_OZON": "Stock in the seller's warehouse (Seller API)",
+    "field_merchantId": "Merchant / cashbox ID",
+    "field_key": "Cashbox key",
+    "field_serviceId": "Service ID",
+    "field_merchantUserId": "Merchant user ID",
+    "field_secretKey": "Secret key",
+    "field_cashboxCode": "Cashbox code (optional)",
+    "field_companyId": "Company ID",
+    "field_apiKey": "API key",
+    "field_terminalId": "Terminal ID (optional)",
+    "field_token": "API token",
+    "field_shopId": "Shop ID",
+    "field_clientId": "Client ID",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "test_mode": "Test mode",
+    "test_mode_label": "Test (sandbox) mode",
+    "enable": "Enable",
+    "docs": "Documentation",
+    "secret_saved": "Saved ({{hint}}) — type a new one to change it",
+    "secret_enter": "Enter the key",
+    "secret_broken": "The saved key could not be decrypted (the server key changed) — enter it again",
+    "manual_note": "This system has no public API documentation. For now the cashier enters the RRN / transaction number from the terminal slip and it is stored. With the protocol documents a full integration can be built.",
+    "payment_type": "Payment type to record under",
+    "payment_type_hint": "The integration runs when this payment type is chosen at the cash desk; the money received is recorded under it.",
+    "our_warehouses": "Our warehouses to upload",
+    "no_warehouses": "No warehouses",
+    "target_warehouse": "Marketplace warehouse",
+    "target_shop": "Uzum shop (empty — shop ID from the keys)",
+    "load_remote": "Load list",
+    "save_keys_first": "Save the keys first",
+    "match_by": "Ozon offer_id",
+    "match_sku": "SKU",
+    "match_barcode": "Barcode",
+    "match_hint_ozon": "Ozon products are found by offer_id — your SKU must equal the offer_id in Ozon.",
+    "match_hint_barcode": "Products are matched by barcode — the material must have a barcode.",
+    "safety_stock": "Safety stock (pcs)",
+    "auto_sync": "Automatic upload",
+    "every_minutes": "Every {{count}} min",
+    "manual_only": "Manual only",
+    "saved": "Saved",
+    "test": "Test connection",
+    "sync_now": "Upload stock now",
+    "logs": "Log",
+    "logs_empty": "The log is empty",
+    "status_OK": "OK",
+    "status_ERROR": "Error",
+    "status_PARTIAL": "Partial",
+    "transactions": "Integrated payments at the cash desk",
+    "provider": "System",
+    "reference": "Number",
+    "tx_PENDING": "Pending",
+    "tx_PAID": "Paid",
+    "tx_FAILED": "Failed",
+    "tx_CANCELLED": "Cancelled",
+    "tx_unattached": "not linked to a receipt",
+    "tx_cancel": "Cancel",
+    "tx_cancel_confirm": "Cancel the payment of {{amount}} UZS? The money goes back to the customer."
   }
 }

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { GridIcon, UserCircleIcon, ChevronDownIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { usePermissions } from "../hooks/usePermissions";
-import { Boxes, Building2, Calculator, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Users } from "lucide-react";
+import { Boxes, Building2, Calculator, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Plug, Users } from "lucide-react";
 import { openPos } from "../utils/pos";
 
 /**
@@ -135,6 +135,14 @@ const AppSidebar: React.FC = () => {
         { name: t("modules.currencyRates.title"), path: "/currency-rates", resource: "currency-rates" },
         { name: t("modules.paymentTypes.title"), path: "/payment-types", resource: "payment-types" },
         { name: t("modules.expenseTypes.title"), path: "/expense-types", resource: "expense-types" },
+      ],
+    },
+    {
+      icon: <Plug />,
+      name: t("sidebar.integrations"),
+      subItems: [
+        { name: t("modules.paymentIntegrations.title"), path: "/integrations/payments", resource: "integrations" },
+        { name: t("modules.marketplaceIntegrations.title"), path: "/integrations/marketplaces", resource: "integrations" },
       ],
     },
     {

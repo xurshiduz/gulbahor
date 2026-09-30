@@ -14,6 +14,7 @@ import { CashRegistersService } from '../cash/cash-registers.service';
 import { roundMoney } from '../references/common/numeric';
 import { PosCustomerDto, PosSaleDto } from './dto/pos.dto';
 import { CustomersService } from '../contractors/services/contractors.service';
+import { PaymentGatewayService } from '../integrations/payment-gateway.service';
 
 /**
  * Kassa (POS).
@@ -36,6 +37,7 @@ export class PosService {
     private readonly stock: StockService,
     private readonly cashRegisters: CashRegistersService,
     private readonly customers: CustomersService,
+    private readonly gateway: PaymentGatewayService,
   ) {}
 
   /**
@@ -78,6 +80,8 @@ export class PosService {
       cashier: user ? { id: user.id, name: user.name } : null,
       currencies: currencies.map((row) => ({ id: row.id, code: row.code, name: row.name, symbol: row.symbol, isBase: row.isBase, rate: rateOf.get(row.id) ?? null })),
       customers: customers.map((row) => ({ id: row.id, name: row.name, phone: row.phone })),
+      // To'lov turi -> integratsiya (Click, Payme, UDS, terminal)
+      integrations: await this.gateway.enabledForPos(),
       paymentTypes: paymentTypes.map((row) => ({ id: row.id, name: row.name })),
       shopName: organization[0]?.name || null,
     };
@@ -175,6 +179,15 @@ export class PosService {
       throw new BadRequestException(`"${register.name}" kassasiga omborxona biriktirilmagan - Kassalar bo'limida belgilang`);
     }
 
+    // Integratsiya orqali o'tgan to'lovlar avval tekshiriladi - chek yaratilgach xato chiqmasin
+    const transactions = new Map<string, { provider: string; externalId: string | null; reference: string | null }>();
+    for (const payment of dto.payments || []) {
+      if (!payment.integrationTransactionId) continue;
+      if (transactions.has(payment.integrationTransactionId)) throw new BadRequestException('Bitta to`lov chekda ikki marta ko`rsatilgan');
+      const tx = await this.gateway.assertUsable(payment.integrationTransactionId, payment.amount, register.id);
+      transactions.set(tx.id, { provider: tx.provider, externalId: tx.externalId, reference: tx.reference });
+    }
+
     const lines = dto.items.map((item) => {
       const discount = item.discountPercent || 0;
       return { ...item, effectivePrice: roundMoney(item.price * (1 - discount / 100)) };
@@ -202,7 +215,8 @@ export class PosService {
 
     const receipts = [];
     for (const payment of dto.payments || []) {
-      receipts.push(await this.payments.create({
+      const tx = payment.integrationTransactionId ? transactions.get(payment.integrationTransactionId) : null;
+      const receipt = await this.payments.create({
         direction: PaymentDirection.INCOME,
         cashRegisterId: register.id,
         outboundDocumentId: approved.id,
@@ -211,8 +225,10 @@ export class PosService {
         amount: payment.amount,
         rate: payment.rate,
         amountUzs: payment.amountUzs,
-        description: `${approved.documentNumber} cheki bo'yicha`,
-      } as any, user));
+        description: `${approved.documentNumber} cheki bo'yicha${tx ? ` · ${tx.provider} ${tx.externalId || tx.reference || ''}`.trimEnd() : ''}`,
+      } as any, user);
+      receipts.push(receipt);
+      if (payment.integrationTransactionId) await this.gateway.attach(payment.integrationTransactionId, approved.id, receipt.id);
     }
 
     const paid = roundMoney(receipts.reduce((sum, receipt) => sum + receipt.amountUzs, 0));

@@ -10,6 +10,7 @@ import { OutboundDocumentsModule } from '../outbound-documents/outbound-document
 import { StockModule } from '../stock/stock.module';
 import { CashModule } from '../cash/cash.module';
 import { ContractorsModule } from '../contractors/contractors.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 import { PosService } from './pos.service';
 import { PosController } from './pos.controller';
 
@@ -22,6 +23,7 @@ import { PosController } from './pos.controller';
     StockModule,
     CashModule,
     ContractorsModule,
+    IntegrationsModule,
   ],
   providers: [PosService],
   controllers: [PosController],

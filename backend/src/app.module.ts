@@ -16,6 +16,7 @@ import { InboundDocumentsModule } from './modules/inbound-documents/inbound-docu
 import { StockModule } from './modules/stock/stock.module';
 import { CashModule } from './modules/cash/cash.module';
 import { PosModule } from './modules/pos/pos.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { AppService } from './app.service';
 
 @Module({
@@ -52,6 +53,7 @@ import { AppService } from './app.service';
     StockModule,
     CashModule,
     PosModule,
+    IntegrationsModule,
   ],
   providers: [AppService],
 })

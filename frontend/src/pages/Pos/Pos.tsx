@@ -3,8 +3,8 @@ import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import {
-  Banknote, CheckCircle2, Clock, CreditCard, LogOut, Maximize, Minimize, Minus, PauseCircle, Percent, Plus, Printer,
-  ScanLine, Search, Shirt, ShoppingBag, Trash2, User, UserPlus, Wallet, X,
+  Banknote, CheckCircle2, Clock, CreditCard, Loader2, LogOut, Maximize, Minimize, Minus, PauseCircle, Percent, Plus, Printer,
+  ScanLine, Search, Send, Shirt, ShoppingBag, Trash2, User, UserPlus, Wallet, X, Zap,
 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import { useAuth } from "../../context/AuthContext";
@@ -30,9 +30,11 @@ interface Register { id: string; name: string; branchName: string | null; wareho
 interface Currency { id: string; code: string; name: string; symbol: string | null; isBase: boolean; rate: number | null }
 interface Named { id: string; name: string }
 interface Customer extends Named { phone: string | null }
+/** To'lov turi integratsiyaga ulangan: Click Pass, Payme, UDS, terminal */
+interface IntegrationRef { provider: string; title: string; api: string; paymentTypeId: string }
 interface Setup {
   cashRegisters: Register[]; currencies: Currency[]; paymentTypes: Named[]; customers: Customer[];
-  cashier: Named | null; shopName: string | null;
+  cashier: Named | null; shopName: string | null; integrations: IntegrationRef[];
 }
 interface Product {
   id: string; name: string; sku: string | null; barcode: string | null;
@@ -43,7 +45,15 @@ interface Product {
 interface CartLine {
   key: string; product: Product; quantity: number; price: number; discountPercent: number;
 }
-interface PayLine { key: string; paymentTypeId: string; currencyId: string; amount: string; rate: string }
+interface Tx { id: string; status: "PENDING" | "PAID" | "FAILED" | "CANCELLED"; externalId: string | null; reference: string | null; error?: string | null }
+interface PayLine {
+  key: string; paymentTypeId: string; currencyId: string; amount: string; rate: string;
+  /** Integratsiya: Click Pass / UDS kodi, Payme telefoni, terminal RRN, tranzaksiya */
+  code?: string; phone?: string; reference?: string; tx?: Tx | null;
+  uds?: { name: string | null; points: number; maxPoints: number } | null;
+  busy?: boolean; note?: string;
+}
+type FinishPayment = { paymentTypeId: string | null; currencyId: string; amount: number; rate?: number; integrationTransactionId?: string; label: string };
 interface HeldReceipt { id: string; savedAt: string; customerId: string; lines: CartLine[]; discountMode: "sum" | "percent"; discountValue: string }
 
 const REGISTER_KEY = "gulbahor.pos.register";
@@ -292,7 +302,8 @@ export default function Pos() {
       if (event.key === "F2") { event.preventDefault(); setModal(""); focusSearch(); }
       else if (event.key === "F9") { event.preventDefault(); if (!modal) openPayment(); }
       else if (event.key === "F8") { event.preventDefault(); if (!modal) holdReceipt(); }
-      else if (event.key === "Escape" && modal && modal !== "result") { setModal(""); focusSearch(); }
+      // To'lov oynasi o'zi yopiladi - o'tgan integratsiya to'lovlarini bekor qilib
+      else if (event.key === "Escape" && modal && modal !== "result" && modal !== "payment") { setModal(""); focusSearch(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -300,7 +311,7 @@ export default function Pos() {
 
   /* ---------------------------------- Sotish ---------------------------------- */
 
-  const finishSale = async (payments: { paymentTypeId: string | null; currencyId: string; amount: number; rate?: number; label: string }[], change: number, autoPrint: boolean) => {
+  const finishSale = async (payments: FinishPayment[], change: number, autoPrint: boolean) => {
     if (!register) return;
     const res = await fetch("/api/pos/sales", {
       method: "POST",
@@ -702,13 +713,18 @@ export default function Pos() {
         </Modal>
       )}
 
-      {modal === "payment" && baseCurrency && (
+      {modal === "payment" && baseCurrency && register && (
         <PaymentModal
           total={total}
           currencies={setup.currencies}
           paymentTypes={setup.paymentTypes}
           baseCurrency={baseCurrency}
           hasCustomer={!!customer}
+          customerPhone={customer?.phone ? formatPhone(customer.phone) : null}
+          integrations={setup.integrations || []}
+          cashRegisterId={register.id}
+          auth={auth}
+          fiscalItems={receiptDiscount ? [] : lines.map((line) => ({ materialId: line.product.id, quantity: line.quantity, price: unitPrice(line) }))}
           onClose={() => { setModal(""); focusSearch(); }}
           onFinish={finishSale}
         />
@@ -935,11 +951,14 @@ function CustomerModal({ customers, selectedId, auth, onPick, onCreated, onClose
   );
 }
 
-/** To'lov: bir nechta usul va valyuta, qaytim va qarz */
-function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustomer, onClose, onFinish }: {
+/** To'lov: bir nechta usul va valyuta, qaytim va qarz. Click / Payme / UDS / terminal - integratsiya orqali */
+function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustomer, customerPhone, integrations, cashRegisterId, auth, fiscalItems, onClose, onFinish }: {
   total: number; currencies: Currency[]; paymentTypes: Named[]; baseCurrency: Currency; hasCustomer: boolean;
+  customerPhone: string | null; integrations: IntegrationRef[]; cashRegisterId: string; auth: Record<string, string>;
+  /** Payme fiskal cheki uchun (chek chegirmasi bo'lsa bo'sh) */
+  fiscalItems: { materialId: string; quantity: number; price: number }[];
   onClose: () => void;
-  onFinish: (payments: { paymentTypeId: string | null; currencyId: string; amount: number; rate?: number; label: string }[], change: number, autoPrint: boolean) => Promise<void>;
+  onFinish: (payments: FinishPayment[], change: number, autoPrint: boolean) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const firstType = paymentTypes[0]?.id || "";
@@ -949,6 +968,7 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   const [isBusy, setIsBusy] = useState(false);
 
   const currencyOf = (id: string) => currencies.find((item) => item.id === id) || baseCurrency;
+  const integrationOf = (pay: PayLine) => integrations.find((item) => item.paymentTypeId === pay.paymentTypeId) || null;
   const uzsOf = (pay: PayLine) => {
     const currency = currencyOf(pay.currencyId);
     return round2(parse(pay.amount) * (currency.isBase ? 1 : parse(pay.rate)));
@@ -956,8 +976,23 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   const paid = round2(pays.reduce((sum, pay) => sum + uzsOf(pay), 0));
   const remaining = round2(total - paid);
   const change = remaining < 0 ? -remaining : 0;
+  /** To'lov o'tgan yoki kutilayotgan qator - summasi va turi o'zgarmaydi */
+  const isLocked = (pay: PayLine) => pay.tx?.status === "PAID" || pay.tx?.status === "PENDING";
 
   const update = (key: string, patch: Partial<PayLine>) => { setPays((prev) => prev.map((pay) => (pay.key === key ? { ...pay, ...patch } : pay))); setError(""); };
+
+  const api = async (url: string, method = "GET", body?: unknown) => {
+    const res = await fetch(url, { method, headers: { ...auth, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(errorMessage(data, t("common.error")));
+    return data;
+  };
+
+  const setType = (pay: PayLine, paymentTypeId: string) => {
+    const integrated = integrations.some((item) => item.paymentTypeId === paymentTypeId);
+    // Integratsiya orqali to'lov faqat so'mda
+    update(pay.key, { paymentTypeId, ...(integrated ? { currencyId: baseCurrency.id, rate: "" } : {}), note: "", uds: null, code: "", reference: "", phone: pay.phone || customerPhone || "+998 " });
+  };
 
   const setCurrency = (pay: PayLine, currencyId: string) => {
     const currency = currencyOf(currencyId);
@@ -983,26 +1018,124 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
     return [...set].filter((value) => value > 0).sort((a, b) => a - b).slice(0, 5);
   };
 
+  /* ------------------------------ Integratsiya ------------------------------ */
+
+  const startPayment = async (pay: PayLine, extra: Record<string, unknown>) => {
+    const integration = integrationOf(pay);
+    const amount = parse(pay.amount);
+    if (!integration) return;
+    if (!(amount > 0)) return update(pay.key, { note: t("pos.int_amount_required") });
+    update(pay.key, { busy: true, note: "" });
+    try {
+      const tx = await api("/api/integrations/pay/start", "POST", { provider: integration.provider, cashRegisterId, amount, ...extra });
+      update(pay.key, { busy: false, tx, note: "" });
+    } catch (err: any) {
+      update(pay.key, { busy: false, note: err.message });
+    }
+  };
+
+  const charge = (pay: PayLine) => {
+    const integration = integrationOf(pay);
+    if (!integration) return;
+    if (integration.api === "click") {
+      if (!pay.code?.trim()) return update(pay.key, { note: t("pos.int_click_code") });
+      return startPayment(pay, { code: pay.code.trim() });
+    }
+    if (integration.api === "payme") {
+      if ((pay.phone || "").replace(/\D/g, "").length !== 12) return update(pay.key, { note: t("pos.phone_invalid") });
+      // Fiskal chek tovarlari - faqat butun chek shu to'lov bilan to'lansa (summalar mos kelishi shart)
+      return startPayment(pay, { phone: (pay.phone || "").replace(/\s/g, ""), ...(Math.abs(parse(pay.amount) - total) < 0.01 && fiscalItems.length ? { items: fiscalItems } : {}) });
+    }
+    if (integration.api === "uds") {
+      if (!pay.uds) return update(pay.key, { note: t("pos.int_uds_check_first") });
+      if (parse(pay.amount) > pay.uds.maxPoints) return update(pay.key, { note: t("pos.int_uds_max", { count: pay.uds.maxPoints }) });
+      return startPayment(pay, { code: pay.code, receiptTotal: total });
+    }
+    if ((pay.reference || "").trim().length < 4) return update(pay.key, { note: t("pos.int_rrn_required") });
+    return startPayment(pay, { reference: (pay.reference || "").trim() });
+  };
+
+  const udsFind = async (pay: PayLine) => {
+    const code = (pay.code || "").trim();
+    if (!/^\d{6}$/.test(code)) return update(pay.key, { note: t("pos.int_uds_code") });
+    update(pay.key, { busy: true, note: "" });
+    try {
+      const info = await api(`/api/integrations/uds/find?code=${code}&total=${total}`);
+      const others = round2(pays.filter((item) => item.key !== pay.key).reduce((sum, item) => sum + uzsOf(item), 0));
+      const usable = Math.min(info.maxPoints, Math.max(0, total - others));
+      update(pay.key, { busy: false, uds: info, amount: String(usable) });
+    } catch (err: any) {
+      update(pay.key, { busy: false, note: err.message, uds: null });
+    }
+  };
+
+  const cancelTx = async (pay: PayLine) => {
+    if (!pay.tx) return true;
+    update(pay.key, { busy: true });
+    try {
+      await api(`/api/integrations/pay/${pay.tx.id}/cancel`, "POST");
+      update(pay.key, { busy: false, tx: null, note: "" });
+      return true;
+    } catch (err: any) {
+      update(pay.key, { busy: false, note: err.message });
+      return false;
+    }
+  };
+
+  // Payme (va ba'zan Click): xaridor to'laguncha holat so'rab turiladi
+  const pendingIds = pays.filter((pay) => pay.tx?.status === "PENDING").map((pay) => `${pay.key}:${pay.tx!.id}`).join(",");
+  useEffect(() => {
+    if (!pendingIds) return;
+    const timer = window.setInterval(async () => {
+      for (const entry of pendingIds.split(",")) {
+        const [key, id] = entry.split(":");
+        try {
+          const tx = await api(`/api/integrations/pay/${id}`);
+          if (tx.status !== "PENDING") update(key, { tx: tx.status === "PAID" ? tx : null, note: tx.status === "PAID" ? "" : tx.error || t(`integrations.tx_${tx.status}`) });
+        } catch { /* keyingi so'rovda qayta */ }
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingIds]);
+
+  /** Yopish: o'tgan / kutilayotgan integratsiya to'lovlari avval bekor qilinadi */
+  const closeSafely = async () => {
+    const active = pays.filter(isLocked);
+    if (active.length) {
+      if (!window.confirm(t("pos.int_close_confirm"))) return;
+      for (const pay of active) if (!(await cancelTx(pay))) return;
+    }
+    onClose();
+  };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); closeSafely(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const submit = async () => {
     const valid = pays.filter((pay) => parse(pay.amount) > 0);
     for (const pay of valid) {
       const currency = currencyOf(pay.currencyId);
       if (!currency.isBase && !(parse(pay.rate) > 0)) return setError(t("pos.rate_required", { code: currency.code }));
+      if (integrationOf(pay) && pay.tx?.status !== "PAID") return setError(t("pos.int_not_paid", { provider: integrationOf(pay)!.title }));
     }
     if (remaining > 0.5 && !hasCustomer) return setError(t("pos.debt_needs_customer"));
 
-    // Qaytim so'mda beriladi: ortiqcha pul oxirgi so'mdagi to'lovlardan ayiriladi
+    // Qaytim so'mda beriladi: ortiqcha pul oxirgi so'mdagi (integratsiyasiz) to'lovlardan ayiriladi
     let rest = change;
     const lines = valid.map((pay) => ({ ...pay, value: parse(pay.amount) }));
     for (let i = lines.length - 1; i >= 0 && rest > 0.004; i--) {
-      if (!currencyOf(lines[i].currencyId).isBase) continue;
+      if (!currencyOf(lines[i].currencyId).isBase || lines[i].tx) continue;
       const take = Math.min(rest, lines[i].value);
       lines[i].value = round2(lines[i].value - take);
       rest = round2(rest - take);
     }
     if (rest > 0.004) return setError(t("pos.change_in_currency"));
 
-    const payments = lines.filter((line) => line.value > 0).map((line) => {
+    const payments: FinishPayment[] = lines.filter((line) => line.value > 0).map((line) => {
       const currency = currencyOf(line.currencyId);
       const type = paymentTypes.find((item) => item.id === line.paymentTypeId);
       return {
@@ -1010,6 +1143,7 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
         currencyId: line.currencyId,
         amount: line.value,
         ...(currency.isBase ? {} : { rate: parse(line.rate) }),
+        ...(line.tx ? { integrationTransactionId: line.tx.id } : {}),
         label: `${type?.name || t("cash.no_payment_type")}${currency.isBase ? "" : ` (${currency.code})`}`,
       };
     });
@@ -1027,9 +1161,11 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   };
 
   const typeIcon = (name: string) => (/karta|card|uzcard|humo|visa/i.test(name) ? <CreditCard className="h-4 w-4" /> : <Banknote className="h-4 w-4" />);
+  const smallInput = "h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-brand-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800";
+  const actionButton = "flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-50";
 
   return (
-    <Modal title={t("pos.payment_title")} onClose={onClose} wide>
+    <Modal title={t("pos.payment_title")} onClose={closeSafely} wide>
       <div className="space-y-4 p-5">
         <div className="flex items-baseline justify-between rounded-xl bg-gray-900 px-5 py-4 text-white">
           <span className="text-sm text-white/70">{t("pos.to_pay")}</span>
@@ -1038,18 +1174,23 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
 
         {pays.map((pay) => {
           const currency = currencyOf(pay.currencyId);
+          const integration = integrationOf(pay);
+          const locked = isLocked(pay);
           return (
-            <div key={pay.key} className="space-y-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+            <div key={pay.key} className={`space-y-2 rounded-xl border p-3 ${pay.tx?.status === "PAID" ? "border-green-300 bg-green-50/40 dark:border-green-500/30 dark:bg-green-500/5" : "border-gray-200 dark:border-gray-700"}`}>
               <div className="flex flex-wrap items-center gap-1.5">
-                {paymentTypes.map((type) => (
-                  <button
-                    key={type.id} onClick={() => update(pay.key, { paymentTypeId: type.id })}
-                    className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium ${pay.paymentTypeId === type.id ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300"}`}
-                  >
-                    {typeIcon(type.name)}{type.name}
-                  </button>
-                ))}
-                {pays.length > 1 && (
+                {paymentTypes.map((type) => {
+                  const linked = integrations.find((item) => item.paymentTypeId === type.id);
+                  return (
+                    <button
+                      key={type.id} onClick={() => setType(pay, type.id)} disabled={locked}
+                      className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium disabled:opacity-60 ${pay.paymentTypeId === type.id ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300"}`}
+                    >
+                      {linked ? <Zap className="h-4 w-4" /> : typeIcon(type.name)}{type.name}
+                    </button>
+                  );
+                })}
+                {pays.length > 1 && !locked && (
                   <button onClick={() => setPays(pays.filter((item) => item.key !== pay.key))} aria-label={t("common.delete")} className="ml-auto text-gray-400 hover:text-red-500">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -1057,29 +1198,98 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
               </div>
               <div className="flex gap-2">
                 <select
-                  aria-label={t("inbounds.currency")} value={pay.currencyId} onChange={(e) => setCurrency(pay, e.target.value)}
-                  className="h-12 rounded-lg border border-gray-300 bg-white px-2 text-sm font-semibold dark:border-gray-700 dark:bg-gray-800"
+                  aria-label={t("inbounds.currency")} value={pay.currencyId} onChange={(e) => setCurrency(pay, e.target.value)} disabled={locked || !!integration}
+                  className="h-12 rounded-lg border border-gray-300 bg-white px-2 text-sm font-semibold disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800"
                 >
                   {currencies.map((item) => <option key={item.id} value={item.id}>{item.code}</option>)}
                 </select>
                 <input
-                  type="text" inputMode="decimal" value={pay.amount} autoFocus={pays.length === 1}
+                  type="text" inputMode="decimal" value={pay.amount} autoFocus={pays.length === 1} disabled={locked}
                   onChange={(e) => update(pay.key, { amount: decimalOnly(e.target.value) })}
                   onFocus={(e) => e.target.select()}
-                  onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !integration) submit(); }}
                   aria-label={t("inbounds.amount")}
-                  className="h-12 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-right text-xl font-bold tabular-nums focus:border-brand-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+                  className="h-12 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-right text-xl font-bold tabular-nums focus:border-brand-400 focus:outline-none disabled:opacity-70 dark:border-gray-700 dark:bg-gray-800"
                 />
                 {!currency.isBase && (
                   <input
-                    type="text" inputMode="decimal" value={pay.rate} placeholder={t("payments.rate")}
+                    type="text" inputMode="decimal" value={pay.rate} placeholder={t("payments.rate")} disabled={locked}
                     onChange={(e) => update(pay.key, { rate: decimalOnly(e.target.value) })}
                     aria-label={t("payments.rate")} title={t("payments.rate")}
                     className="h-12 w-28 rounded-lg border border-gray-300 bg-white px-2 text-right text-sm tabular-nums focus:border-brand-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
                   />
                 )}
               </div>
-              {currency.isBase ? (
+
+              {/* Integratsiya: Click Pass / Payme / UDS / terminal */}
+              {integration ? (
+                <div className="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
+                  {pay.tx?.status === "PAID" ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                      <CheckCircle2 className="h-5 w-5" />
+                      {t("pos.int_paid", { provider: integration.title })}
+                      <span className="font-mono text-xs text-gray-500">{pay.tx.externalId || pay.tx.reference}</span>
+                      <button onClick={() => cancelTx(pay)} disabled={pay.busy} className="ml-auto text-xs font-medium text-red-500 hover:underline disabled:opacity-50">{t("pos.int_cancel")}</button>
+                    </div>
+                  ) : pay.tx?.status === "PENDING" ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      {integration.api === "payme" ? t("pos.int_wait_payme", { phone: pay.phone }) : t("pos.int_wait")}
+                      <button onClick={() => cancelTx(pay)} disabled={pay.busy} className="ml-auto text-xs font-medium text-red-500 hover:underline disabled:opacity-50">{t("pos.int_cancel")}</button>
+                    </div>
+                  ) : integration.api === "click" ? (
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus type="text" value={pay.code || ""} placeholder={t("pos.int_click_code")}
+                        onChange={(e) => update(pay.key, { code: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") charge(pay); }}
+                        className={`${smallInput} font-mono`}
+                      />
+                      <button onClick={() => charge(pay)} disabled={pay.busy} className={actionButton}>{pay.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}{t("pos.int_charge")}</button>
+                    </div>
+                  ) : integration.api === "payme" ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="tel" value={pay.phone || customerPhone || "+998 "} onChange={(e) => update(pay.key, { phone: formatPhone(e.target.value) })}
+                        className={`${smallInput} font-mono`} aria-label={t("profile.phone")}
+                      />
+                      <button onClick={() => charge(pay)} disabled={pay.busy} className={actionButton}>{pay.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{t("pos.int_send_receipt")}</button>
+                    </div>
+                  ) : integration.api === "uds" ? (
+                    <>
+                      <div className="flex gap-2">
+                        <input
+                          type="text" inputMode="numeric" maxLength={6} value={pay.code || ""} placeholder={t("pos.int_uds_code")}
+                          onChange={(e) => update(pay.key, { code: e.target.value.replace(/\D/g, ""), uds: null })} onKeyDown={(e) => { if (e.key === "Enter") udsFind(pay); }}
+                          className={`${smallInput} font-mono tracking-widest`}
+                        />
+                        <button onClick={() => udsFind(pay)} disabled={pay.busy} className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 text-sm font-medium hover:bg-white disabled:opacity-50 dark:border-gray-700">
+                          {pay.busy && !pay.uds ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{t("pos.int_uds_check")}
+                        </button>
+                      </div>
+                      {pay.uds && (
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium">{pay.uds.name || "—"}</span>
+                          <span className="text-gray-500">{t("pos.int_uds_balance", { points: fmt(pay.uds.points), max: fmt(pay.uds.maxPoints) })}</span>
+                          <button onClick={() => charge(pay)} disabled={pay.busy || !(pay.uds.maxPoints > 0)} className={`ml-auto ${actionButton}`}>
+                            {pay.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}{t("pos.int_uds_spend")}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus type="text" value={pay.reference || ""} placeholder={t("pos.int_rrn")}
+                        onChange={(e) => update(pay.key, { reference: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") charge(pay); }}
+                        className={`${smallInput} font-mono`}
+                      />
+                      <button onClick={() => charge(pay)} disabled={pay.busy} className={actionButton}>{pay.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{t("pos.int_confirm")}</button>
+                    </div>
+                  )}
+                  {pay.note && <p className="text-xs font-medium text-red-600 dark:text-red-400">{pay.note}</p>}
+                  {!pay.tx && integration.api === "manual" && <p className="text-xs text-gray-500">{t("pos.int_manual_hint", { provider: integration.title })}</p>}
+                </div>
+              ) : currency.isBase ? (
                 <div className="flex flex-wrap gap-1.5">
                   {quickAmounts(pay).map((value) => (
                     <button key={value} onClick={() => update(pay.key, { amount: String(value) })} className="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300">

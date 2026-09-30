@@ -46,7 +46,8 @@
     "material_data": "Данные о материалах",
     "accounting": "Бухгалтерия",
     "contractors": "Контрагенты",
-    "marketing": "Маркетинговые инструменты"
+    "marketing": "Маркетинговые инструменты",
+    "integrations": "Интеграции"
   },
   "access": {
     "denied_text": "Вашей роли не выдано право на просмотр этой страницы. При необходимости обратитесь к администратору.",
@@ -266,6 +267,14 @@
     "receipts": {
       "title": "Поступления",
       "desc": "Деньги от продаж и контрагентов"
+    },
+    "paymentIntegrations": {
+      "title": "Платёжные интеграции",
+      "desc": "Payme, Click Pass, UDS, Arca, Uzum"
+    },
+    "marketplaceIntegrations": {
+      "title": "Маркетплейсы",
+      "desc": "Uzum Market, Wildberries, Ozon — выгрузка остатков"
     }
   },
   "profile": {
@@ -461,7 +470,8 @@
       "pos": "Касса (POS)",
       "cash-registers": "Кассы",
       "cash-balance": "Остаток в кассе",
-      "cash-withdrawals": "Изъятие из кассы"
+      "cash-withdrawals": "Изъятие из кассы",
+      "integrations": "Интеграции"
     },
     "actions": {
       "read": "Просмотр",
@@ -471,7 +481,8 @@
       "block": "Блокировка",
       "sell": "Продажа",
       "approve": "Подтверждение",
-      "print": "Печать этикеток"
+      "print": "Печать этикеток",
+      "sync": "Выгрузка остатков"
     }
   },
   "ref": {
@@ -995,6 +1006,95 @@
     "add_and_pick": "Добавить и выбрать",
     "add_as_new": "«{{value}}» — добавить как нового клиента",
     "customer_added": "{{name}} добавлен в клиенты и выбран в чек",
-    "customer_exists": "Клиент с этим номером уже есть: {{name}} — выбран он"
+    "customer_exists": "Клиент с этим номером уже есть: {{name}} — выбран он",
+    "int_paid": "{{provider}}: оплачено",
+    "int_cancel": "Отменить",
+    "int_wait": "Ожидается подтверждение оплаты...",
+    "int_wait_payme": "Чек отправлен на {{phone}} — дождитесь оплаты в приложении Payme...",
+    "int_click_code": "Отсканируйте код Click Pass",
+    "int_charge": "Списать",
+    "int_send_receipt": "Отправить чек",
+    "int_uds_code": "Код UDS (6 цифр)",
+    "int_uds_check": "Проверить",
+    "int_uds_balance": "Баланс: {{points}} · можно списать: {{max}}",
+    "int_uds_spend": "Списать баллы",
+    "int_uds_check_first": "Сначала проверьте код UDS",
+    "int_uds_max": "Можно списать не более {{count}} баллов",
+    "int_rrn": "RRN из чека терминала",
+    "int_confirm": "Подтвердить",
+    "int_rrn_required": "Введите RRN / номер транзакции из чека терминала",
+    "int_manual_hint": "Сначала проведите оплату через {{provider}}, затем введите номер из чека",
+    "int_amount_required": "Введите сумму",
+    "int_not_paid": "Оплата через {{provider}} не завершена",
+    "int_close_confirm": "Прошедшие платежи будут отменены (деньги вернутся покупателю). Закрыть?"
+  },
+  "integrations": {
+    "intro_PAYMENT": "Приём оплаты прямо в кассе. Ключи хранятся в базе в зашифрованном виде.",
+    "intro_MARKETPLACE": "Выгрузка остатков ваших складов на маркетплейсы — вручную или автоматически. Товар сопоставляется по штрих-коду (в Ozon — по артикулу).",
+    "desc_PAYME": "Чек отправляется на телефон покупателя, он оплачивает в приложении Payme",
+    "desc_CLICK": "Сканируется QR-код Click Pass из приложения покупателя, деньги списываются сразу",
+    "desc_UDS": "Бонусная система: оплата баллами по коду покупателя и кешбэк",
+    "desc_ARCA": "Банковский терминал: после оплаты вводится RRN из чека",
+    "desc_UZUM_PAY": "Оплата через Uzum: вводится номер транзакции",
+    "desc_UZUM_MARKET": "Остатки FBS — сопоставление с SKU Uzum по штрих-коду",
+    "desc_WILDBERRIES": "Остатки на складе продавца (Marketplace API)",
+    "desc_OZON": "Остатки на складе продавца (Seller API)",
+    "field_merchantId": "Merchant / ID кассы",
+    "field_key": "Ключ кассы",
+    "field_serviceId": "Service ID",
+    "field_merchantUserId": "Merchant user ID",
+    "field_secretKey": "Secret key",
+    "field_cashboxCode": "Код кассы (необязательно)",
+    "field_companyId": "ID компании",
+    "field_apiKey": "API-ключ",
+    "field_terminalId": "ID терминала (необязательно)",
+    "field_token": "API-токен",
+    "field_shopId": "ID магазина",
+    "field_clientId": "Client ID",
+    "enabled": "Включено",
+    "disabled": "Выключено",
+    "test_mode": "Тестовый режим",
+    "test_mode_label": "Тестовый (sandbox) режим",
+    "enable": "Включить",
+    "docs": "Документация",
+    "secret_saved": "Сохранён ({{hint}}) — чтобы изменить, введите новый",
+    "secret_enter": "Введите ключ",
+    "secret_broken": "Не удалось расшифровать сохранённый ключ (сменился ключ сервера) — введите заново",
+    "manual_note": "У этой системы нет открытой документации API. Пока кассир после оплаты на терминале вводит RRN / номер транзакции из чека, и он сохраняется. При наличии протокола будет сделана полная интеграция.",
+    "payment_type": "В какой способ оплаты записывать",
+    "payment_type_hint": "Интеграция срабатывает, когда в кассе выбран этот способ оплаты; поступление записывается в него же.",
+    "our_warehouses": "Наши склады, остатки которых выгружаются",
+    "no_warehouses": "Нет складов",
+    "target_warehouse": "Склад на маркетплейсе",
+    "target_shop": "Магазин Uzum (если пусто — ID магазина из ключей)",
+    "load_remote": "Получить список",
+    "save_keys_first": "Сначала сохраните ключи",
+    "match_by": "offer_id в Ozon",
+    "match_sku": "Артикул (SKU)",
+    "match_barcode": "Штрих-код",
+    "match_hint_ozon": "Товар в Ozon ищется по offer_id — ваш артикул должен совпадать с offer_id в Ozon.",
+    "match_hint_barcode": "Товар сопоставляется по штрих-коду — у материала должен быть штрих-код.",
+    "safety_stock": "Резерв (шт)",
+    "auto_sync": "Автоматическая выгрузка",
+    "every_minutes": "Каждые {{count}} мин",
+    "manual_only": "Только вручную",
+    "saved": "Сохранено",
+    "test": "Проверить подключение",
+    "sync_now": "Выгрузить остатки сейчас",
+    "logs": "Журнал",
+    "logs_empty": "Журнал пуст",
+    "status_OK": "OK",
+    "status_ERROR": "Ошибка",
+    "status_PARTIAL": "Частично",
+    "transactions": "Интеграционные платежи в кассе",
+    "provider": "Система",
+    "reference": "Номер",
+    "tx_PENDING": "Ожидается",
+    "tx_PAID": "Оплачено",
+    "tx_FAILED": "Не прошло",
+    "tx_CANCELLED": "Отменено",
+    "tx_unattached": "не привязан к чеку",
+    "tx_cancel": "Отменить",
+    "tx_cancel_confirm": "Отменить платёж на {{amount}} сум? Деньги вернутся покупателю."
   }
 }

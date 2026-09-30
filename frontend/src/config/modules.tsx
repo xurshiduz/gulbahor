@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserCircle, ShieldCheck, Building2, GitBranch, Warehouse, Layers, Tag, Ruler, Palette, Shirt, Globe, MapPin,
-  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet, Boxes, MonitorSmartphone, Landmark, BarChart3, HandCoins, ArrowDownLeft,
+  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet, Boxes, MonitorSmartphone, Landmark, BarChart3, HandCoins, ArrowDownLeft, Plug, Store,
 } from "lucide-react";
 
 export interface ModuleItem {
@@ -62,6 +62,10 @@ export const MODULES: ModuleItem[] = [
   { key: "currencyRates", path: "/currency-rates", resource: "currency-rates", icon: <TrendingUp />, color: "bg-emerald-500" },
   { key: "paymentTypes", path: "/payment-types", resource: "payment-types", icon: <CreditCard />, color: "bg-green-600" },
   { key: "expenseTypes", path: "/expense-types", resource: "expense-types", icon: <Receipt />, color: "bg-red-500" },
+
+  // Integratsiyalar
+  { key: "paymentIntegrations", path: "/integrations/payments", resource: "integrations", icon: <Plug />, color: "bg-sky-600" },
+  { key: "marketplaceIntegrations", path: "/integrations/marketplaces", resource: "integrations", icon: <Store />, color: "bg-fuchsia-600" },
 
   { key: "materials", path: "/materials", resource: "materials", icon: <Package />, color: "bg-blue-600" },
 

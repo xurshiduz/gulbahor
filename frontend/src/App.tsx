@@ -24,6 +24,7 @@ import CashRegisters from "./pages/Cash/CashRegisters";
 import CashBalance from "./pages/Cash/CashBalance";
 import CashWithdrawals from "./pages/Cash/CashWithdrawals";
 import PermissionGate from "./components/auth/PermissionGate";
+import { MarketplaceIntegrations, PaymentIntegrations } from "./pages/Integrations/Integrations";
 import GiftCertificates from "./pages/Marketing/GiftCertificates";
 import { CarouselPromotions, DiscountPromotions, GiftPromotions, ReceiptPromotions } from "./pages/Marketing/Promotions";
 import Currencies from "./pages/Accounting/Currencies";
@@ -88,6 +89,10 @@ export default function App() {
               <Route path="/receipts" element={<Receipts />} />
               <Route path="/cash-balance" element={<CashBalance />} />
               <Route path="/cash-withdrawals" element={<CashWithdrawals />} />
+
+              {/* Integratsiyalar */}
+              <Route path="/integrations/payments" element={<PaymentIntegrations />} />
+              <Route path="/integrations/marketplaces" element={<MarketplaceIntegrations />} />
               <Route path="/currencies" element={<Currencies />} />
               <Route path="/currency-rates" element={<CurrencyRates />} />
               <Route path="/payment-types" element={<PaymentTypes />} />

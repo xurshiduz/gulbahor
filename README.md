@@ -44,6 +44,7 @@ keyin profildan o'zgartiring.
 | Chiqim hujjatlari — barcha sotuvlar: mijoz, omborxona, izoh, tovarlar (skaner + qidiruv, soni, sotuv narxi); tasdiqlangach kirimda undan qaytarish qilinadi | `backend/src/modules/outbound-documents`, `frontend/src/pages/Outbounds` |
 | Ombor qoldig'i: filial / omborxona / umumiy; SKU, dona, kirim va sotuv summasi, kutilayotgan foyda, omborlar kesimi | `backend/src/modules/stock`, `frontend/src/pages/Stock` |
 | Kassa (POS): alohida to'liq ekranli oyna — skaner, kategoriya va o'lcham filtri, chegirmalar, kechiktirilgan cheklar, bir necha usul va valyutada to'lov, qaytim, qarzga sotish, 80 mm chek | `backend/src/modules/pos`, `frontend/src/pages/Pos` |
+| Integratsiyalar: to'lov (Payme, Click Pass, UDS, Arca, Uzum) va marketpleyslarga qoldiq (Uzum Market, Wildberries, Ozon); kalitlar bazada shifrlangan | `backend/src/modules/integrations`, `frontend/src/pages/Integrations` |
 | Etiketka va RFID: kirim hujjatidagi har bir dona uchun alohida etiketka va takrorlanmas RFID kodi (EPC); ZPL ko'rinishida RFID printerga (Chainway CP30) yuboriladi yoki fayl qilib yuklab olinadi | `backend/src/modules/inbound-documents/labels`, `entities/rfid-tag.entity.ts`, `frontend/src/pages/Inbounds/LabelsModal.tsx` |
 | Marketing vositalari: sovg'a sertifikatlari (yaratish, sotish, bekor qilish), aksiyalar — chegirma, N+M sovg'a, karusel, chek bo'yicha. Aksiyalar hozircha faqat ta'riflanadi; sotuvda qo'llash sotuv moduli bilan qo'shiladi | `backend/src/modules/marketing`, `frontend/src/pages/Marketing` |
 | Materiallar: xususiyatlar ma'lumotnomalardan, rasmlar (asosiysi belgilanadi), MXIK, TN VED, QQS | `backend/src/modules/materials`, `frontend/src/pages/Materials`; rasmlar `backend/uploads/materials` da |
@@ -110,6 +111,33 @@ birinchi bosishda to'liq ekranga o'tadi. Chek yopilganda tasdiqlangan chiqim huj
   yangisi yaratilmaydi - o'sha tanlanadi.
 - Kechiktirilgan cheklar shu kompyuterda saqlanadi. Tugmalar: F2 qidiruv, F8 kechiktirish, F9 to'lov.
 - Kassaga omborxona biriktirilmagan bo'lsa sotib bo'lmaydi.
+
+## Integratsiyalar
+
+Kalitlar **.env da emas, bazada** (`integration_settings`) saqlanadi va sozlamalar
+sahifasidan kiritiladi. Maxfiy kalitlar AES-256-GCM bilan shifrlanadi (shifr kaliti
+`INTEGRATIONS_SECRET`, berilmasa `JWT_SECRET` dan) va qayta ko'rsatilmaydi - faqat
+oxirgi 4 belgisi. Server kaliti almashtirilsa integratsiya kalitlarini qayta kiritish kerak.
+
+| Tizim | Qanday ishlaydi |
+| --- | --- |
+| Click Pass | Kassir xaridor ilovasidagi kodni skanerlaydi -> `click_pass/payment`, pul darhol yechiladi |
+| Payme | Subscribe API: chek yaratiladi va xaridor telefoniga yuboriladi, kassa holatni so'rab turadi; fiskal chek uchun MXIK, o'ram kodi va QQS yuboriladi |
+| UDS | Xaridor kodi bo'yicha balans, chekdan yechish mumkin bo'lgan ball; operatsiya yaratiladi (1 ball = 1 so'm) |
+| Arca, Uzum | Ochiq API hujjati yo'q - kassir terminaldagi to'lovdan keyin RRN / tranzaksiya raqamini kiritadi |
+| Uzum Market | FBS qoldiqlari; tovar shtrix-kod bo'yicha Uzum skuId siga moslanadi |
+| Wildberries | Marketplace API, sotuvchi omboridagi qoldiq, shtrix-kod bo'yicha |
+| Ozon | Seller API, offer_id = artikul (yoki shtrix-kod) |
+
+- To'lov integratsiyasi **to'lov turiga** ulanadi: kassada shu tur tanlansa integratsiya ishlaydi.
+  Tranzaksiya (`integration_transactions`) chek yopilganda sotuv va pul tushumiga bog'lanadi;
+  bitta tranzaksiya ikki chekda ishlatilmaydi, summasi chekdagiga mos bo'lishi shart.
+  Oyna yopilsa o'tgan to'lovlar bekor qilinadi (Click - reversal, Payme - cancel, UDS - refund).
+- Marketpleysga yuboriladigan qoldiq: tanlangan omborlarimiz yig'indisi, butun dona, zaxira
+  ayirilgan. "Qoldiqni hozir yuborish" yoki avtomatik (har 15 daqiqa ... 1 kun). Natija jurnalda.
+- Soxta kalitlar bilan tekshirilgan: barcha manzillar mavjud va "kalit noto'g'ri" deb javob
+  beradi. Haqiqiy kalit bilan hali sinalmagan - birinchi ishga tushirishda "Ulanishni tekshirish"
+  va kichik summa bilan sinab ko'ring (Payme uchun test rejimi bor).
 
 ## Etiketka va RFID
 

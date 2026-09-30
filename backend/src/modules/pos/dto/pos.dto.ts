@@ -56,6 +56,11 @@ export class PosPaymentDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01) @Max(9999999999999999)
   amountUzs?: number;
+
+  @ApiProperty({ required: false, description: 'Click / Payme / UDS / terminal orqali o`tgan to`lov' })
+  @IsOptional() @ValidateIf(filled('integrationTransactionId'))
+  @IsUUID('4', { message: 'Integratsiya tranzaksiyasi notog`ri' })
+  integrationTransactionId?: string;
 }
 
 export class PosSaleDto {
