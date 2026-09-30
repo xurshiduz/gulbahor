@@ -61,6 +61,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   // Hujjatlar
   { resource: 'inbound-documents', resourceLabel: 'Kirim hujjatlari', actions: [...FULL, { action: 'approve', label: 'Tasdiqlash' }, { action: 'print', label: 'Etiketka chop etish' }] },
 
+  { resource: 'outbound-documents', resourceLabel: 'Chiqim hujjatlari', actions: [...FULL, { action: 'approve', label: 'Tasdiqlash' }] },
+
   // Marketing vositalari
   { resource: 'gift-certificates', resourceLabel: "Sovg'a sertifikatlari", actions: [...FULL, { action: 'sell', label: 'Sotish' }] },
   { resource: 'promotions', resourceLabel: 'Aksiyalar', actions: FULL },
@@ -70,6 +72,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   { resource: 'currency-rates', resourceLabel: 'Valyuta kursi', actions: FULL },
   { resource: 'payment-types', resourceLabel: "To'lov turlari", actions: FULL },
   { resource: 'expense-types', resourceLabel: 'Harajat turlari', actions: FULL },
+  { resource: 'payments', resourceLabel: "To'lovlar", actions: FULL },
 
   // Materiallar
   { resource: 'materials', resourceLabel: 'Materiallar', actions: FULL },

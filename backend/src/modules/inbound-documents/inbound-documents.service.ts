@@ -273,7 +273,15 @@ export class InboundDocumentsService {
     if (document.status !== InboundDocumentStatus.DRAFT) {
       throw new BadRequestException('Tasdiqlangan hujjatni o`chirib bo`lmaydi - avval qoralamaga qaytaring');
     }
-    await this.documentRepo.remove(document);
+    try {
+      await this.documentRepo.remove(document);
+    } catch (error: any) {
+      // 23503 - hujjatga boshqa yozuv (to'lov) bog'langan
+      if (error?.code === '23503' || error?.driverError?.code === '23503') {
+        throw new BadRequestException('Bu hujjatga to`lov yozilgan - avval to`lovni o`chiring');
+      }
+      throw error;
+    }
     return { success: true };
   }
 }

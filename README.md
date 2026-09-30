@@ -38,9 +38,10 @@ keyin profildan o'zgartiring.
 | Kirish tarixi va bildirishnomalar | `login_history` jadvali, `frontend/src/pages/AuthPages/Sessions.tsx` |
 | Tillar: o'zbek, rus, ingliz | `frontend/src/i18n.ts`, `frontend/src/locales/*/translation.json` |
 | Ma'muriyat: tashkilotlar (rekvizitlar), filiallar, omborxonalar | `backend/src/modules/administration`, `frontend/src/pages/Administration` |
-| Buhgalteriya: valyuta turlari, valyuta kursi, to'lov turlari, harajat turlari | `backend/src/modules/accounting`, `frontend/src/pages/Accounting` |
+| Buhgalteriya: to'lovlar (harajatlar), valyuta turlari, valyuta kursi, to'lov turlari, harajat turlari (bog'lanishi bilan) | `backend/src/modules/accounting`, `frontend/src/pages/Accounting` |
 | Kontragentlar: mijozlar, yetkazib beruvchilar (mahalliy / import) | `backend/src/modules/contractors`, `frontend/src/pages/Contractors` |
-| Kirim hujjatlari: xarid (skaner + qidiruv), qaytarish va almashinuv (chek raqami yoki mijozning sotuvlaridan tanlash). Chiqim (sotuv) hujjatlari uchun hozircha faqat jadval va qidiruv bor — yaratish formasi hali yo'q | `backend/src/modules/inbound-documents`, `outbound-documents`, `frontend/src/pages/Inbounds`, `frontend/src/components/documents` |
+| Kirim hujjatlari: xarid (skaner + qidiruv), qaytarish va almashinuv (chek raqami yoki mijozning sotuvlaridan tanlash) | `backend/src/modules/inbound-documents`, `frontend/src/pages/Inbounds`, `frontend/src/components/documents` |
+| Chiqim hujjatlari — barcha sotuvlar: mijoz, omborxona, izoh, tovarlar (skaner + qidiruv, soni, sotuv narxi); tasdiqlangach kirimda undan qaytarish qilinadi | `backend/src/modules/outbound-documents`, `frontend/src/pages/Outbounds` |
 | Etiketka va RFID: kirim hujjatidagi har bir dona uchun alohida etiketka va takrorlanmas RFID kodi (EPC); ZPL ko'rinishida RFID printerga (Chainway CP30) yuboriladi yoki fayl qilib yuklab olinadi | `backend/src/modules/inbound-documents/labels`, `entities/rfid-tag.entity.ts`, `frontend/src/pages/Inbounds/LabelsModal.tsx` |
 | Marketing vositalari: sovg'a sertifikatlari (yaratish, sotish, bekor qilish), aksiyalar — chegirma, N+M sovg'a, karusel, chek bo'yicha. Aksiyalar hozircha faqat ta'riflanadi; sotuvda qo'llash sotuv moduli bilan qo'shiladi | `backend/src/modules/marketing`, `frontend/src/pages/Marketing` |
 | Materiallar: xususiyatlar ma'lumotnomalardan, rasmlar (asosiysi belgilanadi), MXIK, TN VED, QQS | `backend/src/modules/materials`, `frontend/src/pages/Materials`; rasmlar `backend/uploads/materials` da |
@@ -59,6 +60,19 @@ berilgan sahifa yetarli.
 2. Frontend: `config/modules.tsx` (modul), `layout/AppSidebar.tsx` (menyu), `App.tsx` (yo'l).
 3. Tarjima: uchala `locales/*/translation.json` ga `modules.<key>` va
    `permissions.resources.<resurs>` yozing.
+
+## To'lovlar
+
+Harajat turida **bog'lanish** tanlanadi: umumiy, kirim hujjatiga, yetkazib beruvchiga
+yoki mijozga. To'lov (Buhgalteriya -> To'lovlar) kiritilganda shunga qarab kirim
+hujjati yoki kontragent so'raladi; kirim hujjatiga to'lovda kontragent hujjatdan olinadi.
+
+- Summa to'lov valyutasida yoziladi. So'mda kurs kerak emas.
+- Boshqa valyutada kurs to'lov sanasidagi amaldagi kursdan (shu sanagacha kiritilgan
+  oxirgisi) o'zi to'ldiriladi va o'zgartirilishi mumkin; so'mdagi summa (summa x kurs,
+  qo'lda tuzatsa bo'ladi) to'lov bilan birga saqlanadi - kurs keyin o'zgarsa ham
+  to'lov qancha so'm bo'lgani o'zgarmaydi.
+- To'lov yozilgan kirim hujjati, harajat turi va kontragent o'chirilmaydi.
 
 ## Etiketka va RFID
 

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { GridIcon, UserCircleIcon, ChevronDownIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { usePermissions } from "../hooks/usePermissions";
-import { Building2, Calculator, Layers, Megaphone, Package, PackagePlus, Users } from "lucide-react";
+import { Building2, Calculator, Layers, Megaphone, Package, PackageMinus, PackagePlus, Users } from "lucide-react";
 
 /**
  * Menyu punkti. `resource` - shu bo'limni ko'rish huquqi (bo'lmasa hammaga
@@ -90,6 +90,12 @@ const AppSidebar: React.FC = () => {
       resource: "inbound-documents",
     },
     {
+      icon: <PackageMinus />,
+      name: t("modules.outbounds.title"),
+      path: "/outbounds",
+      resource: "outbound-documents",
+    },
+    {
       icon: <Megaphone />,
       name: t("sidebar.marketing"),
       subItems: [
@@ -104,6 +110,7 @@ const AppSidebar: React.FC = () => {
       icon: <Calculator />,
       name: t("sidebar.accounting"),
       subItems: [
+        { name: t("modules.payments.title"), path: "/payments", resource: "payments" },
         { name: t("modules.currencies.title"), path: "/currencies", resource: "currencies" },
         { name: t("modules.currencyRates.title"), path: "/currency-rates", resource: "currency-rates" },
         { name: t("modules.paymentTypes.title"), path: "/payment-types", resource: "payment-types" },

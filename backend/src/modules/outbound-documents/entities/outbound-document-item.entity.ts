@@ -31,4 +31,8 @@ export class OutboundDocumentItem {
   /** Sotuv narxi - qaytarishda tovar shu narxda qaytadi */
   @Column({ type: 'numeric', precision: 18, scale: 2, default: 0, transformer: numeric })
   price: number;
+
+  /** Hujjatdagi tartib - qo'shilgan ketma-ketlikda */
+  @Column({ type: 'int', default: 0 })
+  sortOrder: number;
 }

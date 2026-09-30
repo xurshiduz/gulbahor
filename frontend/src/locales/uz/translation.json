@@ -234,6 +234,14 @@
     "inbounds": {
       "title": "Kirim hujjatlari",
       "desc": "Xarid, qaytarish va almashinuv hujjatlari"
+    },
+    "outbounds": {
+      "title": "Chiqim hujjatlari",
+      "desc": "Barcha sotuvlar"
+    },
+    "payments": {
+      "title": "To'lovlar",
+      "desc": "Harajatlar: kirim hujjatiga, yetkazib beruvchiga, mijozga"
     }
   },
   "profile": {
@@ -422,7 +430,9 @@
       "materials": "Materiallar",
       "gift-certificates": "Sovg'a sertifikatlari",
       "promotions": "Aksiyalar",
-      "inbound-documents": "Kirim hujjatlari"
+      "inbound-documents": "Kirim hujjatlari",
+      "outbound-documents": "Chiqim hujjatlari",
+      "payments": "To'lovlar"
     },
     "actions": {
       "read": "Ko'rish",
@@ -762,5 +772,36 @@
     "downloaded": "{{count}} ta etiketka faylga yozildi",
     "printer_missing": "Printer manzili sozlanmagan (backend .env: LABEL_PRINTER_HOST). Hozircha ZPL faylni yuklab olib, printer dasturi orqali yuborish mumkin.",
     "save_first": "Etiketka chiqarish uchun avval hujjatni saqlang"
+  },
+  "outbounds": {
+    "document": "Sotuv",
+    "new_document": "Yangi sotuv",
+    "list_search": "Raqam, mijoz, izoh...",
+    "has_returns": "Bu hujjat bo'yicha qaytarish qilingan — uni qoralamaga qaytarib bo'lmaydi."
+  },
+  "expenses": {
+    "target": "Bog'lanish",
+    "target_NONE": "Umumiy (bog'lanmagan)",
+    "target_INBOUND_DOCUMENT": "Kirim hujjatiga",
+    "target_SUPPLIER": "Yetkazib beruvchiga",
+    "target_CUSTOMER": "Mijozga",
+    "target_hint": "To'lov kiritilganda shunga qarab kirim hujjati, yetkazib beruvchi yoki mijoz tanlanadi.",
+    "all_targets": "Barcha bog'lanishlar"
+  },
+  "payments": {
+    "add": "To'lov qo'shish",
+    "edit": "To'lovni tahrirlash",
+    "expense_type": "Harajat turi",
+    "target": "Kimga / nimaga",
+    "inbound_document": "Kirim hujjati",
+    "payment_type": "To'lov turi",
+    "rate": "Kurs",
+    "rate_hint": "1 {{code}} necha so'm. Amaldagi kursdan to'ldiriladi, o'zgartirish mumkin.",
+    "rate_from": "{{date}} sanasidagi kursdan olindi — o'zgartirish mumkin",
+    "rate_missing": "{{code}} uchun kurs kiritilmagan — qo'lda yozing",
+    "amount_uzs": "So'mda",
+    "amount_uzs_hint": "Summa × kurs. To'lov bilan birga saqlanadi.",
+    "all_expense_types": "Barcha harajat turlari",
+    "total_uzs": "Jami"
   }
 }

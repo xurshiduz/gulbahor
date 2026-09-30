@@ -234,6 +234,14 @@
     "inbounds": {
       "title": "Inbound documents",
       "desc": "Purchase, return and exchange documents"
+    },
+    "outbounds": {
+      "title": "Outbound documents",
+      "desc": "All sales"
+    },
+    "payments": {
+      "title": "Payments",
+      "desc": "Expenses: for an inbound document, supplier or customer"
     }
   },
   "profile": {
@@ -422,7 +430,9 @@
       "materials": "Materials",
       "gift-certificates": "Gift certificates",
       "promotions": "Promotions",
-      "inbound-documents": "Inbound documents"
+      "inbound-documents": "Inbound documents",
+      "outbound-documents": "Outbound documents",
+      "payments": "Payments"
     },
     "actions": {
       "read": "View",
@@ -762,5 +772,36 @@
     "downloaded": "{{count}} labels written to the file",
     "printer_missing": "Printer address is not configured (backend .env: LABEL_PRINTER_HOST). For now you can download the ZPL file and send it with the printer utility.",
     "save_first": "Save the document first to print labels"
+  },
+  "outbounds": {
+    "document": "Sale",
+    "new_document": "New sale",
+    "list_search": "Number, customer, note...",
+    "has_returns": "A return has been made against this document — it cannot be reverted to draft."
+  },
+  "expenses": {
+    "target": "Linked to",
+    "target_NONE": "General (not linked)",
+    "target_INBOUND_DOCUMENT": "Inbound document",
+    "target_SUPPLIER": "Supplier",
+    "target_CUSTOMER": "Customer",
+    "target_hint": "When a payment is entered, an inbound document, supplier or customer is chosen accordingly.",
+    "all_targets": "All links"
+  },
+  "payments": {
+    "add": "Add payment",
+    "edit": "Edit payment",
+    "expense_type": "Expense type",
+    "target": "To whom / for what",
+    "inbound_document": "Inbound document",
+    "payment_type": "Payment type",
+    "rate": "Rate",
+    "rate_hint": "How many UZS per 1 {{code}}. Filled from the current rate, can be changed.",
+    "rate_from": "Taken from the rate of {{date}} — can be changed",
+    "rate_missing": "No rate entered for {{code}} — type it manually",
+    "amount_uzs": "In UZS",
+    "amount_uzs_hint": "Amount × rate. Saved with the payment.",
+    "all_expense_types": "All expense types",
+    "total_uzs": "Total"
   }
 }

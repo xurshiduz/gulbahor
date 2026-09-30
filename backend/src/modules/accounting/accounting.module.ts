@@ -12,13 +12,18 @@ import { CurrenciesController } from './controllers/currencies.controller';
 import { CurrencyRatesController } from './controllers/currency-rates.controller';
 import { PaymentTypesController } from './controllers/payment-types.controller';
 import { ExpenseTypesController } from './controllers/expense-types.controller';
+import { Payment } from './entities/payment.entity';
+import { PaymentsService } from './services/payments.service';
+import { PaymentsController } from './controllers/payments.controller';
+import { Contractor } from '../contractors/entities/contractor.entity';
+import { InboundDocument } from '../inbound-documents/entities/inbound-document.entity';
 import { AccountingSeedService } from './accounting-seed.service';
 
-/** Buhgalteriya: valyuta turlari, valyuta kurslari, to'lov turlari, harajat turlari */
+/** Buhgalteriya: valyuta turlari, valyuta kurslari, to'lov turlari, harajat turlari, to'lovlar */
 @Module({
-  imports: [TypeOrmModule.forFeature([Currency, CurrencyRate, PaymentType, ExpenseType])],
-  providers: [CurrenciesService, CurrencyRatesService, PaymentTypesService, ExpenseTypesService, AccountingSeedService],
-  controllers: [CurrenciesController, CurrencyRatesController, PaymentTypesController, ExpenseTypesController],
+  imports: [TypeOrmModule.forFeature([Currency, CurrencyRate, PaymentType, ExpenseType, Payment, Contractor, InboundDocument])],
+  providers: [CurrenciesService, CurrencyRatesService, PaymentTypesService, ExpenseTypesService, PaymentsService, AccountingSeedService],
+  controllers: [CurrenciesController, CurrencyRatesController, PaymentTypesController, ExpenseTypesController, PaymentsController],
   exports: [CurrenciesService, CurrencyRatesService, PaymentTypesService, ExpenseTypesService, AccountingSeedService],
 })
 export class AccountingModule {}

@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserCircle, ShieldCheck, Building2, GitBranch, Warehouse, Layers, Tag, Ruler, Palette, Shirt, Globe, MapPin,
-  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus,
+  Coins, TrendingUp, CreditCard, Receipt, Users, Truck, Package, Gift, Percent, BadgePercent, RefreshCw, ReceiptText, PackagePlus, PackageMinus, Wallet,
 } from "lucide-react";
 
 export interface ModuleItem {
@@ -41,6 +41,8 @@ export const MODULES: ModuleItem[] = [
   // Hujjatlar
   { key: "inbounds", path: "/inbounds", resource: "inbound-documents", icon: <PackagePlus />, color: "bg-amber-500" },
 
+  { key: "outbounds", path: "/outbounds", resource: "outbound-documents", icon: <PackageMinus />, color: "bg-emerald-600" },
+
   // Marketing vositalari
   { key: "giftCertificates", path: "/gift-certificates", resource: "gift-certificates", icon: <Gift />, color: "bg-pink-600" },
   { key: "discountPromotions", path: "/promotions/discounts", resource: "promotions", icon: <Percent />, color: "bg-red-500" },
@@ -49,6 +51,7 @@ export const MODULES: ModuleItem[] = [
   { key: "receiptPromotions", path: "/promotions/receipt", resource: "promotions", icon: <ReceiptText />, color: "bg-amber-600" },
 
   // Buhgalteriya
+  { key: "payments", path: "/payments", resource: "payments", icon: <Wallet />, color: "bg-teal-600" },
   { key: "currencies", path: "/currencies", resource: "currencies", icon: <Coins />, color: "bg-yellow-600" },
   { key: "currencyRates", path: "/currency-rates", resource: "currency-rates", icon: <TrendingUp />, color: "bg-emerald-500" },
   { key: "paymentTypes", path: "/payment-types", resource: "payment-types", icon: <CreditCard />, color: "bg-green-600" },

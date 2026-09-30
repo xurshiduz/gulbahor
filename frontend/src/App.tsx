@@ -15,6 +15,9 @@ import Customers from "./pages/Contractors/Customers";
 import Suppliers from "./pages/Contractors/Suppliers";
 import InboundsList from "./pages/Inbounds/InboundsList";
 import InboundForm from "./pages/Inbounds/InboundForm";
+import OutboundsList from "./pages/Outbounds/OutboundsList";
+import OutboundForm from "./pages/Outbounds/OutboundForm";
+import Payments from "./pages/Accounting/Payments";
 import GiftCertificates from "./pages/Marketing/GiftCertificates";
 import { CarouselPromotions, DiscountPromotions, GiftPromotions, ReceiptPromotions } from "./pages/Marketing/Promotions";
 import Currencies from "./pages/Accounting/Currencies";
@@ -58,6 +61,11 @@ export default function App() {
               <Route path="/inbounds/create" element={<InboundForm />} />
               <Route path="/inbounds/:id" element={<InboundForm />} />
 
+              {/* Chiqim hujjatlari (sotuvlar) */}
+              <Route path="/outbounds" element={<OutboundsList />} />
+              <Route path="/outbounds/create" element={<OutboundForm />} />
+              <Route path="/outbounds/:id" element={<OutboundForm />} />
+
               {/* Marketing vositalari */}
               <Route path="/gift-certificates" element={<GiftCertificates />} />
               <Route path="/promotions/discounts" element={<DiscountPromotions />} />
@@ -66,6 +74,7 @@ export default function App() {
               <Route path="/promotions/receipt" element={<ReceiptPromotions />} />
 
               {/* Buhgalteriya */}
+              <Route path="/payments" element={<Payments />} />
               <Route path="/currencies" element={<Currencies />} />
               <Route path="/currency-rates" element={<CurrencyRates />} />
               <Route path="/payment-types" element={<PaymentTypes />} />
