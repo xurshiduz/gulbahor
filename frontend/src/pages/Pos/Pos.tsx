@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import {
-  Banknote, CheckCircle2, Clock, CreditCard, Loader2, LogOut, Maximize, Minimize, Minus, PauseCircle, Percent, Plus, Printer,
+  Banknote, CheckCircle2, Clock, Coins, CreditCard, Loader2, RefreshCw, LogOut, Maximize, Minimize, Minus, PauseCircle, Percent, Plus, Printer,
   ScanLine, Search, Send, Shirt, ShoppingBag, Trash2, User, UserPlus, Wallet, X, Zap,
 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
@@ -32,8 +32,14 @@ interface Named { id: string; name: string }
 interface Customer extends Named { phone: string | null }
 /** To'lov turi integratsiyaga ulangan: Click Pass, Payme, UDS, terminal */
 interface IntegrationRef { provider: string; title: string; api: string; paymentTypeId: string }
+interface PaymentTypeRef extends Named { isCash?: boolean }
+/** Kassadagi to'lov usuli: naqd so'm, naqd valyuta, integratsiya (Click...) yoki boshqa to'lov turi */
+interface PayMethod {
+  key: string; kind: "cash" | "fx" | "integration" | "type"; label: string; hint: string;
+  paymentTypeId: string; integration?: IntegrationRef;
+}
 interface Setup {
-  cashRegisters: Register[]; currencies: Currency[]; paymentTypes: Named[]; customers: Customer[];
+  cashRegisters: Register[]; currencies: Currency[]; paymentTypes: PaymentTypeRef[]; customers: Customer[];
   cashier: Named | null; shopName: string | null; integrations: IntegrationRef[];
 }
 interface Product {
@@ -48,6 +54,8 @@ interface CartLine {
 interface Tx { id: string; status: "PENDING" | "PAID" | "FAILED" | "CANCELLED"; externalId: string | null; reference: string | null; error?: string | null }
 interface PayLine {
   key: string; paymentTypeId: string; currencyId: string; amount: string; rate: string;
+  /** Tanlangan to'lov usuli (PayMethod.key); tanlanmaguncha usullar ro'yxati ko'rinadi */
+  method?: string;
   /** Integratsiya: Click Pass / UDS kodi, Payme telefoni, terminal RRN, tranzaksiya */
   code?: string; phone?: string; reference?: string; tx?: Tx | null;
   uds?: { name: string | null; points: number; maxPoints: number } | null;
@@ -953,7 +961,7 @@ function CustomerModal({ customers, selectedId, auth, onPick, onCreated, onClose
 
 /** To'lov: bir nechta usul va valyuta, qaytim va qarz. Click / Payme / UDS / terminal - integratsiya orqali */
 function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustomer, customerPhone, integrations, cashRegisterId, auth, fiscalItems, onClose, onFinish }: {
-  total: number; currencies: Currency[]; paymentTypes: Named[]; baseCurrency: Currency; hasCustomer: boolean;
+  total: number; currencies: Currency[]; paymentTypes: PaymentTypeRef[]; baseCurrency: Currency; hasCustomer: boolean;
   customerPhone: string | null; integrations: IntegrationRef[]; cashRegisterId: string; auth: Record<string, string>;
   /** Payme fiskal cheki uchun (chek chegirmasi bo'lsa bo'sh) */
   fiscalItems: { materialId: string; quantity: number; price: number }[];
@@ -961,14 +969,37 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   onFinish: (payments: FinishPayment[], change: number, autoPrint: boolean) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const firstType = paymentTypes[0]?.id || "";
-  const [pays, setPays] = useState<PayLine[]>([{ key: newKey(), paymentTypeId: firstType, currencyId: baseCurrency.id, amount: String(total), rate: "" }]);
+  // Avval to'lov usuli tanlanadi - shuning uchun boshida usul yo'q
+  const [pays, setPays] = useState<PayLine[]>([{ key: newKey(), paymentTypeId: "", currencyId: baseCurrency.id, amount: String(total), rate: "" }]);
   const [autoPrint, setAutoPrint] = useState(storage.get(AUTOPRINT_KEY) !== "0");
   const [error, setError] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
   const currencyOf = (id: string) => currencies.find((item) => item.id === id) || baseCurrency;
-  const integrationOf = (pay: PayLine) => integrations.find((item) => item.paymentTypeId === pay.paymentTypeId) || null;
+  const foreign = useMemo(() => currencies.filter((item) => !item.isBase), [currencies]);
+
+  /**
+   * To'lov usullari: naqd so'm, naqd valyuta, yoqilgan integratsiyalar (Click Pass,
+   * Payme, UDS, terminal) va boshqa to'lov turlari (karta, o'tkazma...).
+   */
+  const methods = useMemo<PayMethod[]>(() => {
+    const cashType = paymentTypes.find((type) => type.isCash);
+    const list: PayMethod[] = [
+      { key: "cash", kind: "cash", label: t("pos.m_cash"), hint: baseCurrency.code, paymentTypeId: cashType?.id || "" },
+    ];
+    if (foreign.length) list.push({ key: "fx", kind: "fx", label: t("pos.m_cash_fx"), hint: foreign.map((item) => item.code).join(" · "), paymentTypeId: cashType?.id || "" });
+    for (const integration of integrations) {
+      list.push({ key: `int:${integration.provider}`, kind: "integration", label: integration.title, hint: t(`pos.m_hint_${integration.api}`), paymentTypeId: integration.paymentTypeId, integration });
+    }
+    const linked = new Set(integrations.map((item) => item.paymentTypeId));
+    for (const type of paymentTypes) {
+      if (!type.isCash && !linked.has(type.id)) list.push({ key: `type:${type.id}`, kind: "type", label: type.name, hint: baseCurrency.code, paymentTypeId: type.id });
+    }
+    return list;
+  }, [paymentTypes, integrations, foreign, baseCurrency, t]);
+
+  const methodOf = (pay: PayLine) => methods.find((item) => item.key === pay.method) || null;
+  const integrationOf = (pay: PayLine) => methodOf(pay)?.integration || null;
   const uzsOf = (pay: PayLine) => {
     const currency = currencyOf(pay.currencyId);
     return round2(parse(pay.amount) * (currency.isBase ? 1 : parse(pay.rate)));
@@ -988,10 +1019,23 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
     return data;
   };
 
-  const setType = (pay: PayLine, paymentTypeId: string) => {
-    const integrated = integrations.some((item) => item.paymentTypeId === paymentTypeId);
-    // Integratsiya orqali to'lov faqat so'mda
-    update(pay.key, { paymentTypeId, ...(integrated ? { currencyId: baseCurrency.id, rate: "" } : {}), note: "", uds: null, code: "", reference: "", phone: pay.phone || customerPhone || "+998 " });
+  /** Qatorga to'lov usuli: valyutada - birinchi chet valyuta va uning kursi, qolganlari so'mda */
+  const chooseMethod = (pay: PayLine, method: PayMethod) => {
+    const others = round2(pays.filter((item) => item.key !== pay.key).reduce((sum, item) => sum + uzsOf(item), 0));
+    const due = Math.max(0, round2(total - others));
+    const base = {
+      method: method.key, paymentTypeId: method.paymentTypeId, note: "", uds: null, code: "", reference: "",
+      phone: pay.phone || customerPhone || "+998 ",
+    };
+    if (method.kind === "fx") {
+      const currency = foreign.find((item) => item.id === pay.currencyId) || foreign[0];
+      const rate = String(currency.rate || "");
+      const amount = parse(rate) > 0 ? String(Math.ceil((due / parse(rate)) * 100) / 100) : "";
+      update(pay.key, { ...base, currencyId: currency.id, rate, amount });
+    } else {
+      // So'mdagi usul: valyutadan qaytilgan bo'lsa summa qayta hisoblanadi
+      update(pay.key, { ...base, currencyId: baseCurrency.id, rate: "", amount: currencyOf(pay.currencyId).isBase && pay.amount ? pay.amount : String(due) });
+    }
   };
 
   const setCurrency = (pay: PayLine, currencyId: string) => {
@@ -1005,8 +1049,7 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   };
 
   const addLine = () => {
-    const otherType = paymentTypes.find((type) => !pays.some((pay) => pay.paymentTypeId === type.id))?.id || firstType;
-    setPays([...pays, { key: newKey(), paymentTypeId: otherType, currencyId: baseCurrency.id, amount: remaining > 0 ? String(remaining) : "", rate: "" }]);
+    setPays([...pays, { key: newKey(), paymentTypeId: "", currencyId: baseCurrency.id, amount: remaining > 0 ? String(remaining) : "", rate: "" }]);
   };
 
   /** Naqd pul uchun tez summalar: yaxlitlangan banknotlar */
@@ -1110,7 +1153,16 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   };
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); closeSafely(); } };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); closeSafely(); return; }
+      // 1..9 - usul tanlanmagan qator uchun ro'yxatdagi usul (maydonda yozilayotgan bo'lmasa)
+      const target = event.target as HTMLElement | null;
+      if (/^[1-9]$/.test(event.key) && !(target && ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName))) {
+        const pay = pays.find((item) => !item.method);
+        const method = methods[Number(event.key) - 1];
+        if (pay && method) { event.preventDefault(); chooseMethod(pay, method); }
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -1118,6 +1170,7 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
   const submit = async () => {
     const valid = pays.filter((pay) => parse(pay.amount) > 0);
     for (const pay of valid) {
+      if (!pay.method) return setError(t("pos.choose_method"));
       const currency = currencyOf(pay.currencyId);
       if (!currency.isBase && !(parse(pay.rate) > 0)) return setError(t("pos.rate_required", { code: currency.code }));
       if (integrationOf(pay) && pay.tx?.status !== "PAID") return setError(t("pos.int_not_paid", { provider: integrationOf(pay)!.title }));
@@ -1137,14 +1190,14 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
 
     const payments: FinishPayment[] = lines.filter((line) => line.value > 0).map((line) => {
       const currency = currencyOf(line.currencyId);
-      const type = paymentTypes.find((item) => item.id === line.paymentTypeId);
+      const method = methodOf(line);
       return {
         paymentTypeId: line.paymentTypeId || null,
         currencyId: line.currencyId,
         amount: line.value,
         ...(currency.isBase ? {} : { rate: parse(line.rate) }),
         ...(line.tx ? { integrationTransactionId: line.tx.id } : {}),
-        label: `${type?.name || t("cash.no_payment_type")}${currency.isBase ? "" : ` (${currency.code})`}`,
+        label: `${method?.label || t("cash.no_payment_type")}${currency.isBase ? "" : ` (${currency.code})`}`,
       };
     });
 
@@ -1160,7 +1213,18 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
     }
   };
 
-  const typeIcon = (name: string) => (/karta|card|uzcard|humo|visa/i.test(name) ? <CreditCard className="h-4 w-4" /> : <Banknote className="h-4 w-4" />);
+  const METHOD_TONE: Record<string, string> = {
+    cash: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300", fx: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+    CLICK: "bg-[#0073FF] text-white", PAYME: "bg-[#33CCCC] text-white", UDS: "bg-[#6B4EFF] text-white", ARCA: "bg-gray-800 text-white", UZUM_PAY: "bg-[#7000FF] text-white",
+  };
+  const methodIcon = (method: PayMethod, size = "h-5 w-5") => {
+    const tone = METHOD_TONE[method.integration?.provider || method.kind] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
+    const icon = method.kind === "cash" ? <Banknote className={size} />
+      : method.kind === "fx" ? <Coins className={size} />
+      : method.kind === "integration" ? <Zap className={size} />
+      : /karta|card|uzcard|humo|visa/i.test(method.label) ? <CreditCard className={size} /> : <Wallet className={size} />;
+    return <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone}`}>{icon}</span>;
+  };
   const smallInput = "h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:border-brand-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800";
   const actionButton = "flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-50";
 
@@ -1175,36 +1239,69 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
         {pays.map((pay) => {
           const currency = currencyOf(pay.currencyId);
           const integration = integrationOf(pay);
+          const method = methodOf(pay);
           const locked = isLocked(pay);
           return (
             <div key={pay.key} className={`space-y-2 rounded-xl border p-3 ${pay.tx?.status === "PAID" ? "border-green-300 bg-green-50/40 dark:border-green-500/30 dark:bg-green-500/5" : "border-gray-200 dark:border-gray-700"}`}>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {paymentTypes.map((type) => {
-                  const linked = integrations.find((item) => item.paymentTypeId === type.id);
-                  return (
-                    <button
-                      key={type.id} onClick={() => setType(pay, type.id)} disabled={locked}
-                      className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium disabled:opacity-60 ${pay.paymentTypeId === type.id ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300"}`}
-                    >
-                      {linked ? <Zap className="h-4 w-4" /> : typeIcon(type.name)}{type.name}
-                    </button>
-                  );
-                })}
+              {!method ? (
+                /* To'lov usulini tanlash */
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t("pos.choose_method")}</span>
+                    {pays.length > 1 && (
+                      <button onClick={() => setPays(pays.filter((item) => item.key !== pay.key))} aria-label={t("common.delete")} className="text-gray-400 hover:text-red-500">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {methods.map((option, index) => (
+                      <button
+                        key={option.key} onClick={() => chooseMethod(pay, option)}
+                        className="group relative flex items-center gap-3 rounded-xl border border-gray-200 p-3 text-left transition hover:border-brand-400 hover:bg-brand-50/40 dark:border-gray-700 dark:hover:bg-brand-500/10"
+                      >
+                        {methodIcon(option)}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">{option.label}</span>
+                          <span className="block truncate text-xs text-gray-500">{option.hint}</span>
+                        </span>
+                        {index < 9 && <span className="absolute right-2 top-2 rounded border border-gray-200 px-1 text-[10px] text-gray-400 dark:border-gray-700">{index + 1}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+              <div className="space-y-2">
+              {/* Tanlangan usul */}
+              <div className="flex items-center gap-3">
+                {methodIcon(method)}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-gray-900 dark:text-white">{method.label}</span>
+                  <span className="block text-xs text-gray-500">{method.kind === "fx" ? currency.code : method.hint}</span>
+                </span>
+                {!locked && (
+                  <button onClick={() => update(pay.key, { method: undefined, note: "" })} className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5">
+                    <RefreshCw className="h-3.5 w-3.5" />{t("pos.change_method")}
+                  </button>
+                )}
                 {pays.length > 1 && !locked && (
-                  <button onClick={() => setPays(pays.filter((item) => item.key !== pay.key))} aria-label={t("common.delete")} className="ml-auto text-gray-400 hover:text-red-500">
+                  <button onClick={() => setPays(pays.filter((item) => item.key !== pay.key))} aria-label={t("common.delete")} className="text-gray-400 hover:text-red-500">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 )}
               </div>
               <div className="flex gap-2">
-                <select
-                  aria-label={t("inbounds.currency")} value={pay.currencyId} onChange={(e) => setCurrency(pay, e.target.value)} disabled={locked || !!integration}
-                  className="h-12 rounded-lg border border-gray-300 bg-white px-2 text-sm font-semibold disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800"
-                >
-                  {currencies.map((item) => <option key={item.id} value={item.id}>{item.code}</option>)}
-                </select>
+                {/* Valyutada naqd: qaysi valyuta */}
+                {method.kind === "fx" && (
+                  <select
+                    aria-label={t("inbounds.currency")} value={pay.currencyId} onChange={(e) => setCurrency(pay, e.target.value)} disabled={locked}
+                    className="h-12 rounded-lg border border-gray-300 bg-white px-2 text-sm font-semibold disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800"
+                  >
+                    {foreign.map((item) => <option key={item.id} value={item.id}>{item.code}</option>)}
+                  </select>
+                )}
                 <input
-                  type="text" inputMode="decimal" value={pay.amount} autoFocus={pays.length === 1} disabled={locked}
+                  type="text" inputMode="decimal" value={pay.amount} autoFocus disabled={locked}
                   onChange={(e) => update(pay.key, { amount: decimalOnly(e.target.value) })}
                   onFocus={(e) => e.target.select()}
                   onKeyDown={(e) => { if (e.key === "Enter" && !integration) submit(); }}
@@ -1289,7 +1386,7 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
                   {pay.note && <p className="text-xs font-medium text-red-600 dark:text-red-400">{pay.note}</p>}
                   {!pay.tx && integration.api === "manual" && <p className="text-xs text-gray-500">{t("pos.int_manual_hint", { provider: integration.title })}</p>}
                 </div>
-              ) : currency.isBase ? (
+              ) : method.kind === "cash" ? (
                 <div className="flex flex-wrap gap-1.5">
                   {quickAmounts(pay).map((value) => (
                     <button key={value} onClick={() => update(pay.key, { amount: String(value) })} className="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300">
@@ -1297,8 +1394,10 @@ function PaymentModal({ total, currencies, paymentTypes, baseCurrency, hasCustom
                     </button>
                   ))}
                 </div>
-              ) : (
-                <p className="text-xs text-gray-500">≈ {fmt(uzsOf(pay))} {baseCurrency.code}</p>
+              ) : !currency.isBase ? (
+                <p className="text-xs text-gray-500">≈ {fmt(uzsOf(pay))} {baseCurrency.code}{parse(pay.rate) > 0 ? ` · 1 ${currency.code} = ${fmt(parse(pay.rate))}` : ""}</p>
+              ) : null}
+              </div>
               )}
             </div>
           );

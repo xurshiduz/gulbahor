@@ -82,7 +82,7 @@ export class PosService {
       customers: customers.map((row) => ({ id: row.id, name: row.name, phone: row.phone })),
       // To'lov turi -> integratsiya (Click, Payme, UDS, terminal)
       integrations: await this.gateway.enabledForPos(),
-      paymentTypes: paymentTypes.map((row) => ({ id: row.id, name: row.name })),
+      paymentTypes: paymentTypes.map((row) => ({ id: row.id, name: row.name, isCash: row.isCash })),
       shopName: organization[0]?.name || null,
     };
   }

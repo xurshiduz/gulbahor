@@ -1026,7 +1026,15 @@
     "int_manual_hint": "First complete the payment via {{provider}}, then enter the number from the slip",
     "int_amount_required": "Enter the amount",
     "int_not_paid": "Payment via {{provider}} is not complete",
-    "int_close_confirm": "Completed payments will be cancelled (money goes back to the customer). Close?"
+    "int_close_confirm": "Completed payments will be cancelled (money goes back to the customer). Close?",
+    "choose_method": "Choose a payment method",
+    "change_method": "Change",
+    "m_cash": "Cash — UZS",
+    "m_cash_fx": "Cash — foreign currency",
+    "m_hint_click": "Scan QR code",
+    "m_hint_payme": "Receipt to phone",
+    "m_hint_uds": "With points",
+    "m_hint_manual": "Terminal + RRN"
   },
   "integrations": {
     "intro_PAYMENT": "Accept payments right at the cash desk. Keys are stored in the database, encrypted.",
@@ -1062,7 +1070,7 @@
     "secret_broken": "The saved key could not be decrypted (the server key changed) — enter it again",
     "manual_note": "This system has no public API documentation. For now the cashier enters the RRN / transaction number from the terminal slip and it is stored. With the protocol documents a full integration can be built.",
     "payment_type": "Payment type to record under",
-    "payment_type_hint": "The integration runs when this payment type is chosen at the cash desk; the money received is recorded under it.",
+    "payment_type_hint": "If not chosen, a payment type with the same name (e.g. \"Click\") is linked or created automatically.",
     "our_warehouses": "Our warehouses to upload",
     "no_warehouses": "No warehouses",
     "target_warehouse": "Marketplace warehouse",
@@ -1095,6 +1103,12 @@
     "tx_CANCELLED": "Cancelled",
     "tx_unattached": "not linked to a receipt",
     "tx_cancel": "Cancel",
-    "tx_cancel_confirm": "Cancel the payment of {{amount}} UZS? The money goes back to the customer."
+    "tx_cancel_confirm": "Cancel the payment of {{amount}} UZS? The money goes back to the customer.",
+    "payment_type_auto": "Automatic (type with the same name)"
+  },
+  "paymentTypes": {
+    "is_cash": "Cash",
+    "is_cash_hint": "At the cash desk \"Cash — UZS\" and \"Cash — foreign currency\" are recorded under this type. Only one such type exists.",
+    "cash_badge": "cash"
   }
 }

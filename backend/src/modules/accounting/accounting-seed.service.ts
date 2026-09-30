@@ -40,8 +40,16 @@ export class AccountingSeedService {
       this.logger.log(`Valyutalar: ${CURRENCIES.length} ta`);
     }
     if (!(await this.paymentTypes.count())) {
-      await this.paymentTypes.save(PAYMENT_TYPES.map((name) => ({ name })));
+      await this.paymentTypes.save(PAYMENT_TYPES.map((name) => ({ name, isCash: name === 'Naqd pul' })));
       this.logger.log(`To'lov turlari: ${PAYMENT_TYPES.length} ta`);
+    }
+    // Naqd pul turi belgilanmagan bo'lsa (eski bazalar) - nomi bo'yicha topib belgilanadi
+    if (!(await this.paymentTypes.count({ where: { isCash: true } }))) {
+      const cash = (await this.paymentTypes.find()).find((row) => /naqd|cash|налич/i.test(row.name));
+      if (cash) {
+        await this.paymentTypes.update(cash.id, { isCash: true });
+        this.logger.log(`Naqd pul turi: ${cash.name}`);
+      }
     }
     if (!(await this.expenseTypes.count())) {
       await this.expenseTypes.save(EXPENSE_TYPES.map((name) => ({ name })));

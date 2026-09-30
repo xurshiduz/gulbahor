@@ -68,7 +68,12 @@ class NamedDto extends BaseDto {
   description?: string;
 }
 
-export class CreatePaymentTypeDto extends NamedDto {}
+export class CreatePaymentTypeDto extends NamedDto {
+  @ApiProperty({ required: false, default: false, description: 'Naqd pul (kassada so`m va valyuta)' })
+  @IsOptional()
+  @IsBoolean()
+  isCash?: boolean;
+}
 export class UpdatePaymentTypeDto extends PartialType(CreatePaymentTypeDto) {}
 
 export class CreateExpenseTypeDto extends NamedDto {

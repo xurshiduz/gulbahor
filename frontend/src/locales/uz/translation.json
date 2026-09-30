@@ -1026,7 +1026,15 @@
     "int_manual_hint": "Avval to'lovni {{provider}} orqali o'tkazing, keyin chekdagi raqamni kiriting",
     "int_amount_required": "Summani kiriting",
     "int_not_paid": "{{provider}} orqali to'lov tugallanmagan",
-    "int_close_confirm": "O'tgan to'lovlar bekor qilinadi (pul xaridorga qaytadi). Yopamizmi?"
+    "int_close_confirm": "O'tgan to'lovlar bekor qilinadi (pul xaridorga qaytadi). Yopamizmi?",
+    "choose_method": "To'lov usulini tanlang",
+    "change_method": "Almashtirish",
+    "m_cash": "Naqd — so'm",
+    "m_cash_fx": "Naqd — valyuta",
+    "m_hint_click": "QR kodni skanerlash",
+    "m_hint_payme": "Chek telefonga",
+    "m_hint_uds": "Ball bilan",
+    "m_hint_manual": "Terminal + RRN"
   },
   "integrations": {
     "intro_PAYMENT": "Kassada to'lovni to'g'ridan-to'g'ri qabul qilish. Kalitlar bazada shifrlangan holda saqlanadi.",
@@ -1062,7 +1070,7 @@
     "secret_broken": "Saqlangan kalitni ochib bo'lmadi (server kaliti almashgan) — qayta kiriting",
     "manual_note": "Bu tizimning ochiq API hujjati yo'q. Hozircha kassir terminaldagi to'lovdan keyin chekdagi RRN / tranzaksiya raqamini kiritadi va u saqlanadi. Protokol hujjati bo'lsa, to'liq integratsiya qilinadi.",
     "payment_type": "Qaysi to'lov turiga yoziladi",
-    "payment_type_hint": "Kassada shu to'lov turi tanlanganda integratsiya ishlaydi; pul tushumi ham shu turga yoziladi.",
+    "payment_type_hint": "Tanlanmasa — shu nomdagi to'lov turi (masalan \"Click\") o'zi ulanadi yoki yaratiladi.",
     "our_warehouses": "Qoldig'i yuboriladigan omborlarimiz",
     "no_warehouses": "Omborxona yo'q",
     "target_warehouse": "Marketpleysdagi ombor",
@@ -1095,6 +1103,12 @@
     "tx_CANCELLED": "Bekor qilingan",
     "tx_unattached": "chekka bog'lanmagan",
     "tx_cancel": "Bekor qilish",
-    "tx_cancel_confirm": "{{amount}} so'mlik to'lov bekor qilinsinmi? Pul xaridorga qaytariladi."
+    "tx_cancel_confirm": "{{amount}} so'mlik to'lov bekor qilinsinmi? Pul xaridorga qaytariladi.",
+    "payment_type_auto": "Avtomatik (shu nomdagi tur)"
+  },
+  "paymentTypes": {
+    "is_cash": "Naqd pul",
+    "is_cash_hint": "Kassada \"Naqd — so'm\" va \"Naqd — valyuta\" shu turga yoziladi. Bunday tur bittagina bo'ladi.",
+    "cash_badge": "naqd"
   }
 }

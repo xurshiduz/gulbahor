@@ -243,9 +243,9 @@ function ProviderCard({ item, paymentTypes, warehouses, auth, canUpdate, canSync
         {/* To'lov: qaysi to'lov turiga yoziladi */}
         {!isMarket && (
           <div>
-            <label className={labelClass}>{t("integrations.payment_type")} <span className="text-red-500">*</span></label>
+            <label className={labelClass}>{t("integrations.payment_type")}</label>
             <select value={form.paymentTypeId} disabled={!canUpdate} onChange={(e) => setForm((prev) => ({ ...prev, paymentTypeId: e.target.value }))} className={inputClass}>
-              <option value="">{t("ref.choose")}</option>
+              <option value="">{t("integrations.payment_type_auto")}</option>
               {paymentTypes.filter((type) => type.isActive !== false || type.id === form.paymentTypeId).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
             </select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("integrations.payment_type_hint")}</p>

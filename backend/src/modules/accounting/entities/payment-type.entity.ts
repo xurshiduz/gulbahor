@@ -12,6 +12,13 @@ export class PaymentType {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  /**
+   * Naqd pul. Kassada "Naqd - so'm" va "Naqd - valyuta" shu turga yoziladi;
+   * bunday tur bittagina bo'ladi.
+   */
+  @Column({ default: false })
+  isCash: boolean;
+
   @Column({ default: true })
   isActive: boolean;
 

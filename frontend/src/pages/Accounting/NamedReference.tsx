@@ -18,20 +18,38 @@ export function PaymentTypes() {
   const { t } = useTranslation();
 
   return (
-    <ReferenceCrud<Named>
+    <ReferenceCrud<Named & { isCash?: boolean }>
       resource="payment-types"
       endpoint="/api/payment-types"
       title={t("modules.paymentTypes.title")}
       columns={[
-        { key: "name", label: t("ref.name"), render: (row) => row.name, className: "font-medium text-gray-900 dark:text-white" },
+        {
+          key: "name", label: t("ref.name"), className: "font-medium text-gray-900 dark:text-white",
+          render: (row) => (
+            <span className="flex items-center gap-2">
+              {row.name}
+              {row.isCash && <span className="rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-500/10 dark:text-green-400">{t("paymentTypes.cash_badge")}</span>}
+            </span>
+          ),
+        },
         { key: "description", label: t("ref.description"), render: (row) => row.description || "—", className: "text-gray-500 dark:text-gray-400" },
       ]}
       fields={() => [
         { name: "name", label: t("ref.name"), kind: "text", required: true, maxLength: 120, placeholder: "Naqd pul" },
+        {
+          name: "isCash", label: t("paymentTypes.is_cash"), kind: "custom", hint: t("paymentTypes.is_cash_hint"),
+          render: (value, onChange) => (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-brand-500" />
+              {t("paymentTypes.is_cash")}
+            </label>
+          ),
+          toPayload: (value) => !!value,
+        },
         { name: "description", label: t("ref.description"), kind: "textarea", maxLength: 500 },
       ]}
-      blank={{ name: "", description: "" }}
-      toForm={(row) => ({ name: row.name, description: row.description || "" })}
+      blank={{ name: "", isCash: false, description: "" }}
+      toForm={(row) => ({ name: row.name, isCash: !!row.isCash, description: row.description || "" })}
       searchText={(row) => `${row.name} ${row.description || ""}`}
       rowName={(row) => row.name}
     />

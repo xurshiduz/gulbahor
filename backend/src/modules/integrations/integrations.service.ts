@@ -118,6 +118,10 @@ export class IntegrationsService {
     }
 
     const isEnabled = dto.isEnabled ?? setting.isEnabled;
+    // To'lov turi tanlanmagan bo'lsa - shu nomdagi tur olinadi yoki yaratiladi (Click, Payme...)
+    if (isEnabled && def.kind === 'PAYMENT' && !options.paymentTypeId) {
+      options.paymentTypeId = await this.paymentTypeFor(def);
+    }
     if (isEnabled) {
       const missing = def.fields.filter((field) => field.required && !credentials[field.key]);
       if (missing.length) throw new BadRequestException(`Yoqish uchun kalitlarni to'ldiring: ${missing.map((field) => field.key).join(', ')}`);
@@ -131,6 +135,22 @@ export class IntegrationsService {
     Object.assign(setting, { credentials, options, isEnabled, isTest: dto.isTest ?? setting.isTest });
     await this.repo.save(setting);
     return this.view(def, setting);
+  }
+
+  /** Integratsiya uchun to'lov turi: nomi mos keladigani, bo'lmasa yangisi */
+  private async paymentTypeFor(def: ProviderDef) {
+    const aliases: Record<string, string[]> = {
+      PAYME: ['payme'], CLICK: ['click pass', 'click'], UDS: ['uds'],
+      ARCA: ['arca terminali', 'arca', 'plastik karta', 'karta'], UZUM_PAY: ['uzum', 'uzum bank'],
+    };
+    const names = aliases[def.code] || [def.title.toLowerCase()];
+    const types = await this.paymentTypeRepo.find();
+    for (const name of names) {
+      const found = types.find((row) => row.name.trim().toLowerCase() === name && !row.isCash);
+      if (found) return found.id;
+    }
+    const created = await this.paymentTypeRepo.save(this.paymentTypeRepo.create({ name: def.title }));
+    return created.id;
   }
 
   /** Ichki: yoqilgan (yoki tekshiruv uchun - yoqilmagan ham) integratsiya kalitlari bilan */

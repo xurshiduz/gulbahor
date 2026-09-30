@@ -103,6 +103,10 @@ birinchi bosishda to'liq ekranga o'tadi. Chek yopilganda tasdiqlangan chiqim huj
 (`CH..`) va har bir to'lov usuli bo'yicha pul tushumi kassaga yoziladi.
 
 - Narx - material kartochkasidagi **sotuv narxi**; chekda o'zgartirsa bo'ladi.
+- "To'lov" bosilganda avval **usul** tanlanadi (1..9 tugmalari ham ishlaydi): Naqd - so'm, Naqd - valyuta
+  (kurs bilan), yoqilgan integratsiyalar (Click Pass, Payme, UDS, Arca, Uzum) va boshqa to'lov turlari.
+  Naqd usullar "Naqd pul" belgili to'lov turiga yoziladi; integratsiya yoqilganda to'lov turi
+  tanlanmagan bo'lsa shu nomdagi tur ulanadi yoki yaratiladi.
 - Qator chegirmasi (%) va chek chegirmasi (% yoki so'm); chek chegirmasi qatorlarga
   tiyinigacha taqsimlanadi - qaytarishda tovar to'langan narxida qaytadi.
 - To'lov bir necha usulda va valyutada; qaytim so'mda. To'liq to'lanmasa - faqat
