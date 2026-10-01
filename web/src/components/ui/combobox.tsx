@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/cn'
 
+import { Shortcut } from './feedback'
+
 export interface ComboOption {
   value: string
   label: string
@@ -13,6 +15,8 @@ export interface ComboOption {
   hint?: string
   /** Extra words to find the option by, not shown. */
   keywords?: string
+  /** A colour dot before the label, as "#RRGGBB". */
+  color?: string | null
 }
 
 interface BaseProps {
@@ -63,10 +67,19 @@ export function Combobox(props: SingleProps | MultiProps) {
   const [highlight, setHighlight] = useState(0)
 
   const selectedValues = props.multiple ? props.value : props.value ? [props.value] : []
-  const selectedOptions = selectedValues.map((value) => options.find((option) => option.value === value)).filter((option): option is ComboOption => !!option)
+  const selectedOptions = selectedValues
+    .map((value) => options.find((option) => option.value === value))
+    .filter((option): option is ComboOption => !!option)
   const single = props.multiple ? null : (selectedOptions[0] ?? null)
 
-  const keyed = useMemo(() => options.map((option) => ({ option, key: searchKey(`${option.label} ${option.hint ?? ''} ${option.keywords ?? ''}`) })), [options])
+  const keyed = useMemo(
+    () =>
+      options.map((option) => ({
+        option,
+        key: searchKey(`${option.label} ${option.hint ?? ''} ${option.keywords ?? ''}`),
+      })),
+    [options],
+  )
 
   const shown = useMemo(() => {
     const text = query.trim()
@@ -86,12 +99,18 @@ export function Combobox(props: SingleProps | MultiProps) {
       .map((item) => item.option)
   }, [keyed, query, recentKey])
 
-  const canCreate = !!onCreate && !!query.trim() && !options.some((option) => option.label.toLowerCase() === query.trim().toLowerCase())
+  const canCreate =
+    !!onCreate && !!query.trim() && !options.some((option) => option.label.toLowerCase() === query.trim().toLowerCase())
   const rows = canCreate ? [...shown.map((option) => option.value), CREATE] : shown.map((option) => option.value)
 
+  // The first match is ready for Enter. "Create" never is: a typo or a scanned
+  // barcode followed by Enter must not add a new entry; ↓ reaches it on purpose.
+  // Nor is anything in a list of several once a pick is made and the text is
+  // empty again: there the next Enter means "done", not "toggle the first one".
+  const ready = shown.length > 0 && (!props.multiple || !!query.trim())
   useEffect(() => {
-    setHighlight(0)
-  }, [query, open])
+    setHighlight(ready ? 0 : -1)
+  }, [query, open, ready])
 
   useEffect(() => {
     listRef.current?.querySelector('[data-highlighted="true"]')?.scrollIntoView({ block: 'nearest' })
@@ -118,7 +137,9 @@ export function Combobox(props: SingleProps | MultiProps) {
   const choose = (value: string) => {
     writeRecent(recentKey, value)
     if (props.multiple) {
-      props.onChange(props.value.includes(value) ? props.value.filter((item) => item !== value) : [...props.value, value])
+      props.onChange(
+        props.value.includes(value) ? props.value.filter((item) => item !== value) : [...props.value, value],
+      )
       setQuery('')
       inputRef.current?.focus()
       return
@@ -139,13 +160,16 @@ export function Combobox(props: SingleProps | MultiProps) {
       return
     }
     if (event.key === 'Enter' && open) {
-      // Enter picks here; it must not also move the form on to the next field.
+      // Ctrl+Enter saves the form, and Enter in an untouched field moves on: both are the form's to handle.
+      if (event.ctrlKey || event.metaKey || (!rows[highlight] && !query.trim())) {
+        close()
+        return
+      }
+      // Otherwise Enter picks here; it must not also move the form on to the next field.
       event.preventDefault()
       event.stopPropagation()
       if (rows[highlight]) {
         void pick(rows[highlight])
-      } else {
-        close()
       }
       return
     }
@@ -188,7 +212,11 @@ export function Combobox(props: SingleProps | MultiProps) {
         >
           {props.multiple
             ? selectedOptions.map((option) => (
-                <span key={option.value} className="flex h-6 items-center gap-1 rounded bg-accent-soft pr-0.5 pl-1.5 text-xs font-medium text-accent-ink">
+                <span
+                  key={option.value}
+                  className="flex h-6 items-center gap-1 rounded bg-accent-soft pr-0.5 pl-1.5 text-xs font-medium text-accent-ink"
+                >
+                  {option.color ? <ColorDot color={option.color} /> : null}
                   {option.label}
                   <button
                     type="button"
@@ -259,7 +287,9 @@ export function Combobox(props: SingleProps | MultiProps) {
           className="z-50 w-(--radix-popover-trigger-width) min-w-52 rounded-lg border border-line bg-surface p-1 shadow-float data-[state=open]:animate-pop-in"
         >
           <div ref={listRef} role="listbox" className="max-h-64 overflow-y-auto">
-            {rows.length === 0 ? <p className="px-2 py-3 text-center text-xs text-ink-3">{t('common.nothingFound')}</p> : null}
+            {rows.length === 0 ? (
+              <p className="px-2 py-3 text-center text-xs text-ink-3">{t('common.nothingFound')}</p>
+            ) : null}
             {shown.map((option, index) => {
               const isSelected = selectedValues.includes(option.value)
               return (
@@ -273,6 +303,7 @@ export function Combobox(props: SingleProps | MultiProps) {
                   onClick={() => void pick(option.value)}
                   className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-[13px] data-[highlighted=true]:bg-sunken"
                 >
+                  {option.color ? <ColorDot color={option.color} /> : null}
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {option.hint ? <span className="tabular shrink-0 text-xs text-ink-3">{option.hint}</span> : null}
                   <Check className={cn('size-3.5 shrink-0 text-accent', !isSelected && 'invisible')} />
@@ -292,14 +323,26 @@ export function Combobox(props: SingleProps | MultiProps) {
                   shown.length > 0 && 'mt-1 border-t border-line pt-1.5',
                 )}
               >
-                <Plus className="size-3.5" />
-                {t('input.createNew', { text: query.trim() })}
+                <Plus className="size-3.5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{t('input.createNew', { text: query.trim() })}</span>
+                {highlight !== rows.length - 1 ? <Shortcut combo="arrowdown+enter" className="shrink-0" /> : null}
               </div>
             ) : null}
           </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  )
+}
+
+/** A small swatch; the ring keeps white visible on a white page and black on a dark one. */
+export function ColorDot({ color, className }: { color: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn('inline-block size-3 shrink-0 rounded-full ring-1 ring-line-strong', className)}
+      style={{ backgroundColor: color }}
+    />
   )
 }
 

@@ -1,5 +1,6 @@
 export * from './access'
 export * from './amount'
+export * from './catalog'
 export * from './date'
 export * from './expression'
 export * from './fraction'

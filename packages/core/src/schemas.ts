@@ -61,8 +61,8 @@ export interface Page<T> {
   size: number
 }
 
-const requiredText = (max: number) => z.string().trim().min(1).max(max)
-const optionalText = (max: number) =>
+export const requiredText = (max: number) => z.string().trim().min(1).max(max)
+export const optionalText = (max: number) =>
   z
     .string()
     .trim()

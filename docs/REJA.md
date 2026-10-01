@@ -732,7 +732,7 @@ Aka Billz'dagi inputlardan norozi. Shuning uchun inputlar tizimning eng kuchli j
 ## 14. Bosqichlar
 
 1. **Asos — tayyor (2026-10-01).** `xurshiduz/gulbahor` ichida yangi loyiha tuzilmasi, migratsiyalar, ko'p tashkilot (RLS), modullarni yoqish va o'chirish, kirish va huquqlar, joylar (do'kon va sklad), frontend qobig'i, klaviatura qatlami, jadval va inputlar.
-2. **Tovar va sklad.** Model × rang × o'lcham, jo'natma va kirim, yo'l va bojxona xarajatlarini taqsimlash, RFID etiketka va donalar, ko'chirish, inventarizatsiya, hisobdan chiqarish; tovarlar va boshlang'ich qoldiqni Excel'dan import qilish.
+2. **Tovar va sklad — boshlandi.** Tayyor (2026-10-01): tovar katalogi — kategoriyalar, brendlar, rang va o'lcham shkalalari, narx turlari, model va variantlar (rang × o'lcham jadvali), shtrix-kodlar, model va variant narxlari. Qolgani: jo'natma va kirim, yo'l va bojxona xarajatlarini taqsimlash, RFID etiketka va donalar, ko'chirish, inventarizatsiya, hisobdan chiqarish; tovarlar va boshlang'ich qoldiqni Excel'dan import qilish.
 3. **Kassa.** RFID yoki shtrix-kod bilan sotish, to'lovlar, terminal, qaytarish va almashtirish, otlojka, smena va inkassatsiya; do'kon agenti va darvoza.
 4. **Pul va hamkorlar.** Hisoblar, ikki tomonlama yozuv, valyuta va kurs farqi, harajatlar, hamkorlar (qarz va konsignatsiya ikki tomonga), akt-sverka, davrni yopish; mijozlar, hamkorlar va boshlang'ich qarzlarni Excel'dan import qilish.
 5. **Birinchi do'konda ishga tushirish** (quyida).

@@ -7,6 +7,7 @@ import { validateEnv } from './config/env'
 import { DatabaseModule } from './database/database.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { CatalogModule } from './modules/catalog/catalog.module'
 import { LocationsModule } from './modules/locations/locations.module'
 import { OrgsModule } from './modules/orgs/orgs.module'
 import { RealtimeGatewayModule } from './modules/realtime/realtime.gateway'
@@ -31,6 +32,7 @@ import { UsersModule } from './modules/users/users.module'
     LocationsModule,
     RolesModule,
     UsersModule,
+    CatalogModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

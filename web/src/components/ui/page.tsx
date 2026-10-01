@@ -26,7 +26,7 @@ export function Page({ title, subtitle, actions, children, width = 'full' }: Pag
   return (
     <div className={cn('mx-auto flex h-full min-h-0 w-full flex-col gap-4 p-5', width === 'narrow' && 'max-w-3xl')}>
       <header className="flex shrink-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-[1_1_16rem]">
           <h1 className="text-lg leading-tight font-semibold text-ink">{title}</h1>
           {subtitle ? <p className="mt-0.5 max-w-2xl text-xs text-ink-3">{subtitle}</p> : null}
         </div>

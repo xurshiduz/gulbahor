@@ -12,6 +12,7 @@ import { Form } from './form'
 import { MoneyInput } from './money-input'
 import { NumberInput } from './number-input'
 import { PhoneInput } from './phone-input'
+import { TagInput } from './tag-input'
 
 function Money({ onValue, fillValue }: { onValue: (value: number | null, currency: CurrencyCode) => void; fillValue?: number }) {
   const [value, setValue] = useState<number | null>(null)
@@ -182,11 +183,84 @@ describe('Combobox', () => {
     expect(screen.getAllByRole('option')[0].textContent).toBe("Anvar G'ofurov")
   })
 
-  it('offers to create what is not there', async () => {
+  it('offers to create what is not there, but only on purpose', async () => {
     const onCreate = vi.fn()
     render(<Combobox options={options} value={null} onChange={() => {}} onCreate={onCreate} />)
-    await userEvent.type(screen.getByRole('combobox'), 'Yangi hamkor{Enter}')
+    const input = screen.getByRole('combobox')
+
+    // A typo or a scanned barcode followed by Enter creates nothing.
+    await userEvent.type(input, 'Yangi hamkor{Enter}')
+    expect(onCreate).not.toHaveBeenCalled()
+    expect((input as HTMLInputElement).value).toBe('Yangi hamkor')
+
+    await userEvent.type(input, '{ArrowDown}{Enter}')
     expect(onCreate).toHaveBeenCalledWith('Yangi hamkor')
+  })
+
+  it('picks several, and leaves the next Enter and Ctrl+Enter to the form', async () => {
+    const onSubmit = vi.fn()
+    function Several() {
+      const [value, setValue] = useState<string[]>([])
+      return (
+        <Form onSubmit={() => onSubmit(value)}>
+          <Combobox multiple options={options} value={value} onChange={setValue} />
+          <input aria-label="next" />
+        </Form>
+      )
+    }
+    render(<Several />)
+    const input = screen.getByRole('combobox')
+    const next = screen.getByLabelText('next')
+    for (const field of [input, next]) {
+      Object.defineProperty(field, 'offsetParent', { get: () => document.body })
+    }
+
+    await userEvent.type(input, 'anvar{Enter}shohruh{Enter}')
+    expect(screen.getAllByRole('option', { selected: true })).toHaveLength(2)
+
+    // With nothing typed, Enter does not toggle the first name: it moves on.
+    await userEvent.keyboard('{Enter}')
+    expect(document.activeElement).toBe(next)
+
+    input.focus()
+    await userEvent.type(input, 'd')
+    await userEvent.keyboard('{Control>}{Enter}{/Control}')
+    expect(onSubmit).toHaveBeenCalledWith(['1', '3'])
+  })
+})
+
+describe('TagInput', () => {
+  const parse = (text: string) => (/^\d{4,}$/.test(text) ? text : null)
+
+  function Tags({ onChange }: { onChange: (value: string[]) => void }) {
+    const [value, setValue] = useState<string[]>([])
+    return <TagInput value={value} parse={parse} max={3} onChange={(next) => (setValue(next), onChange(next))} />
+  }
+
+  it('takes one code per Enter, refuses what does not parse and ignores repeats', async () => {
+    const onChange = vi.fn()
+    render(<Tags onChange={onChange} />)
+    const input = screen.getByRole('textbox')
+
+    await userEvent.type(input, '4006381333931{Enter}12{Enter}')
+    expect(onChange).toHaveBeenLastCalledWith(['4006381333931'])
+    expect(input).toHaveProperty('value', '12')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+
+    await userEvent.clear(input)
+    await userEvent.type(input, '4006381333931 5901234123457,')
+    expect(onChange).toHaveBeenLastCalledWith(['4006381333931', '5901234123457'])
+
+    await userEvent.keyboard('{Backspace}')
+    expect(onChange).toHaveBeenLastCalledWith(['4006381333931'])
+  })
+
+  it('adds every code of a pasted list, up to its limit', async () => {
+    const onChange = vi.fn()
+    render(<Tags onChange={onChange} />)
+    screen.getByRole('textbox').focus()
+    await userEvent.paste('1111 2222\n3333, 4444')
+    expect(onChange).toHaveBeenLastCalledWith(['1111', '2222', '3333'])
   })
 })
 

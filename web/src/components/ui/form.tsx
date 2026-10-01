@@ -23,6 +23,8 @@ interface FormProps {
 /**
  * A form you fill in without leaving the keyboard: Enter moves to the next
  * field and submits from the last one, Ctrl+Enter submits from anywhere.
+ * Controls inside a `data-enter-skip` element are passed over by Enter (Tab
+ * still reaches them): settings that are rarely touched while entering data.
  */
 export function Form({ onSubmit, children, className, id }: FormProps) {
   const ref = useRef<HTMLFormElement>(null)
@@ -52,7 +54,9 @@ export function Form({ onSubmit, children, className, id }: FormProps) {
       return
     }
     event.preventDefault()
-    const fields = [...form.querySelectorAll<HTMLElement>(FIELDS)].filter((field) => field.offsetParent !== null)
+    const fields = [...form.querySelectorAll<HTMLElement>(FIELDS)].filter(
+      (field) => field.offsetParent !== null && (field === target || !field.closest('[data-enter-skip]')),
+    )
     const next = fields[fields.indexOf(target) + 1]
     if (next) {
       next.focus()
@@ -64,7 +68,14 @@ export function Form({ onSubmit, children, className, id }: FormProps) {
   }
 
   return (
-    <form ref={ref} id={id} noValidate onSubmit={handleSubmit} onKeyDown={handleKeyDown} className={cn('flex flex-col gap-4', className)}>
+    <form
+      ref={ref}
+      id={id}
+      noValidate
+      onSubmit={handleSubmit}
+      onKeyDown={handleKeyDown}
+      className={cn('flex flex-col gap-4', className)}
+    >
       {children}
     </form>
   )
@@ -81,21 +92,37 @@ export function zodSubmit<TForm extends FieldValues, TOutput>(
   onValid: (data: TOutput) => void,
 ) {
   return form.handleSubmit((values) => {
-    const result = schema.safeParse(values)
-    if (result.success) {
-      onValid(result.data)
-      return
-    }
-    const seen = new Set<string>()
-    for (const issue of result.error.issues) {
-      const path = issue.path.join('.')
-      if (seen.has(path)) {
-        continue
-      }
-      form.setError(path as Path<TForm>, { type: 'validate', message: issue.message }, { shouldFocus: seen.size === 0 })
-      seen.add(path)
+    const data = zodCheck(form, schema, values)
+    if (data !== null) {
+      onValid(data)
     }
   })
+}
+
+/**
+ * Checks `data` against a contract schema. On failure each message goes
+ * under its field and null comes back. For forms whose request is not
+ * simply their field values.
+ */
+export function zodCheck<TForm extends FieldValues, TOutput>(
+  form: UseFormReturn<TForm>,
+  schema: ZodType<TOutput>,
+  data: unknown,
+): TOutput | null {
+  const result = schema.safeParse(data)
+  if (result.success) {
+    return result.data
+  }
+  const seen = new Set<string>()
+  for (const issue of result.error.issues) {
+    const path = issue.path.join('.')
+    if (seen.has(path)) {
+      continue
+    }
+    form.setError(path as Path<TForm>, { type: 'validate', message: issue.message }, { shouldFocus: seen.size === 0 })
+    seen.add(path)
+  }
+  return null
 }
 
 /** Puts the server's per-field messages under their fields. Returns false if the error was not a field error. */
@@ -116,7 +143,11 @@ export function applyServerErrors<T extends FieldValues>(error: unknown, form: U
  * The draft is restored when the form opens again and cleared once it is
  * saved. Secrets are never kept.
  */
-export function useDraft<T extends FieldValues>(key: string | null, form: UseFormReturn<T>, omit: (keyof T & string)[] = []) {
+export function useDraft<T extends FieldValues>(
+  key: string | null,
+  form: UseFormReturn<T>,
+  omit: (keyof T & string)[] = [],
+) {
   const storageKey = key ? `gb.draft.${key}` : null
   const restored = useRef(false)
 

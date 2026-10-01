@@ -1,5 +1,11 @@
 import { Check, ChevronDown } from 'lucide-react'
-import { Checkbox as CheckboxPrimitive, DropdownMenu, Select as SelectPrimitive, Switch as SwitchPrimitive, Tabs as TabsPrimitive } from 'radix-ui'
+import {
+  Checkbox as CheckboxPrimitive,
+  DropdownMenu,
+  Select as SelectPrimitive,
+  Switch as SwitchPrimitive,
+  Tabs as TabsPrimitive,
+} from 'radix-ui'
 import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/cn'
@@ -31,7 +37,11 @@ export function Select({ id, value, onChange, options, placeholder, invalid, dis
       <SelectPrimitive.Trigger
         id={id}
         aria-invalid={invalid || undefined}
-        className={cn(controlClass, 'flex items-center justify-between gap-2 text-left data-placeholder:text-ink-3', className)}
+        className={cn(
+          controlClass,
+          'flex items-center justify-between gap-2 text-left data-placeholder:text-ink-3',
+          className,
+        )}
       >
         <span className="truncate">
           <SelectPrimitive.Value placeholder={placeholder} />
@@ -78,23 +88,32 @@ interface ToggleProps {
   className?: string
 }
 
+/**
+ * Inside a form Radix adds a hidden, absolutely positioned input next to the
+ * control. This gives it something to be positioned against; without it the
+ * input escapes every scrolling container and stretches the page.
+ */
+const anchor = 'relative inline-flex shrink-0'
+
 export function Checkbox({ id, checked, onChange, disabled, label, hint, className }: ToggleProps) {
   const box = (
-    <CheckboxPrimitive.Root
-      id={id}
-      checked={checked}
-      onCheckedChange={(next) => onChange(next === true)}
-      disabled={disabled}
-      className={cn(
-        'flex size-4 shrink-0 items-center justify-center rounded border border-control bg-surface transition-colors',
-        'data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-on-accent',
-        'disabled:opacity-50',
-      )}
-    >
-      <CheckboxPrimitive.Indicator>
-        <Check className="size-3" strokeWidth={3} />
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
+    <span className={anchor}>
+      <CheckboxPrimitive.Root
+        id={id}
+        checked={checked}
+        onCheckedChange={(next) => onChange(next === true)}
+        disabled={disabled}
+        className={cn(
+          'flex size-4 shrink-0 items-center justify-center rounded border border-control bg-surface transition-colors',
+          'data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-on-accent',
+          'disabled:opacity-50',
+        )}
+      >
+        <CheckboxPrimitive.Indicator>
+          <Check className="size-3" strokeWidth={3} />
+        </CheckboxPrimitive.Indicator>
+      </CheckboxPrimitive.Root>
+    </span>
   )
   if (!label) {
     return box
@@ -112,17 +131,19 @@ export function Checkbox({ id, checked, onChange, disabled, label, hint, classNa
 
 export function Switch({ id, checked, onChange, disabled, label, hint, className }: ToggleProps) {
   const control = (
-    <SwitchPrimitive.Root
-      id={id}
-      checked={checked}
-      onCheckedChange={onChange}
-      disabled={disabled}
-      className={cn(
-        'relative h-5 w-9 shrink-0 rounded-full bg-line-strong transition-colors data-[state=checked]:bg-accent disabled:opacity-50',
-      )}
-    >
-      <SwitchPrimitive.Thumb className="block size-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-4.5" />
-    </SwitchPrimitive.Root>
+    <span className={anchor}>
+      <SwitchPrimitive.Root
+        id={id}
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+        className={cn(
+          'relative h-5 w-9 shrink-0 rounded-full bg-line-strong transition-colors data-[state=checked]:bg-accent disabled:opacity-50',
+        )}
+      >
+        <SwitchPrimitive.Thumb className="block size-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-4.5" />
+      </SwitchPrimitive.Root>
+    </span>
   )
   if (!label) {
     return control
@@ -170,7 +191,7 @@ export function Tabs({
 }
 
 export const TabPanel = ({ value, children }: { value: string; children: ReactNode }) => (
-  <TabsPrimitive.Content value={value} className="min-h-0 flex-1 pt-5 outline-none">
+  <TabsPrimitive.Content value={value} className="flex min-h-0 flex-1 flex-col pt-5 outline-none">
     {children}
   </TabsPrimitive.Content>
 )
@@ -185,7 +206,15 @@ export interface MenuItem {
   disabled?: boolean
 }
 
-export function Menu({ trigger, items, align = 'end' }: { trigger: ReactNode; items: (MenuItem | 'separator')[]; align?: 'start' | 'end' }) {
+export function Menu({
+  trigger,
+  items,
+  align = 'end',
+}: {
+  trigger: ReactNode
+  items: (MenuItem | 'separator')[]
+  align?: 'start' | 'end'
+}) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>

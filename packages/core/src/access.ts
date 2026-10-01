@@ -114,6 +114,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'products',
+    title: 'Tovarlar',
+    permissions: [
+      { key: 'products.view', title: "Ko'rish" },
+      { key: 'products.manage', title: "Qo'shish va tahrirlash" },
+      { key: 'products.prices', title: "Narxlarni va narx turlarini o'zgartirish" },
+      { key: 'products.references', title: "Kategoriya, brend, rang va o'lchamlarni boshqarish" },
+    ],
+  },
+  {
     key: 'users',
     title: 'Xodimlar',
     permissions: [
@@ -177,42 +187,42 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     key: 'manager',
     name: 'Boshqaruvchi',
     description: "Egasining o'rinbosari: do'konlar va xodimlarga qaraydi.",
-    permissions: ['locations.*', 'users.*', 'audit.view'],
+    permissions: ['locations.*', 'users.*', 'products.*', 'audit.view'],
   },
   {
     key: 'accountant',
     name: 'Hisobchi',
     description: 'Pul, kartalar, hamkorlar bilan hisob-kitob va hisobotlar.',
-    permissions: ['locations.view', 'audit.view'],
+    permissions: ['locations.view', 'products.view', 'audit.view'],
   },
   {
     key: 'store_manager',
     name: "Do'kon menejeri",
     description: "O'z do'koni: chegirma va qaytarishni tasdiqlaydi, smenadan pulni qabul qiladi.",
-    permissions: ['locations.view', 'users.view'],
+    permissions: ['locations.view', 'users.view', 'products.view'],
   },
   {
     key: 'cashier',
     name: 'Kassir',
     description: 'Sotadi, qaytaradi, smenani ochadi va yopadi.',
-    permissions: [],
+    permissions: ['products.view'],
   },
   {
     key: 'seller',
     name: 'Sotuvchi',
     description: 'Zalda mijozga tovar topadi; chekda uning nomi turadi.',
-    permissions: [],
+    permissions: ['products.view'],
   },
   {
     key: 'warehouse',
     name: 'Sklad mudiri',
     description: "Kirim, etiketka, ko'chirish va inventarizatsiya.",
-    permissions: ['locations.view'],
+    permissions: ['locations.view', 'products.view', 'products.manage', 'products.references'],
   },
   {
     key: 'partners_manager',
     name: 'Hamkorlar menejeri',
     description: "Hamkorlarga tovar beradi, to'lov qabul qiladi, akt yuboradi.",
-    permissions: [],
+    permissions: ['products.view'],
   },
 ]

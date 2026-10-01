@@ -1,8 +1,11 @@
-import { LOCATION_KINDS } from '@gulbahor/core'
+import { GENDERS, LOCATION_KINDS, SEASONS } from '@gulbahor/core'
 import { createRootRoute, createRoute, createRouter, redirect, stripSearchParams } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { AuditPage } from '@/features/audit/audit-page'
+import { ProductPage } from '@/features/catalog/product-page'
+import { ProductsPage } from '@/features/catalog/products-page'
+import { ReferencesPage } from '@/features/catalog/references-page'
 import { HomePage } from '@/features/dashboard/home-page'
 import { InputsDemoPage } from '@/features/dev/inputs-demo-page'
 import { LocationsPage } from '@/features/locations/locations-page'
@@ -35,6 +38,40 @@ const locationsRoute = createRoute({
   component: LocationsPage,
   validateSearch: locationsSearch,
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
+})
+
+const { edit: _edit, ...plainList } = listSearch
+const productsSearch = z.object({
+  ...plainList,
+  status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
+  categoryId: z.string().optional().catch(undefined),
+  brandId: z.string().optional().catch(undefined),
+  season: z.enum(SEASONS).optional().catch(undefined),
+  gender: z.enum(GENDERS).optional().catch(undefined),
+})
+const productsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/products',
+  component: ProductsPage,
+  validateSearch: productsSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
+})
+
+/** `new`, or the id of the model being edited. */
+const productRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/products/$productId',
+  component: ProductPage,
+})
+
+const referencesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/references',
+  component: ReferencesPage,
+  validateSearch: z.object({
+    tab: z.enum(['categories', 'brands', 'attributes', 'prices']).default('categories').catch('categories'),
+  }),
+  search: { middlewares: [stripSearchParams({ tab: 'categories' })] },
 })
 
 const usersSearch = z.object({
@@ -100,7 +137,19 @@ const inputsRoute = createRoute({
   },
 })
 
-const routeTree = rootRoute.addChildren([homeRoute, locationsRoute, usersRoute, rolesRoute, auditRoute, settingsRoute, profileRoute, inputsRoute])
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  productsRoute,
+  productRoute,
+  referencesRoute,
+  locationsRoute,
+  usersRoute,
+  rolesRoute,
+  auditRoute,
+  settingsRoute,
+  profileRoute,
+  inputsRoute,
+])
 
 export const router = createRouter({
   routeTree,

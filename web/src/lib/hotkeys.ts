@@ -72,11 +72,29 @@ export function suspendHotkeys(value: boolean) {
   suspended = value
 }
 
+/** Whatever floats above the page: a dropdown, a menu, a dialog. */
+const OVERLAYS = '[data-radix-popper-content-wrapper], [role="dialog"], [role="alertdialog"]'
+let overlayOpen = false
+
+/**
+ * Esc belongs to whatever is open on top. By the time the key bubbles up
+ * here the overlay has already closed itself, so whether one was open is
+ * noted on the way down, before it reacts.
+ */
+function onKeyDownCapture(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    overlayOpen = !!document.querySelector(OVERLAYS)
+  }
+}
+
 function onKeyDown(event: KeyboardEvent) {
   if (event.isComposing || suspended) {
     return
   }
   const combo = comboOf(event)
+  if (combo === 'escape' && overlayOpen) {
+    return
+  }
   const plain = !combo.includes('+') && !/^f\d{1,2}$/.test(combo) && combo !== 'escape'
   // The most recently registered handler wins, so a dialog's shortcuts cover the page under it.
   for (let i = registrations.length - 1; i >= 0; i--) {
@@ -98,6 +116,7 @@ function onKeyDown(event: KeyboardEvent) {
 
 function attach() {
   if (!attached) {
+    window.addEventListener('keydown', onKeyDownCapture, true)
     window.addEventListener('keydown', onKeyDown)
     attached = true
   }

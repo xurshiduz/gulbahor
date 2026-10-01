@@ -1,13 +1,8 @@
-process.env.NODE_ENV = 'test'
-
 import type { NestExpressApplication } from '@nestjs/platform-express'
-import { Test } from '@nestjs/testing'
 import request from 'supertest'
-import { DataSource } from 'typeorm'
+import type { DataSource } from 'typeorm'
 
-import { AppModule } from './app.module'
-import { OrgsService } from './modules/orgs/orgs.service'
-import { setupApp } from './setup-app'
+import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 
 /**
  * Runs against the test database with two businesses in it. The point of
@@ -15,49 +10,20 @@ import { setupApp } from './setup-app'
  * the rules which protect a business from its own people hold.
  */
 describe('API', () => {
+  let harness: Harness
   let app: NestExpressApplication
   let dataSource: DataSource
-  let alpha: ReturnType<typeof request.agent>
-  let beta: ReturnType<typeof request.agent>
-
-  const PASSWORD = 'correct-horse-9'
-
-  const signIn = async (login: string, password = PASSWORD) => {
-    const agent = request.agent(app.getHttpServer())
-    await agent.post('/api/auth/login').send({ login, password }).expect(204)
-    return agent
-  }
+  let alpha: Agent
+  let beta: Agent
+  let signIn: Harness['signIn']
 
   beforeAll(async () => {
-    const module = await Test.createTestingModule({ imports: [AppModule] }).compile()
-    app = module.createNestApplication<NestExpressApplication>()
-    setupApp(app)
-    await app.init()
-
-    dataSource = app.get(DataSource)
-    expect(dataSource.options.database).toMatch(/test/)
-    await dataSource.runMigrations()
-    await dataSource.query('TRUNCATE organizations CASCADE')
-
-    const orgs = app.get(OrgsService)
-    await orgs.create({ name: 'Alpha', owner: { fullName: 'Alpha Owner', login: 'alpha', password: PASSWORD } })
-    await orgs.create({ name: 'Beta', owner: { fullName: 'Beta Owner', login: 'beta', password: PASSWORD } })
-
-    alpha = await signIn('alpha')
-    beta = await signIn('beta')
-
-    const setup = (name: string, shop: string) => ({
-      name,
-      useUsd: true,
-      locations: [{ name: shop, kind: 'store' }],
-      modules: ['consignment'],
-    })
-    await alpha.post('/api/org/setup').send(setup('Alpha', 'Alpha shop')).expect(201)
-    await beta.post('/api/org/setup').send(setup('Beta', 'Beta shop')).expect(201)
+    harness = await startApp()
+    ;({ app, dataSource, alpha, beta, signIn } = harness)
   })
 
   afterAll(async () => {
-    await app.close()
+    await harness.close()
   })
 
   describe('sign-in', () => {
