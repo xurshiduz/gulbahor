@@ -16,6 +16,7 @@ import { RealtimeGatewayModule } from './modules/realtime/realtime.gateway'
 import { RealtimeModule } from './modules/realtime/realtime.module'
 import { RolesModule } from './modules/roles/roles.module'
 import { StockModule } from './modules/stock/stock.module'
+import { StockDocsModule } from './modules/stockdocs/stockdocs.module'
 import { UsersModule } from './modules/users/users.module'
 
 @Module({
@@ -39,6 +40,7 @@ import { UsersModule } from './modules/users/users.module'
     PartnersModule,
     StockModule,
     ReceiptsModule,
+    StockDocsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

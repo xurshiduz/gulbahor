@@ -16,6 +16,9 @@ import { Db } from '../../database/db.service'
 import { Brand, Category, Location, Product, StockMovement, type StockMovementKind } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
 
+/** The kind of the one place per business that holds goods on the way between two others. */
+export const TRANSIT = 'transit'
+
 export interface Movement {
   kind: StockMovementKind
   docDate: string
@@ -31,9 +34,69 @@ export interface Movement {
   costUzs: number
 }
 
+/** Part of a batch: so many of a variant, at what that many cost. */
+export interface Piece {
+  batchId: string
+  variantId: string
+  qty: number
+  costUsd: number
+  costUzs: number
+}
+
+interface Held {
+  batch_id: string
+  variant_id: string
+  qty: number
+  cost_usd: number
+  cost_uzs: number
+}
+
 const SORTABLE = { name: 'p.name', sku: 'p.sku', qty: 'qty' }
 
 const QTY_SCALE = 1000
+
+const scaled = (qty: number) => BigInt(Math.round(qty * QTY_SCALE))
+
+/** `cost × part ÷ whole`, rounded half up: what `part` of a balance is worth. */
+function share(cost: number, part: bigint, whole: bigint): number {
+  if (part === whole) {
+    return cost
+  }
+  const negative = cost < 0
+  const doubled = (BigInt(Math.abs(cost)) * part * 2n) / whole
+  const rounded = Number((doubled + 1n) / 2n)
+  return negative ? -rounded : rounded
+}
+
+/** Takes `qty` out of the balances given, in their order; returns the pieces and what could not be found. */
+function carve(balances: Held[], qty: number): { pieces: Piece[]; missing: number } {
+  let wanted = scaled(qty)
+  const pieces: Piece[] = []
+  for (const balance of balances) {
+    if (wanted === 0n) {
+      break
+    }
+    const have = scaled(balance.qty)
+    if (have === 0n) {
+      continue
+    }
+    const take = have < wanted ? have : wanted
+    const piece = {
+      batchId: balance.batch_id,
+      variantId: balance.variant_id,
+      qty: Number(take) / QTY_SCALE,
+      costUsd: share(balance.cost_usd, take, have),
+      costUzs: share(balance.cost_uzs, take, have),
+    }
+    pieces.push(piece)
+    // The same balances may be carved again in this request; they shrink as they would in the ledger.
+    balance.qty = Number(have - take) / QTY_SCALE
+    balance.cost_usd -= piece.costUsd
+    balance.cost_uzs -= piece.costUzs
+    wanted -= take
+  }
+  return { pieces, missing: Number(wanted) / QTY_SCALE }
+}
 
 /**
  * The stock ledger. `apply` is the only way quantities and values change:
@@ -113,13 +176,100 @@ export class StockService {
   }
 
   /**
+   * The place goods are in while on the way between two others. A business
+   * gets its one such place the first time it sends a transfer.
+   */
+  async transit(em: EntityManager, orgId: string): Promise<string> {
+    const [existing]: { id: string }[] = await em.query(`SELECT id FROM locations WHERE kind = 'transit'`)
+    if (existing) {
+      return existing.id
+    }
+    const [created]: { id: string }[] = await em.query(
+      `INSERT INTO locations (org_id, kind, name, code, search_key) VALUES ($1, 'transit', $2, 'YOLDA', '') RETURNING id`,
+      [orgId, "Yo'lda"],
+    )
+    return created.id
+  }
+
+  /** What is on hand of each of these variants in a place. */
+  async onHand(em: EntityManager, locationId: string, variantIds: string[]): Promise<Map<string, number>> {
+    if (!variantIds.length) {
+      return new Map()
+    }
+    const rows: { variant_id: string; qty: number }[] = await em.query(
+      `SELECT variant_id, sum(qty)::float8 AS qty FROM stock_balances
+       WHERE location_id = $1 AND variant_id = ANY($2) GROUP BY variant_id`,
+      [locationId, variantIds],
+    )
+    return new Map(rows.map((row) => [row.variant_id, row.qty]))
+  }
+
+  /**
+   * Chooses the pieces that make up `qty` of each variant in a place, oldest
+   * batch first, and holds those balances until the transaction ends. Nothing
+   * moves yet: the caller turns the pieces into movements. `missing` is how
+   * much of each want is not there.
+   */
+  async pick(
+    em: EntityManager,
+    locationId: string,
+    wants: { variantId: string; qty: number }[],
+  ): Promise<{ pieces: Piece[]; missing: number }[]> {
+    const held: Held[] = wants.length
+      ? await em.query(
+          `SELECT sb.batch_id, sb.variant_id, sb.qty::float8 AS qty, sb.cost_usd::float8 AS cost_usd, sb.cost_uzs::float8 AS cost_uzs
+           FROM stock_balances sb JOIN stock_batches b ON b.id = sb.batch_id
+           WHERE sb.location_id = $1 AND sb.variant_id = ANY($2) AND sb.qty > 0
+           ORDER BY b.received_on, b.created_at, b.id
+           FOR UPDATE OF sb`,
+          [locationId, [...new Set(wants.map((want) => want.variantId))]],
+        )
+      : []
+    return wants.map((want) =>
+      carve(
+        held.filter((balance) => balance.variant_id === want.variantId),
+        want.qty,
+      ),
+    )
+  }
+
+  /** The same for named batches: the pieces a document put somewhere, taken from there again. */
+  async pickBatches(
+    em: EntityManager,
+    locationId: string,
+    wants: { batchId: string; qty: number }[],
+  ): Promise<{ pieces: Piece[]; missing: number }[]> {
+    const held: Held[] = wants.length
+      ? await em.query(
+          `SELECT batch_id, variant_id, qty::float8 AS qty, cost_usd::float8 AS cost_usd, cost_uzs::float8 AS cost_uzs
+           FROM stock_balances WHERE location_id = $1 AND batch_id = ANY($2) AND qty > 0
+           FOR UPDATE`,
+          [locationId, [...new Set(wants.map((want) => want.batchId))]],
+        )
+      : []
+    return wants.map((want) =>
+      carve(
+        held.filter((balance) => balance.batch_id === want.batchId),
+        want.qty,
+      ),
+    )
+  }
+
+  /**
    * Every active place, whoever asks: a seller may not work at the other shop,
    * but should be able to say that the size a customer wants is there.
    */
   async locations(actor: Actor): Promise<StockLocationDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const rows = await em.find(Location, { where: { isActive: true }, order: { name: 'ASC' } })
-      return rows.map(({ id, name, code }) => ({ id, name, code }))
+      // The place for goods on the way comes last, whatever its name sorts as.
+      const transit = (row: Location) => (row.kind as string) === TRANSIT
+      return [...rows.filter((row) => !transit(row)), ...rows.filter(transit)].map((row) => ({
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        isTransit: transit(row),
+      }))
     })
   }
 

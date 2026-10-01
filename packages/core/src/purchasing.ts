@@ -435,6 +435,8 @@ export interface StockLocationDto {
   id: string
   name: string
   code: string
+  /** Not a place anyone works in: goods sent from one place and not yet received at the other. */
+  isTransit: boolean
 }
 
 export interface StockListItemDto {

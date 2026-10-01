@@ -22,6 +22,9 @@ const CODE_PREFIX: Record<LocationKind, string> = { store: 'D', mixed: 'D', ware
 
 const SORTABLE = { name: 'l.name', code: 'l.code', kind: 'l.kind', createdAt: 'l.createdAt' }
 
+/** Leaves out the place goods are in while on the way between two others: it is the ledger's, not the user's. */
+const REAL_PLACE = `l.kind <> 'transit'`
+
 const AUDITED: (keyof Location & string)[] = ['name', 'code', 'kind', 'parentId', 'address', 'phone', 'isActive']
 
 type Row = Location & { parentName?: string | null }
@@ -60,7 +63,7 @@ export class LocationsService {
   /** Active places this person may work in; feeds pickers and the place switcher. */
   async options(actor: Actor): Promise<Pick<LocationDto, 'id' | 'name' | 'code' | 'kind' | 'parentId'>[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const qb = em.createQueryBuilder(Location, 'l').where('l.isActive')
+      const qb = em.createQueryBuilder(Location, 'l').where(`l.isActive AND ${REAL_PLACE}`)
       if (!actor.allLocations) {
         qb.andWhere('l.id IN (:...ids)', { ids: actor.locationIds.length ? actor.locationIds : [null] })
       }
@@ -185,10 +188,11 @@ export class LocationsService {
       .createQueryBuilder(Location, 'l')
       .leftJoin(Location, 'p', 'p.id = l.parentId')
       .addSelect('p.name', 'parent_name')
+      .where(REAL_PLACE)
   }
 
   private async find(em: EntityManager, id: string): Promise<Row> {
-    const { entities, raw } = await this.baseQuery(em).where('l.id = :id', { id }).getRawAndEntities()
+    const { entities, raw } = await this.baseQuery(em).andWhere('l.id = :id', { id }).getRawAndEntities()
     if (!entities[0]) {
       throw AppError.notFound("Do'kon yoki sklad topilmadi")
     }

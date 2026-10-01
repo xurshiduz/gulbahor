@@ -15,6 +15,8 @@ import { ReceiptPage } from '@/features/receipts/receipt-page'
 import { ReceiptsPage } from '@/features/receipts/receipts-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { StockPage } from '@/features/stock/stock-page'
+import { CountPage, TransferPage, WriteoffPage } from '@/features/stockdocs/stockdoc-page'
+import { CountsPage, TransfersPage, WriteoffsPage } from '@/features/stockdocs/stockdocs-page'
 import { RolesPage } from '@/features/users/roles-page'
 import { UsersPage } from '@/features/users/users-page'
 import { LIST_DEFAULTS, listSearch } from '@/lib/list-search'
@@ -118,6 +120,49 @@ const stockRoute = createRoute({
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, presence: 'in' })] },
 })
 
+const stockDocsSearch = z.object({
+  ...plainList,
+  status: z.enum(['draft', 'sent', 'posted', 'cancelled', 'all']).default('all').catch('all'),
+  locationId: z.string().optional().catch(undefined),
+  from: z.string().optional().catch(undefined),
+  to: z.string().optional().catch(undefined),
+})
+
+const transfersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/transfers',
+  component: TransfersPage,
+  validateSearch: stockDocsSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
+})
+const transferRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/transfers/$docId',
+  component: TransferPage,
+})
+
+const writeoffsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/writeoffs',
+  component: WriteoffsPage,
+  validateSearch: stockDocsSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
+})
+const writeoffRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/writeoffs/$docId',
+  component: WriteoffPage,
+})
+
+const countsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/counts',
+  component: CountsPage,
+  validateSearch: stockDocsSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
+})
+const countRoute = createRoute({ getParentRoute: () => rootRoute, path: '/counts/$docId', component: CountPage })
+
 const partnersSearch = z.object({
   ...listSearch,
   status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
@@ -202,6 +247,12 @@ const routeTree = rootRoute.addChildren([
   stockRoute,
   receiptsRoute,
   receiptRoute,
+  transfersRoute,
+  transferRoute,
+  writeoffsRoute,
+  writeoffRoute,
+  countsRoute,
+  countRoute,
   partnersRoute,
   locationsRoute,
   usersRoute,

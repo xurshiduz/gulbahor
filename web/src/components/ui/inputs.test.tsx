@@ -281,7 +281,13 @@ describe('QtyMatrix', () => {
   const cellKey = (row: number, column: number) =>
     row === 1 && column === 2 ? null : `${rows[row].key}-${columns[column].key}`
 
-  function Grid({ onValues }: { onValues: (values: Record<string, number | null>) => void }) {
+  interface GridProps {
+    onValues: (values: Record<string, number | null>) => void
+    onHand?: Record<string, number>
+    zero?: boolean
+  }
+
+  function Grid({ onValues, onHand, zero }: GridProps) {
     const [values, setValues] = useState<Record<string, number | null>>({})
     return (
       <QtyMatrix
@@ -289,6 +295,9 @@ describe('QtyMatrix', () => {
         columns={columns}
         cellKey={cellKey}
         values={values}
+        hints={onHand}
+        limits={onHand}
+        zero={zero}
         onChange={(changes) => {
           const next = { ...values, ...changes }
           setValues(next)
@@ -339,6 +348,45 @@ describe('QtyMatrix', () => {
       'white-M': 5,
     })
     expect(cell('1:1').value).toBe('5')
+  })
+
+  it('shows what is on hand in an empty cell and marks a number above it', async () => {
+    const onValues = vi.fn()
+    render(<Grid onValues={onValues} onHand={{ 'black-S': 10, 'black-M': 0 }} />)
+
+    expect(cell('0:0').placeholder).toBe('10')
+    expect(cell('0:2').placeholder).toBe('')
+
+    const over = (position: string) => cell(position).getAttribute('aria-invalid')
+    cell('0:0').focus()
+    await userEvent.keyboard('10')
+    expect(over('0:0')).toBeNull()
+    await userEvent.keyboard('{Backspace}1')
+    expect(over('0:0')).toBe('true')
+    // With nothing on hand, any number is too many; a cell with no limit takes anything.
+    await userEvent.keyboard('{ArrowRight}1{ArrowRight}99')
+    expect(over('0:1')).toBe('true')
+    expect(over('0:2')).toBeNull()
+  })
+
+  it('drops a typed zero, unless zeros are kept as "looked, found none"', async () => {
+    const dropped = vi.fn()
+    const { unmount } = render(<Grid onValues={dropped} />)
+    cell('0:0').focus()
+    await userEvent.keyboard('0')
+    expect(dropped).toHaveBeenLastCalledWith({ 'black-S': null })
+    unmount()
+
+    const kept = vi.fn()
+    render(<Grid onValues={kept} zero />)
+    cell('0:0').focus()
+    await userEvent.keyboard('0{ArrowDown}')
+    expect(kept).toHaveBeenLastCalledWith({ 'black-S': 0 })
+    expect(cell('0:0').value).toBe('0')
+
+    cell('0:1').focus()
+    await userEvent.paste('0\t\n3\t0')
+    expect(kept).toHaveBeenLastCalledWith({ 'black-S': 0, 'black-M': 0, 'black-L': null, 'white-M': 3 })
   })
 })
 

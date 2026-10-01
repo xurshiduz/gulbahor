@@ -19,6 +19,12 @@ interface QtyMatrixProps {
   /** 0 for goods counted in pieces. */
   decimals?: number
   disabled?: boolean
+  /** Shown faintly in an empty cell: what is on hand, what was sent. */
+  hints?: Record<string, number | undefined>
+  /** A cell holding more than this is marked: more than there is to take. */
+  limits?: Record<string, number | undefined>
+  /** Keep a typed 0 as 0 rather than as nothing: in a count, "found none" is not "did not look". */
+  zero?: boolean
   /** Shown above the first column. */
   corner?: ReactNode
   className?: string
@@ -40,6 +46,9 @@ export function QtyMatrix({
   onChange,
   decimals = 0,
   disabled,
+  hints,
+  limits,
+  zero = false,
   corner,
   className,
 }: QtyMatrixProps) {
@@ -137,7 +146,8 @@ export function QtyMatrix({
             row + down < rows.length && column + right < columns.length ? cellKey(row + down, column + right) : null
           if (key) {
             const value = Number(cell.replace(/\s/g, '').replace(',', '.'))
-            changes[key] = cell.trim() && Number.isFinite(value) && value >= 0 ? round(value) : null
+            const ok = cell.trim() && Number.isFinite(value) && (value > 0 || (zero && value === 0))
+            changes[key] = ok ? round(value) : null
           }
         })
       })
@@ -176,6 +186,9 @@ export function QtyMatrix({
                         value={values[key] ?? null}
                         decimals={decimals}
                         disabled={disabled}
+                        hint={hints?.[key]}
+                        over={limits?.[key] !== undefined && (values[key] ?? 0) > (limits[key] as number)}
+                        zero={zero}
                         position={`${r}:${c}`}
                         onChange={(value) => onChange({ [key]: value })}
                         onKeyDown={(event) => handleKeyDown(event, r, c)}
@@ -215,6 +228,9 @@ interface CellProps {
   value: number | null
   decimals: number
   disabled?: boolean
+  hint?: number
+  over: boolean
+  zero: boolean
   position: string
   onChange: (value: number | null) => void
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
@@ -223,19 +239,22 @@ interface CellProps {
 
 const show = (value: number | null) => (value === null ? '' : String(value).replace('.', ','))
 
-/** The number a cell's text stands for; nothing and zero both mean "none". */
-function read(text: string): number | null {
-  const value = text ? Number(text.replace(',', '.')) : 0
-  return Number.isFinite(value) && value > 0 ? value : null
+/** The number a cell's text stands for. Nothing is "none"; so is zero, unless zeros are kept. */
+function read(text: string, zero: boolean): number | null {
+  if (!text) {
+    return null
+  }
+  const value = Number(text.replace(',', '.'))
+  return Number.isFinite(value) && (value > 0 || (zero && value === 0)) ? value : null
 }
 
-function Cell({ value, decimals, disabled, position, onChange, onKeyDown, onPaste }: CellProps) {
+function Cell({ value, decimals, disabled, hint, over, zero, position, onChange, onKeyDown, onPaste }: CellProps) {
   const [text, setText] = useState(() => show(value))
 
   // What is being typed stays as typed ("1,"); a value set from outside (a paste, a fill) replaces it.
   useEffect(() => {
-    setText((current) => (read(current) === value ? current : show(value)))
-  }, [value])
+    setText((current) => (read(current, zero) === value ? current : show(value)))
+  }, [value, zero])
 
   const pattern = decimals ? new RegExp(`^\\d{0,7}([.,]\\d{0,${decimals}})?$`) : /^\d{0,7}$/
 
@@ -246,6 +265,8 @@ function Cell({ value, decimals, disabled, position, onChange, onKeyDown, onPast
       inputMode={decimals ? 'decimal' : 'numeric'}
       autoComplete="off"
       disabled={disabled}
+      placeholder={hint === undefined ? undefined : show(hint)}
+      aria-invalid={over || undefined}
       value={text}
       onChange={(event) => {
         const next = event.target.value.trim()
@@ -253,7 +274,7 @@ function Cell({ value, decimals, disabled, position, onChange, onKeyDown, onPast
           return
         }
         setText(next)
-        onChange(read(next))
+        onChange(read(next, zero))
       }}
       onFocus={(event) => event.target.select()}
       onBlur={() => setText(show(value))}
@@ -262,8 +283,9 @@ function Cell({ value, decimals, disabled, position, onChange, onKeyDown, onPast
       className={cn(
         'tabular h-8 w-14 rounded-md border border-line-strong bg-surface text-center text-[13px] text-ink transition-colors',
         'hover:border-control focus:border-accent focus:outline-2 focus:outline-accent/25',
-        'disabled:border-line disabled:bg-sunken disabled:text-ink-2',
-        value ? 'font-medium' : 'text-ink-3',
+        'placeholder:font-normal placeholder:text-ink-3/60 disabled:border-line disabled:bg-sunken disabled:text-ink-2',
+        'aria-invalid:border-bad aria-invalid:text-bad aria-invalid:focus:outline-bad/25',
+        value !== null ? 'font-medium' : 'text-ink-3',
       )}
     />
   )

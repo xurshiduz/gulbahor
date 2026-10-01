@@ -20,6 +20,9 @@ const route = getRouteApi('/audit')
 
 const ENTITIES = [
   'receipt',
+  'transfer',
+  'writeoff',
+  'count',
   'product',
   'category',
   'brand',
@@ -46,7 +49,12 @@ export function AuditPage() {
 
   const columns = useMemo<ColumnDef<AuditDto>[]>(
     () => [
-      { id: 'at', header: t('audit.at'), meta: { fixed: true, className: 'tabular w-px whitespace-nowrap text-ink-2' }, cell: ({ row }) => formatDateTime(row.original.at) },
+      {
+        id: 'at',
+        header: t('audit.at'),
+        meta: { fixed: true, className: 'tabular w-px whitespace-nowrap text-ink-2' },
+        cell: ({ row }) => formatDateTime(row.original.at),
+      },
       {
         id: 'actor',
         header: t('audit.actor'),
@@ -85,7 +93,12 @@ export function AuditPage() {
           )
         },
       },
-      { id: 'ip', header: 'IP', meta: { className: 'font-code w-px text-xs whitespace-nowrap text-ink-3' }, cell: ({ row }) => row.original.ip ?? '' },
+      {
+        id: 'ip',
+        header: 'IP',
+        meta: { className: 'font-code w-px text-xs whitespace-nowrap text-ink-3' },
+        cell: ({ row }) => row.original.ip ?? '',
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t],
@@ -110,7 +123,11 @@ export function AuditPage() {
           <>
             <Select
               value={search.entity ?? 'all'}
-              onChange={(entity) => void navigate({ search: (previous) => ({ ...previous, entity: entity === 'all' ? undefined : entity, page: 1 }) })}
+              onChange={(entity) =>
+                void navigate({
+                  search: (previous) => ({ ...previous, entity: entity === 'all' ? undefined : entity, page: 1 }),
+                })
+              }
               options={[
                 { value: 'all', label: `${t('audit.entity')}: ${t('common.all').toLowerCase()}` },
                 ...ENTITIES.map((entity) => ({ value: entity, label: describe.entity(entity) })),
@@ -119,11 +136,23 @@ export function AuditPage() {
             />
             <label className="flex items-center gap-2 text-xs text-ink-3">
               {t('audit.from')}
-              <DateInput value={search.from ?? ''} onChange={(from) => void navigate({ search: (previous) => ({ ...previous, from: from || undefined, page: 1 }) })} className="w-36" />
+              <DateInput
+                value={search.from ?? ''}
+                onChange={(from) =>
+                  void navigate({ search: (previous) => ({ ...previous, from: from || undefined, page: 1 }) })
+                }
+                className="w-36"
+              />
             </label>
             <label className="flex items-center gap-2 text-xs text-ink-3">
               {t('audit.to')}
-              <DateInput value={search.to ?? ''} onChange={(to) => void navigate({ search: (previous) => ({ ...previous, to: to || undefined, page: 1 }) })} className="w-36" />
+              <DateInput
+                value={search.to ?? ''}
+                onChange={(to) =>
+                  void navigate({ search: (previous) => ({ ...previous, to: to || undefined, page: 1 }) })
+                }
+                className="w-36"
+              />
             </label>
           </>
         }

@@ -37,7 +37,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
-import { StockService, type Movement } from '../stock/stock.service'
+import { StockService, TRANSIT, type Movement } from '../stock/stock.service'
 
 const SORTABLE = { number: 'r.number', docDate: 'r.docDate', cost: 'r.costUzs', createdAt: 'r.createdAt' }
 
@@ -550,7 +550,12 @@ export class ReceiptsService {
     const fields: Record<string, string> = {}
 
     const location = await em.findOneBy(Location, { id: input.locationId })
-    if (!location || !location.isActive || !this.mayWorkAt(actor, input.locationId)) {
+    if (
+      !location ||
+      !location.isActive ||
+      (location.kind as string) === TRANSIT ||
+      !this.mayWorkAt(actor, input.locationId)
+    ) {
       fields.locationId = "Faol do'kon yoki skladni tanlang"
     }
 

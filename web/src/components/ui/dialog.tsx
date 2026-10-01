@@ -123,7 +123,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               {options?.description ?? options?.title}
             </Primitive.Description>
             <div className="mt-5 flex justify-end gap-2">
-              <Button onClick={() => settle(false)}>{t('common.cancel')}</Button>
+              {/* Every confirm is a yes/no question, and "cancel" would read as the action when cancelling a document. */}
+              <Button onClick={() => settle(false)}>{t('common.no')}</Button>
               <Button
                 data-confirm
                 variant={options?.tone === 'danger' ? 'danger' : 'primary'}

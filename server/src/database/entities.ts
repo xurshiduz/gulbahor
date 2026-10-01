@@ -9,7 +9,10 @@ import type {
   PriceKind,
   ReceiptStatus,
   Season,
+  StockDocKind,
+  StockDocStatus,
   Unit,
+  WriteoffReason,
 } from '@gulbahor/core'
 import { Column, CreateDateColumn, Entity, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
 
@@ -59,6 +62,10 @@ export class Location {
   @Column('uuid', { nullable: true })
   parentId: string | null
 
+  /**
+   * One row per business has a kind outside this list, `transit`: the place goods are in while on the way
+   * between two others. Nobody picks it and no screen about places shows it; see `StockService.transit`.
+   */
   @Column('text')
   kind: LocationKind
 
@@ -887,7 +894,163 @@ export class StockMovement {
   createdAt: Date
 }
 
-export type StockMovementKind = 'receipt' | 'receipt_cancel' | 'revalue'
+@Entity('stock_documents')
+export class StockDocument {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  kind: StockDocKind
+
+  @Column('text')
+  number: string
+
+  @Column('text')
+  status: StockDocStatus
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('uuid', { nullable: true })
+  toLocationId: string | null
+
+  @Column('date')
+  docDate: string
+
+  @Column('text', { nullable: true })
+  reason: WriteoffReason | null
+
+  @Column('boolean')
+  fullCount: boolean
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('numeric', { transformer: numericAsNumber })
+  totalQty: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  diffQty: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  costUsd: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  costUzs: number | null
+
+  @Column('text')
+  searchKey: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  sentAt: Date | null
+
+  @Column('timestamptz', { nullable: true })
+  postedAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  postedBy: string | null
+
+  @Column('text', { nullable: true })
+  postedByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  cancelledAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  cancelledBy: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('stock_document_lines')
+export class StockDocumentLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  documentId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  receivedQty: number | null
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  expectedQty: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  costUsd: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  costUzs: number | null
+}
+
+@Entity('stock_document_items')
+export class StockDocumentItem {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  documentId: string
+
+  @Column('uuid')
+  lineId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  batchId: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+}
+
+export type StockMovementKind =
+  | 'receipt'
+  | 'receipt_cancel'
+  | 'revalue'
+  | 'transfer'
+  | 'transfer_cancel'
+  | 'transfer_loss'
+  | 'writeoff'
+  | 'writeoff_cancel'
+  | 'count'
 
 export const ENTITIES = [
   Organization,
@@ -912,4 +1075,7 @@ export const ENTITIES = [
   StockBatch,
   StockBalance,
   StockMovement,
+  StockDocument,
+  StockDocumentLine,
+  StockDocumentItem,
 ]
