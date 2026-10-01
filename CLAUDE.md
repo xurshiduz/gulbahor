@@ -11,7 +11,7 @@ Kiyim savdosi uchun ERP. Biznes talablari, qarorlar va bosqichlar `docs/REJA.md`
 
 ## Tuzilishi
 
-- `packages/core` — bog'liqliksiz (faqat zod) umumiy qoidalar: `money.ts` (minor birlik, `allocate`, `convert`), `expression.ts` va `amount.ts` (kiritilgan summani o'qish), `date.ts`, `phone.ts`, `text.ts` (qidiruv kaliti), `access.ts` (modullar, ruxsatlar, tayyor rollar), `schemas.ts` (API shartnomalari va DTO tiplar), `catalog.ts` (tovar: shartnomalar, shtrix-kod, variant kombinatsiyalari). Server uni yig'ilgan holda (`dist`), web manbadan (`vite` alias) oladi. **Core o'zgarsa, server uchun `npm run build:core` kerak** (`dev:server` buni o'zi qiladi).
+- `packages/core` — bog'liqliksiz (faqat zod) umumiy qoidalar: `money.ts` (minor birlik, `allocate`, `convert`), `expression.ts` va `amount.ts` (kiritilgan summani o'qish), `date.ts`, `phone.ts`, `text.ts` (qidiruv kaliti), `access.ts` (modullar, ruxsatlar, tayyor rollar), `schemas.ts` (API shartnomalari va DTO tiplar), `catalog.ts` (tovar: shartnomalar, shtrix-kod, variant kombinatsiyalari), `purchasing.ts` (hamkor, kirim, qoldiq shartnomalari va `costReceipt` — tannarx hisobi), `import.ts` (Excel ustunlarini tanish va qatorni o'qish). Server uni yig'ilgan holda (`dist`), web manbadan (`vite` alias) oladi. **Core o'zgarsa, server uchun `npm run build:core` kerak** (`dev:server` buni o'zi qiladi).
 - `server/src` — `modules/<nom>/` ichida controller, service, module. `database/` — entity'lar (faqat tip uchun), migratsiyalar, `Db`.
 - `web/src` — `app/` (qobiq, router, navigatsiya, Ctrl+K), `components/ui/` (umumiy komponentlar), `features/<nom>/` (sahifalar), `lib/` (api, hotkeys, scanner, realtime).
 
@@ -25,28 +25,35 @@ Kiyim savdosi uchun ERP. Biznes talablari, qarorlar va bosqichlar `docs/REJA.md`
 - Ruxsat: controller'da `@Can('guruh.amal')`, modul: `@RequireModule('kalit')`. Ruxsat yoki modul qo'shilsa — `packages/core/src/access.ts`.
 - Kiruvchi ma'lumot `zod(schema)` pipe bilan tekshiriladi, sxema `core/schemas.ts` yoki `core/catalog.ts` da. Xatolar `AppError` orqali: `{ error: { code, message, fields? } }`.
 - Ruxsat yoki sessiyaga ta'sir qiladigan o'zgarishdan keyin `ActorService.invalidate()`.
-- Pul: faqat butun minor birlik va `core/money.ts` funksiyalari. Taqsimlash — `allocate`. Float bilan hisob yo'q.
+- Pul: faqat butun minor birlik va `core/money.ts` funksiyalari. Taqsimlash — `allocate` (og'irliklar butun son bo'lsa `allocateExact`). Float bilan hisob yo'q. `CurrencyCode` (UZS, USD) — biznesning o'z puli va narxlari; `AnyCurrency` — bunga qo'shimcha xarid valyutalari (CNY, KGS, TRY...).
+- **Qoldiq — daftar.** Miqdor va qiymat faqat `StockService.apply(em, orgId, actorId, movements)` orqali o'zgaradi: u `stock_movements` ga yozadi (o'zgarmas) va `stock_balances` ni shu tranzaksiyada suradi. Balansni to'g'ridan-to'g'ri o'zgartirmang. Yangi harakat turi qo'shilsa — `stock_movements_kind` cheklovi va `StockMovementKind`.
+- Hujjat (kirim va keyingilari): qoralama → o'tkazilgan → bekor qilingan. O'tkazilgan hujjat tahrirlanmaydi; tuzatish — bekor qilib nusxa olish yoki maxsus amal (kirimda `updateExpenses`). Hujjat o'tkazishdan oldin `FOR UPDATE` bilan qulflanadi.
+- Bir tranzaksiyada boshqa modul ishini bajarish kerak bo'lsa, o'sha servisning `...In(em, ...)` metodi ishlatiladi (`ProductsService.createIn`, `ReceiptsService.createIn`). Sinov rejimi (import `dryRun`) — haqiqiy ishni bajarib, tranzaksiyani qaytarish.
 
 ## Web qoidalari
 
 - So'rovlar `lib/api.ts` orqali, holat TanStack Query'da. Query key resurs nomi bilan boshlanadi (`['users', 'list', filters]`).
 - Ro'yxat sahifasi: `DataTable` + manzildagi holat (`lib/list-search.ts`, route'da `validateSearch`). Forma: `Form` + `zodSubmit(form, schema, ...)` + `applyServerErrors`; so'rov forma maydonlaridan boshqacha tuzilsa — `zodCheck(form, schema, data)`.
 - `Form` ichida Enter keyingi maydonga o'tadi. Kam ishlatiladigan boshqaruv elementi `data-enter-skip` ichiga qo'yilsa, Enter uni chetlab o'tadi (Tab bilan baribir yetiladi).
-- Inputlar: summa — `MoneyInput`, miqdor — `NumberInput`, telefon — `PhoneInput`, sana — `DateInput`, tanlash — `Combobox`, kodlar ro'yxati (shtrix-kod) — `TagInput`. Oddiy `<input type="number">` ishlatilmaydi.
+- Inputlar: summa — `MoneyInput`, miqdor — `NumberInput`, telefon — `PhoneInput`, sana — `DateInput`, tanlash — `Combobox`, kodlar ro'yxati (shtrix-kod) — `TagInput`, rang × o'lcham bo'yicha miqdor — `QtyMatrix`, tovar qidirish (serverda) — `features/catalog/product-picker`. Oddiy `<input type="number">` ishlatilmaydi.
 - `Combobox` da "Yangi: «…»" qatori hech qachon o'zi tanlanmaydi: xato yozilgan matn yoki skanerlangan kod Enter bilan yangi yozuv yaratib qo'ymasligi kerak. Unga ↓ bilan ataylab tushiladi. Ko'p tanlovda matn bo'sh bo'lsa, Enter "tugatdim" degani va keyingi maydonga o'tkazadi.
 - `useHotkey('escape', ...)` ustida ochiq oyna yoki ro'yxat bo'lsa ishlamaydi: Esc avval o'shani yopadi.
 - Tugmalar: `useHotkey(combo, handler, { label, group })`. `label` berilsa, F1 oynasida ko'rinadi.
 - Yangi sahifa: `app/router.tsx` (route), `app/navigation.ts` (menyu, ruxsat, modul), `i18n/uz.ts` va `ru.ts`.
+- Hujjat formasi (tovar, kirim) serverdan kelgan holatni bir marta oladi va o'zi yuritadi. Realtime qayta yuklash formani qayta boshlamasligi kerak: forma `key` i faqat o'zining saqlashlari bilan o'zgaradi (`receipt-page.tsx` dagi `version`).
+- Excel: o'qish — `read-excel-file/browser`, yozish — `write-excel-file/browser`, ikkalasi ham kerak bo'lganda `import()` bilan yuklanadi.
 
 ## Lokal muhit
 
 - `npm run dev:server` (3100) va `npm run dev:web` (5190). Baza `gulbahor`, testlar `gulbahor_test` da.
-- Server testlari haqiqiy bazada ishlaydi va ikki biznes orasidagi ajratishni tekshiradi. Har modulning o'z `*.spec.ts` fayli bor (`app.spec.ts`, `catalog.spec.ts`), hammasi `testing/harness.ts` dagi `startApp()` bilan boshlanadi: u bazani tozalaydi va sozlangan ikki biznesni (Alpha, Beta) beradi. Fayllar navbat bilan ishlaydi (`maxWorkers: 1`).
+- Server testlari haqiqiy bazada ishlaydi va ikki biznes orasidagi ajratishni tekshiradi. Har modulning o'z `*.spec.ts` fayli bor (`app.spec.ts`, `catalog.spec.ts`, `receiving.spec.ts`, `import.spec.ts`), hammasi `testing/harness.ts` dagi `startApp()` bilan boshlanadi: u bazani tozalaydi va sozlangan ikki biznesni (Alpha, Beta) beradi. Fayllar navbat bilan ishlaydi (`maxWorkers: 1`).
 
 ## Holat
 
 1-bosqich (asos) tayyor. 2-bosqichdan tovar katalogi tayyor: kategoriyalar, brendlar, xususiyatlar (rang, o'lcham shkalalari), narx turlari, model × variant, shtrix-kodlar, narxlar (`modules/catalog`, `features/catalog`). Tovar bo'yicha model: `products` (model, 3 tagacha o'q) → `product_variants` (har o'q bo'yicha bitta qiymat) → `variant_barcodes`; `prices` modelga qo'yiladi, variant yoki joy ko'rsatilgan qator uni o'sha yerda almashtiradi. Qoldiq, kirim va sotuv doim variantga bog'lanadi.
 
-2-bosqichning qolgani: jo'natma va kirim (yo'l va bojxona xarajatlarini taqsimlash bilan), qoldiq va harakatlar, RFID donalar va etiketka, ko'chirish, inventarizatsiya, hisobdan chiqarish, Excel import. Gulbahor'ning eski kodi `main` branch tarixida: RFID uchun `backend/src/modules/inbound-documents/labels/{epc,zpl}.ts`, to'lov integratsiyalari uchun `backend/src/modules/integrations/clients`.
+Kirim va qoldiq ham tayyor (`modules/receipts`, `modules/stock`, `modules/partners`): kirim hujjati istalgan xarid valyutasida, xarajatlar qiymat, dona yoki vazn bo'yicha taqsimlanadi, o'tkazilganda har qator bitta partiya (`stock_batches`) bo'lib qoldiqqa tushadi; kechikkan xarajat tannarxni qayta hisoblaydi; Excel'dan kirim (akaning Bishkek, Xitoy, Turkiya shablonlari taniladi).
+
+2-bosqichning qolgani: ko'chirish, inventarizatsiya, hisobdan chiqarish (hammasi `StockService.apply` ustiga quriladi, chiqim FIFO bo'yicha partiyalardan), RFID donalar va etiketka, narxlarni ommaviy o'zgartirish va ustama qoidalari, jadvallarni Excel'ga chiqarish. Gulbahor'ning eski kodi `main` branch tarixida: RFID uchun `backend/src/modules/inbound-documents/labels/{epc,zpl}.ts`, to'lov integratsiyalari uchun `backend/src/modules/integrations/clients`.
 
 Foydalanuvchidan kutilayotganlar `docs/REJA.md` ning oxirgi bo'limida: 3-bosqichdan oldin RFID uskunalari modellari, 6-bosqichdan oldin bank botlari xabar namunalari so'raladi.

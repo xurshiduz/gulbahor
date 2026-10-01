@@ -74,6 +74,8 @@ interface Described {
   weightG: number | null
   mxikCode: string | null
   description: string | null
+  factoryCode: string | null
+  manufacturer: string | null
   axes: string[]
   isActive: boolean
 }
@@ -92,6 +94,8 @@ const AUDITED: (keyof Described & string)[] = [
   'weightG',
   'mxikCode',
   'description',
+  'factoryCode',
+  'manufacturer',
   'axes',
 ]
 
@@ -200,73 +204,88 @@ export class ProductsService {
 
   async create(actor: Actor, input: ProductInput): Promise<ProductDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const references = await this.resolve(em, input)
-      const sku = input.sku ? await this.assertSkuFree(em, input.sku) : await this.nextSku(em, actor.orgId)
-
-      const product = await em.save(
-        em.create(Product, {
-          orgId: actor.orgId,
-          ...scalars(input),
-          sku,
-          variantSeq: 0,
-          isActive: true,
-          searchKey: '',
-        }),
-      )
-      await this.saveVariants(em, actor, product, product.sku, input, [], references)
-      if (can(actor, 'products.prices')) {
-        await this.savePrices(em, actor, product.id, null, input.prices, [], references, '')
-      }
-      await reindexProducts(em, [product.id])
-
-      await this.audit.record(em, actor.orgId, actor, {
-        action: 'product.create',
-        entity: 'product',
-        entityId: product.id,
-        summary: `${product.name} (${product.sku}), ${input.variants.length} ta variant`,
-      })
       afterCommit(() => this.realtime.changed(actor.orgId, ['products']))
-      return this.load(em, product.id)
+      return this.createIn(em, actor, input)
     })
   }
 
   async update(actor: Actor, id: string, input: ProductInput): Promise<ProductDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const before = await this.find(em, id)
-      const describedBefore = await this.describe(em, before)
-      const references = await this.resolve(em, input)
-      // An article left empty on an existing model means "keep it".
-      const sku =
-        input.sku && input.sku.toLowerCase() !== before.sku.toLowerCase()
-          ? await this.assertSkuFree(em, input.sku, id)
-          : (input.sku ?? before.sku)
-
-      await em.update(Product, id, { ...scalars(input), sku })
-      const product = await this.find(em, id)
-      const existing = await em.findBy(ProductVariant, { productId: id })
-      const variantChanges = await this.saveVariants(em, actor, product, before.sku, input, existing, references)
-
-      let priceChanges: Changes = {}
-      if (can(actor, 'products.prices')) {
-        const current = await em.findBy(Price, { productId: id, variantId: IsNull(), locationId: IsNull() })
-        priceChanges = await this.savePrices(em, actor, id, null, input.prices, current, references, '')
-      }
-      await reindexProducts(em, [id])
-
-      await this.audit.record(em, actor.orgId, actor, {
-        action: 'product.update',
-        entity: 'product',
-        entityId: id,
-        summary: `${product.name} (${product.sku})`,
-        changes: limit({
-          ...diff(describedBefore, await this.describe(em, product), AUDITED),
-          ...priceChanges,
-          ...variantChanges,
-        }),
-      })
       afterCommit(() => this.realtime.changed(actor.orgId, ['products']))
-      return this.load(em, id)
+      return this.updateIn(em, actor, id, input)
     })
+  }
+
+  /** `create` inside a transaction the caller already has: an import makes many models in one. */
+  async createIn(em: EntityManager, actor: Actor, input: ProductInput): Promise<ProductDto> {
+    const references = await this.resolve(em, input)
+    const sku = input.sku ? await this.assertSkuFree(em, input.sku) : await this.nextSku(em, actor.orgId)
+
+    const product = await em.save(
+      em.create(Product, {
+        orgId: actor.orgId,
+        ...scalars(input),
+        sku,
+        variantSeq: 0,
+        isActive: true,
+        searchKey: '',
+      }),
+    )
+    await this.saveVariants(em, actor, product, product.sku, input, [], references)
+    if (can(actor, 'products.prices')) {
+      await this.savePrices(em, actor, product.id, null, input.prices, [], references, '')
+    }
+    await reindexProducts(em, [product.id])
+
+    await this.audit.record(em, actor.orgId, actor, {
+      action: 'product.create',
+      entity: 'product',
+      entityId: product.id,
+      summary: `${product.name} (${product.sku}), ${input.variants.length} ta variant`,
+    })
+    return this.load(em, product.id)
+  }
+
+  /** `update` inside a transaction the caller already has. */
+  async updateIn(em: EntityManager, actor: Actor, id: string, input: ProductInput): Promise<ProductDto> {
+    const before = await this.find(em, id)
+    const describedBefore = await this.describe(em, before)
+    const references = await this.resolve(em, input)
+    // An article left empty on an existing model means "keep it".
+    const sku =
+      input.sku && input.sku.toLowerCase() !== before.sku.toLowerCase()
+        ? await this.assertSkuFree(em, input.sku, id)
+        : (input.sku ?? before.sku)
+
+    await em.update(Product, id, { ...scalars(input), sku })
+    const product = await this.find(em, id)
+    const existing = await em.findBy(ProductVariant, { productId: id })
+    const variantChanges = await this.saveVariants(em, actor, product, before.sku, input, existing, references)
+
+    let priceChanges: Changes = {}
+    if (can(actor, 'products.prices')) {
+      const current = await em.findBy(Price, { productId: id, variantId: IsNull(), locationId: IsNull() })
+      priceChanges = await this.savePrices(em, actor, id, null, input.prices, current, references, '')
+    }
+    await reindexProducts(em, [id])
+
+    await this.audit.record(em, actor.orgId, actor, {
+      action: 'product.update',
+      entity: 'product',
+      entityId: id,
+      summary: `${product.name} (${product.sku})`,
+      changes: limit({
+        ...diff(describedBefore, await this.describe(em, product), AUDITED),
+        ...priceChanges,
+        ...variantChanges,
+      }),
+    })
+    return this.load(em, id)
+  }
+
+  /** A model as the API returns it, read inside the caller's transaction. */
+  async getIn(em: EntityManager, id: string): Promise<ProductDto> {
+    return this.load(em, id)
   }
 
   async setActive(actor: Actor, id: string, active: boolean): Promise<ProductDto> {
@@ -353,6 +372,8 @@ export class ProductsService {
       weightG: product.weightG,
       mxikCode: product.mxikCode,
       description: product.description,
+      factoryCode: product.factoryCode,
+      manufacturer: product.manufacturer,
       axisIds: axisIdsOf(product),
       variants: variants.map((variant) => ({
         id: variant.id,
@@ -443,6 +464,8 @@ export class ProductsService {
       weightG: product.weightG,
       mxikCode: product.mxikCode,
       description: product.description,
+      factoryCode: product.factoryCode,
+      manufacturer: product.manufacturer,
       axes: axisIds.map((id) => attributes.find((attribute) => attribute.id === id)?.name ?? ''),
       isActive: product.isActive,
     }
@@ -893,6 +916,8 @@ function scalars(input: ProductInput) {
     weightG: input.weightG,
     mxikCode: input.mxikCode,
     description: input.description,
+    factoryCode: input.factoryCode,
+    manufacturer: input.manufacturer,
     axis1Id: input.axisIds[0] ?? null,
     axis2Id: input.axisIds[1] ?? null,
     axis3Id: input.axisIds[2] ?? null,

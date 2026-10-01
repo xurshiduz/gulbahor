@@ -2,29 +2,44 @@ import { Fraction } from './fraction'
 
 /**
  * Money is stored and moved as an integer count of minor units: tiyin for
- * so'm, cents for dollars. Both currencies have two minor digits.
+ * so'm, cents for dollars. Every currency here has two minor digits.
  */
+
+/** What the business keeps its own money and prices in. */
 export type CurrencyCode = 'UZS' | 'USD'
 
+/** Those, and what suppliers abroad are paid in. A purchase is converted to dollars and so'm when it is received. */
+export type AnyCurrency = CurrencyCode | 'CNY' | 'KGS' | 'TRY' | 'RUB' | 'KZT' | 'EUR' | 'AED'
+
 export interface CurrencyInfo {
-  code: CurrencyCode
+  code: AnyCurrency
   minorDigits: 2
   symbol: string
+  name: string
   /** Whether the minor part is worth showing when it is zero. */
   alwaysShowMinor: boolean
 }
 
-export const CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
-  UZS: { code: 'UZS', minorDigits: 2, symbol: "so'm", alwaysShowMinor: false },
-  USD: { code: 'USD', minorDigits: 2, symbol: '$', alwaysShowMinor: true },
+export const CURRENCIES: Record<AnyCurrency, CurrencyInfo> = {
+  UZS: { code: 'UZS', minorDigits: 2, symbol: "so'm", name: "O'zbek so'mi", alwaysShowMinor: false },
+  USD: { code: 'USD', minorDigits: 2, symbol: '$', name: 'AQSH dollari', alwaysShowMinor: true },
+  CNY: { code: 'CNY', minorDigits: 2, symbol: '¥', name: 'Xitoy yuani', alwaysShowMinor: true },
+  KGS: { code: 'KGS', minorDigits: 2, symbol: 'KGS', name: "Qirg'iz somi", alwaysShowMinor: false },
+  TRY: { code: 'TRY', minorDigits: 2, symbol: '₺', name: 'Turk lirasi', alwaysShowMinor: true },
+  RUB: { code: 'RUB', minorDigits: 2, symbol: '₽', name: 'Rossiya rubli', alwaysShowMinor: false },
+  KZT: { code: 'KZT', minorDigits: 2, symbol: '₸', name: "Qozog'iston tengesi", alwaysShowMinor: false },
+  EUR: { code: 'EUR', minorDigits: 2, symbol: '€', name: 'Yevro', alwaysShowMinor: true },
+  AED: { code: 'AED', minorDigits: 2, symbol: 'AED', name: 'BAA dirhami', alwaysShowMinor: true },
 }
 
-export const CURRENCY_CODES = Object.keys(CURRENCIES) as CurrencyCode[]
+export const CURRENCY_CODES: CurrencyCode[] = ['UZS', 'USD']
+
+export const ALL_CURRENCY_CODES = Object.keys(CURRENCIES) as AnyCurrency[]
 
 const MINOR_SCALE = 2
 
 export function isCurrencyCode(value: unknown): value is CurrencyCode {
-  return typeof value === 'string' && value in CURRENCIES
+  return value === 'UZS' || value === 'USD'
 }
 
 export function assertMinor(value: number): number {
@@ -63,17 +78,27 @@ export function sumMinor(values: readonly number[]): number {
  * fractional (kilograms, for example) and are kept to six decimals.
  */
 export function allocate(total: number, weights: readonly number[]): number[] {
+  return allocateExact(
+    total,
+    weights.map((weight) => {
+      if (!(weight >= 0)) {
+        throw new RangeError(`Weights must be non-negative, got ${weight}`)
+      }
+      return BigInt(Math.round(weight * 1_000_000))
+    }),
+  )
+}
+
+/** `allocate` for weights that are already whole numbers of any size, such as amounts in minor units. */
+export function allocateExact(total: number, scaled: readonly bigint[]): number[] {
   assertMinor(total)
-  if (!weights.length) {
+  if (!scaled.length) {
     return []
   }
+  if (scaled.some((weight) => weight < 0n)) {
+    throw new RangeError('Weights must be non-negative')
+  }
 
-  const scaled = weights.map((weight) => {
-    if (!(weight >= 0)) {
-      throw new RangeError(`Weights must be non-negative, got ${weight}`)
-    }
-    return BigInt(Math.round(weight * 1_000_000))
-  })
   let sum = scaled.reduce((acc, weight) => acc + weight, 0n)
   const effective = sum === 0n ? scaled.map(() => 1n) : scaled
   if (sum === 0n) {
@@ -161,7 +186,7 @@ export interface FormatMoneyOptions {
 }
 
 /** 125000050 UZS -> "1 250 000,50 so'm"; 7905 USD -> "79,05 $" */
-export function formatMoney(minor: number, currency: CurrencyCode = 'UZS', options: FormatMoneyOptions = {}): string {
+export function formatMoney(minor: number, currency: AnyCurrency = 'UZS', options: FormatMoneyOptions = {}): string {
   const { symbol = true, group = ' ', minor: minorMode = 'auto' } = options
   const info = CURRENCIES[currency]
   const negative = minor < 0

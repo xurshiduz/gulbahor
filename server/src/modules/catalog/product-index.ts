@@ -6,6 +6,7 @@ interface IndexRow {
   name: string
   sku: string
   material: string | null
+  factory_code: string | null
   brand: string | null
   variant_id: string
   variant_sku: string
@@ -25,7 +26,7 @@ export async function reindexProducts(em: EntityManager, productIds: string[]): 
     return
   }
   const rows: IndexRow[] = await em.query(
-    `SELECT p.id AS product_id, p.name, p.sku, p.material, b.name AS brand,
+    `SELECT p.id AS product_id, p.name, p.sku, p.material, p.factory_code, b.name AS brand,
             v.id AS variant_id, v.sku AS variant_sku,
             array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
             coalesce((SELECT array_agg(c.code) FROM variant_barcodes c WHERE c.variant_id = v.id), '{}') AS barcodes
@@ -44,7 +45,7 @@ export async function reindexProducts(em: EntityManager, productIds: string[]): 
   const variantKeys: string[] = []
 
   for (const row of rows) {
-    const own = [row.name, row.sku, row.brand ?? '', row.material ?? '']
+    const own = [row.name, row.sku, row.brand ?? '', row.material ?? '', row.factory_code ?? '']
     let words = productWords.get(row.product_id)
     if (!words) {
       words = new Set(own)

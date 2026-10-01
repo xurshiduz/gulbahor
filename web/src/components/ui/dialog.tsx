@@ -12,14 +12,14 @@ interface DialogProps {
   onClose: () => void
   title: string
   description?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   /** Ask before closing: there is unsaved work inside. */
   dirty?: boolean
   children: ReactNode
   footer?: ReactNode
 }
 
-const SIZES = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
+const SIZES = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-5xl' }
 
 export function Dialog({ open, onClose, title, description, size = 'md', dirty, children, footer }: DialogProps) {
   const { t } = useTranslation()
@@ -59,7 +59,9 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
             </Primitive.Close>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-          {footer ? <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</div> : null}
+          {footer ? (
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>
+          ) : null}
         </Primitive.Content>
       </Primitive.Portal>
     </Primitive.Root>
@@ -122,7 +124,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             </Primitive.Description>
             <div className="mt-5 flex justify-end gap-2">
               <Button onClick={() => settle(false)}>{t('common.cancel')}</Button>
-              <Button data-confirm variant={options?.tone === 'danger' ? 'danger' : 'primary'} onClick={() => settle(true)}>
+              <Button
+                data-confirm
+                variant={options?.tone === 'danger' ? 'danger' : 'primary'}
+                onClick={() => settle(true)}
+              >
                 {options?.confirmLabel ?? t('common.confirm')}
               </Button>
             </div>

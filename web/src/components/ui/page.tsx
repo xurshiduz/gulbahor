@@ -30,7 +30,7 @@ export function Page({ title, subtitle, actions, children, width = 'full' }: Pag
           <h1 className="text-lg leading-tight font-semibold text-ink">{title}</h1>
           {subtitle ? <p className="mt-0.5 max-w-2xl text-xs text-ink-3">{subtitle}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>

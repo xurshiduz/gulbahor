@@ -323,6 +323,9 @@ export const productInputSchema = z
       .nullish()
       .transform((value) => value || null),
     description: optionalText(2000),
+    /** The supplier's own code for the model, as written on packing lists. */
+    factoryCode: optionalText(60),
+    manufacturer: optionalText(120),
     axisIds: axisIdsSchema,
     variants: z
       .array(variantInputSchema)
@@ -429,6 +432,8 @@ export interface ProductDto {
   weightG: number | null
   mxikCode: string | null
   description: string | null
+  factoryCode: string | null
+  manufacturer: string | null
   axisIds: string[]
   variants: VariantDto[]
   prices: PriceDto[]

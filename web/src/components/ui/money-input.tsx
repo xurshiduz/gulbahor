@@ -1,5 +1,20 @@
-import { CURRENCIES, formatMoney, parseAmount, type AmountError, type CurrencyCode } from '@gulbahor/core'
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  CURRENCIES,
+  formatMoney,
+  parseAmount,
+  type AmountError,
+  type AnyCurrency,
+  type CurrencyCode,
+} from '@gulbahor/core'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/cn'
@@ -9,7 +24,8 @@ export interface MoneyInputProps {
   /** Minor units: tiyin or cents. */
   value: number | null
   onChange: (value: number | null) => void
-  currency?: CurrencyCode
+  /** Any currency can be shown; only so'm and dollars can be switched between. */
+  currency?: AnyCurrency
   /** When given, typing "100$" or "100 so'm" switches the currency. */
   onCurrencyChange?: (currency: CurrencyCode) => void
   /** What "=" fills in: usually the amount still to be paid. */
@@ -34,7 +50,7 @@ const ERROR_KEYS: Record<AmountError, string> = {
 /** A plain number being typed: digits, grouping spaces, at most one decimal mark with two digits. */
 const PLAIN = /^[\d ]*(?:[.,]\d{0,2})?$/
 
-const display = (minor: number | null, currency: CurrencyCode) =>
+const display = (minor: number | null, currency: AnyCurrency) =>
   minor === null ? '' : formatMoney(minor, currency, { symbol: false, group: ' ' })
 
 /**
@@ -44,7 +60,19 @@ const display = (minor: number | null, currency: CurrencyCode) =>
  * integer in minor units.
  */
 export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function MoneyInput(
-  { id, value, onChange, currency = 'UZS', onCurrencyChange, fillValue, invalid, disabled, placeholder, autoFocus, className },
+  {
+    id,
+    value,
+    onChange,
+    currency = 'UZS',
+    onCurrencyChange,
+    fillValue,
+    invalid,
+    disabled,
+    placeholder,
+    autoFocus,
+    className,
+  },
   forwardedRef,
 ) {
   const { t } = useTranslation()
@@ -81,7 +109,10 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
   }, [currency])
 
   const parsed = text.trim() ? parseAmount(text) : null
-  const preview = focused && parsed?.ok && (parsed.isExpression || !PLAIN.test(text.trim())) ? display(parsed.minor, parsed.currency ?? currency) : null
+  const preview =
+    focused && parsed?.ok && (parsed.isExpression || !PLAIN.test(text.trim()))
+      ? display(parsed.minor, parsed.currency ?? currency)
+      : null
 
   const commit = () => {
     if (!text.trim()) {
@@ -97,10 +128,12 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
       return
     }
     setError(null)
-    const nextCurrency = result.currency && result.currency !== currency && onCurrencyChange ? result.currency : currency
-    if (nextCurrency !== currency) {
-      onCurrencyChange?.(nextCurrency)
+    // "100$" typed into a so'm field switches it to dollars, where the field can be switched at all.
+    const typed = result.currency && result.currency !== currency && onCurrencyChange ? result.currency : null
+    if (typed) {
+      onCurrencyChange?.(typed)
     }
+    const nextCurrency = typed ?? currency
     setText(display(result.minor, nextCurrency))
     emit(result.minor)
   }
@@ -195,7 +228,10 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
           = {preview} {CURRENCIES[parsed?.ok && parsed.currency ? parsed.currency : currency].symbol}
         </div>
       ) : error && error !== 'empty' ? (
-        <div role="alert" className="absolute top-full right-0 z-20 mt-1 rounded-md bg-bad px-2 py-1 text-xs font-medium text-white shadow-float">
+        <div
+          role="alert"
+          className="absolute top-full right-0 z-20 mt-1 rounded-md bg-bad px-2 py-1 text-xs font-medium text-white shadow-float"
+        >
           {t(ERROR_KEYS[error])}
         </div>
       ) : null}

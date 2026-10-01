@@ -16,6 +16,8 @@ export function setupApp(app: NestExpressApplication): void {
   app.set('trust proxy', 1)
   app.use(helmet())
   app.use(cookieParser())
+  // A receipt or an imported spreadsheet can run to thousands of lines.
+  app.useBodyParser('json', { limit: '8mb' })
   app.enableCors({ origin: config.get('WEB_ORIGIN'), credentials: true })
   app.setGlobalPrefix('api')
   app.useGlobalFilters(new AllExceptionsFilter())

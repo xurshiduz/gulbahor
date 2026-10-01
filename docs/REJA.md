@@ -567,6 +567,23 @@ Ko'p ma'lumot Excel orqali kiritiladi va chiqariladi. Shuning uchun Excel alohid
 - **Avval ko'rib chiqish.** Yuklangandan keyin tizim nima yaratilishini va qaysi qatorda qanday xato borligini ko'rsatadi. Xatoni shu yerning o'zida tuzatish yoki faylni tuzatib qayta yuklash mumkin. Fayl qayta yuklansa, takror yozuv yaratilmaydi.
 - **Har jadval Excel'ga chiqariladi,** tanlangan filtr va ustunlar bilan.
 
+**Akaning hozirgi shablonlari** (Billz import shakli; uchta fayl: Bishkek, Xitoy, Turkiya). Ustunlari bir xil, faqat xarid valyutasi boshqa: Bishkekda qirg'iz somi, Xitoyda yuan, Turkiyada dollar. Tizim shu fayllarni o'zgartirmasdan qabul qiladi:
+
+| Shablondagi ustun | Tizimda |
+| --- | --- |
+| НАИМЕНОВАНИЕ, АРТИКУЛ | model nomi va artikuli; artikul bo'yicha mavjud model topiladi, bo'lmasa yaratiladi |
+| V_Размер, V_Цвет | o'lcham va rang; yo'q qiymat ro'yxatga o'zi qo'shiladi |
+| КОЛ-ВО | soni |
+| цена закупки YUAN / KIRGIZ SOM / ЦЕНА ЗАКУПКИ (USD) | xarid narxi; valyuta sarlavhadan aniqlanadi |
+| доп расход | bir donaga qo'shimcha xarajat (standart: dollarda) |
+| РОЗНИЧНАЯ ЦЕНА (UZS), Оптовая цена | chakana va ulgurji narx; kirim o'tkazilganda modelga qo'yiladi |
+| БАРКОД | variant shtrix-kodi |
+| Бренд, КАТЕГОРИЯ, ПОСТАВЩИК | topiladi yoki yaratiladi |
+| код фабрике, Производитель, Сезон, Коллекция, Пол | model kartasiga |
+| ЦЕНА ПОСТАВКИ (USD), Variation_id, ikkinchi «цена закупки» | o'qilmaydi: tannarxni tizim o'zi hisoblaydi |
+
+Ustun boshqacha nomlangan bo'lsa, import oynasida qo'lda ko'rsatiladi va shu shablon uchun eslab qolinadi.
+
 ### Xodimlar va sheriklar (modul)
 
 Akada bor-yo'qligi noma'lum, lekin boshqa bizneslarda uchraydi. Shuning uchun modul sifatida quriladi va standart holatda o'chiq turadi.
@@ -732,7 +749,7 @@ Aka Billz'dagi inputlardan norozi. Shuning uchun inputlar tizimning eng kuchli j
 ## 14. Bosqichlar
 
 1. **Asos — tayyor (2026-10-01).** `xurshiduz/gulbahor` ichida yangi loyiha tuzilmasi, migratsiyalar, ko'p tashkilot (RLS), modullarni yoqish va o'chirish, kirish va huquqlar, joylar (do'kon va sklad), frontend qobig'i, klaviatura qatlami, jadval va inputlar.
-2. **Tovar va sklad — boshlandi.** Tayyor (2026-10-01): tovar katalogi — kategoriyalar, brendlar, rang va o'lcham shkalalari, narx turlari, model va variantlar (rang × o'lcham jadvali), shtrix-kodlar, model va variant narxlari. Qolgani: jo'natma va kirim, yo'l va bojxona xarajatlarini taqsimlash, RFID etiketka va donalar, ko'chirish, inventarizatsiya, hisobdan chiqarish; tovarlar va boshlang'ich qoldiqni Excel'dan import qilish.
+2. **Tovar va sklad — davom etmoqda.** Tayyor (2026-10-01): tovar katalogi (kategoriyalar, brendlar, rang va o'lcham shkalalari, narx turlari, model va variantlar, shtrix-kodlar, narxlar); yetkazib beruvchilar; kirim hujjati (istalgan xarid valyutasi, yo'l va bojxona xarajatlarini taqsimlash, kechikkan xarajat); qoldiq; Excel'dan kirim. Qolgani: ko'chirish, inventarizatsiya, hisobdan chiqarish, RFID etiketka va donalar, narxlarni ommaviy o'zgartirish va ustama qoidalari.
 3. **Kassa.** RFID yoki shtrix-kod bilan sotish, to'lovlar, terminal, qaytarish va almashtirish, otlojka, smena va inkassatsiya; do'kon agenti va darvoza.
 4. **Pul va hamkorlar.** Hisoblar, ikki tomonlama yozuv, valyuta va kurs farqi, harajatlar, hamkorlar (qarz va konsignatsiya ikki tomonga), akt-sverka, davrni yopish; mijozlar, hamkorlar va boshlang'ich qarzlarni Excel'dan import qilish.
 5. **Birinchi do'konda ishga tushirish** (quyida).
@@ -757,6 +774,8 @@ Aka Billz'dagi inputlardan norozi. Shuning uchun inputlar tizimning eng kuchli j
 1. **Eslatma — 3-bosqich (kassa, do'kon agenti, darvoza) boshlanishidan oldin so'raladi:** sotib olinadigan yoki bor RFID uskunalarining aniq modeli: printer, qo'l terminali, kassa o'quvchisi, darvoza. Hozircha reja 8-bo'limdagi eng yangi modellar bo'yicha tuzilgan.
 
 ### Akaga
+
+0. **Excel shablonlari bo'yicha (shoshilinch emas):** Bishkek va Xitoy shablonida ikkita «цена закупки» ustuni bor (biri valyuta bilan, biri valyutasiz). Hozir valyutalisi xarid narxi deb olinadi, ikkinchisi o'qilmaydi. «доп расход» qaysi valyutada yoziladi (hozir dollar deb olingan, hujjatda o'zgartirsa bo'ladi)?
 
 2. **Eslatma — 6-bosqich (kartalar nazorati) boshlanishidan oldin so'raladi.** Xabar namunalari. CardXabarBot'dan ikki turi olindi ("E-Com oplata" va "Perevod na kartu"). Qolganlari kerak:
    - CardXabarBot: do'konda terminal orqali to'lov, kartadan boshqa kartaga o'tkazma, naqd pul yechish, qaytarilgan to'lov;

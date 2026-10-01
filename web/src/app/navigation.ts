@@ -1,5 +1,19 @@
 import type { LinkProps } from '@tanstack/react-router'
-import { BookMarked, Building2, FlaskConical, History, Home, KeyRound, Settings, Shirt, Users, type LucideIcon } from 'lucide-react'
+import {
+  BookMarked,
+  Boxes,
+  Building2,
+  FlaskConical,
+  Handshake,
+  History,
+  Home,
+  KeyRound,
+  PackagePlus,
+  Settings,
+  Shirt,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 
 export interface NavItem {
   to: NonNullable<LinkProps['to']>
@@ -33,6 +47,14 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { to: '/products', label: 'nav.products', icon: Shirt, permission: 'products.view' },
       { to: '/references', label: 'nav.references', icon: BookMarked, permission: 'products.view' },
+    ],
+  },
+  {
+    label: 'nav.groupStock',
+    items: [
+      { to: '/stock', label: 'nav.stock', icon: Boxes, permission: 'stock.view' },
+      { to: '/receipts', label: 'nav.receipts', icon: PackagePlus, permission: 'receipts.view' },
+      { to: '/partners', label: 'nav.partners', icon: Handshake, permission: 'partners.view' },
     ],
   },
   {

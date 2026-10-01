@@ -10,9 +10,12 @@ import { AuthModule } from './modules/auth/auth.module'
 import { CatalogModule } from './modules/catalog/catalog.module'
 import { LocationsModule } from './modules/locations/locations.module'
 import { OrgsModule } from './modules/orgs/orgs.module'
+import { PartnersModule } from './modules/partners/partners.module'
+import { ReceiptsModule } from './modules/receipts/receipts.module'
 import { RealtimeGatewayModule } from './modules/realtime/realtime.gateway'
 import { RealtimeModule } from './modules/realtime/realtime.module'
 import { RolesModule } from './modules/roles/roles.module'
+import { StockModule } from './modules/stock/stock.module'
 import { UsersModule } from './modules/users/users.module'
 
 @Module({
@@ -33,6 +36,9 @@ import { UsersModule } from './modules/users/users.module'
     RolesModule,
     UsersModule,
     CatalogModule,
+    PartnersModule,
+    StockModule,
+    ReceiptsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

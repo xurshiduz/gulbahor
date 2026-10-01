@@ -9,8 +9,12 @@ import { ReferencesPage } from '@/features/catalog/references-page'
 import { HomePage } from '@/features/dashboard/home-page'
 import { InputsDemoPage } from '@/features/dev/inputs-demo-page'
 import { LocationsPage } from '@/features/locations/locations-page'
+import { PartnersPage } from '@/features/partners/partners-page'
 import { ProfilePage } from '@/features/profile/profile-page'
+import { ReceiptPage } from '@/features/receipts/receipt-page'
+import { ReceiptsPage } from '@/features/receipts/receipts-page'
 import { SettingsPage } from '@/features/settings/settings-page'
+import { StockPage } from '@/features/stock/stock-page'
 import { RolesPage } from '@/features/users/roles-page'
 import { UsersPage } from '@/features/users/users-page'
 import { LIST_DEFAULTS, listSearch } from '@/lib/list-search'
@@ -72,6 +76,59 @@ const referencesRoute = createRoute({
     tab: z.enum(['categories', 'brands', 'attributes', 'prices']).default('categories').catch('categories'),
   }),
   search: { middlewares: [stripSearchParams({ tab: 'categories' })] },
+})
+
+const receiptsSearch = z.object({
+  ...plainList,
+  status: z.enum(['draft', 'posted', 'cancelled', 'all']).default('all').catch('all'),
+  locationId: z.string().optional().catch(undefined),
+  supplierId: z.string().optional().catch(undefined),
+  from: z.string().optional().catch(undefined),
+  to: z.string().optional().catch(undefined),
+})
+const receiptsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/receipts',
+  component: ReceiptsPage,
+  validateSearch: receiptsSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
+})
+
+/** `new`, or the id of the receipt. */
+const receiptRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/receipts/$receiptId',
+  component: ReceiptPage,
+})
+
+const stockSearch = z.object({
+  ...plainList,
+  locationId: z.string().optional().catch(undefined),
+  categoryId: z.string().optional().catch(undefined),
+  brandId: z.string().optional().catch(undefined),
+  presence: z.enum(['in', 'out', 'all']).default('in').catch('in'),
+  /** The model whose colours and sizes are open. */
+  open: z.string().optional().catch(undefined),
+})
+const stockRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/stock',
+  component: StockPage,
+  validateSearch: stockSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, presence: 'in' })] },
+})
+
+const partnersSearch = z.object({
+  ...listSearch,
+  status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
+  role: z.enum(['supplier', 'buyer']).optional().catch(undefined),
+})
+const partnersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/partners',
+  component: PartnersPage,
+  validateSearch: partnersSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
 })
 
 const usersSearch = z.object({
@@ -142,6 +199,10 @@ const routeTree = rootRoute.addChildren([
   productsRoute,
   productRoute,
   referencesRoute,
+  stockRoute,
+  receiptsRoute,
+  receiptRoute,
+  partnersRoute,
   locationsRoute,
   usersRoute,
   rolesRoute,

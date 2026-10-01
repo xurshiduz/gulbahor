@@ -1,5 +1,17 @@
-import type { AttributeKind, CurrencyCode, Gender, LocationKind, OrgSettings, PriceKind, Season, Unit } from '@gulbahor/core'
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
+import type {
+  AnyCurrency,
+  AttributeKind,
+  CurrencyCode,
+  ExpenseBasis,
+  Gender,
+  LocationKind,
+  OrgSettings,
+  PriceKind,
+  ReceiptStatus,
+  Season,
+  Unit,
+} from '@gulbahor/core'
+import { Column, CreateDateColumn, Entity, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
 
 /**
  * Tables are created by migrations, never by these classes: the classes only
@@ -429,6 +441,12 @@ export class Product {
   @Column('text', { nullable: true })
   description: string | null
 
+  @Column('text', { nullable: true })
+  factoryCode: string | null
+
+  @Column('text', { nullable: true })
+  manufacturer: string | null
+
   @Column('uuid', { nullable: true })
   axis1Id: string | null
 
@@ -544,6 +562,333 @@ export class Price {
   updatedAt: Date
 }
 
+/** `numeric` columns come back as text; quantities and rates are small enough to be numbers. */
+const numericAsNumber = {
+  to: (value: number | null | undefined) => value,
+  from: (value: string | null) => (value === null ? null : Number(value)),
+}
+
+@Entity('partners')
+export class Partner {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  @Column('text', { nullable: true })
+  phone: string | null
+
+  @Column('boolean')
+  isSupplier: boolean
+
+  @Column('boolean')
+  isBuyer: boolean
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('boolean')
+  isActive: boolean
+
+  @Column('text')
+  searchKey: string
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('receipts')
+export class Receipt {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('text')
+  status: ReceiptStatus
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('uuid', { nullable: true })
+  supplierId: string | null
+
+  /** "2026-10-01" */
+  @Column('date')
+  docDate: string
+
+  @Column('text')
+  currency: AnyCurrency
+
+  @Column('numeric', { transformer: numericAsNumber })
+  usdRate: number
+
+  @Column('numeric', { transformer: numericAsNumber })
+  uzsRate: number
+
+  @Column('text')
+  extraCurrency: AnyCurrency
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('text', { nullable: true })
+  sourceFile: string | null
+
+  @Column('text', { nullable: true })
+  sourceHash: string | null
+
+  @Column('numeric', { transformer: numericAsNumber })
+  totalQty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  goods: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  goodsUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  goodsUzs: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  expensesUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  expensesUzs: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+
+  @Column('boolean')
+  hasEstimates: boolean
+
+  @Column('text')
+  searchKey: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  postedAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  postedBy: string | null
+
+  @Column('text', { nullable: true })
+  postedByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  cancelledAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  cancelledBy: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('receipt_lines')
+export class ReceiptLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  receiptId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('uuid', { nullable: true })
+  supplierId: string | null
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  price: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  extra: number
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  retailPrice: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  wholesalePrice: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  costUsd: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  costUzs: number | null
+}
+
+@Entity('receipt_expenses')
+export class ReceiptExpense {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  receiptId: string
+
+  @Column('int')
+  position: number
+
+  @Column('text')
+  name: string
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('text')
+  currency: AnyCurrency
+
+  @Column('text')
+  basis: ExpenseBasis
+
+  @Column('boolean')
+  isEstimate: boolean
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  amountUsd: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  amountUzs: number | null
+}
+
+@Entity('stock_batches')
+export class StockBatch {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('uuid', { nullable: true })
+  receiptLineId: string | null
+
+  @Column('date')
+  receivedOn: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('stock_balances')
+export class StockBalance {
+  @Column('uuid')
+  orgId: string
+
+  @PrimaryColumn('uuid')
+  locationId: string
+
+  @PrimaryColumn('uuid')
+  batchId: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+}
+
+@Entity('stock_movements')
+export class StockMovement {
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  kind: StockMovementKind
+
+  @Column('date')
+  docDate: string
+
+  @Column('text')
+  documentType: string
+
+  @Column('uuid')
+  documentId: string
+
+  @Column('uuid', { nullable: true })
+  lineId: string | null
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('uuid')
+  batchId: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+
+  @Column('uuid', { nullable: true })
+  actorId: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+export type StockMovementKind = 'receipt' | 'receipt_cancel' | 'revalue'
+
 export const ENTITIES = [
   Organization,
   Location,
@@ -560,4 +905,11 @@ export const ENTITIES = [
   ProductVariant,
   VariantBarcode,
   Price,
+  Partner,
+  Receipt,
+  ReceiptLine,
+  ReceiptExpense,
+  StockBatch,
+  StockBalance,
+  StockMovement,
 ]

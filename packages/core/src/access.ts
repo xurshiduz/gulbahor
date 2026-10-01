@@ -17,7 +17,7 @@ export const MODULES: ModuleInfo[] = [
   {
     key: 'usd',
     title: 'Dollar bilan ishlash',
-    description: "Kassada va hamkorlar bilan hisobda dollar qabul qilinadi, kunlik kurs yuritiladi.",
+    description: 'Kassada va hamkorlar bilan hisobda dollar qabul qilinadi, kunlik kurs yuritiladi.',
     ready: false,
   },
   {
@@ -124,6 +124,31 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'receipts',
+    title: 'Kirim',
+    permissions: [
+      { key: 'receipts.view', title: "Kirim hujjatlarini ko'rish" },
+      { key: 'receipts.manage', title: 'Qoralama yaratish va tahrirlash' },
+      { key: 'receipts.post', title: "O'tkazish, bekor qilish va xarajatlarni o'zgartirish" },
+    ],
+  },
+  {
+    key: 'stock',
+    title: 'Qoldiq',
+    permissions: [
+      { key: 'stock.view', title: "Qoldiqni ko'rish" },
+      { key: 'stock.cost', title: "Tannarxni ko'rish" },
+    ],
+  },
+  {
+    key: 'partners',
+    title: 'Yetkazib beruvchilar va hamkorlar',
+    permissions: [
+      { key: 'partners.view', title: "Ko'rish" },
+      { key: 'partners.manage', title: "Qo'shish va tahrirlash" },
+    ],
+  },
+  {
     key: 'users',
     title: 'Xodimlar',
     permissions: [
@@ -187,42 +212,50 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     key: 'manager',
     name: 'Boshqaruvchi',
     description: "Egasining o'rinbosari: do'konlar va xodimlarga qaraydi.",
-    permissions: ['locations.*', 'users.*', 'products.*', 'audit.view'],
+    permissions: ['locations.*', 'users.*', 'products.*', 'receipts.*', 'stock.*', 'partners.*', 'audit.view'],
   },
   {
     key: 'accountant',
     name: 'Hisobchi',
     description: 'Pul, kartalar, hamkorlar bilan hisob-kitob va hisobotlar.',
-    permissions: ['locations.view', 'products.view', 'audit.view'],
+    permissions: ['locations.view', 'products.view', 'receipts.view', 'stock.*', 'partners.view', 'audit.view'],
   },
   {
     key: 'store_manager',
     name: "Do'kon menejeri",
     description: "O'z do'koni: chegirma va qaytarishni tasdiqlaydi, smenadan pulni qabul qiladi.",
-    permissions: ['locations.view', 'users.view', 'products.view'],
+    permissions: ['locations.view', 'users.view', 'products.view', 'stock.view'],
   },
   {
     key: 'cashier',
     name: 'Kassir',
     description: 'Sotadi, qaytaradi, smenani ochadi va yopadi.',
-    permissions: ['products.view'],
+    permissions: ['products.view', 'stock.view'],
   },
   {
     key: 'seller',
     name: 'Sotuvchi',
     description: 'Zalda mijozga tovar topadi; chekda uning nomi turadi.',
-    permissions: ['products.view'],
+    permissions: ['products.view', 'stock.view'],
   },
   {
     key: 'warehouse',
     name: 'Sklad mudiri',
     description: "Kirim, etiketka, ko'chirish va inventarizatsiya.",
-    permissions: ['locations.view', 'products.view', 'products.manage', 'products.references'],
+    permissions: [
+      'locations.view',
+      'products.view',
+      'products.manage',
+      'products.references',
+      'receipts.*',
+      'stock.view',
+      'partners.view',
+    ],
   },
   {
     key: 'partners_manager',
     name: 'Hamkorlar menejeri',
     description: "Hamkorlarga tovar beradi, to'lov qabul qiladi, akt yuboradi.",
-    permissions: ['products.view'],
+    permissions: ['products.view', 'stock.view', 'partners.*'],
   },
 ]

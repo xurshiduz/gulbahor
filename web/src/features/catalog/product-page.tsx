@@ -87,6 +87,8 @@ interface Values {
   weightG: number | null
   mxikCode: string
   description: string
+  factoryCode: string
+  manufacturer: string
 }
 
 /** What the next model starts from after "save and add another". */
@@ -195,6 +197,8 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
       weightG: product?.weightG ?? null,
       mxikCode: product?.mxikCode ?? '',
       description: product?.description ?? '',
+      factoryCode: product?.factoryCode ?? '',
+      manufacturer: product?.manufacturer ?? '',
       ...carry?.values,
     },
   })
@@ -227,6 +231,8 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
         product.weightG ||
         product.mxikCode ||
         product.description ||
+        product.factoryCode ||
+        product.manufacturer ||
         product.unit !== 'pcs'
       ),
   )
@@ -779,6 +785,31 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                         maxLength={17}
                         invalid={!!errors.mxikCode}
                         {...form.register('mxikCode')}
+                      />
+                    )}
+                  </Field>
+                  <Field
+                    label={t('products.factoryCode')}
+                    hint={t('products.factoryCodeHint')}
+                    error={errors.factoryCode?.message}
+                  >
+                    {(id) => (
+                      <Input
+                        id={id}
+                        className="font-code"
+                        maxLength={60}
+                        invalid={!!errors.factoryCode}
+                        {...form.register('factoryCode')}
+                      />
+                    )}
+                  </Field>
+                  <Field label={t('products.manufacturer')} error={errors.manufacturer?.message}>
+                    {(id) => (
+                      <Input
+                        id={id}
+                        maxLength={120}
+                        invalid={!!errors.manufacturer}
+                        {...form.register('manufacturer')}
                       />
                     )}
                   </Field>

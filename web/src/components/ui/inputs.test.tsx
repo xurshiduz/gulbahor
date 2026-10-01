@@ -12,9 +12,16 @@ import { Form } from './form'
 import { MoneyInput } from './money-input'
 import { NumberInput } from './number-input'
 import { PhoneInput } from './phone-input'
+import { QtyMatrix } from './qty-matrix'
 import { TagInput } from './tag-input'
 
-function Money({ onValue, fillValue }: { onValue: (value: number | null, currency: CurrencyCode) => void; fillValue?: number }) {
+function Money({
+  onValue,
+  fillValue,
+}: {
+  onValue: (value: number | null, currency: CurrencyCode) => void
+  fillValue?: number
+}) {
   const [value, setValue] = useState<number | null>(null)
   const [currency, setCurrency] = useState<CurrencyCode>('UZS')
   return (
@@ -261,6 +268,77 @@ describe('TagInput', () => {
     screen.getByRole('textbox').focus()
     await userEvent.paste('1111 2222\n3333, 4444')
     expect(onChange).toHaveBeenLastCalledWith(['1111', '2222', '3333'])
+  })
+})
+
+describe('QtyMatrix', () => {
+  // Two colours by three sizes; the white L does not exist.
+  const rows = [
+    { key: 'black', label: 'Qora' },
+    { key: 'white', label: 'Oq' },
+  ]
+  const columns = ['S', 'M', 'L'].map((size) => ({ key: size, label: size }))
+  const cellKey = (row: number, column: number) =>
+    row === 1 && column === 2 ? null : `${rows[row].key}-${columns[column].key}`
+
+  function Grid({ onValues }: { onValues: (values: Record<string, number | null>) => void }) {
+    const [values, setValues] = useState<Record<string, number | null>>({})
+    return (
+      <QtyMatrix
+        rows={rows}
+        columns={columns}
+        cellKey={cellKey}
+        values={values}
+        onChange={(changes) => {
+          const next = { ...values, ...changes }
+          setValues(next)
+          onValues(next)
+        }}
+      />
+    )
+  }
+  const cell = (position: string) => document.querySelector<HTMLInputElement>(`[data-cell="${position}"]`)!
+
+  it('moves like a spreadsheet: arrows, and Enter down the column then on to the next', async () => {
+    const onValues = vi.fn()
+    render(<Grid onValues={onValues} />)
+
+    cell('0:0').focus()
+    await userEvent.keyboard('5{Enter}')
+    expect(document.activeElement).toBe(cell('1:0'))
+    await userEvent.keyboard('7{Enter}')
+    expect(document.activeElement).toBe(cell('0:1'))
+    await userEvent.keyboard('{ArrowRight}{ArrowDown}')
+    // There is no white L: the cursor stays on black L.
+    expect(document.activeElement).toBe(cell('0:2'))
+    expect(onValues).toHaveBeenLastCalledWith({ 'black-S': 5, 'white-S': 7 })
+    expect(screen.getAllByText('12').length).toBeGreaterThan(0)
+  })
+
+  it('repeats a number along the row with Alt+→ and takes only digits', async () => {
+    const onValues = vi.fn()
+    render(<Grid onValues={onValues} />)
+
+    cell('0:0').focus()
+    await userEvent.keyboard('1x2{Alt>}{ArrowRight}{/Alt}')
+    expect(onValues).toHaveBeenLastCalledWith({ 'black-S': 12, 'black-M': 12, 'black-L': 12 })
+    expect(cell('0:2').value).toBe('12')
+  })
+
+  it('takes a block pasted from a spreadsheet, skipping cells that do not exist', async () => {
+    const onValues = vi.fn()
+    render(<Grid onValues={onValues} />)
+
+    cell('0:0').focus()
+    await userEvent.paste('1\t2\t3\n4\t5\t6')
+    expect(onValues).toHaveBeenLastCalledWith({
+      'black-S': 1,
+      'black-M': 2,
+      'black-L': 3,
+      'white-S': 4,
+      'white-M': 5,
+    })
+    expect(cell('1:1').value).toBe('5')
   })
 })
 

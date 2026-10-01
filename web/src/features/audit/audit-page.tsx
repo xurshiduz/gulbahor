@@ -18,7 +18,19 @@ import { useAuditText } from './audit-text'
 
 const route = getRouteApi('/audit')
 
-const ENTITIES = ['product', 'category', 'brand', 'attribute', 'price_type', 'user', 'role', 'location', 'org']
+const ENTITIES = [
+  'receipt',
+  'product',
+  'category',
+  'brand',
+  'attribute',
+  'price_type',
+  'partner',
+  'user',
+  'role',
+  'location',
+  'org',
+]
 
 export function AuditPage() {
   const { t } = useTranslation()
