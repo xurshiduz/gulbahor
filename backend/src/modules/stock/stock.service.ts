@@ -11,7 +11,8 @@ import { roundMoney } from '../references/common/numeric';
  *
  * Alohida qoldiq jadvali yo'q - qoldiq tasdiqlangan hujjatlardan
  * hisoblanadi: kirim (xarid, qaytarish, almashinuv) qo'shadi, chiqim
- * (sotuv) ayiradi. Qoralama hujjatlar hisobga olinmaydi.
+ * (sotuv) ayiradi. Ko'chirish: yuborilganda manba ombordan chiqadi,
+ * qabul qilinganda qabul qilingan soni boradigan omborga kiradi. Qoralama hujjatlar hisobga olinmaydi.
  *
  * Kirim summasi so'mda: valyutadagi xarid hujjat sanasidagi kurs bo'yicha
  * (o'sha sanagacha kiritilgan oxirgisi, bo'lmasa - eng eskisi) o'giriladi.
@@ -246,6 +247,26 @@ export class StockService {
          ) oldest ON TRUE
         WHERE doc.status = 'APPROVED'
           AND ($1::uuid[] IS NULL OR doc."warehouseId" = ANY ($1))
+        GROUP BY 1, 2
+       UNION ALL
+       -- Ko'chirish: qabul qilingan soni qabul qiluvchi omborga kiradi (o'rtacha xarid narxida)
+       SELECT ti."materialId", t."toWarehouseId",
+              SUM(ti."receivedQuantity")::float8,
+              SUM(ti."receivedQuantity" * COALESCE(pc.avg_cost, 0))::float8
+         FROM transfer_items ti
+         JOIN transfers t ON t.id = ti."transferId"
+         LEFT JOIN (
+              SELECT i."materialId",
+                     SUM(i.quantity * i.price * COALESCE(r1.rate, r2.rate, 1)) / NULLIF(SUM(i.quantity), 0) AS avg_cost
+                FROM inbound_document_items i
+                JOIN inbound_documents d ON d.id = i."documentId"
+                LEFT JOIN LATERAL (SELECT rate FROM currency_rates WHERE "currencyId" = d."currencyId" AND date <= d."documentDate" ORDER BY date DESC LIMIT 1) r1 ON TRUE
+                LEFT JOIN LATERAL (SELECT rate FROM currency_rates WHERE "currencyId" = d."currencyId" ORDER BY date ASC LIMIT 1) r2 ON TRUE
+               WHERE d.status = 'APPROVED' AND d.type = 'PURCHASE'
+               GROUP BY 1
+         ) pc ON pc."materialId" = ti."materialId"
+        WHERE t.status = 'RECEIVED' AND ti."receivedQuantity" > 0
+          AND ($1::uuid[] IS NULL OR t."toWarehouseId" = ANY ($1))
         GROUP BY 1, 2`,
       [warehouseIds],
     );
@@ -262,6 +283,14 @@ export class StockService {
          JOIN outbound_documents doc ON doc.id = item."documentId"
         WHERE doc.status = 'APPROVED'
           AND ($1::uuid[] IS NULL OR doc."warehouseId" = ANY ($1))
+        GROUP BY 1, 2
+       UNION ALL
+       -- Ko'chirish: yuborilgan zahoti yuboruvchi ombordan chiqadi (yo'lda bo'lsa ham)
+       SELECT ti."materialId", t."fromWarehouseId", SUM(ti.quantity)::float8, 0::float8
+         FROM transfer_items ti
+         JOIN transfers t ON t.id = ti."transferId"
+        WHERE t.status IN ('SENT', 'RECEIVED')
+          AND ($1::uuid[] IS NULL OR t."fromWarehouseId" = ANY ($1))
         GROUP BY 1, 2`,
       [warehouseIds],
     );

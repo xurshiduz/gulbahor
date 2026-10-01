@@ -284,6 +284,10 @@
     "inventory": {
       "title": "Inventarizatsiya",
       "desc": "RFID skaner bilan sanash, kamomad va ortiqcha hisoboti"
+    },
+    "transfers": {
+      "title": "Ko'chirish",
+      "desc": "Filiallar o'rtasida tovar yuborish va qabul qilish"
     }
   },
   "profile": {
@@ -482,7 +486,8 @@
       "cash-withdrawals": "Kassadan olingan pul",
       "integrations": "Integratsiyalar",
       "inventory": "Inventarizatsiya",
-      "executive-report": "Rahbar hisoboti"
+      "executive-report": "Rahbar hisoboti",
+      "transfers": "Ko'chirish"
     },
     "actions": {
       "read": "Ko'rish",
@@ -494,7 +499,9 @@
       "approve": "Tasdiqlash",
       "print": "Etiketka chop etish",
       "sync": "Qoldiqni yuborish",
-      "scan": "Sanash (skaner)"
+      "scan": "Sanash (skaner)",
+      "send": "Yuborish",
+      "receive": "Qabul qilish"
     }
   },
   "ref": {
@@ -1241,5 +1248,53 @@
     "empty": "Bu davrda savdo yo'q",
     "unknown": "Ko'rsatilmagan",
     "method_note": "Savdo - tasdiqlangan chiqim hujjatlari, qaytarish - tasdiqlangan qaytarish/almashinuv kirimlari (hujjat sanasi bo'yicha). Tannarx - o'rtacha xarid narxi. Harajat va pul tushumi kassa orqali filialga bog'lanadi."
+  },
+  "transfers": {
+    "tab_all": "Hammasi",
+    "tab_incoming": "Kiruvchi",
+    "tab_outgoing": "Chiquvchi",
+    "status_DRAFT": "Qoralama",
+    "status_SENT": "Yo'lda",
+    "status_RECEIVED": "Qabul qilindi",
+    "status_CANCELLED": "Bekor qilingan",
+    "new": "Yangi ko'chirish",
+    "route": "Yo'nalish",
+    "sent_qty": "Yuborildi",
+    "received_qty": "Qabul qilindi",
+    "dates": "Sana",
+    "dir_IN": "kiruvchi",
+    "dir_OUT": "chiquvchi",
+    "sent_at": "Yuborildi",
+    "received_at": "Qabul qilindi",
+    "from": "Qayerdan (ombor)",
+    "to": "Qayerga (ombor)",
+    "same_warehouse": "Yuboruvchi va qabul qiluvchi ombor bir xil bo'lmasligi kerak",
+    "less_than_tags": "\"{{name}}\": soni o'qilgan RFID metkalardan ({{count}}) kam bo'lmasligi kerak",
+    "empty_error": "Tovar qo'shilmagan ko'chirishni yuborib bo'lmaydi",
+    "send": "Yuborish",
+    "send_confirm": "Ko'chirish yuborilsinmi? Tovar yuboruvchi ombor qoldig'idan chiqadi.",
+    "recall": "Qaytarib olish",
+    "recall_confirm": "Ko'chirish qaytarib olinsinmi? U yana qoralamaga aylanadi.",
+    "cancel_confirm": "Ko'chirish bekor qilinsinmi?",
+    "receive": "Qabul qilish",
+    "receive_confirm": "Hammasi to'liq keldi. Qabul qilinsinmi?",
+    "receive_short_confirm": "Ba'zi tovarlar yuborilganidan kam keldi. Shu holatda qabul qilinsinmi? Farq kamomad sifatida qayd etiladi.",
+    "receive_hint": "Kelgan tovarni sanang: RFID metkalarni o'qing yoki shtrix-kodni skanerlang. Sonini qo'lda ham yozish mumkin. Tugatgach \"Qabul qilish\" ni bosing.",
+    "receive_all": "Hammasini to'liq qabul qilish",
+    "reset_count": "Sanashni qaytadan",
+    "receive_note": "Qabul izohi",
+    "receive_note_placeholder": "Masalan: 2 dona shikastlangan holda keldi",
+    "summary": "{{positions}} pozitsiya · {{sent}} dona · RFID: {{tags}}",
+    "scan_placeholder": "Shtrix-kod, artikul yoki RFID metka - skanerlang va Enter",
+    "scan_unknown": "Bu RFID metka tizimda yo'q",
+    "scan_not_found": "Tovar topilmadi",
+    "not_in_transfer": "bu ko'chirishda yo'q",
+    "tag_not_sent": "bu metka yuborilmagan",
+    "over_sent": "yuborilganidan ortiq",
+    "feed_ok": "qo'shildi",
+    "feed_dup": "takror",
+    "feed_warn": "diqqat",
+    "empty": "Tovar qo'shilmagan. Skanerlang yoki qidiruv orqali qo'shing.",
+    "missing_tags": "Qabul qilinmagan RFID metkalar: {{count}}"
   }
 }

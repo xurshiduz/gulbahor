@@ -25,6 +25,8 @@ import CashBalance from "./pages/Cash/CashBalance";
 import CashWithdrawals from "./pages/Cash/CashWithdrawals";
 import PermissionGate from "./components/auth/PermissionGate";
 import { MarketplaceIntegrations, PaymentIntegrations } from "./pages/Integrations/Integrations";
+import TransfersList from "./pages/Transfers/TransfersList";
+import TransferForm from "./pages/Transfers/TransferForm";
 import InventoryList from "./pages/Inventory/InventoryList";
 import InventoryDetail from "./pages/Inventory/InventoryDetail";
 import InventoryScan from "./pages/Inventory/InventoryScan";
@@ -79,6 +81,9 @@ export default function App() {
 
               {/* Ombor qoldig'i va inventarizatsiya */}
               <Route path="/stock" element={<Stock />} />
+              <Route path="/transfers" element={<TransfersList />} />
+              <Route path="/transfers/create" element={<TransferForm />} />
+              <Route path="/transfers/:id" element={<TransferForm />} />
               <Route path="/inventory" element={<InventoryList />} />
               <Route path="/inventory/:id" element={<InventoryDetail />} />
 

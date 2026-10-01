@@ -20,12 +20,12 @@ export class MaterialsController {
 
   /** Skaner: shtrix-kod yoki artikul bo'yicha bitta tovar (hujjat formalari uchun) */
   @Get('by-barcode')
-  @RequirePermission('read:materials', 'read:inbound-documents', 'read:outbound-documents')
+  @RequirePermission('read:materials', 'read:inbound-documents', 'read:outbound-documents', 'read:transfers')
   findByCode(@Query('code') code: string) { return this.service.findByCode(code); }
 
   /** Qidiruv oynasi: nom / artikul / shtrix-kod / MXIK */
   @Get('search')
-  @RequirePermission('read:materials', 'read:inbound-documents', 'read:outbound-documents')
+  @RequirePermission('read:materials', 'read:inbound-documents', 'read:outbound-documents', 'read:transfers')
   search(@Query('q') q?: string, @Query('limit') limit?: string) { return this.service.search(q, Number(limit) || 30); }
 
   @Get(':id')

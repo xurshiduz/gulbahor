@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { GridIcon, UserCircleIcon, ChevronDownIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { usePermissions } from "../hooks/usePermissions";
-import { Boxes, Building2, Calculator, ClipboardList, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Plug, Users } from "lucide-react";
+import { ArrowLeftRight, Boxes, Building2, Calculator, ClipboardList, Layers, Megaphone, MonitorSmartphone, Package, PackageMinus, PackagePlus, Plug, Users } from "lucide-react";
 import { openPos } from "../utils/pos";
 
 /**
@@ -98,6 +98,12 @@ const AppSidebar: React.FC = () => {
       name: t("modules.outbounds.title"),
       path: "/outbounds",
       resource: "outbound-documents",
+    },
+    {
+      icon: <ArrowLeftRight />,
+      name: t("modules.transfers.title"),
+      path: "/transfers",
+      resource: "transfers",
     },
     {
       icon: <Boxes />,

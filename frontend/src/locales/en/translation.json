@@ -284,6 +284,10 @@
     "inventory": {
       "title": "Stock count",
       "desc": "Counting with an RFID scanner, shortage and surplus report"
+    },
+    "transfers": {
+      "title": "Transfers",
+      "desc": "Send and receive goods between branches"
     }
   },
   "profile": {
@@ -482,7 +486,8 @@
       "cash-withdrawals": "Cash withdrawals",
       "integrations": "Integrations",
       "inventory": "Stock count",
-      "executive-report": "Executive report"
+      "executive-report": "Executive report",
+      "transfers": "Transfers"
     },
     "actions": {
       "read": "View",
@@ -494,7 +499,9 @@
       "approve": "Approve",
       "print": "Print labels",
       "sync": "Upload stock",
-      "scan": "Count (scanner)"
+      "scan": "Count (scanner)",
+      "send": "Send",
+      "receive": "Receive"
     }
   },
   "ref": {
@@ -1241,5 +1248,53 @@
     "empty": "No sales in this period",
     "unknown": "Not set",
     "method_note": "Sales are approved outbound documents, returns are approved return/exchange inbounds (by document date). Cost is the average purchase price. Expenses and money received are linked to a branch through the cash register."
+  },
+  "transfers": {
+    "tab_all": "All",
+    "tab_incoming": "Incoming",
+    "tab_outgoing": "Outgoing",
+    "status_DRAFT": "Draft",
+    "status_SENT": "In transit",
+    "status_RECEIVED": "Received",
+    "status_CANCELLED": "Cancelled",
+    "new": "New transfer",
+    "route": "Route",
+    "sent_qty": "Sent",
+    "received_qty": "Received",
+    "dates": "Date",
+    "dir_IN": "incoming",
+    "dir_OUT": "outgoing",
+    "sent_at": "Sent",
+    "received_at": "Received",
+    "from": "From (warehouse)",
+    "to": "To (warehouse)",
+    "same_warehouse": "Source and destination warehouses must differ",
+    "less_than_tags": "\"{{name}}\": quantity cannot be less than the scanned RFID tags ({{count}})",
+    "empty_error": "A transfer without products cannot be sent",
+    "send": "Send",
+    "send_confirm": "Send the transfer? Goods will leave the source warehouse stock.",
+    "recall": "Recall",
+    "recall_confirm": "Recall the transfer? It will become a draft again.",
+    "cancel_confirm": "Cancel the transfer?",
+    "receive": "Receive",
+    "receive_confirm": "Everything arrived in full. Receive?",
+    "receive_short_confirm": "Some products arrived short. Receive as is? The difference will be recorded as a shortage.",
+    "receive_hint": "Count the arrived goods: read RFID tags or scan barcodes. Quantities can also be typed. Then press \"Receive\".",
+    "receive_all": "Receive everything in full",
+    "reset_count": "Restart count",
+    "receive_note": "Receiving note",
+    "receive_note_placeholder": "E.g. 2 pcs arrived damaged",
+    "summary": "{{positions}} items · {{sent}} pcs · RFID: {{tags}}",
+    "scan_placeholder": "Barcode, SKU or RFID tag - scan and press Enter",
+    "scan_unknown": "This RFID tag is not in the system",
+    "scan_not_found": "Product not found",
+    "not_in_transfer": "not in this transfer",
+    "tag_not_sent": "this tag was not sent",
+    "over_sent": "more than sent",
+    "feed_ok": "added",
+    "feed_dup": "repeat",
+    "feed_warn": "warning",
+    "empty": "No products added. Scan or add via search.",
+    "missing_tags": "RFID tags not received: {{count}}"
   }
 }

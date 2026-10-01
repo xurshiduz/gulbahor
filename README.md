@@ -44,6 +44,7 @@ keyin profildan o'zgartiring.
 | Chiqim hujjatlari — barcha sotuvlar: mijoz, omborxona, izoh, tovarlar (skaner + qidiruv, soni, sotuv narxi); tasdiqlangach kirimda undan qaytarish qilinadi | `backend/src/modules/outbound-documents`, `frontend/src/pages/Outbounds` |
 | Bosh sahifa: Rahbar hisoboti (savdo, qaytarish, tannarx, yalpi va sof foyda, harajat, pul tushumi; kompaniya -> filial -> ombor -> kategoriya -> tovar, kunlar va xodimlar kesimi, o'tgan davr bilan solishtirish), Xodim hisoboti (to'ldirilmoqda), Modullar | `backend/src/modules/reports`, `frontend/src/pages/Dashboard` |
 | Ombor qoldig'i: filial / omborxona / umumiy; SKU, dona, kirim va sotuv summasi, kutilayotgan foyda, omborlar kesimi | `backend/src/modules/stock`, `frontend/src/pages/Stock` |
+| Ko'chirish: bir filial omboridan boshqasiga; tovar skaner (shtrix-kod, artikul, RFID metka) yoki qidiruv bilan qo'shiladi; yuboruvchi yuboradi, qabul qiluvchi sanab qabul qiladi, farq ko'rinadi | `backend/src/modules/transfers`, `frontend/src/pages/Transfers` |
 | Inventarizatsiya: filial, ombor, sanalar, mas'ul; RFID skaner (brauzer) yoki shtrix-kod bilan sanash; kamomad / ortiqcha hisoboti | `backend/src/modules/inventory`, `frontend/src/pages/Inventory` |
 | Kassa (POS): alohida to'liq ekranli oyna — skaner, kategoriya va o'lcham filtri, chegirmalar, kechiktirilgan cheklar, bir necha usul va valyutada to'lov, qaytim, qarzga sotish, 80 mm chek | `backend/src/modules/pos`, `frontend/src/pages/Pos` |
 | Integratsiyalar: to'lov (Payme, Click Pass, UDS, Arca, Uzum) va marketpleyslarga qoldiq (Uzum Market, Wildberries, Ozon); kalitlar bazada shifrlangan | `backend/src/modules/integrations`, `frontend/src/pages/Integrations` |
@@ -97,6 +98,24 @@ Alohida qoldiq jadvali yo'q: qoldiq **tasdiqlangan** kirim (+) va chiqim (-)
 hujjatlaridan hisoblanadi. Kirim summasi - o'rtacha kirim narxida (valyutadagi xarid
 hujjat sanasidagi kurs bilan so'mga o'giriladi), sotuv summasi - tovar kartochkasidagi
 sotuv narxida (kiritilmagan bo'lsa oxirgi sotilgan narxda).
+Ko'chirish yuborilganda tovar manba ombordan chiqadi, qabul qilinganda qabul qilingan soni
+boradigan omborga o'rtacha kirim narxida kiradi.
+
+## Ko'chirish
+
+1. **Qoralama** (yuboruvchi): qayerdan / qayerga ombor (filial xodimi faqat o'z filiali
+   omboridan yuboradi), izoh, tovarlar. Skaner maydoniga shtrix-kod yoki artikul (+1 dona) yoki
+   RFID metka (har metka bir dona, takrori o'tkaziladi) o'qiladi, yoki "Qidiruv" orqali qo'shiladi;
+   soni qo'lda ham o'zgartiriladi (o'qilgan metkalar sonidan kam bo'lmaydi). Bitta metka bir vaqtda
+   faqat bitta ochiq ko'chirishda bo'ladi.
+2. **Yuborish** - manba omborda qoldiq yetarliligi tekshiriladi, holat "Yo'lda" bo'ladi va tovar
+   manba ombor qoldig'idan chiqadi. Qabul qilinmaguncha yuboruvchi "Qaytarib olish" mumkin.
+3. **Qabul qilish** (boradigan filial xodimi, "Kiruvchi" bo'limida soni ko'rinadi): kelgan tovar
+   skanerlanadi - yuborilgan metkalar belgilanadi, metkasiz donalar shtrix-kod bilan sanaladi,
+   soni qo'lda ham yoziladi; "Hammasini to'liq qabul qilish" tugmasi bor. Sanash jarayoni
+   qurilmada saqlanadi. Kam kelgan bo'lsa ogohlantiriladi; qabul izohi yoziladi.
+4. Qabul qilingandan keyin: yuborildi / qabul qilindi / farq va qabul qilinmagan RFID metkalar
+   ro'yxati. Farq (kamomad) hech qaysi ombor qoldig'iga qaytmaydi.
 
 ## Inventarizatsiya
 
