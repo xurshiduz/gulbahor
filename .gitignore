@@ -2,11 +2,16 @@
 node_modules/
 dist/
 build/
+coverage/
+*.tsbuildinfo
 
 # Muhit sozlamalari - har bir serverda o'ziniki bo'ladi, git'ga tushmaydi
 .env
 .env.*
 !.env.example
+
+# Yuklangan fayllar
+uploads/
 
 # Loglar va vaqtinchalik fayllar
 *.log

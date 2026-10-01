@@ -1,0 +1,187 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/golos-text/index.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Colors are named for what they are used for, never for how they look, so
+ * the dark theme is a second set of values and nothing else.
+ */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --sunken: #f0f2f5;
+  --line: #e2e5ea;
+  --line-strong: #c5cbd5;
+  --control: #8a93a3;
+  --ink: #171d29;
+  --ink-2: #434c5c;
+  --ink-3: #667080;
+  --accent: #2f5bd3;
+  --accent-hover: #2549b3;
+  --accent-soft: #e9effc;
+  --accent-ink: #2447ab;
+  --on-accent: #ffffff;
+  --ok: #17734a;
+  --ok-soft: #e2f3ea;
+  --warn: #946007;
+  --warn-soft: #fbf0d9;
+  --bad: #b4271f;
+  --bad-soft: #fbe9e7;
+  --info: #0b6a85;
+  --info-soft: #dff1f6;
+  --overlay: rgb(16 22 34 / 0.45);
+  --shadow: 16 22 34;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #101216;
+  --surface: #171a1f;
+  --sunken: #1e2228;
+  --line: #292d35;
+  --line-strong: #3b414c;
+  --control: #626c7b;
+  --ink: #e3e6eb;
+  --ink-2: #b2b8c3;
+  --ink-3: #8b929e;
+  --accent: #7f9cf0;
+  --accent-hover: #96aef4;
+  --accent-soft: #1d2740;
+  --accent-ink: #aabef6;
+  --on-accent: #0e1116;
+  --ok: #5fc08c;
+  --ok-soft: #15291f;
+  --warn: #dea854;
+  --warn-soft: #2e2413;
+  --bad: #f08d83;
+  --bad-soft: #341b19;
+  --info: #62bcd5;
+  --info-soft: #12272e;
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow: 0 0 0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-control: var(--control);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-on-accent: var(--on-accent);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-overlay: var(--overlay);
+
+  --font-sans: 'Golos Text Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --shadow-card: 0 1px 2px rgb(var(--shadow) / 0.05);
+  --shadow-float: 0 1px 2px rgb(var(--shadow) / 0.06), 0 12px 32px rgb(var(--shadow) / 0.14);
+
+  --animate-fade-in: fade-in 120ms ease-out;
+  --animate-pop-in: pop-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in: slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  /* The keyboard is the main way in, so focus is always plainly visible. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  button,
+  [role='button'],
+  [role='tab'],
+  [role='option'],
+  [role='menuitem'],
+  [role='checkbox'],
+  [role='switch'],
+  label:has(input[type='checkbox'], button[role='checkbox'], button[role='switch']) {
+    cursor: pointer;
+  }
+  :disabled,
+  [aria-disabled='true'],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}
+
+/* Digits of equal width, so columns of numbers line up. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+@utility font-code {
+  font-family: var(--font-mono);
+  font-feature-settings: 'zero' 1;
+}

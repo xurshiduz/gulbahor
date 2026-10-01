@@ -1,0 +1,22 @@
+{
+  "name": "@gulbahor/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pul, kiritishni o'qish va qidiruv qoidalari: server va web uchun umumiy",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

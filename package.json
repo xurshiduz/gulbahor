@@ -1,0 +1,27 @@
+{
+  "name": "gulbahor",
+  "private": true,
+  "description": "Kiyim savdosi uchun ERP: do'konlar, sklad, RFID, kassa, pul va hamkorlar hisobi",
+  "workspaces": [
+    "packages/*",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "build:core": "npm run build -w @gulbahor/core",
+    "dev:server": "npm run build:core && npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build:core && npm run build -w server && npm run build -w web",
+    "test": "npm run test -w @gulbahor/core && npm run test -w server && npm run test -w web",
+    "typecheck": "npm run build:core && npm run typecheck -w server && npm run typecheck -w web",
+    "lint": "npm run lint -w server && npm run lint -w web",
+    "format": "prettier --write \"packages/*/src/**/*.ts\" \"server/src/**/*.ts\" \"web/src/**/*.{ts,tsx,css}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}
