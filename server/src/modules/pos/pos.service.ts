@@ -9,6 +9,7 @@ import { can, type Actor } from '../auth/actor'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { ShiftsService } from '../money/shifts.service'
+import { MoneyTransfersService } from '../money/transfers.service'
 import { sellables } from './items'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
@@ -21,6 +22,7 @@ export class PosService {
     private readonly ledger: LedgerService,
     private readonly money: MoneyService,
     private readonly shifts: ShiftsService,
+    private readonly transfers: MoneyTransfersService,
   ) {}
 
   /** Everything a till needs to start: its shift, the rate, where money can go, the shop's rules. */
@@ -34,6 +36,7 @@ export class PosService {
       const accounts = (await this.money.accountRows(em, false)).filter(
         (account) => account.isActive && (!account.locationId || account.locationId === register.locationId),
       )
+      const drawers = (await this.money.accountRows(em, false)).filter((account) => account.registerId === registerId)
       const sellers: { id: string; name: string }[] = await em.query(
         `SELECT u.id, u.full_name AS name FROM users u
          WHERE u.is_active
@@ -52,6 +55,15 @@ export class PosService {
         cards: accounts.filter((account) => account.kind === 'card'),
         terminals: accounts.filter((account) => account.kind === 'terminal'),
         sellers,
+        drawers: {
+          UZS: drawers.find((account) => account.currency === 'UZS')?.id ?? null,
+          USD: drawers.find((account) => account.currency === 'USD')?.id ?? null,
+        },
+        // A safe is offered only for the currency this till has a drawer of: there is nothing else to hand over.
+        safes: accounts.filter(
+          (account) => account.kind === 'safe' && drawers.some((drawer) => drawer.currency === account.currency),
+        ),
+        transfers: await this.transfers.waitingAt(em, actor, registerId),
         changeRoundStep: settings.changeRoundStep,
         maxDiscountPercent: settings.maxDiscountPercent,
         mayOverDiscount: can(actor, 'pos.discount'),

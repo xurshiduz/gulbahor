@@ -38,6 +38,9 @@ import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { formatDay } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
+import { LIST_DEFAULTS } from '@/lib/list-search'
+
+import { TransferDialog, TransfersTab } from './transfers'
 
 const route = getRouteApi('/money')
 
@@ -59,6 +62,13 @@ export const useRegisters = () =>
     queryFn: ({ signal }) => api.get<RegisterDto[]>('/money/registers', undefined, signal),
   })
 
+const useAccounts = (enabled = true) =>
+  useQuery({
+    queryKey: ['money', 'accounts'],
+    queryFn: ({ signal }) => api.get<AccountDto[]>('/money/accounts', undefined, signal),
+    enabled,
+  })
+
 interface Rates {
   current: RateDto | null
   history: RateDto[]
@@ -74,15 +84,22 @@ export function MoneyPage() {
   const { tab } = route.useSearch()
   const navigate = route.useNavigate()
   const canManage = can('money.manage')
+  const canMove = canManage || can('money.collect')
+  const seesAccounts = canMove || can('money.view')
   const [registerForm, setRegisterForm] = useState<RegisterDto | null | undefined>()
   const [accountForm, setAccountForm] = useState<AccountDto | null | undefined>()
+  const [moving, setMoving] = useState(false)
+  const accounts = useAccounts(seesAccounts)
 
-  const add = () => (tab === 'registers' ? setRegisterForm(null) : setAccountForm(null))
-  const adding = canManage && tab !== 'rates'
+  const add = () =>
+    tab === 'registers' ? setRegisterForm(null) : tab === 'transfers' ? setMoving(true) : setAccountForm(null)
+  const addLabel =
+    tab === 'registers' ? t('money.addRegister') : tab === 'transfers' ? t('money.addTransfer') : t('money.addAccount')
+  const adding = tab === 'transfers' ? canMove : canManage && tab !== 'rates'
   useHotkey('n', add, {
-    label: tab === 'registers' ? t('money.addRegister') : t('money.addAccount'),
+    label: addLabel,
     group: t('shortcuts.groupList'),
-    enabled: adding && registerForm === undefined && accountForm === undefined,
+    enabled: adding && registerForm === undefined && accountForm === undefined && !moving,
   })
 
   return (
@@ -92,7 +109,7 @@ export function MoneyPage() {
         adding ? (
           <Button variant="primary" onClick={add}>
             <Plus />
-            {tab === 'registers' ? t('money.addRegister') : t('money.addAccount')}
+            {addLabel}
             <Shortcut combo="n" className="ml-1 opacity-70" />
           </Button>
         ) : null
@@ -100,10 +117,12 @@ export function MoneyPage() {
     >
       <Tabs
         value={tab}
-        onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}
+        // Each tab starts as itself: the filters of the transfers are theirs alone.
+        onChange={(value) => void navigate({ search: { ...LIST_DEFAULTS, status: 'all', tab: value as typeof tab } })}
         tabs={[
           { value: 'registers', label: t('money.tabRegisters') },
-          { value: 'accounts', label: t('money.tabAccounts') },
+          ...(seesAccounts ? [{ value: 'accounts', label: t('money.tabAccounts') }] : []),
+          ...(seesAccounts ? [{ value: 'transfers', label: t('money.tabTransfers') }] : []),
           ...(hasModule('usd') ? [{ value: 'rates', label: t('money.tabRates') }] : []),
         ]}
       >
@@ -112,6 +131,9 @@ export function MoneyPage() {
         </TabPanel>
         <TabPanel value="accounts">
           <AccountsTab canManage={canManage} onEdit={setAccountForm} />
+        </TabPanel>
+        <TabPanel value="transfers">
+          <TransfersTab />
         </TabPanel>
         <TabPanel value="rates">
           <RatesTab />
@@ -124,6 +146,7 @@ export function MoneyPage() {
       {accountForm !== undefined ? (
         <AccountDialog account={accountForm} onClose={() => setAccountForm(undefined)} />
       ) : null}
+      {moving ? <TransferDialog accounts={accounts.data ?? []} onClose={() => setMoving(false)} /> : null}
     </Page>
   )
 }
@@ -314,6 +337,9 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
         cell: ({ row }) => (
           <span>
             <span className="font-medium">{row.original.name}</span>
+            {row.original.currency === 'USD' && row.original.kind !== 'cash' ? (
+              <span className="text-ink-3"> · $</span>
+            ) : null}
             {row.original.last4 ? <span className="font-code text-xs text-ink-3"> *{row.original.last4}</span> : null}
             {row.original.bank ? <span className="text-ink-3"> · {row.original.bank}</span> : null}
           </span>
@@ -402,6 +428,7 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
 interface AccountValues {
   kind: PaymentAccountKind
   name: string
+  currency: 'UZS' | 'USD'
   locationId: string | null
   last4: string
   bank: string
@@ -415,6 +442,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
     defaultValues: {
       kind: (account?.kind as PaymentAccountKind | undefined) ?? 'card',
       name: account?.name ?? '',
+      currency: account?.currency ?? 'UZS',
       locationId: account?.locationId ?? null,
       last4: account?.last4 ?? '',
       bank: account?.bank ?? '',
@@ -422,6 +450,8 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
   })
   const errors = form.formState.errors
   const kind = form.watch('kind')
+  const { hasModule } = useSession()
+  const holdsDollars = hasModule('usd') && (kind === 'safe' || kind === 'bank')
 
   const mutation = useMutation({
     mutationFn: (input: AccountInput) =>
@@ -434,7 +464,12 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
     onError: (error) => void applyServerErrors(error, form),
   })
   const submit = form.handleSubmit((values) => {
-    const input = zodCheck(form, accountInputSchema, { ...values, last4: values.last4 || null })
+    const input = zodCheck(form, accountInputSchema, {
+      ...values,
+      // Only a safe or a bank account holds dollars.
+      currency: holdsDollars ? values.currency : 'UZS',
+      last4: values.last4 || null,
+    })
     if (input) {
       mutation.mutate(input)
     }
@@ -502,6 +537,28 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
             />
           )}
         </Field>
+        {holdsDollars ? (
+          <Field label={t('money.currency')} error={errors.currency?.message}>
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <Select
+                    id={id}
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={[
+                      { value: 'UZS', label: "So'm" },
+                      { value: 'USD', label: 'AQSH dollari' },
+                    ]}
+                    className="w-48"
+                  />
+                )}
+              />
+            )}
+          </Field>
+        ) : null}
         {kind === 'card' || kind === 'bank' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {kind === 'card' ? (

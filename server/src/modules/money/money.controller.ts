@@ -1,6 +1,9 @@
 import {
   accountInputSchema,
   idSchema,
+  moneyTransferInputSchema,
+  moneyTransferListQuerySchema,
+  moneyTransferRejectSchema,
   rateInputSchema,
   registerInputSchema,
   shiftCloseSchema,
@@ -8,6 +11,9 @@ import {
   shiftOpenSchema,
   type AccountDto,
   type AccountInput,
+  type MoneyTransferDto,
+  type MoneyTransferInput,
+  type MoneyTransferListQuery,
   type Page,
   type RateDto,
   type RateInput,
@@ -25,6 +31,7 @@ import { zod } from '../../common/zod.pipe'
 import { Actor, Can, can, CurrentActor } from '../auth/actor'
 import { MoneyService } from './money.service'
 import { ShiftsService } from './shifts.service'
+import { MoneyTransfersService } from './transfers.service'
 
 const id = () => Param('id', zod(idSchema))
 
@@ -74,7 +81,7 @@ export class MoneyController {
   /** Balances are shown to those who may see them; those who only set accounts up see the list without. */
   @Get('accounts')
   accounts(@CurrentActor() actor: Actor): Promise<AccountDto[]> {
-    if (!can(actor, 'money.view') && !can(actor, 'money.manage')) {
+    if (!can(actor, 'money.view') && !can(actor, 'money.manage') && !can(actor, 'money.collect')) {
       throw AppError.forbidden()
     }
     return this.money.accounts(actor)
@@ -119,6 +126,57 @@ export class MoneyController {
   @Can('money.rates')
   setRate(@CurrentActor() actor: Actor, @Body(zod(rateInputSchema)) input: RateInput): Promise<RateDto> {
     return this.money.setRate(actor, input)
+  }
+}
+
+/**
+ * Money moved between accounts. Who may send and who may confirm depends on
+ * the accounts, so it is the service that decides; the list is for those who
+ * look after the business's money.
+ */
+@Controller('money/transfers')
+export class MoneyTransfersController {
+  constructor(private readonly transfers: MoneyTransfersService) {}
+
+  @Get()
+  list(
+    @CurrentActor() actor: Actor,
+    @Query(zod(moneyTransferListQuerySchema)) query: MoneyTransferListQuery,
+  ): Promise<Page<MoneyTransferDto>> {
+    if (!can(actor, 'money.view') && !can(actor, 'money.collect') && !can(actor, 'money.manage')) {
+      throw AppError.forbidden()
+    }
+    return this.transfers.list(actor, query)
+  }
+
+  @Post()
+  send(
+    @CurrentActor() actor: Actor,
+    @Body(zod(moneyTransferInputSchema)) input: MoneyTransferInput,
+  ): Promise<MoneyTransferDto> {
+    return this.transfers.send(actor, input)
+  }
+
+  @Post(':id/receive')
+  @HttpCode(200)
+  receive(@CurrentActor() actor: Actor, @id() transferId: string): Promise<MoneyTransferDto> {
+    return this.transfers.receive(actor, transferId)
+  }
+
+  @Post(':id/reject')
+  @HttpCode(200)
+  reject(
+    @CurrentActor() actor: Actor,
+    @id() transferId: string,
+    @Body(zod(moneyTransferRejectSchema)) input: { reason: string },
+  ): Promise<MoneyTransferDto> {
+    return this.transfers.reject(actor, transferId, input.reason)
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  cancel(@CurrentActor() actor: Actor, @id() transferId: string): Promise<MoneyTransferDto> {
+    return this.transfers.cancel(actor, transferId)
   }
 }
 

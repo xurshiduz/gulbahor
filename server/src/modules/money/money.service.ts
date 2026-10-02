@@ -111,9 +111,7 @@ export class MoneyService {
   async createAccount(actor: Actor, input: AccountInput): Promise<AccountDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertAccount(em, input)
-      const saved = await em.save(
-        em.create(Account, { orgId: actor.orgId, ...input, currency: 'UZS', balance: 0, isActive: true }),
-      )
+      const saved = await em.save(em.create(Account, { orgId: actor.orgId, ...input, balance: 0, isActive: true }))
       await this.audit.record(em, actor.orgId, actor, {
         action: 'account.create',
         entity: 'account',
@@ -128,8 +126,13 @@ export class MoneyService {
   async updateAccount(actor: Actor, id: string, input: AccountInput): Promise<AccountDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.findAccount(em, id)
-      if (before.kind !== input.kind && (await this.ledger.isUsed(em, id))) {
-        throw AppError.validation({ kind: "Pul o'tgan hisobning turini o'zgartirib bo'lmaydi" })
+      const changes = before.kind !== input.kind || before.currency !== input.currency
+      if (changes && (await this.ledger.isUsed(em, id))) {
+        throw AppError.validation(
+          before.kind !== input.kind
+            ? { kind: "Pul o'tgan hisobning turini o'zgartirib bo'lmaydi" }
+            : { currency: "Pul o'tgan hisobning valyutasini o'zgartirib bo'lmaydi" },
+        )
       }
       await this.assertAccount(em, input, id)
       await em.update(Account, id, input)
@@ -139,7 +142,7 @@ export class MoneyService {
         entity: 'account',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['kind', 'name', 'locationId', 'last4', 'bank']),
+        changes: diff(before, after, ['kind', 'name', 'currency', 'locationId', 'last4', 'bank']),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
       return this.accountRow(em, id, true)

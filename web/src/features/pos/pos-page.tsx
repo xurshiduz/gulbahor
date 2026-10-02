@@ -11,7 +11,7 @@ import {
 } from '@gulbahor/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
-import { Lock, Receipt, ScanLine, Search, Store, Undo2, X } from 'lucide-react'
+import { HandCoins, Lock, Receipt, ScanLine, Search, Store, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -31,6 +31,7 @@ import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { useScanner } from '@/lib/scanner'
+import { uuid } from '@/lib/uuid'
 
 import {
   addToCart,
@@ -43,11 +44,11 @@ import {
   splitMultiplier,
   suggestRefunds,
   tenderRows,
-  uuid,
   type Cart,
   type Returning,
   type TenderRow,
 } from './pos-state'
+import { HandoverDialog, WaitingTransfers } from './handover'
 import { ReturnDialog, ReturnPicker } from './return-parts'
 import { SaleDialog } from './sale-dialog'
 import { CloseShiftDialog, OpenShift } from './shift-parts'
@@ -231,6 +232,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const [closing, setClosing] = useState(false)
+  const [handing, setHanding] = useState(false)
   const [searching, setSearching] = useState(false)
   const [last, setLast] = useState<LastDocument | null>(null)
   const [viewing, setViewing] = useState<LastDocument | null>(null)
@@ -303,7 +305,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const refreshCart = () =>
     cart.lines.length ? refresh.mutate(cart.lines.map((line) => line.item.variantId)) : undefined
 
-  const idle = !closing && !viewing && !picking
+  const idle = !closing && !viewing && !picking && !handing
   // A scan lands in the cart wherever the cursor is; a count typed before it applies to it.
   useScanner((code) => lookup(code, multiplier ?? 1), { enabled: idle })
 
@@ -776,11 +778,18 @@ function Till({ context, registers, onSwitch }: TillProps) {
               </Button>
             ) : null}
             {registers > 1 ? <Button onClick={onSwitch}>{t('pos.switchRegister')}</Button> : null}
+            {context.safes.length ? (
+              <Button onClick={() => setHanding(true)}>
+                <HandCoins />
+                {t('pos.handover')}
+              </Button>
+            ) : null}
             <Button onClick={() => setClosing(true)}>
               <Lock />
               {t('pos.closeShiftAction')}
             </Button>
           </div>
+          <WaitingTransfers transfers={context.transfers} />
           <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
             <div className="flex items-baseline justify-between text-[13px] text-ink-3">
               <span>{t('pos.subtotal')}</span>
@@ -1002,6 +1011,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       </div>
 
       {closing ? <CloseShiftDialog context={context} onClose={() => setClosing(false)} /> : null}
+      {handing ? <HandoverDialog context={context} onClose={() => setHanding(false)} /> : null}
       {picking ? (
         <ReturnPicker
           code={picking.code}

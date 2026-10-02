@@ -28,7 +28,7 @@ export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   system: 'Ichki hisob',
 }
 
-export const SYSTEM_ACCOUNTS = ['sales', 'rounding', 'fx', 'cash_diff', 'opening', 'exchange'] as const
+export const SYSTEM_ACCOUNTS = ['sales', 'rounding', 'fx', 'cash_diff', 'opening', 'exchange', 'transit'] as const
 export type SystemAccount = (typeof SYSTEM_ACCOUNTS)[number]
 
 export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
@@ -39,26 +39,36 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
   opening: "Boshlang'ich qoldiq",
   // What goods brought back were worth, on its way to the goods taken instead; empty between exchanges.
   exchange: 'Almashtirish',
+  // Money that has left one account and is not yet confirmed in the other.
+  transit: "Yo'ldagi pul",
 }
 
 /** The accounts a person sets up; a till's own cash is made with the till. */
 export const PAYMENT_ACCOUNT_KINDS = ['card', 'terminal', 'safe', 'bank'] as const
 export type PaymentAccountKind = (typeof PAYMENT_ACCOUNT_KINDS)[number]
 
-export const accountInputSchema = z.object({
-  kind: z.enum(PAYMENT_ACCOUNT_KINDS),
-  name: requiredText(60),
-  /** The shop it belongs to; none for one shared by all. */
-  locationId: idSchema.nullish().transform((value) => value ?? null),
-  /** A card's last four digits: what bank messages and receipts call it by. */
-  last4: z
-    .string()
-    .trim()
-    .regex(/^\d{4}$/, 'Oxirgi 4 ta raqam')
-    .nullish()
-    .transform((value) => value || null),
-  bank: optionalText(60),
-})
+export const accountInputSchema = z
+  .object({
+    kind: z.enum(PAYMENT_ACCOUNT_KINDS),
+    name: requiredText(60),
+    /** What it holds. A safe or a bank account may hold dollars; cards and terminals are in so'm. */
+    currency: z.enum(['UZS', 'USD']).default('UZS'),
+    /** The shop it belongs to; none for one shared by all. */
+    locationId: idSchema.nullish().transform((value) => value ?? null),
+    /** A card's last four digits: what bank messages and receipts call it by. */
+    last4: z
+      .string()
+      .trim()
+      .regex(/^\d{4}$/, 'Oxirgi 4 ta raqam')
+      .nullish()
+      .transform((value) => value || null),
+    bank: optionalText(60),
+  })
+  .superRefine((account, context) => {
+    if (account.currency !== 'UZS' && (account.kind === 'card' || account.kind === 'terminal')) {
+      context.addIssue({ code: 'custom', path: ['currency'], message: "Karta va terminal faqat so'mda" })
+    }
+  })
 export type AccountInput = z.infer<typeof accountInputSchema>
 
 export interface AccountDto {
@@ -661,6 +671,12 @@ export interface PosContextDto {
   cards: AccountDto[]
   terminals: AccountDto[]
   sellers: { id: string; name: string }[]
+  /** The till's own cash accounts by currency; one that has never held money does not exist yet. */
+  drawers: Record<CurrencyCode, string | null>
+  /** Where cash from this till can be handed over to: the shop's safes, without their balances. */
+  safes: AccountDto[]
+  /** Money on its way from this till or to it, waiting to be confirmed. */
+  transfers: MoneyTransferDto[]
   changeRoundStep: number
   maxDiscountPercent: number
   /** This person may go over the discount limit. */
@@ -687,6 +703,11 @@ export const shiftCloseSchema = z.object({
   cashUzs: amountSchema,
   cashUsd: amountSchema.default(0),
   note: optionalText(300),
+  /** What of the counted cash is handed over as the shift ends, and to which safe; the rest stays in the drawer. */
+  handovers: z
+    .array(z.object({ toAccountId: idSchema, amount: amountSchema.refine((value) => value > 0) }))
+    .max(4)
+    .default([]),
 })
 export type ShiftCloseInput = z.infer<typeof shiftCloseSchema>
 
@@ -702,6 +723,11 @@ export interface ShiftTotals {
   changeUzs: number
   changeUsd: number
   rounding: number
+  /** Cash handed over out of the drawer during the shift, and cash brought into it, by currency. */
+  outUzs: number
+  outUsd: number
+  inUzs: number
+  inUsd: number
   /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
   returns: number
   returned: number
@@ -744,3 +770,72 @@ export const shiftListQuerySchema = listQuerySchema.extend({
   to: z.iso.date().optional(),
 })
 export type ShiftListQuery = z.infer<typeof shiftListQuerySchema>
+
+// ───────────────────────────── Moving money ─────────────────────────────
+
+/**
+ * Money moved from one account to another: a till's cash handed over to the
+ * safe, change money brought to a till. It takes two people: the one who
+ * sends it and the one who says it arrived. Until then it is in neither
+ * account but on its way; refused, or taken back, it returns to where it
+ * came from.
+ */
+export const MONEY_TRANSFER_STATUSES = ['sent', 'received', 'rejected', 'cancelled'] as const
+export type MoneyTransferStatus = (typeof MONEY_TRANSFER_STATUSES)[number]
+
+export const MONEY_TRANSFER_STATUS_LABELS: Record<MoneyTransferStatus, string> = {
+  sent: "Yo'lda",
+  received: 'Qabul qilingan',
+  rejected: 'Rad etilgan',
+  cancelled: 'Qaytarib olingan',
+}
+
+export const moneyTransferInputSchema = z
+  .object({
+    /** Made by the screen for each transfer: sent twice, it is still made once. */
+    clientKey: z.uuid(),
+    fromAccountId: idSchema,
+    toAccountId: idSchema,
+    /** In the currency both accounts hold. */
+    amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
+    note: optionalText(200),
+  })
+  .refine((transfer) => transfer.fromAccountId !== transfer.toAccountId, {
+    path: ['toAccountId'],
+    message: 'Boshqa hisobni tanlang',
+  })
+export type MoneyTransferInput = z.infer<typeof moneyTransferInputSchema>
+
+export const moneyTransferRejectSchema = z.object({ reason: requiredText(200) })
+
+export const moneyTransferListQuerySchema = listQuerySchema.extend({
+  status: z.enum(['all', ...MONEY_TRANSFER_STATUSES]).default('all'),
+  accountId: idSchema.optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+})
+export type MoneyTransferListQuery = z.infer<typeof moneyTransferListQuerySchema>
+
+export interface MoneyTransferDto {
+  id: string
+  number: string
+  status: MoneyTransferStatus
+  currency: CurrencyCode
+  amount: number
+  fromAccountId: string
+  fromAccountName: string
+  toAccountId: string
+  toAccountName: string
+  sentAt: string
+  sentByName: string | null
+  /** When it was confirmed, refused or taken back, and by whom. */
+  decidedAt: string | null
+  decidedByName: string | null
+  note: string | null
+  /** Why it was refused. */
+  reason: string | null
+  /** This person may say it arrived, or refuse it. */
+  mayReceive: boolean
+  /** This person may take it back while it is on its way. */
+  mayCancel: boolean
+}

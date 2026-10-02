@@ -9,6 +9,7 @@ import type {
   LocationKind,
   MarkupBase,
   OrgSettings,
+  MoneyTransferStatus,
   PaymentMethod,
   TenderMethod,
   PriceKind,
@@ -1933,6 +1934,76 @@ export class SaleReturnPayment {
   reference: string | null
 }
 
+@Entity('money_transfers')
+export class MoneyTransfer {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('text')
+  status: MoneyTransferStatus
+
+  @Column('uuid')
+  fromAccountId: string
+
+  @Column('uuid')
+  toAccountId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  /** Its worth in so'm when it was sent. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+
+  @Column('uuid', { nullable: true })
+  fromShiftId: string | null
+
+  @Column('uuid', { nullable: true })
+  toShiftId: string | null
+
+  @Column('timestamptz')
+  sentAt: Date
+
+  @Column('date')
+  sentOn: string
+
+  @Column('uuid', { nullable: true })
+  sentBy: string | null
+
+  @Column('text', { nullable: true })
+  sentByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  decidedAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  decidedBy: string | null
+
+  @Column('text', { nullable: true })
+  decidedByName: string | null
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('text', { nullable: true })
+  reason: string | null
+
+  @Column('text')
+  searchKey: string
+}
+
 export type StockMovementKind =
   | 'receipt'
   | 'receipt_cancel'
@@ -1994,4 +2065,5 @@ export const ENTITIES = [
   SaleReturn,
   SaleReturnLine,
   SaleReturnPayment,
+  MoneyTransfer,
 ]

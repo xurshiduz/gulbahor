@@ -192,6 +192,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'money.view', title: "Hisoblar va qoldiqlarni ko'rish" },
       { key: 'money.manage', title: 'Kassa, karta va terminallarni sozlash' },
       { key: 'money.rates', title: "Kunlik kursni qo'yish" },
+      { key: 'money.collect', title: 'Kassadan pulni qabul qilish va kassaga pul berish' },
     ],
   },
   {
@@ -330,6 +331,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'labels.print',
       'pos.*',
       'sales.*',
+      'money.collect',
     ],
   },
   {

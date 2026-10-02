@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import {
   formatMoney,
   toBase,
@@ -15,12 +17,13 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Location, Register, Shift } from '../../database/entities'
+import { Account, Location, Register, Shift } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
 import { LedgerService, type Posting } from './ledger.service'
+import { MoneyTransfersService } from './transfers.service'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
 
@@ -38,6 +41,7 @@ export class ShiftsService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
+    private readonly transfers: MoneyTransfersService,
   ) {}
 
   async open(actor: Actor, input: ShiftOpenInput): Promise<ShiftDto> {
@@ -111,6 +115,28 @@ export class ShiftsService {
         UZS: input.cashUzs,
         USD: usd ? input.cashUsd : null,
       })
+      // What is handed over as the shift ends leaves the drawer now, while the shift is still its own;
+      // it reaches the safe when whoever keeps it says so.
+      const drawers = await em.findBy(Account, { registerId: register.id })
+      const handed: Record<CurrencyCode, number> = { UZS: 0, USD: 0 }
+      for (const [index, handover] of input.handovers.entries()) {
+        const to = await em.findOneBy(Account, { id: handover.toAccountId })
+        const from = drawers.find((drawer) => drawer.currency === to?.currency)
+        if (!to || !from) {
+          throw AppError.validation({ [`handovers.${index}.toAccountId`]: 'Hisob topilmadi' })
+        }
+        handed[from.currency] += handover.amount
+        if (handed[from.currency] > (from.currency === 'USD' ? input.cashUsd : input.cashUzs)) {
+          throw AppError.validation({ [`handovers.${index}.amount`]: "Sanalgan puldan ko'p topshirib bo'lmaydi" })
+        }
+        await this.transfers.sendIn(em, actor, {
+          clientKey: randomUUID(),
+          fromAccountId: from.id,
+          toAccountId: to.id,
+          amount: handover.amount,
+          note: `${shift.number} yopildi`,
+        })
+      }
       await em.update(Shift, id, {
         status: 'closed',
         closedBy: actor.userId,
@@ -256,6 +282,7 @@ export class ShiftsService {
        ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
+    const moved = await this.transfers.ofShift(em, shiftId)
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -287,6 +314,10 @@ export class ShiftsService {
       changeUzs: sales.change_uzs,
       changeUsd: sales.change_usd,
       rounding: sales.rounding,
+      outUzs: moved.out.UZS,
+      outUsd: moved.out.USD,
+      inUzs: moved.in.UZS,
+      inUsd: moved.in.USD,
       returns: returns.returns,
       returned: returns.returned,
       refunds: refunds.map((row) => ({

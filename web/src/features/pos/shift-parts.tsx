@@ -16,6 +16,8 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
+import { emptyHandings, HandoverFields, handoversOf } from './handover'
+
 const refreshTill = (queryClient: ReturnType<typeof useQueryClient>) => {
   void queryClient.invalidateQueries({ queryKey: ['pos'] })
   void queryClient.invalidateQueries({ queryKey: ['shifts'] })
@@ -80,6 +82,7 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
   const [cashUzs, setCashUzs] = useState<number | null>(null)
   const [cashUsd, setCashUsd] = useState<number | null>(null)
   const [note, setNote] = useState('')
+  const [handings, setHandings] = useState(() => emptyHandings(context.safes))
 
   const close = useMutation({
     mutationFn: (input: unknown) => api.post<ShiftDto>(`/shifts/${shift.id}/close`, input),
@@ -95,7 +98,12 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
       toast.error(t('pos.countFirst'))
       return
     }
-    const parsed = shiftCloseSchema.safeParse({ cashUzs, cashUsd: cashUsd ?? 0, note })
+    const handovers = handoversOf(handings)
+    if ((handings.UZS.amount ?? 0) > cashUzs || (handings.USD.amount ?? 0) > (cashUsd ?? 0)) {
+      toast.error(t('pos.handoverOver'))
+      return
+    }
+    const parsed = shiftCloseSchema.safeParse({ cashUzs, cashUsd: cashUsd ?? 0, note, handovers })
     if (parsed.success) {
       close.mutate(parsed.data)
     }
@@ -128,6 +136,13 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
             </Field>
           ) : null}
         </div>
+        {/* What of the counted cash goes to the safe now; the rest stays in the drawer for the next shift. */}
+        <HandoverFields
+          safes={context.safes}
+          value={handings}
+          onChange={setHandings}
+          limits={{ UZS: cashUzs, USD: cashUsd }}
+        />
         <Field label={t('receipts.note')}>
           {(id) => <Input id={id} value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} />}
         </Field>
@@ -227,13 +242,17 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
         <div className="grid gap-x-8 sm:grid-cols-2">
           <div>
             <Row label={t('pos.opening')} value={money(shift.openingUzs)} />
+            {totals.inUzs ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUzs)}`} /> : null}
+            {totals.outUzs ? <Row label={t('pos.handedOut')} value={`−${money(totals.outUzs)}`} /> : null}
             {shift.countedUzs !== null ? <Row label={t('pos.counted')} value={money(shift.countedUzs)} strong /> : null}
             {shift.expectedUzs !== null ? <Row label={t('pos.expected')} value={money(shift.expectedUzs)} /> : null}
             {diff(shift.diffUzs, 'UZS')}
           </div>
-          {shift.openingUsd || shift.countedUsd || shift.expectedUsd ? (
+          {shift.openingUsd || shift.countedUsd || shift.expectedUsd || totals.inUsd || totals.outUsd ? (
             <div>
               <Row label={t('pos.opening')} value={money(shift.openingUsd, 'USD')} />
+              {totals.inUsd ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUsd, 'USD')}`} /> : null}
+              {totals.outUsd ? <Row label={t('pos.handedOut')} value={`−${money(totals.outUsd, 'USD')}`} /> : null}
               {shift.countedUsd !== null ? (
                 <Row label={t('pos.counted')} value={money(shift.countedUsd, 'USD')} strong />
               ) : null}

@@ -34,6 +34,7 @@ const ENTITIES = [
   'price_revision',
   'price_rule',
   'partner',
+  'money_transfer',
   'register',
   'account',
   'rate',

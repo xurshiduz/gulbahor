@@ -1,4 +1,12 @@
-import { GENDERS, LOCATION_KINDS, PRINT_JOB_STATUSES, SALE_STATUSES, SEASONS, SHIFT_STATUSES } from '@gulbahor/core'
+import {
+  GENDERS,
+  LOCATION_KINDS,
+  MONEY_TRANSFER_STATUSES,
+  PRINT_JOB_STATUSES,
+  SALE_STATUSES,
+  SEASONS,
+  SHIFT_STATUSES,
+} from '@gulbahor/core'
 import { createRootRoute, createRoute, createRouter, redirect, stripSearchParams } from '@tanstack/react-router'
 import { z } from 'zod'
 
@@ -273,9 +281,19 @@ const moneyRoute = createRoute({
   path: '/money',
   component: MoneyPage,
   validateSearch: z.object({
-    tab: z.enum(['registers', 'accounts', 'rates']).default('registers').catch('registers'),
+    tab: z.enum(['registers', 'accounts', 'transfers', 'rates']).default('registers').catch('registers'),
+    // The list of transfers.
+    page: listSearch.page,
+    size: listSearch.size,
+    q: listSearch.q,
+    status: z
+      .enum(['all', ...MONEY_TRANSFER_STATUSES])
+      .default('all')
+      .catch('all'),
+    from: z.string().optional().catch(undefined),
+    to: z.string().optional().catch(undefined),
   }),
-  search: { middlewares: [stripSearchParams({ tab: 'registers' })] },
+  search: { middlewares: [stripSearchParams({ ...TILL_LIST_DEFAULTS, tab: 'registers' })] },
 })
 
 const devicesRoute = createRoute({

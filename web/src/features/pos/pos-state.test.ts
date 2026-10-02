@@ -12,8 +12,8 @@ import {
   refundRows,
   splitMultiplier,
   suggestRefunds,
-  uuid,
 } from './pos-state'
+import { uuid } from '@/lib/uuid'
 
 const som = (amount: number) => amount * 100
 

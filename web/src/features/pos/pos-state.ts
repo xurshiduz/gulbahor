@@ -15,6 +15,8 @@ import {
   type TenderMethod,
 } from '@gulbahor/core'
 
+import { uuid } from '@/lib/uuid'
+
 /** One line of the cart: a thing, how many, and what is taken off as the cashier typed it ("10%", "5000"). */
 export interface CartLine {
   key: string
@@ -42,22 +44,6 @@ export interface Cart {
 }
 
 export const EMPTY_CART: Cart = { lines: [], discountText: '', sellerId: null }
-
-/**
- * A random id that works on any page. `crypto.randomUUID` exists only on
- * https and localhost, and a till is often opened by the shop's address on
- * the local network.
- */
-export function uuid(): string {
-  if (typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
 
 /** What "10%" or "5000" takes off `base`, in tiyin; nothing for what cannot be read. */
 export function discountOf(text: string, base: number): number {
