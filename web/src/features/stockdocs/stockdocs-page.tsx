@@ -16,10 +16,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
-import { Select } from '@/components/ui/controls'
+import { FilterCombo, FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { DataTable } from '@/components/ui/data-table'
-import { DateInput } from '@/components/ui/date-input'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
@@ -255,7 +253,6 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
   return (
     <Page
       title={t(`stockdocs.${kind}.title`)}
-      subtitle={t(`stockdocs.${kind}.subtitle`)}
       actions={
         canManage ? (
           <Button variant="primary" onClick={() => open('new')}>
@@ -288,6 +285,26 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
           onPageChange: (page) => onSearch({ page }),
           onSizeChange: (size) => filter({ size }),
         }}
+        filters={{
+          status: (
+            <FilterSelect
+              value={search.status}
+              onChange={(status) => filter({ status: status as DocSearch['status'] })}
+              options={[
+                { value: 'all', label: t('common.all') },
+                ...STATUSES[kind].map((status) => ({ value: status, label: STOCK_DOC_STATUS_LABELS[status] })),
+              ]}
+            />
+          ),
+          location: (
+            <FilterCombo
+              options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
+              value={search.locationId ?? null}
+              onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
+            />
+          ),
+          date: <FilterDates from={search.from} to={search.to} onChange={(range) => filter(range)} />,
+        }}
         toolbar={
           <>
             <SearchInput
@@ -295,29 +312,6 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
               placeholder={t('stockdocs.searchPlaceholder')}
               onChange={(q) => filter({ q: q || undefined }, true)}
             />
-            <Select
-              value={search.status}
-              onChange={(status) => filter({ status: status as DocSearch['status'] })}
-              options={[
-                { value: 'all', label: `${t('common.status')}: ${t('common.all').toLowerCase()}` },
-                ...STATUSES[kind].map((status) => ({ value: status, label: STOCK_DOC_STATUS_LABELS[status] })),
-              ]}
-              className="w-44"
-            />
-            <Combobox
-              options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
-              value={search.locationId ?? null}
-              onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
-              placeholder={t('receipts.location')}
-              className="w-48"
-            />
-            <DateInput
-              value={search.from ?? ''}
-              onChange={(from) => filter({ from: from || undefined })}
-              className="w-36"
-            />
-            <span className="text-xs text-ink-3">—</span>
-            <DateInput value={search.to ?? ''} onChange={(to) => filter({ to: to || undefined })} className="w-36" />
           </>
         }
         empty={

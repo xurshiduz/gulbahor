@@ -18,7 +18,7 @@ export const MODULES: ModuleInfo[] = [
     key: 'usd',
     title: 'Dollar bilan ishlash',
     description: 'Kassada va hamkorlar bilan hisobda dollar qabul qilinadi, kunlik kurs yuritiladi.',
-    ready: false,
+    ready: true,
   },
   {
     key: 'rfid',
@@ -167,6 +167,32 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'pos',
+    title: 'Kassa',
+    permissions: [
+      { key: 'pos.sell', title: 'Sotish, smenani ochish va yopish' },
+      { key: 'pos.void', title: 'Chekni bekor qilish' },
+      { key: 'pos.discount', title: 'Chegaradan oshiq chegirma berish' },
+    ],
+  },
+  {
+    key: 'sales',
+    title: 'Cheklar va smenalar',
+    permissions: [
+      { key: 'sales.view', title: "Hamma cheklarni ko'rish" },
+      { key: 'sales.shifts', title: "Smenalar va kassa farqini ko'rish" },
+    ],
+  },
+  {
+    key: 'money',
+    title: 'Pul',
+    permissions: [
+      { key: 'money.view', title: "Hisoblar va qoldiqlarni ko'rish" },
+      { key: 'money.manage', title: 'Kassa, karta va terminallarni sozlash' },
+      { key: 'money.rates', title: "Kunlik kursni qo'yish" },
+    ],
+  },
+  {
     key: 'labels',
     title: 'Etiketka',
     permissions: [{ key: 'labels.print', title: 'Etiketka chop etish va RFID belgi yaratish' }],
@@ -259,6 +285,9 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'counts.*',
       'labels.*',
       'devices.*',
+      'pos.*',
+      'sales.*',
+      'money.*',
       'partners.*',
       'audit.view',
     ],
@@ -275,6 +304,9 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'transfers.view',
       'writeoffs.view',
       'counts.view',
+      'sales.*',
+      'money.view',
+      'money.rates',
       'partners.view',
       'audit.view',
     ],
@@ -294,13 +326,15 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'counts.view',
       'counts.manage',
       'labels.print',
+      'pos.*',
+      'sales.*',
     ],
   },
   {
     key: 'cashier',
     name: 'Kassir',
     description: 'Sotadi, qaytaradi, smenani ochadi va yopadi.',
-    permissions: ['products.view', 'stock.view'],
+    permissions: ['products.view', 'stock.view', 'pos.sell'],
   },
   {
     key: 'seller',

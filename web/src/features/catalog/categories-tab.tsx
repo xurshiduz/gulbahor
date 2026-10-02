@@ -16,6 +16,7 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PageActions } from '@/components/ui/page'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
 
@@ -158,6 +159,15 @@ export function CategoriesTab({ canManage, starter }: { canManage: boolean; star
 
   return (
     <>
+      <PageActions>
+        {canManage ? (
+          <Button variant="primary" onClick={() => setEditing({ parentId: null })}>
+            <Plus />
+            {t('references.addCategory')}
+            <Shortcut combo="n" className="ml-1 opacity-70" />
+          </Button>
+        ) : null}
+      </PageActions>
       <DataTable
         columns={columns}
         data={categories.data ? rows : undefined}
@@ -165,18 +175,6 @@ export function CategoriesTab({ canManage, starter }: { canManage: boolean; star
         rowId={(row) => row.id}
         onRowOpen={canManage ? (row) => setEditing({ category: row }) : undefined}
         rowClassName={(row) => (row.isActive ? undefined : 'text-ink-3')}
-        toolbar={
-          <>
-            <p className="min-w-0 flex-1 text-xs text-ink-3">{t('references.categoriesHint')}</p>
-            {canManage ? (
-              <Button variant="primary" onClick={() => setEditing({ parentId: null })}>
-                <Plus />
-                {t('references.addCategory')}
-                <Shortcut combo="n" className="ml-1 opacity-70" />
-              </Button>
-            ) : null}
-          </>
-        }
         empty={<EmptyState icon={FolderTree} title={t('references.categoriesEmpty')} action={starter} />}
       />
       {editing ? (

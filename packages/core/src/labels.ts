@@ -70,12 +70,13 @@ export const isOwnEpc = (epc: string) => epc.startsWith(EPC_PREFIX)
  * cancelled or the label was never used. Selling, moving and losing a piece
  * add their own states later.
  */
-export const UNIT_STATUSES = ['ready', 'in_stock', 'void'] as const
+export const UNIT_STATUSES = ['ready', 'in_stock', 'sold', 'void'] as const
 export type UnitStatus = (typeof UNIT_STATUSES)[number]
 
 export const UNIT_STATUS_LABELS: Record<UnitStatus, string> = {
   ready: 'Tayyorlandi',
   in_stock: 'Qoldiqda',
+  sold: 'Sotilgan',
   void: 'Bekor qilingan',
 }
 

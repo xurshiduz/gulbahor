@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
+import { FilterCombo, FilterSelect } from '@/components/ui/column-filters'
 import { Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
@@ -194,7 +194,6 @@ export function PricesPage() {
   return (
     <Page
       title={t('pricing.title')}
-      subtitle={t('pricing.subtitle')}
       actions={
         canPrice && tab === 'list' ? (
           <Button variant="primary" onClick={() => setRepricing(true)} disabled={!types.length}>
@@ -237,38 +236,42 @@ export function PricesPage() {
               onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
               onSizeChange: (size) => filter({ size }),
             }}
-            toolbar={
-              <>
-                <SearchInput value={search.q ?? ''} onChange={(q) => filter({ q: q || undefined }, true)} />
-                <Combobox
+            filters={{
+              category: (
+                <FilterCombo
                   options={categoryOptions}
                   value={search.categoryId ?? null}
                   onChange={(categoryId) => filter({ categoryId: categoryId ?? undefined })}
-                  placeholder={t('products.category')}
-                  className="w-52"
                 />
-                <Combobox
+              ),
+              name: (
+                <FilterCombo
                   options={(brands.data ?? []).map((brand) => ({ value: brand.id, label: brand.name }))}
                   value={search.brandId ?? null}
-                  onChange={(brandId) => filter({ brandId: brandId ?? undefined })}
                   placeholder={t('products.brand')}
-                  className="w-44"
+                  onChange={(brandId) => filter({ brandId: brandId ?? undefined })}
                 />
+              ),
+              qty: (
+                <FilterSelect
+                  value={search.presence}
+                  onChange={(presence) => filter({ presence: presence as typeof search.presence })}
+                  options={[
+                    { value: 'all', label: t('pricing.allModels') },
+                    { value: 'in', label: t('pricing.onlyInStock') },
+                  ]}
+                />
+              ),
+            }}
+            toolbar={
+              <>
+                <SearchInput value={search.q ?? ''} onChange={(q) => filter({ q: q || undefined }, true)} />
                 <Select
                   value={search.season ?? 'any'}
                   onChange={(season) => filter({ season: season === 'any' ? undefined : (season as Season) })}
                   options={[
                     { value: 'any', label: `${t('products.season')}: ${t('common.all').toLowerCase()}` },
                     ...SEASONS.map((season) => ({ value: season, label: SEASON_LABELS[season] })),
-                  ]}
-                  className="w-44"
-                />
-                <Select
-                  value={search.presence}
-                  onChange={(presence) => filter({ presence: presence as typeof search.presence })}
-                  options={[
-                    { value: 'all', label: t('pricing.allModels') },
-                    { value: 'in', label: t('pricing.onlyInStock') },
                   ]}
                   className="w-44"
                 />

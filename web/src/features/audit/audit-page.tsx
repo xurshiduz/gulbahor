@@ -6,9 +6,8 @@ import { ArrowRight, History } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Select } from '@/components/ui/controls'
+import { FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { DataTable } from '@/components/ui/data-table'
-import { DateInput } from '@/components/ui/date-input'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { Page } from '@/components/ui/page'
 import { api } from '@/lib/api'
@@ -20,6 +19,8 @@ import { useAuditText } from './audit-text'
 const route = getRouteApi('/audit')
 
 const ENTITIES = [
+  'sale',
+  'shift',
   'receipt',
   'transfer',
   'writeoff',
@@ -32,6 +33,9 @@ const ENTITIES = [
   'price_revision',
   'price_rule',
   'partner',
+  'register',
+  'account',
+  'rate',
   'agent',
   'printer',
   'user',
@@ -128,7 +132,7 @@ export function AuditPage() {
   )
 
   return (
-    <Page title={t('audit.title')} subtitle={t('audit.subtitle')}>
+    <Page title={t('audit.title')}>
       <DataTable
         columns={columns}
         data={list.data?.items}
@@ -143,9 +147,9 @@ export function AuditPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => ({ ...previous, size, page: 1 }) }),
         }}
-        toolbar={
-          <>
-            <Select
+        filters={{
+          action: (
+            <FilterSelect
               value={search.entity ?? 'all'}
               onChange={(entity) =>
                 void navigate({
@@ -153,33 +157,20 @@ export function AuditPage() {
                 })
               }
               options={[
-                { value: 'all', label: `${t('audit.entity')}: ${t('common.all').toLowerCase()}` },
+                { value: 'all', label: t('common.all') },
                 ...ENTITIES.map((entity) => ({ value: entity, label: describe.entity(entity) })),
               ]}
-              className="w-44"
             />
-            <label className="flex items-center gap-2 text-xs text-ink-3">
-              {t('audit.from')}
-              <DateInput
-                value={search.from ?? ''}
-                onChange={(from) =>
-                  void navigate({ search: (previous) => ({ ...previous, from: from || undefined, page: 1 }) })
-                }
-                className="w-36"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-ink-3">
-              {t('audit.to')}
-              <DateInput
-                value={search.to ?? ''}
-                onChange={(to) =>
-                  void navigate({ search: (previous) => ({ ...previous, to: to || undefined, page: 1 }) })
-                }
-                className="w-36"
-              />
-            </label>
-          </>
-        }
+          ),
+          at: (
+            <FilterDates
+              from={search.from}
+              to={search.to}
+              onChange={(range) => void navigate({ search: (previous) => ({ ...previous, ...range, page: 1 }) })}
+            />
+          ),
+        }}
+        toolbar={<></>}
         empty={<EmptyState icon={History} title={t('common.nothingFound')} />}
       />
     </Page>

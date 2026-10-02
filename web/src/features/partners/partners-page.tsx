@@ -9,7 +9,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox, Menu, Select } from '@/components/ui/controls'
+import { FilterSelect } from '@/components/ui/column-filters'
+import { Checkbox, Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
@@ -148,7 +149,6 @@ export function PartnersPage() {
   return (
     <Page
       title={t('partners.title')}
-      subtitle={t('partners.subtitle')}
       actions={
         canManage ? (
           <Button variant="primary" onClick={() => open('new')}>
@@ -178,15 +178,9 @@ export function PartnersPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
         }}
-        toolbar={
-          <>
-            <SearchInput
-              value={search.q ?? ''}
-              onChange={(q) =>
-                void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
-              }
-            />
-            <Select
+        filters={{
+          roles: (
+            <FilterSelect
               value={search.role ?? 'all'}
               onChange={(role) =>
                 void navigate({
@@ -199,9 +193,10 @@ export function PartnersPage() {
                 { value: 'supplier', label: t('partners.suppliers') },
                 { value: 'buyer', label: t('partners.buyers') },
               ]}
-              className="w-48"
             />
-            <Select
+          ),
+          status: (
+            <FilterSelect
               value={search.status}
               onChange={(status) =>
                 void navigate({
@@ -213,7 +208,16 @@ export function PartnersPage() {
                 { value: 'archived', label: t('common.archived') },
                 { value: 'all', label: t('common.all') },
               ]}
-              className="w-36"
+            />
+          ),
+        }}
+        toolbar={
+          <>
+            <SearchInput
+              value={search.q ?? ''}
+              onChange={(q) =>
+                void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
+              }
             />
           </>
         }

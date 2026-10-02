@@ -15,7 +15,7 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { SearchInput } from '@/components/ui/page'
+import { PageActions, SearchInput } from '@/components/ui/page'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
 
@@ -133,6 +133,15 @@ export function BrandsTab({ canManage }: { canManage: boolean }) {
 
   return (
     <>
+      <PageActions>
+        {canManage ? (
+          <Button variant="primary" onClick={() => setEditing('new')}>
+            <Plus />
+            {t('references.addBrand')}
+            <Shortcut combo="n" className="ml-1 opacity-70" />
+          </Button>
+        ) : null}
+      </PageActions>
       <DataTable
         columns={columns}
         data={rows}
@@ -143,14 +152,6 @@ export function BrandsTab({ canManage }: { canManage: boolean }) {
         toolbar={
           <>
             <SearchInput value={query} onChange={setQuery} />
-            <span className="flex-1" />
-            {canManage ? (
-              <Button variant="primary" onClick={() => setEditing('new')}>
-                <Plus />
-                {t('references.addBrand')}
-                <Shortcut combo="n" className="ml-1 opacity-70" />
-              </Button>
-            ) : null}
           </>
         }
         empty={

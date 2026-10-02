@@ -431,7 +431,7 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
   return (
     <Page
       title={title}
-      subtitle={product ? `${t('products.sku')}: ${product.sku}` : t('products.newHint')}
+      note={product ? `${t('products.sku')}: ${product.sku}` : undefined}
       actions={
         <>
           <Button onClick={leave}>

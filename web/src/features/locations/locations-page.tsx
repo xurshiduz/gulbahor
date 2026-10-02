@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Menu, Select } from '@/components/ui/controls'
+import { FilterSelect } from '@/components/ui/column-filters'
+import { Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
@@ -133,7 +134,6 @@ export function LocationsPage() {
   return (
     <Page
       title={t('locations.title')}
-      subtitle={t('locations.subtitle')}
       actions={
         canManage ? (
           <Button variant="primary" onClick={() => open('new')}>
@@ -162,16 +162,16 @@ export function LocationsPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
         }}
-        toolbar={
-          <>
-            <SearchInput value={search.q ?? ''} onChange={(q) => void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })} />
-            <Select
+        filters={{
+          kind: (
+            <FilterSelect
               value={search.kind ?? 'all'}
               onChange={(kind) => void navigate({ search: (previous) => withFilter(previous, { kind: kind === 'all' ? undefined : (kind as LocationDto['kind']) }) })}
-              options={[{ value: 'all', label: `${t('locations.kind')}: ${t('common.all').toLowerCase()}` }, ...LOCATION_KINDS.map((kind) => ({ value: kind, label: LOCATION_KIND_LABELS[kind] }))]}
-              className="w-48"
+              options={[{ value: 'all', label: t('common.all') }, ...LOCATION_KINDS.map((kind) => ({ value: kind, label: LOCATION_KIND_LABELS[kind] }))]}
             />
-            <Select
+          ),
+          status: (
+            <FilterSelect
               value={search.status}
               onChange={(status) => void navigate({ search: (previous) => withFilter(previous, { status: status as typeof search.status }) })}
               options={[
@@ -179,8 +179,12 @@ export function LocationsPage() {
                 { value: 'archived', label: t('common.archived') },
                 { value: 'all', label: t('common.all') },
               ]}
-              className="w-36"
             />
+          ),
+        }}
+        toolbar={
+          <>
+            <SearchInput value={search.q ?? ''} onChange={(q) => void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })} />
           </>
         }
         empty={

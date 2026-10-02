@@ -1,4 +1,4 @@
-import { GENDERS, LOCATION_KINDS, PRINT_JOB_STATUSES, SEASONS } from '@gulbahor/core'
+import { GENDERS, LOCATION_KINDS, PRINT_JOB_STATUSES, SALE_STATUSES, SEASONS, SHIFT_STATUSES } from '@gulbahor/core'
 import { createRootRoute, createRoute, createRouter, redirect, stripSearchParams } from '@tanstack/react-router'
 import { z } from 'zod'
 
@@ -11,7 +11,11 @@ import { InputsDemoPage } from '@/features/dev/inputs-demo-page'
 import { DevicesPage } from '@/features/devices/devices-page'
 import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
+import { MoneyPage } from '@/features/money/money-page'
 import { PartnersPage } from '@/features/partners/partners-page'
+import { PosPage } from '@/features/pos/pos-page'
+import { SalesPage } from '@/features/pos/sales-page'
+import { ShiftsPage } from '@/features/pos/shifts-page'
 import { PricesPage } from '@/features/pricing/prices-page'
 import { ProfilePage } from '@/features/profile/profile-page'
 import { ReceiptPage } from '@/features/receipts/receipt-page'
@@ -212,6 +216,61 @@ const labelsRoute = createRoute({
   search: { middlewares: [stripSearchParams({ page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size, status: 'all' })] },
 })
 
+const posRoute = createRoute({ getParentRoute: () => rootRoute, path: '/pos', component: PosPage })
+
+const tillList = {
+  page: listSearch.page,
+  size: listSearch.size,
+  q: listSearch.q,
+  locationId: z.string().optional().catch(undefined),
+  from: z.string().optional().catch(undefined),
+  to: z.string().optional().catch(undefined),
+  /** The receipt or the shift that is open over the list. */
+  open: z.string().optional().catch(undefined),
+}
+const TILL_LIST_DEFAULTS = { page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size, status: 'all' as const }
+
+const salesSearch = z.object({
+  ...tillList,
+  status: z
+    .enum(['all', ...SALE_STATUSES])
+    .default('all')
+    .catch('all'),
+  shiftId: z.string().optional().catch(undefined),
+})
+const salesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sales',
+  component: SalesPage,
+  validateSearch: salesSearch,
+  search: { middlewares: [stripSearchParams(TILL_LIST_DEFAULTS)] },
+})
+
+const shiftsSearch = z.object({
+  ...tillList,
+  status: z
+    .enum(['all', ...SHIFT_STATUSES])
+    .default('all')
+    .catch('all'),
+})
+const shiftsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/shifts',
+  component: ShiftsPage,
+  validateSearch: shiftsSearch,
+  search: { middlewares: [stripSearchParams(TILL_LIST_DEFAULTS)] },
+})
+
+const moneyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/money',
+  component: MoneyPage,
+  validateSearch: z.object({
+    tab: z.enum(['registers', 'accounts', 'rates']).default('registers').catch('registers'),
+  }),
+  search: { middlewares: [stripSearchParams({ tab: 'registers' })] },
+})
+
 const devicesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/devices',
@@ -285,6 +344,9 @@ const inputsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  posRoute,
+  salesRoute,
+  shiftsRoute,
   productsRoute,
   productRoute,
   pricesRoute,
@@ -301,6 +363,7 @@ const routeTree = rootRoute.addChildren([
   labelsRoute,
   partnersRoute,
   locationsRoute,
+  moneyRoute,
   devicesRoute,
   usersRoute,
   rolesRoute,

@@ -36,7 +36,7 @@ export function HomePage() {
   const modules = MODULES.filter((module) => me.org.modules.includes(module.key))
 
   return (
-    <Page title={t('home.greeting', { name: me.user.fullName.split(' ')[0] })} subtitle={t('home.phase')}>
+    <Page title={t('home.greeting', { name: me.user.fullName.split(' ')[0] })}>
       <div className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {can('locations.view') ? <Stat to="/locations" icon={Building2} label={t('home.places')} value={locations.data?.total} /> : null}

@@ -24,6 +24,7 @@ import { EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { NumberInput } from '@/components/ui/number-input'
+import { PageActions } from '@/components/ui/page'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
 import { api, ApiError } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
@@ -158,24 +159,21 @@ export function MarkupRulesTab({ canManage }: { canManage: boolean }) {
 
   return (
     <>
+      <PageActions>
+        {canManage ? (
+          <Button variant="primary" onClick={() => setEditing('new')}>
+            <Plus />
+            {t('pricing.addRule')}
+            <Shortcut combo="n" className="ml-1 opacity-70" />
+          </Button>
+        ) : null}
+      </PageActions>
       <DataTable
         columns={columns}
         data={rules.data}
         loading={rules.isPending}
         rowId={(row) => row.id}
         onRowOpen={canManage ? (row) => setEditing(row) : undefined}
-        toolbar={
-          <>
-            <p className="min-w-0 flex-1 text-xs text-ink-3">{t('pricing.rulesHint')}</p>
-            {canManage ? (
-              <Button variant="primary" onClick={() => setEditing('new')}>
-                <Plus />
-                {t('pricing.addRule')}
-                <Shortcut combo="n" className="ml-1 opacity-70" />
-              </Button>
-            ) : null}
-          </>
-        }
         empty={<EmptyState icon={Percent} title={t('pricing.noRules')} hint={t('pricing.noRulesHint')} />}
       />
       {editing ? (

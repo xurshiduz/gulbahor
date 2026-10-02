@@ -1,4 +1,5 @@
 import type {
+  AccountKind,
   AnyCurrency,
   AttributeKind,
   CurrencyCode,
@@ -8,13 +9,17 @@ import type {
   LocationKind,
   MarkupBase,
   OrgSettings,
+  PaymentMethod,
   PriceKind,
   PrinterDpi,
   PrintJobStatus,
   ReceiptStatus,
+  SaleStatus,
   Season,
+  ShiftStatus,
   StockDocKind,
   StockDocStatus,
+  SystemAccount,
   Unit,
   UnitStatus,
   WriteoffReason,
@@ -1082,6 +1087,9 @@ export class RfidUnit {
   @Column('text')
   status: UnitStatus
 
+  @Column('uuid', { nullable: true })
+  saleId: string | null
+
   @Column('int')
   printCount: number
 
@@ -1342,6 +1350,429 @@ export class PriceRevisionLine {
   currency: CurrencyCode
 }
 
+@Entity('exchange_rates')
+export class ExchangeRate {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('date')
+  rateDate: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  uzsPerUsd: number
+
+  @Column('uuid', { nullable: true })
+  setBy: string | null
+
+  @Column('text', { nullable: true })
+  setByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+/** A till: a place in a shop where sales are rung up and cash is kept. */
+@Entity('registers')
+export class Register {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('text')
+  name: string
+
+  @Column('boolean')
+  isActive: boolean
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+/** Where money is, or where it came from or went to. */
+@Entity('accounts')
+export class Account {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  kind: AccountKind
+
+  @Column('text', { nullable: true })
+  systemKey: SystemAccount | null
+
+  @Column('text')
+  name: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('uuid', { nullable: true })
+  registerId: string | null
+
+  @Column('text', { nullable: true })
+  last4: string | null
+
+  @Column('text', { nullable: true })
+  bank: string | null
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  balance: number
+
+  @Column('boolean')
+  isActive: boolean
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('ledger_entries')
+export class LedgerEntry {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('date')
+  entryDate: string
+
+  @Column('text')
+  kind: string
+
+  @Column('text', { nullable: true })
+  documentType: string | null
+
+  @Column('uuid', { nullable: true })
+  documentId: string | null
+
+  @Column('uuid', { nullable: true })
+  shiftId: string | null
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('ledger_lines')
+export class LedgerLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  entryId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+}
+
+@Entity('shifts')
+export class Shift {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  registerId: string
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('text')
+  status: ShiftStatus
+
+  @Column('uuid', { nullable: true })
+  openedBy: string | null
+
+  @Column('text', { nullable: true })
+  openedByName: string | null
+
+  @Column('timestamptz')
+  openedAt: Date
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  openingUzs: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  openingUsd: number
+
+  @Column('uuid', { nullable: true })
+  closedBy: string | null
+
+  @Column('text', { nullable: true })
+  closedByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  closedAt: Date | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  countedUzs: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  countedUsd: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  expectedUzs: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  expectedUsd: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  diffUzs: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  diffUsd: number | null
+
+  @Column('text', { nullable: true })
+  note: string | null
+}
+
+@Entity('sales')
+export class Sale {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('uuid')
+  shiftId: string
+
+  @Column('uuid')
+  registerId: string
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('text')
+  status: SaleStatus
+
+  @Column('timestamptz')
+  soldAt: Date
+
+  @Column('date')
+  soldOn: string
+
+  @Column('uuid', { nullable: true })
+  cashierId: string | null
+
+  @Column('text', { nullable: true })
+  cashierName: string | null
+
+  @Column('uuid', { nullable: true })
+  sellerId: string | null
+
+  @Column('text', { nullable: true })
+  sellerName: string | null
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  subtotal: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  discount: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  uzsPerUsd: number | null
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  changeUzs: number
+
+  /** In cents: whole dollars only. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  changeUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  rounding: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+
+  @Column('text')
+  paidBy: string
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('text')
+  searchKey: string
+
+  @Column('timestamptz', { nullable: true })
+  voidedAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  voidedBy: string | null
+
+  @Column('text', { nullable: true })
+  voidedByName: string | null
+
+  @Column('text', { nullable: true })
+  voidReason: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('sale_lines')
+export class SaleLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  saleId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  price: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  discount: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+
+  @Column('uuid', { nullable: true })
+  unitId: string | null
+}
+
+@Entity('sale_items')
+export class SaleItem {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  saleId: string
+
+  @Column('uuid')
+  lineId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  batchId: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+}
+
+@Entity('sale_payments')
+export class SalePayment {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  saleId: string
+
+  @Column('int')
+  position: number
+
+  @Column('text')
+  method: PaymentMethod
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+
+  @Column('text', { nullable: true })
+  reference: string | null
+}
+
 export type StockMovementKind =
   | 'receipt'
   | 'receipt_cancel'
@@ -1352,6 +1783,8 @@ export type StockMovementKind =
   | 'writeoff'
   | 'writeoff_cancel'
   | 'count'
+  | 'sale'
+  | 'sale_void'
 
 export const ENTITIES = [
   Organization,
@@ -1387,4 +1820,14 @@ export const ENTITIES = [
   PriceRuleMarkup,
   PriceRevision,
   PriceRevisionLine,
+  ExchangeRate,
+  Register,
+  Account,
+  LedgerEntry,
+  LedgerLine,
+  Shift,
+  Sale,
+  SaleLine,
+  SaleItem,
+  SalePayment,
 ]

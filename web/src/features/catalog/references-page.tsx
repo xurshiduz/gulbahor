@@ -51,7 +51,7 @@ export function ReferencesPage() {
     ) : null
 
   return (
-    <Page title={t('references.title')} subtitle={t('references.subtitle')}>
+    <Page title={t('references.title')}>
       <Tabs
         value={tab}
         onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}

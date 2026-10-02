@@ -300,7 +300,6 @@ export function DevicesPage() {
   return (
     <Page
       title={t('devices.title')}
-      subtitle={t('devices.subtitle')}
       actions={
         <Button variant="primary" onClick={add}>
           <Plus />

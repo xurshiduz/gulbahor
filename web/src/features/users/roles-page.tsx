@@ -111,7 +111,6 @@ export function RolesPage() {
   return (
     <Page
       title={t('roles.title')}
-      subtitle={t('roles.subtitle')}
       actions={
         <Button variant="primary" onClick={() => open('new')}>
           <Plus />

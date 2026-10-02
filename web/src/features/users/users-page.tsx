@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Menu, Select } from '@/components/ui/controls'
+import { FilterSelect } from '@/components/ui/column-filters'
+import { Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
@@ -168,7 +169,6 @@ export function UsersPage() {
   return (
     <Page
       title={t('users.title')}
-      subtitle={t('users.subtitle')}
       actions={
         canManage ? (
           <Button variant="primary" onClick={() => open('new')}>
@@ -197,22 +197,23 @@ export function UsersPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
         }}
-        toolbar={
-          <>
-            <SearchInput value={search.q ?? ''} onChange={(q) => void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })} />
-            <Select
+        filters={{
+          roles: (
+            <FilterSelect
               value={search.roleId ?? 'all'}
               onChange={(roleId) => void navigate({ search: (previous) => withFilter(previous, { roleId: roleId === 'all' ? undefined : roleId }) })}
-              options={[{ value: 'all', label: `${t('users.filterRole')}: ${t('common.all').toLowerCase()}` }, ...roles.map((role) => ({ value: role.id, label: role.name }))]}
-              className="w-48"
+              options={[{ value: 'all', label: t('common.all') }, ...roles.map((role) => ({ value: role.id, label: role.name }))]}
             />
-            <Select
+          ),
+          locations: (
+            <FilterSelect
               value={search.locationId ?? 'all'}
               onChange={(locationId) => void navigate({ search: (previous) => withFilter(previous, { locationId: locationId === 'all' ? undefined : locationId }) })}
-              options={[{ value: 'all', label: `${t('users.filterLocation')}: ${t('common.all').toLowerCase()}` }, ...locations.map((location) => ({ value: location.id, label: location.name }))]}
-              className="w-48"
+              options={[{ value: 'all', label: t('common.all') }, ...locations.map((location) => ({ value: location.id, label: location.name }))]}
             />
-            <Select
+          ),
+          status: (
+            <FilterSelect
               value={search.status}
               onChange={(status) => void navigate({ search: (previous) => withFilter(previous, { status: status as typeof search.status }) })}
               options={[
@@ -220,8 +221,12 @@ export function UsersPage() {
                 { value: 'active', label: t('common.active') },
                 { value: 'blocked', label: t('common.blocked') },
               ]}
-              className="w-36"
             />
+          ),
+        }}
+        toolbar={
+          <>
+            <SearchInput value={search.q ?? ''} onChange={(q) => void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })} />
           </>
         }
         empty={<EmptyState icon={Users} title={search.q ? t('common.nothingFound') : t('users.empty')} />}

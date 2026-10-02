@@ -1,0 +1,609 @@
+import {
+  DEFAULT_ORG_SETTINGS,
+  formatMoney,
+  PAYMENT_METHOD_LABELS,
+  saleTotals,
+  searchKey,
+  settle,
+  toBase,
+  variantLabel,
+  type Page,
+  type SaleDto,
+  type SaleInput,
+  type SaleListItemDto,
+  type SaleListQuery,
+  type SaleVoidInput,
+} from '@gulbahor/core'
+import { Injectable } from '@nestjs/common'
+import { In, type EntityManager } from 'typeorm'
+
+import { AppError } from '../../common/errors'
+import { applySearch } from '../../common/listing'
+import { Db } from '../../database/db.service'
+import {
+  Account,
+  Location,
+  Organization,
+  Register,
+  Sale,
+  SaleItem,
+  SaleLine,
+  SalePayment,
+  Shift,
+  User,
+} from '../../database/entities'
+import { AuditService } from '../audit/audit.service'
+import { can, type Actor } from '../auth/actor'
+import { nextNumbers } from '../catalog/counters'
+import { LedgerService, type Posting } from '../money/ledger.service'
+import { RealtimeService } from '../realtime/realtime.service'
+import { StockService, type Movement } from '../stock/stock.service'
+import { sellables } from './items'
+
+const DOCUMENT = 'sale'
+
+const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
+
+function throwIfAny(fields: Record<string, string>) {
+  const first = Object.values(fields)[0]
+  if (first) {
+    throw AppError.validation(fields, first)
+  }
+}
+
+/**
+ * Sales. One sale is one transaction: the goods leave stock oldest batch
+ * first, each tagged piece is marked as sold, and the money is posted to the
+ * accounts it was paid into, all or nothing. A sale is never edited. While
+ * its shift is open it can be voided, which puts everything back as it was
+ * and leaves both the sale and the void in the books.
+ */
+@Injectable()
+export class SalesService {
+  constructor(
+    private readonly db: Db,
+    private readonly audit: AuditService,
+    private readonly realtime: RealtimeService,
+    private readonly stock: StockService,
+    private readonly ledger: LedgerService,
+  ) {}
+
+  async create(actor: Actor, input: SaleInput): Promise<SaleDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      // The till sends a sale again when it did not hear back: the sale it made the first time is the answer.
+      const again = await em.findOneBy(Sale, { clientKey: input.clientKey })
+      if (again) {
+        return this.load(em, actor, again)
+      }
+
+      const register = await em.findOneBy(Register, { id: input.registerId })
+      if (!register || !register.isActive || !mayWorkAt(actor, register.locationId)) {
+        throw AppError.validation({ registerId: 'Kassa topilmadi' })
+      }
+      // Holding the shift makes sales at one till follow one another, and keeps it from closing under a sale.
+      const [open]: { id: string }[] = await em.query(
+        `SELECT id FROM shifts WHERE register_id = $1 AND status = 'open' FOR UPDATE`,
+        [register.id],
+      )
+      if (!open) {
+        throw AppError.conflict('NO_SHIFT', 'Smena ochilmagan. Avval smenani oching')
+      }
+      const shift = await em.findOneByOrFail(Shift, { id: open.id })
+
+      const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
+      const today = await this.ledger.today(em, actor.orgId)
+      const usd = actor.modules.includes('usd')
+      const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+
+      // ── The goods: what each is and what it costs here, by the system's prices, not the till's. ──
+      const items = await sellables(
+        em,
+        { ids: [...new Set(input.lines.map((line) => line.variantId))] },
+        register.locationId,
+        rate,
+      )
+      const itemOf = new Map(items.map((item) => [item.variantId, item]))
+      const fields: Record<string, string> = {}
+      input.lines.forEach((line, index) => {
+        const item = itemOf.get(line.variantId)
+        if (!item) {
+          fields[`lines.${index}.variantId`] = 'Tovar topilmadi'
+        } else if (item.price === null) {
+          fields[`lines.${index}.variantId`] = `«${item.name}»: chakana narx qo'yilmagan`
+        } else if (!item.decimals && !Number.isInteger(line.qty)) {
+          fields[`lines.${index}.qty`] = `«${item.name}» butun dona bilan sotiladi`
+        }
+      })
+      throwIfAny(fields)
+
+      // ── Tagged pieces: each must be this very thing, and on hand. ──
+      const tags = input.lines.flatMap((line) => (line.epc ? [line.epc] : []))
+      const units: { id: string; epc: string; variant_id: string; status: string }[] = tags.length
+        ? await em.query(`SELECT id, epc, variant_id, status FROM rfid_units WHERE epc = ANY($1) FOR UPDATE`, [tags])
+        : []
+      const unitOf = new Map(units.map((unit) => [unit.epc, unit]))
+      input.lines.forEach((line, index) => {
+        if (!line.epc) {
+          return
+        }
+        const unit = unitOf.get(line.epc)
+        if (!unit || unit.variant_id !== line.variantId) {
+          fields[`lines.${index}.epc`] = 'Bu RFID belgi shu tovarga tegishli emas'
+        } else if (unit.status !== 'in_stock') {
+          fields[`lines.${index}.epc`] =
+            unit.status === 'sold' ? 'Bu dona allaqachon sotilgan' : "Bu dona qoldiqda yo'q"
+        }
+      })
+      throwIfAny(fields)
+
+      // ── The sum. ──
+      const totals = saleTotals(
+        input.lines.map((line) => ({
+          price: itemOf.get(line.variantId)?.price as number,
+          qty: line.qty,
+          discount: line.discount,
+        })),
+        input.discount,
+      )
+      if (totals.total !== input.total) {
+        throw AppError.conflict('PRICE_CHANGED', "Narxlar o'zgargan. Chekni yangilab, summani qayta tekshiring")
+      }
+      const offered = input.discount + input.lines.reduce((sum, line) => sum + line.discount, 0)
+      if (offered > totals.subtotal) {
+        throw AppError.validation({ discount: 'Chegirma tovar summasidan katta' })
+      }
+      if (totals.discount * 100 > totals.subtotal * settings.maxDiscountPercent && !can(actor, 'pos.discount')) {
+        throw AppError.badRequest(
+          'DISCOUNT_OVER_LIMIT',
+          `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
+          { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
+        )
+      }
+
+      // ── The money: where each payment goes. ──
+      const accounts = await em.findBy(Account, {
+        id: In(input.payments.flatMap((payment) => (payment.accountId ? [payment.accountId] : []))),
+      })
+      const payments: {
+        method: SaleInput['payments'][number]['method']
+        account: Account
+        currency: 'UZS' | 'USD'
+        amount: number
+        base: number
+        reference: string | null
+      }[] = []
+      for (const [index, payment] of input.payments.entries()) {
+        if (payment.currency === 'USD' && !usd) {
+          fields[`payments.${index}.currency`] = 'Dollar bilan ishlash yoqilmagan'
+          continue
+        }
+        if (payment.currency === 'USD' && !rate) {
+          fields[`payments.${index}.currency`] = "Dollar kursi qo'yilmagan"
+          continue
+        }
+        let account: Account | undefined
+        if (payment.method === 'cash') {
+          account = await this.ledger.cashAccount(em, register, payment.currency)
+        } else {
+          account = accounts.find((item) => item.id === payment.accountId)
+          const fits =
+            account &&
+            account.kind === payment.method &&
+            account.isActive &&
+            (!account.locationId || account.locationId === register.locationId)
+          if (!fits) {
+            fields[`payments.${index}.accountId`] = payment.method === 'card' ? 'Karta topilmadi' : 'Terminal topilmadi'
+            continue
+          }
+        }
+        payments.push({
+          method: payment.method,
+          account: account as Account,
+          currency: payment.currency,
+          amount: payment.amount,
+          base: toBase(payment.amount, payment.currency, rate),
+          reference: payment.reference ?? null,
+        })
+      }
+      throwIfAny(fields)
+
+      const settlement = settle(totals.total, payments, {
+        uzsPerUsd: rate,
+        changeCurrency: input.changeCurrency === 'USD' && usd && rate ? 'USD' : 'UZS',
+        roundStep: settings.changeRoundStep,
+      })
+      if (settlement.problem === 'non_cash_over') {
+        throw AppError.validation({
+          payments: 'Karta va terminal summasi chekdan oshmasligi kerak: ulardan qaytim berilmaydi',
+        })
+      }
+      if (settlement.due > 0) {
+        throw AppError.validation({ payments: `To'lov yetarli emas: yana ${formatMoney(settlement.due)}` })
+      }
+
+      const seller = input.sellerId ? await em.findOneBy(User, { id: input.sellerId, isActive: true }) : null
+      if (input.sellerId && !seller) {
+        throw AppError.validation({ sellerId: 'Sotuvchi topilmadi' })
+      }
+
+      // ── The sale. ──
+      const number = `CH-${String(await nextNumbers(em, actor.orgId, 'sale')).padStart(6, '0')}`
+      const paidBy = [
+        ...new Set(
+          payments.map((payment) => PAYMENT_METHOD_LABELS[payment.method] + (payment.currency === 'USD' ? ' $' : '')),
+        ),
+      ].join(', ')
+      const sale = await em.save(
+        em.create(Sale, {
+          orgId: actor.orgId,
+          number,
+          clientKey: input.clientKey,
+          shiftId: shift.id,
+          registerId: register.id,
+          locationId: register.locationId,
+          status: 'completed',
+          soldAt: new Date(),
+          soldOn: today,
+          cashierId: actor.userId,
+          cashierName: actor.name,
+          sellerId: seller?.id ?? null,
+          sellerName: seller?.fullName ?? null,
+          qty: input.lines.reduce((sum, line) => sum + Math.round(line.qty * 1000), 0) / 1000,
+          subtotal: totals.subtotal,
+          discount: totals.discount,
+          total: totals.total,
+          uzsPerUsd: rate,
+          changeUzs: settlement.changeUzs,
+          changeUsd: settlement.changeUsd,
+          rounding: settlement.rounding,
+          costUsd: 0,
+          costUzs: 0,
+          paidBy,
+          note: input.note ?? null,
+          searchKey: searchKey([number, actor.name, seller?.fullName ?? ''].join(' ')),
+        }),
+      )
+      const lines = await em.save(
+        input.lines.map((line, index) =>
+          em.create(SaleLine, {
+            orgId: actor.orgId,
+            saleId: sale.id,
+            position: index,
+            variantId: line.variantId,
+            qty: line.qty,
+            price: itemOf.get(line.variantId)?.price as number,
+            discount: totals.lines[index].discount,
+            total: totals.lines[index].total,
+            costUsd: 0,
+            costUzs: 0,
+            unitId: line.epc ? (unitOf.get(line.epc)?.id ?? null) : null,
+          }),
+        ),
+      )
+
+      // ── Stock: oldest batch first, and remembered piece by piece. ──
+      const picked = await this.stock.pick(
+        em,
+        register.locationId,
+        lines.map((line) => ({ variantId: line.variantId, qty: line.qty })),
+      )
+      picked.forEach((result, index) => {
+        if (result.missing) {
+          const item = itemOf.get(lines[index].variantId)
+          const have = Math.round((lines[index].qty - result.missing) * 1000) / 1000
+          fields[`lines.${index}.qty`] =
+            `«${item?.name}${item?.label ? `, ${item.label}` : ''}»: qoldiq yetarli emas (bor ${have})`
+        }
+      })
+      throwIfAny(fields)
+
+      const movements: Movement[] = []
+      const pieces: Partial<SaleItem>[] = []
+      let costUsd = 0
+      let costUzs = 0
+      for (const [index, line] of lines.entries()) {
+        let lineUsd = 0
+        let lineUzs = 0
+        picked[index].pieces.forEach((piece, position) => {
+          movements.push({
+            kind: 'sale',
+            docDate: today,
+            documentType: DOCUMENT,
+            documentId: sale.id,
+            lineId: line.id,
+            locationId: register.locationId,
+            batchId: piece.batchId,
+            variantId: piece.variantId,
+            qty: -piece.qty,
+            costUsd: -piece.costUsd,
+            costUzs: -piece.costUzs,
+          })
+          pieces.push({ orgId: actor.orgId, saleId: sale.id, lineId: line.id, position, ...piece })
+          lineUsd += piece.costUsd
+          lineUzs += piece.costUzs
+        })
+        await em.update(SaleLine, line.id, { costUsd: lineUsd, costUzs: lineUzs })
+        costUsd += lineUsd
+        costUzs += lineUzs
+      }
+      await this.stock.apply(em, actor.orgId, actor.userId, movements)
+      await em.insert(SaleItem, pieces)
+      await em.update(Sale, sale.id, { costUsd, costUzs })
+      if (units.length) {
+        await em.query(`UPDATE rfid_units SET status = 'sold', sale_id = $1 WHERE id = ANY($2)`, [
+          sale.id,
+          units.map((unit) => unit.id),
+        ])
+      }
+
+      // ── Money: into the accounts it was paid to, the change back out, the rest is the sale. ──
+      await em.insert(
+        SalePayment,
+        payments.map((payment, position) => ({
+          orgId: actor.orgId,
+          saleId: sale.id,
+          position,
+          method: payment.method,
+          accountId: payment.account.id,
+          currency: payment.currency,
+          amount: payment.amount,
+          base: payment.base,
+          reference: payment.reference,
+        })),
+      )
+      const postings: Posting[] = payments.map((payment) => ({
+        accountId: payment.account.id,
+        amount: payment.amount,
+        base: payment.base,
+      }))
+      if (settlement.changeUzs) {
+        const drawer = await this.ledger.cashAccount(em, register, 'UZS')
+        postings.push({ accountId: drawer.id, amount: -settlement.changeUzs, base: -settlement.changeUzs })
+      }
+      if (settlement.changeUsd) {
+        const drawer = await this.ledger.cashAccount(em, register, 'USD')
+        postings.push({
+          accountId: drawer.id,
+          amount: -settlement.changeUsd,
+          base: -toBase(settlement.changeUsd, 'USD', rate),
+        })
+      }
+      const revenue = await this.ledger.systemAccount(em, actor.orgId, 'sales')
+      postings.push({ accountId: revenue.id, amount: -totals.total, base: -totals.total })
+      if (settlement.rounding) {
+        const rounding = await this.ledger.systemAccount(em, actor.orgId, 'rounding')
+        postings.push({ accountId: rounding.id, amount: -settlement.rounding, base: -settlement.rounding })
+      }
+      await this.ledger.post(
+        em,
+        actor,
+        { date: today, kind: 'sale', documentType: DOCUMENT, documentId: sale.id, shiftId: shift.id },
+        postings,
+      )
+
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'sale.create',
+        entity: 'sale',
+        entityId: sale.id,
+        summary: `${number}: ${sale.qty} dona, ${formatMoney(totals.total)}${
+          totals.discount ? `, chegirma ${formatMoney(totals.discount)}` : ''
+        } (${paidBy})`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'stock', 'shifts', 'money', 'pos']))
+      return this.load(em, actor, await em.findOneByOrFail(Sale, { id: sale.id }))
+    })
+  }
+
+  /**
+   * Undoes a sale made in a shift that is still open: the goods go back to
+   * the batches they came from, the money goes back out of the accounts it
+   * went into. After the shift is closed a sale is undone by a return.
+   */
+  async void(actor: Actor, id: string, input: SaleVoidInput): Promise<SaleDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      await em.query(`SELECT 1 FROM sales WHERE id = $1 FOR UPDATE`, [id])
+      const sale = await this.find(em, actor, id)
+      if (sale.status !== 'completed') {
+        throw AppError.conflict('SALE_VOIDED', 'Bu chek allaqachon bekor qilingan')
+      }
+      const [open]: { id: string }[] = await em.query(
+        `SELECT id FROM shifts WHERE id = $1 AND status = 'open' FOR UPDATE`,
+        [sale.shiftId],
+      )
+      if (!open) {
+        throw AppError.conflict('SHIFT_CLOSED', 'Smena yopilgan. Bu chek qaytarish orqali rasmiylashtiriladi')
+      }
+      const today = await this.ledger.today(em, actor.orgId)
+
+      const pieces = await em.find(SaleItem, { where: { saleId: id }, order: { position: 'ASC' } })
+      await this.stock.apply(
+        em,
+        actor.orgId,
+        actor.userId,
+        pieces.map((piece) => ({
+          kind: 'sale_void',
+          docDate: today,
+          documentType: DOCUMENT,
+          documentId: id,
+          lineId: piece.lineId,
+          locationId: sale.locationId,
+          batchId: piece.batchId,
+          variantId: piece.variantId,
+          qty: piece.qty,
+          costUsd: piece.costUsd,
+          costUzs: piece.costUzs,
+        })),
+      )
+      await em.query(`UPDATE rfid_units SET status = 'in_stock', sale_id = NULL WHERE sale_id = $1`, [id])
+      await this.ledger.reverse(
+        em,
+        actor,
+        { date: today, kind: 'sale_void', documentType: DOCUMENT, documentId: id, shiftId: sale.shiftId },
+        'sale',
+      )
+      await em.update(Sale, id, {
+        status: 'voided',
+        voidedAt: new Date(),
+        voidedBy: actor.userId,
+        voidedByName: actor.name,
+        voidReason: input.reason,
+      })
+
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'sale.void',
+        entity: 'sale',
+        entityId: id,
+        summary: `${sale.number}: ${formatMoney(sale.total)}. ${input.reason}`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'stock', 'shifts', 'money', 'pos']))
+      return this.load(em, actor, await em.findOneByOrFail(Sale, { id }))
+    })
+  }
+
+  async get(actor: Actor, id: string): Promise<SaleDto> {
+    return this.db.tenant(actor.orgId, async ({ em }) => this.load(em, actor, await this.find(em, actor, id)))
+  }
+
+  async list(actor: Actor, query: SaleListQuery): Promise<Page<SaleListItemDto>> {
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const qb = em
+        .createQueryBuilder(Sale, 's')
+        .innerJoin(Location, 'l', 'l.id = s.locationId')
+        .innerJoin(Register, 'r', 'r.id = s.registerId')
+        .addSelect('l.name', 'location_name')
+        .addSelect('r.name', 'register_name')
+      if (!actor.allLocations) {
+        qb.andWhere('s.locationId IN (:...mine)', { mine: actor.locationIds.length ? actor.locationIds : [null] })
+      }
+      // Without the right to see every sale, a cashier sees the ones they rang up.
+      if (!can(actor, 'sales.view')) qb.andWhere('s.cashierId = :me', { me: actor.userId })
+      if (query.status !== 'all') qb.andWhere('s.status = :status', { status: query.status })
+      if (query.locationId) qb.andWhere('s.locationId = :locationId', { locationId: query.locationId })
+      if (query.shiftId) qb.andWhere('s.shiftId = :shiftId', { shiftId: query.shiftId })
+      if (query.from) qb.andWhere('s.soldOn >= :from', { from: query.from })
+      if (query.to) qb.andWhere('s.soldOn <= :to', { to: query.to })
+      applySearch(qb, 's.search_key', query.q)
+
+      const total = await qb.getCount()
+      const { entities, raw } = await qb
+        .orderBy('s.soldAt', 'DESC')
+        .offset((query.page - 1) * query.size)
+        .limit(query.size)
+        .getRawAndEntities()
+      const seesCost = can(actor, 'stock.cost')
+      return {
+        items: entities.map((sale, index) => ({
+          ...summary(sale, raw[index].location_name, raw[index].register_name, seesCost),
+          qty: sale.qty,
+          paidBy: sale.paidBy,
+        })),
+        total,
+        page: query.page,
+        size: query.size,
+      }
+    })
+  }
+
+  // ───────────────────────────── Reading ─────────────────────────────
+
+  private async find(em: EntityManager, actor: Actor, id: string): Promise<Sale> {
+    const sale = await em.findOneBy(Sale, { id })
+    const visible =
+      sale && mayWorkAt(actor, sale.locationId) && (can(actor, 'sales.view') || sale.cashierId === actor.userId)
+    if (!sale || !visible) {
+      throw AppError.notFound('Chek topilmadi')
+    }
+    return sale
+  }
+
+  private async load(em: EntityManager, actor: Actor, sale: Sale): Promise<SaleDto> {
+    const location = await em.findOneByOrFail(Location, { id: sale.locationId })
+    const register = await em.findOneByOrFail(Register, { id: sale.registerId })
+    const shift = await em.findOneByOrFail(Shift, { id: sale.shiftId })
+    const lines: {
+      id: string
+      variant_id: string
+      name: string
+      sku: string
+      value_names: string[]
+      qty: number
+      price: number
+      discount: number
+      total: number
+      epc: string | null
+    }[] = await em.query(
+      `SELECT sl.id, sl.variant_id, p.name, v.sku, array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
+              sl.qty::float8 AS qty, sl.price::float8 AS price, sl.discount::float8 AS discount,
+              sl.total::float8 AS total, u.epc
+       FROM sale_lines sl
+       JOIN product_variants v ON v.id = sl.variant_id
+       JOIN products p ON p.id = v.product_id
+       LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
+       LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
+       LEFT JOIN attribute_values a3 ON a3.id = v.value3_id
+       LEFT JOIN rfid_units u ON u.id = sl.unit_id
+       WHERE sl.sale_id = $1
+       ORDER BY sl.position`,
+      [sale.id],
+    )
+    const payments = await em
+      .createQueryBuilder(SalePayment, 'sp')
+      .innerJoin(Account, 'a', 'a.id = sp.accountId')
+      .addSelect('a.name', 'account_name')
+      .where('sp.saleId = :id', { id: sale.id })
+      .orderBy('sp.position')
+      .getRawAndEntities()
+
+    return {
+      ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
+      shiftId: sale.shiftId,
+      shiftNumber: shift.number,
+      subtotal: sale.subtotal,
+      uzsPerUsd: sale.uzsPerUsd,
+      changeUzs: sale.changeUzs,
+      changeUsd: sale.changeUsd,
+      rounding: sale.rounding,
+      note: sale.note,
+      voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
+      voidedByName: sale.voidedByName,
+      voidReason: sale.voidReason,
+      lines: lines.map((line) => ({
+        id: line.id,
+        variantId: line.variant_id,
+        productName: line.name,
+        label: variantLabel(line.value_names),
+        sku: line.sku,
+        qty: line.qty,
+        price: line.price,
+        discount: line.discount,
+        total: line.total,
+        epc: line.epc,
+      })),
+      payments: payments.entities.map((payment, index) => ({
+        method: payment.method,
+        accountName: payments.raw[index].account_name,
+        currency: payment.currency,
+        amount: payment.amount,
+        base: payment.base,
+        reference: payment.reference,
+      })),
+    }
+  }
+}
+
+function summary(sale: Sale, locationName: string, registerName: string, seesCost: boolean) {
+  return {
+    id: sale.id,
+    number: sale.number,
+    status: sale.status,
+    soldAt: sale.soldAt.toISOString(),
+    locationName,
+    registerName,
+    cashierName: sale.cashierName,
+    sellerName: sale.sellerName,
+    discount: sale.discount,
+    total: sale.total,
+    costUzs: seesCost ? sale.costUzs : null,
+  }
+}

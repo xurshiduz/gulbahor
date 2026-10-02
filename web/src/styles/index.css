@@ -185,3 +185,28 @@
   font-family: var(--font-mono);
   font-feature-settings: 'zero' 1;
 }
+
+/* Printing one piece of the screen (lib/print.ts): only its copy reaches the paper, black on white, at receipt width. */
+@media print {
+  html.printing body > *:not(#print-root) {
+    display: none !important;
+  }
+  html.printing,
+  html.printing body {
+    height: auto;
+    background: #fff;
+  }
+  #print-root {
+    width: 72mm;
+    padding: 2mm;
+    font-size: 11px;
+    color: #000;
+  }
+  #print-root * {
+    color: #000 !important;
+    border-color: #000 !important;
+  }
+  @page {
+    margin: 3mm;
+  }
+}

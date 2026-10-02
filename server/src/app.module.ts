@@ -10,8 +10,10 @@ import { AuthModule } from './modules/auth/auth.module'
 import { CatalogModule } from './modules/catalog/catalog.module'
 import { LabelsModule } from './modules/labels/labels.module'
 import { LocationsModule } from './modules/locations/locations.module'
+import { MoneyModule } from './modules/money/money.module'
 import { OrgsModule } from './modules/orgs/orgs.module'
 import { PartnersModule } from './modules/partners/partners.module'
+import { PosModule } from './modules/pos/pos.module'
 import { PricingModule } from './modules/pricing/pricing.module'
 import { ReceiptsModule } from './modules/receipts/receipts.module'
 import { RealtimeGatewayModule } from './modules/realtime/realtime.gateway'
@@ -45,6 +47,8 @@ import { UsersModule } from './modules/users/users.module'
     StockDocsModule,
     LabelsModule,
     PricingModule,
+    MoneyModule,
+    PosModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

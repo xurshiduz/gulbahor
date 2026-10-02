@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
@@ -54,7 +55,16 @@ function BusinessSettings() {
   const { me } = useSession()
   const saveOrg = useSaveOrg()
 
-  const form = useForm({ defaultValues: { name: me.org.name, settings: { autoLockMinutes: me.org.settings.autoLockMinutes as number | null } } })
+  const form = useForm({
+    defaultValues: {
+      name: me.org.name,
+      settings: {
+        autoLockMinutes: me.org.settings.autoLockMinutes as number | null,
+        changeRoundStep: me.org.settings.changeRoundStep as number | null,
+        maxDiscountPercent: me.org.settings.maxDiscountPercent as number | null,
+      },
+    },
+  })
   const errors = form.formState.errors
 
   const mutation = useMutation({
@@ -80,6 +90,36 @@ function BusinessSettings() {
               name="settings.autoLockMinutes"
               render={({ field }) => (
                 <NumberInput id={id} value={field.value} onChange={field.onChange} min={0} max={240} suffix={t('settings.minutes')} className="w-40" />
+              )}
+            />
+          )}
+        </Field>
+        <Field
+          label={t('settings.changeRound')}
+          hint={t('settings.changeRoundHint')}
+          error={errors.settings?.changeRoundStep?.message}
+        >
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="settings.changeRoundStep"
+              render={({ field }) => (
+                <MoneyInput id={id} value={field.value} onChange={field.onChange} currency="UZS" className="w-40" />
+              )}
+            />
+          )}
+        </Field>
+        <Field
+          label={t('settings.maxDiscount')}
+          hint={t('settings.maxDiscountHint')}
+          error={errors.settings?.maxDiscountPercent?.message}
+        >
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="settings.maxDiscountPercent"
+              render={({ field }) => (
+                <NumberInput id={id} value={field.value} onChange={field.onChange} decimals={1} max={100} suffix="%" className="w-40" />
               )}
             />
           )}
@@ -120,7 +160,6 @@ function ModuleSettings() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-ink-3">{t('settings.modulesHint')}</p>
       <Card className="divide-y divide-line p-0">
         {MODULES.map((module) => {
           const required = module.requires?.map((key) => MODULES.find((item) => item.key === key)?.title).filter(Boolean)

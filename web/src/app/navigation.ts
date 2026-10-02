@@ -4,6 +4,7 @@ import {
   BookMarked,
   Boxes,
   Building2,
+  CalendarClock,
   ClipboardCheck,
   FlaskConical,
   Handshake,
@@ -13,11 +14,14 @@ import {
   MonitorSmartphone,
   PackageMinus,
   PackagePlus,
+  ReceiptText,
+  ScanBarcode,
   Settings,
   Shirt,
   Tags,
   Truck,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -26,8 +30,8 @@ export interface NavItem {
   /** Translation key. */
   label: string
   icon: LucideIcon
-  /** Shown only to people who hold this permission. */
-  permission?: string
+  /** Shown only to people who hold this permission, or any one of several. */
+  permission?: string | string[]
   /** Shown only when the business has this module on. */
   module?: string
   /** Only in development builds. */
@@ -47,6 +51,14 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: 'nav.groupMain',
     items: [{ to: '/', label: 'nav.home', icon: Home }],
+  },
+  {
+    label: 'nav.groupSales',
+    items: [
+      { to: '/pos', label: 'nav.pos', icon: ScanBarcode, permission: 'pos.sell' },
+      { to: '/sales', label: 'nav.sales', icon: ReceiptText, permission: ['pos.sell', 'sales.view'] },
+      { to: '/shifts', label: 'nav.shifts', icon: CalendarClock, permission: ['pos.sell', 'sales.shifts'] },
+    ],
   },
   {
     label: 'nav.groupCatalog',
@@ -72,6 +84,7 @@ export const NAVIGATION: NavGroup[] = [
     label: 'nav.groupManage',
     items: [
       { to: '/locations', label: 'nav.locations', icon: Building2, permission: 'locations.view' },
+      { to: '/money', label: 'nav.money', icon: Wallet, permission: ['money.view', 'money.manage'] },
       { to: '/devices', label: 'nav.devices', icon: MonitorSmartphone, permission: 'devices.manage' },
       { to: '/users', label: 'nav.users', icon: Users, permission: 'users.view' },
       { to: '/roles', label: 'nav.roles', icon: KeyRound, permission: 'roles.manage' },

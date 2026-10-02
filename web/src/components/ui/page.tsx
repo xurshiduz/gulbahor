@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/cn'
@@ -10,30 +11,99 @@ import { controlClass } from './input'
 
 interface PageProps {
   title: string
-  subtitle?: string
+  /** A few words beside the title that say which one this is: a document's shop and author, the till in use. */
+  note?: ReactNode
   actions?: ReactNode
   children: ReactNode
   /** Narrow pages (forms, settings) read better at a limited width. */
   width?: 'full' | 'narrow'
 }
 
-/** A screen: its name, what it is for, its main action, and the content filling the rest. */
-export function Page({ title, subtitle, actions, children, width = 'full' }: PageProps) {
+/** Where the frame around the screens shows a screen's name: in its own top bar, so the screen starts with its content. */
+export const PageChrome = createContext<{ title: HTMLElement | null } | null>(null)
+
+type BarKind = 'tabs' | 'toolbar'
+
+interface PageBarValue {
+  /** The place the screen's buttons go: the right end of its first row. */
+  slot: HTMLElement | null
+  claim: (kind: BarKind, element: HTMLElement | null) => void
+}
+
+const PageBar = createContext<PageBarValue | null>(null)
+
+/**
+ * A row that can hold the screen's buttons at its right end (the tabs, a
+ * list's filters) offers the place through this ref, so the buttons take no
+ * row of their own. Null outside a screen.
+ */
+export function usePageBarSlot(kind: BarKind): ((element: HTMLElement | null) => void) | null {
+  const claim = useContext(PageBar)?.claim
+  return useMemo(() => (claim ? (element: HTMLElement | null) => claim(kind, element) : null), [claim, kind])
+}
+
+/** What floats above a screen (a dialog) is not part of its rows. */
+export function PageBarBoundary({ children }: { children: ReactNode }) {
+  return <PageBar.Provider value={null}>{children}</PageBar.Provider>
+}
+
+/**
+ * Buttons that act on the screen, or on the tab in view. They go to the
+ * right end of the screen's first row; where there is no such row, they
+ * stay where they are written, on the right.
+ */
+export function PageActions({ children }: { children: ReactNode }) {
+  const slot = useContext(PageBar)?.slot
+  if (slot) {
+    return createPortal(children, slot)
+  }
+  return <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{children}</div>
+}
+
+/**
+ * A screen: its name, its main actions, and the content filling the rest.
+ * Inside the app's frame the name sits in the top bar; on its own, a screen
+ * shows it above its content.
+ */
+export function Page({ title, note, actions, children, width = 'full' }: PageProps) {
+  const chrome = useContext(PageChrome)
+  const [slots, setSlots] = useState<Record<BarKind, HTMLElement | null>>({ tabs: null, toolbar: null })
+  const claim = useCallback(
+    (kind: BarKind, element: HTMLElement | null) =>
+      setSlots((current) => (current[kind] === element ? current : { ...current, [kind]: element })),
+    [],
+  )
+  // Tabs are the screen's first row; a list's filters come after them.
+  const slot = slots.tabs ?? slots.toolbar
+  const bar = useMemo(() => ({ slot, claim }), [slot, claim])
+
   useEffect(() => {
     document.title = `${title} · Gulbahor`
   }, [title])
 
+  const heading = (
+    <>
+      <h1 className="max-w-full shrink-0 truncate text-[15px] leading-tight font-semibold text-ink">{title}</h1>
+      {/* Short of room, the note is cut before the name is. */}
+      {note ? <span className="min-w-0 truncate text-xs text-ink-3">{note}</span> : null}
+    </>
+  )
+  const ownRow = !!actions && !slot
+
   return (
-    <div className={cn('mx-auto flex h-full min-h-0 w-full flex-col gap-4 p-5', width === 'narrow' && 'max-w-3xl')}>
-      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-[1_1_16rem]">
-          <h1 className="text-lg leading-tight font-semibold text-ink">{title}</h1>
-          {subtitle ? <p className="mt-0.5 max-w-2xl text-xs text-ink-3">{subtitle}</p> : null}
-        </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-    </div>
+    <PageBar.Provider value={bar}>
+      <div className={cn('mx-auto flex h-full min-h-0 w-full flex-col gap-3 p-4', width === 'narrow' && 'max-w-3xl')}>
+        {chrome?.title ? createPortal(heading, chrome.title) : null}
+        {!chrome || ownRow ? (
+          <header className="flex shrink-0 flex-wrap items-center gap-3">
+            {!chrome ? <div className="flex min-w-0 flex-[1_1_12rem] items-baseline gap-2">{heading}</div> : null}
+            {ownRow ? <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
+          </header>
+        ) : null}
+        {actions && slot ? createPortal(actions, slot) : null}
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      </div>
+    </PageBar.Provider>
   )
 }
 

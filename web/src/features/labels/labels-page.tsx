@@ -13,7 +13,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Menu, Select } from '@/components/ui/controls'
+import { FilterSelect } from '@/components/ui/column-filters'
+import { Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
@@ -151,7 +152,6 @@ export function LabelsPage() {
   return (
     <Page
       title={t('labels.pageTitle')}
-      subtitle={t('labels.pageSubtitle')}
       actions={
         <Button variant="primary" onClick={() => setPrinting(true)}>
           <Plus />
@@ -174,15 +174,9 @@ export function LabelsPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => ({ ...previous, size, page: 1 }) }),
         }}
-        toolbar={
-          <>
-            <SearchInput
-              value={search.q ?? ''}
-              onChange={(q) =>
-                void navigate({ search: (previous) => ({ ...previous, q: q || undefined, page: 1 }), replace: true })
-              }
-            />
-            <Select
+        filters={{
+          status: (
+            <FilterSelect
               value={search.status}
               onChange={(status) =>
                 void navigate({
@@ -190,10 +184,19 @@ export function LabelsPage() {
                 })
               }
               options={[
-                { value: 'all', label: `${t('common.status')}: ${t('common.all').toLowerCase()}` },
+                { value: 'all', label: t('common.all') },
                 ...PRINT_JOB_STATUSES.map((status) => ({ value: status, label: PRINT_JOB_STATUS_LABELS[status] })),
               ]}
-              className="w-48"
+            />
+          ),
+        }}
+        toolbar={
+          <>
+            <SearchInput
+              value={search.q ?? ''}
+              onChange={(q) =>
+                void navigate({ search: (previous) => ({ ...previous, q: q || undefined, page: 1 }), replace: true })
+              }
             />
           </>
         }

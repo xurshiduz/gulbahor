@@ -16,7 +16,8 @@ import { Boxes } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ColorDot, Combobox } from '@/components/ui/combobox'
+import { FilterCombo, FilterSelect } from '@/components/ui/column-filters'
+import { ColorDot } from '@/components/ui/combobox'
 import { Select } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
@@ -166,7 +167,7 @@ export function StockPage() {
   const filtered = !!(search.q || search.categoryId || search.brandId || search.locationId)
 
   return (
-    <Page title={t('stock.title')} subtitle={t('stock.subtitle')}>
+    <Page title={t('stock.title')}>
       <DataTable
         columns={columns}
         data={list.data?.items}
@@ -184,6 +185,42 @@ export function StockPage() {
           total: list.data?.total ?? 0,
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
+        }}
+        filters={{
+          category: (
+            <FilterCombo
+              options={categoryOptions}
+              value={search.categoryId ?? null}
+              onChange={(categoryId) =>
+                void navigate({ search: (previous) => withFilter(previous, { categoryId: categoryId ?? undefined }) })
+              }
+            />
+          ),
+          name: (
+            <FilterCombo
+              options={brandOptions}
+              value={search.brandId ?? null}
+              placeholder={t('products.brand')}
+              onChange={(brandId) =>
+                void navigate({ search: (previous) => withFilter(previous, { brandId: brandId ?? undefined }) })
+              }
+            />
+          ),
+          qty: (
+            <FilterSelect
+              value={search.presence}
+              onChange={(presence) =>
+                void navigate({
+                  search: (previous) => withFilter(previous, { presence: presence as typeof search.presence }),
+                })
+              }
+              options={[
+                { value: 'in', label: t('stock.present') },
+                { value: 'out', label: t('stock.absent') },
+                { value: 'all', label: t('common.all') },
+              ]}
+            />
+          ),
         }}
         toolbar={
           <>
@@ -208,38 +245,6 @@ export function StockPage() {
                 ...(locations.data ?? []).map((location) => ({ value: location.id, label: location.name })),
               ]}
               className="w-48"
-            />
-            <Combobox
-              options={categoryOptions}
-              value={search.categoryId ?? null}
-              onChange={(categoryId) =>
-                void navigate({ search: (previous) => withFilter(previous, { categoryId: categoryId ?? undefined }) })
-              }
-              placeholder={t('products.category')}
-              className="w-56"
-            />
-            <Combobox
-              options={brandOptions}
-              value={search.brandId ?? null}
-              onChange={(brandId) =>
-                void navigate({ search: (previous) => withFilter(previous, { brandId: brandId ?? undefined }) })
-              }
-              placeholder={t('products.brand')}
-              className="w-44"
-            />
-            <Select
-              value={search.presence}
-              onChange={(presence) =>
-                void navigate({
-                  search: (previous) => withFilter(previous, { presence: presence as typeof search.presence }),
-                })
-              }
-              options={[
-                { value: 'in', label: t('stock.present') },
-                { value: 'out', label: t('stock.absent') },
-                { value: 'all', label: t('common.all') },
-              ]}
-              className="w-40"
             />
           </>
         }

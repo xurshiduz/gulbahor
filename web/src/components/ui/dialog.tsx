@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
 
 import { Button } from './button'
+import { PageBarBoundary } from './page'
 
 interface DialogProps {
   open: boolean
@@ -69,7 +70,9 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
               </Button>
             </Primitive.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <PageBarBoundary>{children}</PageBarBoundary>
+          </div>
           {footer ? (
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>
           ) : null}

@@ -79,7 +79,10 @@ export const phoneSchema = z
     return parsed.ok ? parsed.e164 : value
   })
 
-export const optionalPhoneSchema = z.preprocess((value) => (value === '' || value === undefined ? null : value), phoneSchema.nullable())
+export const optionalPhoneSchema = z.preprocess(
+  (value) => (value === '' || value === undefined ? null : value),
+  phoneSchema.nullable(),
+)
 
 // ───────────────────────────── Auth ─────────────────────────────
 
@@ -156,9 +159,17 @@ export interface MeDto {
 export interface OrgSettings {
   /** Lock the screen after this many idle minutes; 0 turns locking off. */
   autoLockMinutes: number
+  /** Change in so'm is handed back in steps of this (tiyin): the smallest note the tills keep. 0 gives it to the tiyin. */
+  changeRoundStep: number
+  /** A cashier may take this much off a sale, in percent; more needs someone allowed to go over. */
+  maxDiscountPercent: number
 }
 
-export const DEFAULT_ORG_SETTINGS: OrgSettings = { autoLockMinutes: 10 }
+export const DEFAULT_ORG_SETTINGS: OrgSettings = {
+  autoLockMinutes: 10,
+  changeRoundStep: 100_000,
+  maxDiscountPercent: 10,
+}
 
 export interface OrgDto {
   id: string
@@ -172,7 +183,12 @@ export interface OrgDto {
 
 export const orgUpdateSchema = z.object({
   name: requiredText(120),
-  settings: z.object({ autoLockMinutes: z.coerce.number().int().min(0).max(240) }),
+  settings: z.object({
+    autoLockMinutes: z.coerce.number().int().min(0).max(240),
+    // Left out, each stays as it is.
+    changeRoundStep: z.coerce.number().int().min(0).max(100_000_00).optional(),
+    maxDiscountPercent: z.coerce.number().min(0).max(100).optional(),
+  }),
 })
 export type OrgUpdateInput = z.infer<typeof orgUpdateSchema>
 

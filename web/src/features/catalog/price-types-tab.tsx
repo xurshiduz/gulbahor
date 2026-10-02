@@ -27,6 +27,7 @@ import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
+import { PageActions } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
@@ -165,6 +166,15 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
 
   return (
     <>
+      <PageActions>
+        {canManage ? (
+          <Button variant="primary" onClick={() => setEditing('new')}>
+            <Plus />
+            {t('references.addPriceType')}
+            <Shortcut combo="n" className="ml-1 opacity-70" />
+          </Button>
+        ) : null}
+      </PageActions>
       <DataTable
         columns={columns}
         data={priceTypes.data}
@@ -172,18 +182,6 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         rowId={(row) => row.id}
         onRowOpen={canManage ? (row) => setEditing(row) : undefined}
         rowClassName={(row) => (row.isActive ? undefined : 'text-ink-3')}
-        toolbar={
-          <>
-            <p className="min-w-0 flex-1 text-xs text-ink-3">{t('references.priceTypesHint')}</p>
-            {canManage ? (
-              <Button variant="primary" onClick={() => setEditing('new')}>
-                <Plus />
-                {t('references.addPriceType')}
-                <Shortcut combo="n" className="ml-1 opacity-70" />
-              </Button>
-            ) : null}
-          </>
-        }
         empty={<EmptyState icon={Banknote} title={t('common.empty')} />}
       />
       {editing ? (

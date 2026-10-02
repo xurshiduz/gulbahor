@@ -24,6 +24,10 @@ import { LocationsService } from '../locations/locations.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { toOrgDto } from './org.mapper'
 
+/** Only what was sent: a setting left out of a request stays as it is. */
+const given = <T extends object>(values: T): Partial<T> =>
+  Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as Partial<T>
+
 export interface NewOrganization {
   name: string
   owner: { fullName: string; login: string; password: string }
@@ -40,7 +44,9 @@ export class OrgsService {
   ) {}
 
   async get(actor: Actor): Promise<OrgDto> {
-    return this.db.tenant(actor.orgId, async ({ em }) => toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId })))
+    return this.db.tenant(actor.orgId, async ({ em }) =>
+      toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId })),
+    )
   }
 
   async update(actor: Actor, input: OrgUpdateInput): Promise<OrgDto> {
@@ -48,7 +54,7 @@ export class OrgsService {
       const before = await em.findOneByOrFail(Organization, { id: actor.orgId })
       await em.update(Organization, actor.orgId, {
         name: input.name,
-        settings: { ...before.settings, ...input.settings },
+        settings: { ...before.settings, ...given(input.settings) },
       })
       const after = await em.findOneByOrFail(Organization, { id: actor.orgId })
       await this.audit.record(em, actor.orgId, actor, {
@@ -58,7 +64,11 @@ export class OrgsService {
         summary: 'Biznes sozlamalari',
         changes: {
           ...diff(before, after, ['name']),
-          ...diff(before.settings as Record<string, unknown>, after.settings as Record<string, unknown>, ['autoLockMinutes']),
+          ...diff(before.settings as Record<string, unknown>, after.settings as Record<string, unknown>, [
+            'autoLockMinutes',
+            'changeRoundStep',
+            'maxDiscountPercent',
+          ]),
         },
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
@@ -150,7 +160,10 @@ export class OrgsService {
   async create(input: NewOrganization): Promise<{ orgId: string; ownerId: string }> {
     const passwordHash = await hashSecret(input.owner.password)
     return this.db.system(async (em) => {
-      const taken = await em.createQueryBuilder(User, 'u').where('lower(u.login) = :login', { login: input.owner.login }).getCount()
+      const taken = await em
+        .createQueryBuilder(User, 'u')
+        .where('lower(u.login) = :login', { login: input.owner.login })
+        .getCount()
       if (taken) {
         throw AppError.validation({ login: 'Bu login band' })
       }
@@ -182,7 +195,11 @@ export class OrgsService {
         }),
       )
       const ownerRole = roles.find((role) => role.templateKey === OWNER_ROLE_KEY) as Role
-      await em.query(`INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`, [owner.id, ownerRole.id, org.id])
+      await em.query(`INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`, [
+        owner.id,
+        ownerRole.id,
+        org.id,
+      ])
       await this.audit.record(em, org.id, null, {
         action: 'org.create',
         entity: 'org',

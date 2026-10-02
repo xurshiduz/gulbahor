@@ -454,12 +454,12 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
   return (
     <Page
       title={doc ? `${t(`stockdocs.${kind}.one`)} ${doc.number}` : t(`stockdocs.${kind}.new`)}
-      subtitle={
+      note={
         doc
           ? [doc.locationName, doc.toLocationName ? `→ ${doc.toLocationName}` : null, doc.createdByName]
               .filter(Boolean)
               .join(' · ')
-          : t(`stockdocs.${kind}.newHint`)
+          : undefined
       }
       actions={
         <>

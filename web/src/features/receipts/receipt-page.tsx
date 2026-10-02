@@ -501,10 +501,10 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   return (
     <Page
       title={receipt ? `${t('receipts.one')} ${receipt.number}` : t('receipts.new')}
-      subtitle={
+      note={
         receipt
           ? [receipt.locationName, receipt.createdByName, receipt.sourceFile].filter(Boolean).join(' · ')
-          : t('receipts.newHint')
+          : undefined
       }
       actions={
         <>

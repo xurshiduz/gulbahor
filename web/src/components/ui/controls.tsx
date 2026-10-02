@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 
 import { controlClass } from './input'
+import { usePageBarSlot } from './page'
 
 // ───────────────────────────── Select ─────────────────────────────
 
@@ -172,26 +173,33 @@ export function Tabs({
   tabs: { value: string; label: string }[]
   children: ReactNode
 }) {
+  const actionsRef = usePageBarSlot('tabs')
   return (
     <TabsPrimitive.Root value={value} onValueChange={onChange} className="flex min-h-0 flex-1 flex-col">
-      <TabsPrimitive.List className="flex shrink-0 gap-1 border-b border-line">
-        {tabs.map((tab) => (
-          <TabsPrimitive.Trigger
-            key={tab.value}
-            value={tab.value}
-            className="-mb-px h-9 border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink data-[state=active]:border-accent data-[state=active]:text-ink"
-          >
-            {tab.label}
-          </TabsPrimitive.Trigger>
-        ))}
-      </TabsPrimitive.List>
+      <div className="flex shrink-0 flex-wrap items-end gap-x-3 border-b border-line">
+        <TabsPrimitive.List className="flex gap-1">
+          {tabs.map((tab) => (
+            <TabsPrimitive.Trigger
+              key={tab.value}
+              value={tab.value}
+              className="-mb-px h-9 border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink data-[state=active]:border-accent data-[state=active]:text-ink"
+            >
+              {tab.label}
+            </TabsPrimitive.Trigger>
+          ))}
+        </TabsPrimitive.List>
+        {/* The buttons of the screen, or of the tab in view. */}
+        {actionsRef ? (
+          <div ref={actionsRef} className="ml-auto flex flex-wrap items-center gap-2 pb-0.5 empty:hidden" />
+        ) : null}
+      </div>
       {children}
     </TabsPrimitive.Root>
   )
 }
 
 export const TabPanel = ({ value, children }: { value: string; children: ReactNode }) => (
-  <TabsPrimitive.Content value={value} className="flex min-h-0 flex-1 flex-col pt-5 outline-none">
+  <TabsPrimitive.Content value={value} className="flex min-h-0 flex-1 flex-col pt-3 outline-none">
     {children}
   </TabsPrimitive.Content>
 )

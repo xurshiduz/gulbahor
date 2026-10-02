@@ -185,7 +185,6 @@ function PinCard() {
 }
 
 function Sessions() {
-  const { t } = useTranslation()
   const sessions = useQuery({
     queryKey: ['me', 'sessions'],
     queryFn: ({ signal }) => api.get<SessionDto[]>('/auth/sessions', undefined, signal),
@@ -198,7 +197,6 @@ function Sessions() {
 
   return (
     <Card>
-      <p className="mb-2 text-xs text-ink-3">{t('profile.sessionsHint')}</p>
       {sessions.isPending ? (
         <div className="flex justify-center py-6">
           <Spinner />

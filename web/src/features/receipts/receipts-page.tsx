@@ -14,10 +14,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
-import { Select } from '@/components/ui/controls'
+import { FilterCombo, FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { DataTable } from '@/components/ui/data-table'
-import { DateInput } from '@/components/ui/date-input'
 import { Badge, EmptyState, Shortcut, Tooltip } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
@@ -172,7 +170,6 @@ export function ReceiptsPage() {
   return (
     <Page
       title={t('receipts.title')}
-      subtitle={t('receipts.subtitle')}
       actions={
         <>
           {canImport ? (
@@ -213,6 +210,47 @@ export function ReceiptsPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
         }}
+        filters={{
+          status: (
+            <FilterSelect
+              value={search.status}
+              onChange={(status) =>
+                void navigate({
+                  search: (previous) => withFilter(previous, { status: status as typeof search.status }),
+                })
+              }
+              options={[
+                { value: 'all', label: t('common.all') },
+                ...RECEIPT_STATUSES.map((status) => ({ value: status, label: RECEIPT_STATUS_LABELS[status] })),
+              ]}
+            />
+          ),
+          location: (
+            <FilterCombo
+              options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
+              value={search.locationId ?? null}
+              onChange={(locationId) =>
+                void navigate({ search: (previous) => withFilter(previous, { locationId: locationId ?? undefined }) })
+              }
+            />
+          ),
+          date: (
+            <FilterDates
+              from={search.from}
+              to={search.to}
+              onChange={(range) => void navigate({ search: (previous) => withFilter(previous, range) })}
+            />
+          ),
+          supplier: suppliers.data ? (
+            <FilterCombo
+              options={suppliers.data.items.map((partner) => ({ value: partner.id, label: partner.name }))}
+              value={search.supplierId ?? null}
+              onChange={(supplierId) =>
+                void navigate({ search: (previous) => withFilter(previous, { supplierId: supplierId ?? undefined }) })
+              }
+            />
+          ) : null,
+        }}
         toolbar={
           <>
             <SearchInput
@@ -221,52 +259,6 @@ export function ReceiptsPage() {
               onChange={(q) =>
                 void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
               }
-            />
-            <Select
-              value={search.status}
-              onChange={(status) =>
-                void navigate({
-                  search: (previous) => withFilter(previous, { status: status as typeof search.status }),
-                })
-              }
-              options={[
-                { value: 'all', label: `${t('common.status')}: ${t('common.all').toLowerCase()}` },
-                ...RECEIPT_STATUSES.map((status) => ({ value: status, label: RECEIPT_STATUS_LABELS[status] })),
-              ]}
-              className="w-44"
-            />
-            <Combobox
-              options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
-              value={search.locationId ?? null}
-              onChange={(locationId) =>
-                void navigate({ search: (previous) => withFilter(previous, { locationId: locationId ?? undefined }) })
-              }
-              placeholder={t('receipts.location')}
-              className="w-48"
-            />
-            {suppliers.data ? (
-              <Combobox
-                options={suppliers.data.items.map((partner) => ({ value: partner.id, label: partner.name }))}
-                value={search.supplierId ?? null}
-                onChange={(supplierId) =>
-                  void navigate({ search: (previous) => withFilter(previous, { supplierId: supplierId ?? undefined }) })
-                }
-                placeholder={t('receipts.supplier')}
-                className="w-52"
-              />
-            ) : null}
-            <DateInput
-              value={search.from ?? ''}
-              onChange={(from) =>
-                void navigate({ search: (previous) => withFilter(previous, { from: from || undefined }) })
-              }
-              className="w-36"
-            />
-            <span className="text-xs text-ink-3">—</span>
-            <DateInput
-              value={search.to ?? ''}
-              onChange={(to) => void navigate({ search: (previous) => withFilter(previous, { to: to || undefined }) })}
-              className="w-36"
             />
           </>
         }

@@ -26,6 +26,7 @@ import { usePreference } from '@/lib/preferences'
 import { Button } from './button'
 import { Checkbox, Select } from './controls'
 import { EmptyState, Skeleton, Tooltip } from './feedback'
+import { usePageBarSlot } from './page'
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -74,8 +75,13 @@ interface DataTableProps<T> {
   pagination?: TablePagination
   /** Remembers this person's columns under this name. */
   preferenceKey?: string
-  /** Filters and search, shown above the table on the left. */
+  /** The search, and whatever filters by no column, shown above the table on the left. */
   toolbar?: ReactNode
+  /**
+   * Filters by column id: each sits under the header of the column it filters by, so they cost one row whatever
+   * their number. One whose column is hidden moves up beside the search rather than out of reach.
+   */
+  filters?: Record<string, ReactNode>
   empty?: ReactNode
   rowClassName?: (row: T) => string | undefined
   /**
@@ -104,12 +110,14 @@ export function DataTable<T>({
   pagination,
   preferenceKey,
   toolbar,
+  filters,
   empty,
   rowClassName,
   exportAs,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const bodyRef = useRef<HTMLTableSectionElement>(null)
+  const actionsRef = usePageBarSlot('toolbar')
   const scrollRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(-1)
   const rows = useMemo(() => data ?? [], [data])
@@ -219,39 +227,55 @@ export function DataTable<T>({
   }
 
   const isEmpty = !loading && rows.length === 0
-  const visibleCount = table.getVisibleLeafColumns().length
+  const visibleIds = table.getVisibleLeafColumns().map((column) => column.id)
+  const visibleCount = visibleIds.length
+  const given = Object.entries(filters ?? {}).filter(([, control]) => !!control)
+  const underHeader = new Map(given.filter(([id]) => visibleIds.includes(id)))
+  const loose = given.filter(([id]) => !visibleIds.includes(id))
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {toolbar || preferenceKey || exportAs ? (
+      {toolbar || loose.length || preferenceKey || exportAs ? (
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbar}</div>
-          {exportAs ? (
-            <ExportButton
-              fileName={exportAs.fileName}
-              rows={exportAs.rows}
-              columns={ordered.flatMap((id) => {
-                const column = columns.find((item) => item.id === id)
-                const meta = column?.meta
-                return column && meta?.export && !preference.hidden.includes(id)
-                  ? [
-                      {
-                        title: meta.label ?? (typeof column.header === 'string' ? column.header : id),
-                        value: meta.export,
-                      },
-                    ]
-                  : []
-              })}
-            />
-          ) : null}
-          {preferenceKey ? (
-            <ColumnChooser
-              columns={shown}
-              order={ordered}
-              hidden={preference.hidden}
-              onChange={(next) => setPreference(next)}
-            />
-          ) : null}
+          {/* The filters keep a workable width: short of it, what follows moves to a line of its own. */}
+          <div className="flex min-w-0 flex-[1_1_24rem] flex-wrap items-center gap-2">
+            {toolbar}
+            {loose.map(([id, control]) => (
+              <div key={id} className="w-44">
+                {control}
+              </div>
+            ))}
+          </div>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2 empty:hidden">
+            {exportAs ? (
+              <ExportButton
+                fileName={exportAs.fileName}
+                rows={exportAs.rows}
+                columns={ordered.flatMap((id) => {
+                  const column = columns.find((item) => item.id === id)
+                  const meta = column?.meta
+                  return column && meta?.export && !preference.hidden.includes(id)
+                    ? [
+                        {
+                          title: meta.label ?? (typeof column.header === 'string' ? column.header : id),
+                          value: meta.export,
+                        },
+                      ]
+                    : []
+                })}
+              />
+            ) : null}
+            {preferenceKey ? (
+              <ColumnChooser
+                columns={shown}
+                order={ordered}
+                hidden={preference.hidden}
+                onChange={(next) => setPreference(next)}
+              />
+            ) : null}
+            {/* The screen's own buttons end the row, when no row above has taken them. */}
+            {actionsRef ? <div ref={actionsRef} className="contents" /> : null}
+          </div>
         </div>
       ) : null}
 
@@ -278,7 +302,8 @@ export function DataTable<T>({
                         key={header.id}
                         aria-sort={isSorted ? (order === 'desc' ? 'descending' : 'ascending') : undefined}
                         className={cn(
-                          'h-8.5 border-b border-line bg-sunken px-3 text-left text-[11px] font-semibold tracking-[0.04em] whitespace-nowrap text-ink-3 uppercase',
+                          'h-8.5 bg-sunken px-3 text-left text-[11px] font-semibold tracking-[0.04em] whitespace-nowrap text-ink-3 uppercase',
+                          !underHeader.size && 'border-b border-line',
                           meta?.headerClassName,
                         )}
                       >
@@ -308,6 +333,15 @@ export function DataTable<T>({
                   })}
                 </tr>
               ))}
+              {underHeader.size ? (
+                <tr>
+                  {visibleIds.map((id) => (
+                    <th key={id} className="border-b border-line bg-sunken px-1.5 pb-1.5 text-left font-normal">
+                      {underHeader.get(id)}
+                    </th>
+                  ))}
+                </tr>
+              ) : null}
             </thead>
             <tbody ref={bodyRef}>
               {loading && !rows.length

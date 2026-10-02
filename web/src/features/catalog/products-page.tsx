@@ -14,8 +14,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { ColorDot, Combobox } from '@/components/ui/combobox'
-import { Menu, Select } from '@/components/ui/controls'
+import { FilterCombo, FilterSelect } from '@/components/ui/column-filters'
+import { ColorDot } from '@/components/ui/combobox'
+import { Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
@@ -227,7 +228,6 @@ export function ProductsPage() {
   return (
     <Page
       title={t('products.title')}
-      subtitle={t('products.subtitle')}
       actions={
         canManage ? (
           <Button variant="primary" onClick={() => open('new')}>
@@ -260,35 +260,28 @@ export function ProductsPage() {
           onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
           onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
         }}
-        toolbar={
-          <>
-            <SearchInput
-              value={search.q ?? ''}
-              placeholder={t('products.searchPlaceholder')}
-              onChange={(q) =>
-                void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
-              }
-              className="w-72"
-            />
-            <Combobox
+        filters={{
+          category: (
+            <FilterCombo
               options={categoryOptions}
               value={search.categoryId ?? null}
               onChange={(categoryId) =>
                 void navigate({ search: (previous) => withFilter(previous, { categoryId: categoryId ?? undefined }) })
               }
-              placeholder={t('products.category')}
-              className="w-60"
             />
-            <Combobox
+          ),
+          name: (
+            <FilterCombo
               options={brandOptions}
               value={search.brandId ?? null}
+              placeholder={t('products.brand')}
               onChange={(brandId) =>
                 void navigate({ search: (previous) => withFilter(previous, { brandId: brandId ?? undefined }) })
               }
-              placeholder={t('products.brand')}
-              className="w-44"
             />
-            <Select
+          ),
+          status: (
+            <FilterSelect
               value={search.status}
               onChange={(status) =>
                 void navigate({
@@ -300,7 +293,18 @@ export function ProductsPage() {
                 { value: 'archived', label: t('common.archived') },
                 { value: 'all', label: t('common.all') },
               ]}
-              className="w-36"
+            />
+          ),
+        }}
+        toolbar={
+          <>
+            <SearchInput
+              value={search.q ?? ''}
+              placeholder={t('products.searchPlaceholder')}
+              onChange={(q) =>
+                void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
+              }
+              className="w-72"
             />
           </>
         }

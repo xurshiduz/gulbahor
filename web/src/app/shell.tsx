@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Menu } from '@/components/ui/controls'
 import { Shortcut, Tooltip } from '@/components/ui/feedback'
+import { PageChrome } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { cn } from '@/lib/cn'
 import { useHotkey } from '@/lib/hotkeys'
@@ -44,6 +45,9 @@ export function Shell() {
   const [collapsed, setCollapsed] = useCollapsed()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // The screen in view puts its name into the top bar.
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null)
+  const chrome = useMemo(() => ({ title: titleSlot }), [titleSlot])
 
   // What this person may open, numbered in menu order for Alt+1…9.
   const groups = useMemo(() => {
@@ -51,7 +55,12 @@ export function Shell() {
     return NAVIGATION.map((group) => ({
       label: group.label,
       items: group.items
-        .filter((item) => (!item.permission || can(item.permission)) && (!item.module || hasModule(item.module)) && (!item.devOnly || import.meta.env.DEV))
+        .filter(
+          (item) =>
+            (!item.permission || [item.permission].flat().some(can)) &&
+            (!item.module || hasModule(item.module)) &&
+            (!item.devOnly || import.meta.env.DEV),
+        )
         .map((item) => ({ ...item, shortcut: ++position <= 9 ? `alt+${position}` : undefined })),
     })).filter((group) => group.items.length > 0)
   }, [can, hasModule])
@@ -99,17 +108,22 @@ export function Shell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
+          {/* The name of the screen in view. */}
+          <div ref={setTitleSlot} className="flex min-w-0 flex-1 items-baseline gap-2" />
+
+          {/* On a narrow screen the search is only its icon, so the name is not cut short. */}
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex h-8 w-72 max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong"
+            aria-label={t('command.open')}
+            className="flex h-8 w-9 shrink-0 items-center justify-center gap-2 rounded-md border border-line bg-sunken px-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong lg:w-64 lg:justify-start"
           >
-            <Search className="size-4" />
-            <span className="flex-1 truncate text-left">{t('command.placeholder')}</span>
-            <Shortcut combo="mod+k" />
+            <Search className="size-4 shrink-0" />
+            <span className="hidden flex-1 truncate text-left lg:block">{t('command.placeholder')}</span>
+            <Shortcut combo="mod+k" className="hidden lg:inline-flex" />
           </button>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <Tooltip content={connected ? t('common.online') : t('common.offline')}>
               <span className="flex size-8 items-center justify-center" role="status" aria-label={connected ? t('common.online') : t('common.offline')}>
                 <span className={cn('size-2 rounded-full', connected ? 'bg-ok' : 'animate-pulse bg-warn')} />
@@ -141,7 +155,9 @@ export function Shell() {
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">
-          <Outlet />
+          <PageChrome.Provider value={chrome}>
+            <Outlet />
+          </PageChrome.Provider>
         </main>
       </div>
 
