@@ -5,6 +5,7 @@ import { StockDocuments1790000003000 } from './1790000003000-stock-documents'
 import { Labels1790000004000 } from './1790000004000-labels'
 import { Pricing1790000005000 } from './1790000005000-pricing'
 import { Pos1790000006000 } from './1790000006000-pos'
+import { Returns1790000007000 } from './1790000007000-returns'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -15,4 +16,5 @@ export const MIGRATIONS = [
   Labels1790000004000,
   Pricing1790000005000,
   Pos1790000006000,
+  Returns1790000007000,
 ]

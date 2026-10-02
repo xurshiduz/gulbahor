@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { fromBase, gross, saleInputSchema, saleTotals, settle, toBase, type Tender } from './pos'
+import {
+  fromBase,
+  gross,
+  returnInputSchema,
+  returnShare,
+  saleInputSchema,
+  saleTotals,
+  settle,
+  settleRefund,
+  toBase,
+  type Tender,
+} from './pos'
 
 const som = (amount: number) => amount * 100
 const usd = (amount: number) => Math.round(amount * 100)
@@ -152,5 +163,76 @@ describe('saleInputSchema', () => {
     expect(refused({ ...base, lines: twice })).toEqual(['lines.1.epc'])
     expect(refused({ ...base, lines: [{ variantId: ID, qty: 2, epc }] })).toEqual(['lines.0.qty'])
     expect(refused({ ...base, lines: [] })).toEqual(['lines'])
+  })
+})
+
+describe('returns', () => {
+  const cash = (amount: number, currency: 'UZS' | 'USD' = 'UZS'): Tender => ({ method: 'cash', currency, amount })
+  const options = { uzsPerUsd: 12_850, roundStep: som(1000) }
+
+  it('values what comes back at what was paid for it, and the parts add up', () => {
+    // Three shirts sold for 256 500 after a discount: 85 500 each.
+    const line = { qty: 3, total: som(256_500), returnedQty: 0, returnedTotal: 0 }
+    expect(returnShare(line, 1)).toBe(som(85_500))
+    expect(returnShare(line, 3)).toBe(som(256_500))
+
+    // A total that does not divide: the last one takes what is left.
+    const odd = { qty: 3, total: som(100_000), returnedQty: 0, returnedTotal: 0 }
+    const first = returnShare(odd, 1)
+    const second = returnShare({ ...odd, returnedQty: 1, returnedTotal: first }, 1)
+    const third = returnShare({ ...odd, returnedQty: 2, returnedTotal: first + second }, 1)
+    expect([first, second, third]).toEqual([3_333_333, 3_333_333, 3_333_334])
+    // Cloth by the metre: 1,25 m of 2,5.
+    expect(returnShare({ qty: 2.5, total: som(100_000), returnedQty: 0, returnedTotal: 0 }, 1.25)).toBe(som(50_000))
+  })
+
+  it("hands the money back to the sum, with so'm cash rounded as change is", () => {
+    expect(settleRefund(som(85_500), [cash(som(85_500))], options)).toMatchObject({
+      due: 0,
+      rounding: 0,
+      problem: null,
+    })
+    // Rounded to the till's step: the shop gives 500 more.
+    expect(settleRefund(som(85_500), [cash(som(86_000))], options)).toMatchObject({
+      due: 0,
+      rounding: -som(500),
+      problem: null,
+    })
+    // Part to the card it was paid with, the rest in cash.
+    const card: Tender = { method: 'card', currency: 'UZS', amount: som(50_000) }
+    expect(settleRefund(som(85_500), [card, cash(som(35_500))], options)).toMatchObject({ due: 0, problem: null })
+    expect(settleRefund(som(85_500), [card], options)).toMatchObject({ due: som(35_500), problem: null })
+    // 2 $ = 25 700, the rest 59 800 in so'm.
+    expect(settleRefund(som(85_500), [cash(usd(2), 'USD'), cash(som(60_000))], options)).toMatchObject({
+      due: 0,
+      rounding: -som(200),
+      problem: null,
+    })
+  })
+
+  it('refuses more than is owed, and dollars without a rate', () => {
+    expect(settleRefund(som(85_500), [cash(som(90_000))], options).problem).toBe('over')
+    expect(settleRefund(som(85_500), [{ method: 'card', currency: 'UZS', amount: som(90_000) }], options).problem).toBe(
+      'over',
+    )
+    expect(settleRefund(som(85_500), [cash(usd(5), 'USD')], { ...options, uzsPerUsd: null }).problem).toBe('rate')
+    // Nothing owed (all of it went towards other goods): nothing is handed back.
+    expect(settleRefund(0, [], options)).toMatchObject({ due: 0, rounding: 0, problem: null })
+  })
+
+  it('takes a line of the receipt once', () => {
+    const input = {
+      clientKey: KEY,
+      registerId: ID,
+      saleId: ID,
+      lines: [
+        { saleLineId: ID, qty: 1 },
+        { saleLineId: ID, qty: 1 },
+      ],
+      total: som(95_000),
+    }
+    expect(returnInputSchema.safeParse(input).success).toBe(false)
+    const parsed = returnInputSchema.parse({ ...input, lines: [input.lines[0]] })
+    expect(parsed).toMatchObject({ refunds: [], exchange: null })
   })
 })

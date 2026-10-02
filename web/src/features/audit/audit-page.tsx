@@ -20,6 +20,7 @@ const route = getRouteApi('/audit')
 
 const ENTITIES = [
   'sale',
+  'return',
   'shift',
   'receipt',
   'transfer',

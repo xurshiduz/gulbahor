@@ -216,7 +216,13 @@ const labelsRoute = createRoute({
   search: { middlewares: [stripSearchParams({ page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size, status: 'all' })] },
 })
 
-const posRoute = createRoute({ getParentRoute: () => rootRoute, path: '/pos', component: PosPage })
+const posRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pos',
+  component: PosPage,
+  // The receipt to bring goods back on, when the till is opened from the list of receipts.
+  validateSearch: z.object({ return: z.string().optional().catch(undefined) }),
+})
 
 const tillList = {
   page: listSearch.page,
@@ -237,13 +243,14 @@ const salesSearch = z.object({
     .default('all')
     .catch('all'),
   shiftId: z.string().optional().catch(undefined),
+  tab: z.enum(['sales', 'returns']).default('sales').catch('sales'),
 })
 const salesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sales',
   component: SalesPage,
   validateSearch: salesSearch,
-  search: { middlewares: [stripSearchParams(TILL_LIST_DEFAULTS)] },
+  search: { middlewares: [stripSearchParams({ ...TILL_LIST_DEFAULTS, tab: 'sales' })] },
 })
 
 const shiftsSearch = z.object({

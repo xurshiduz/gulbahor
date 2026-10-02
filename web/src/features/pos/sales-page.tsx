@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FilterCombo, FilterDates, FilterSelect } from '@/components/ui/column-filters'
+import { TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
@@ -22,6 +23,7 @@ import { api } from '@/lib/api'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
+import { ReturnsTab } from './returns-tab'
 import { SaleDialog } from './sale-dialog'
 
 const route = getRouteApi('/sales')
@@ -31,13 +33,47 @@ interface LocationOption {
   name: string
 }
 
-/** Every receipt rung up, newest first. A cashier sees their own; those who check sales see them all. */
+/** What the tills did: the receipts rung up, and the returns made against them. */
 export function SalesPage() {
+  const { t } = useTranslation()
+  const { tab } = route.useSearch()
+  const navigate = route.useNavigate()
+  const locations = useQuery({
+    queryKey: ['locations', 'options'],
+    queryFn: ({ signal }) => api.get<LocationOption[]>('/locations/options', undefined, signal),
+  })
+
+  return (
+    <Page title={t('sales.title')}>
+      <Tabs
+        value={tab}
+        // A receipt open in one tab is not one of the other's; the filters stay.
+        onChange={(value) =>
+          void navigate({ search: (previous) => ({ ...previous, tab: value as typeof tab, open: undefined, page: 1 }) })
+        }
+        tabs={[
+          { value: 'sales', label: t('sales.tabSales') },
+          { value: 'returns', label: t('sales.tabReturns') },
+        ]}
+      >
+        <TabPanel value="sales">
+          <SalesTab locations={locations.data ?? []} />
+        </TabPanel>
+        <TabPanel value="returns">
+          <ReturnsTab locations={locations.data ?? []} />
+        </TabPanel>
+      </Tabs>
+    </Page>
+  )
+}
+
+/** Every receipt rung up, newest first. A cashier sees their own; those who check sales see them all. */
+function SalesTab({ locations }: { locations: LocationOption[] }) {
   const { t } = useTranslation()
   const { can } = useSession()
   const search = route.useSearch()
   const navigate = route.useNavigate()
-  const { open: openId, ...filters } = search
+  const { open: openId, tab: _tab, ...filters } = search
   const seesCost = can('stock.cost')
 
   const list = useQuery({
@@ -45,11 +81,6 @@ export function SalesPage() {
     queryFn: ({ signal }) => api.get<PageOf<SaleListItemDto>>('/sales', filters, signal),
     placeholderData: keepPreviousData,
   })
-  const locations = useQuery({
-    queryKey: ['locations', 'options'],
-    queryFn: ({ signal }) => api.get<LocationOption[]>('/locations/options', undefined, signal),
-  })
-
   const filter = (patch: Partial<typeof search>, replace = false) =>
     void navigate({ search: (previous) => ({ ...previous, ...patch, page: 1 }), replace })
 
@@ -139,6 +170,17 @@ export function SalesPage() {
           ] satisfies ColumnDef<SaleListItemDto>[])
         : []),
       {
+        id: 'returned',
+        header: t('sales.returned'),
+        meta: {
+          export: (row) => moneyCell(row.returnedTotal),
+          className: 'tabular text-right whitespace-nowrap text-warn',
+          headerClassName: 'text-right',
+        },
+        cell: ({ row }) =>
+          row.original.returnedTotal ? `−${formatMoney(row.original.returnedTotal, 'UZS', { minor: 'auto' })}` : '',
+      },
+      {
         id: 'paidBy',
         header: t('sales.paidBy'),
         meta: { export: (row) => row.paidBy, className: 'text-ink-2' },
@@ -162,7 +204,7 @@ export function SalesPage() {
     !!(search.q || search.locationId || search.shiftId || search.from || search.to) || search.status !== 'all'
 
   return (
-    <Page title={t('sales.title')}>
+    <>
       <DataTable
         columns={columns}
         data={list.data?.items}
@@ -192,7 +234,7 @@ export function SalesPage() {
           ),
           location: (
             <FilterCombo
-              options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
+              options={locations.map((location) => ({ value: location.id, label: location.name }))}
               value={search.locationId ?? null}
               onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
             />
@@ -228,6 +270,6 @@ export function SalesPage() {
           onClose={() => void navigate({ search: (previous) => ({ ...previous, open: undefined }) })}
         />
       ) : null}
-    </Page>
+    </>
   )
 }

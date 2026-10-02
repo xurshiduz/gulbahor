@@ -3,12 +3,20 @@ import {
   posItemsSchema,
   posLookupSchema,
   posSearchSchema,
+  returnInputSchema,
+  returnListQuerySchema,
+  returnLookupSchema,
   saleInputSchema,
   saleListQuerySchema,
   saleVoidSchema,
   type Page,
   type PosContextDto,
   type PosItemDto,
+  type ReturnableDto,
+  type ReturnDto,
+  type ReturnInput,
+  type ReturnListItemDto,
+  type ReturnListQuery,
   type SaleDto,
   type SaleInput,
   type SaleListItemDto,
@@ -21,6 +29,7 @@ import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, can, CurrentActor } from '../auth/actor'
 import { PosService } from './pos.service'
+import { ReturnsService } from './returns.service'
 import { SalesService } from './sales.service'
 
 const id = () => Param('id', zod(idSchema))
@@ -103,5 +112,41 @@ export class SalesController {
     @Body(zod(saleVoidSchema)) input: SaleVoidInput,
   ): Promise<SaleDto> {
     return this.sales.void(actor, saleId, input)
+  }
+}
+
+@Controller('returns')
+export class ReturnsController {
+  constructor(private readonly returns: ReturnsService) {}
+
+  @Get()
+  list(
+    @CurrentActor() actor: Actor,
+    @Query(zod(returnListQuerySchema)) query: ReturnListQuery,
+  ): Promise<Page<ReturnListItemDto>> {
+    seesSales(actor)
+    return this.returns.list(actor, query)
+  }
+
+  /** The receipt goods are brought back on, by its number or by the tag of a piece it sold. */
+  @Get('lookup')
+  @Can('pos.return')
+  lookup(
+    @CurrentActor() actor: Actor,
+    @Query(zod(returnLookupSchema)) query: { code: string },
+  ): Promise<ReturnableDto> {
+    return this.returns.lookup(actor, query.code)
+  }
+
+  @Get(':id')
+  get(@CurrentActor() actor: Actor, @id() returnId: string): Promise<ReturnDto> {
+    seesSales(actor)
+    return this.returns.get(actor, returnId)
+  }
+
+  @Post()
+  @Can('pos.return')
+  create(@CurrentActor() actor: Actor, @Body(zod(returnInputSchema)) input: ReturnInput): Promise<ReturnDto> {
+    return this.returns.create(actor, input)
   }
 }

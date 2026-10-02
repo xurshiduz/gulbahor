@@ -3,11 +3,16 @@ import {
   gross,
   parseDiscount,
   percentOf,
+  returnShare,
+  roundToStep,
   saleTotals,
   type CurrencyCode,
-  type PaymentMethod,
+  type PosContextDto,
   type PosItemDto,
+  type ReturnableDto,
+  type SaleLineDto,
   type SaleTotals,
+  type TenderMethod,
 } from '@gulbahor/core'
 
 /** One line of the cart: a thing, how many, and what is taken off as the cashier typed it ("10%", "5000"). */
@@ -18,10 +23,10 @@ export interface CartLine {
   discountText: string
 }
 
-/** One way the customer is paying. */
+/** One way money changes hands: the customer paying, or being paid back. */
 export interface TenderRow {
   key: string
-  method: PaymentMethod
+  method: TenderMethod
   currency: CurrencyCode
   /** The card or terminal; null for cash. */
   accountId: string | null
@@ -131,4 +136,87 @@ export function changeText(changeUzs: number, changeUsd: number): string {
   ]
     .filter(Boolean)
     .join(' + ')
+}
+
+/** The ways of paying a till takes, each with its own field: cash always, the rest when the shop has them. */
+export function tenderRows(context: PosContextDto): TenderRow[] {
+  const row = (key: string, method: TenderMethod, currency: CurrencyCode, accountId: string | null): TenderRow => ({
+    key,
+    method,
+    currency,
+    accountId,
+    amount: null,
+    reference: '',
+  })
+  return [
+    row('cash', 'cash', 'UZS', null),
+    ...(context.usd ? [row('usd', 'cash', 'USD', null)] : []),
+    ...(context.cards.length ? [row('card', 'card', 'UZS', context.cards[0].id)] : []),
+    ...(context.terminals.length ? [row('terminal', 'terminal', 'UZS', context.terminals[0].id)] : []),
+  ]
+}
+
+// ───────────────────────────── Goods coming back ─────────────────────────────
+
+/** A receipt goods are being brought back on, and how many of each of its lines. */
+export interface Returning {
+  found: ReturnableDto
+  qty: Record<string, number>
+  reason: string
+}
+
+export interface BackLine {
+  line: SaleLineDto
+  qty: number
+  /** What it is worth coming back: what was paid for it. */
+  total: number
+}
+
+export function backLines(returning: Returning | null): BackLine[] {
+  if (!returning) {
+    return []
+  }
+  return returning.found.sale.lines.flatMap((line) => {
+    const qty = returning.qty[line.id]
+    return qty ? [{ line, qty, total: returnShare(line, qty) }] : []
+  })
+}
+
+/** The ways money can go back on a receipt: cash, and the cards and terminals it was paid with. */
+export function refundRows(context: PosContextDto, found: ReturnableDto): TenderRow[] {
+  return [
+    ...tenderRows(context).filter((row) => row.method === 'cash'),
+    ...found.caps.accounts.map((cap) => ({
+      key: `account:${cap.accountId}`,
+      method: cap.method,
+      currency: 'UZS' as const,
+      accountId: cap.accountId,
+      amount: null,
+      reference: '',
+    })),
+  ]
+}
+
+/**
+ * How money owed to a customer goes back when the cashier types nothing: in
+ * cash as far as cash may go, the rest to the cards it was paid with. Keyed
+ * like the rows of `refundRows`.
+ */
+export function suggestRefunds(due: number, found: ReturnableDto, roundStep: number): Record<string, number> {
+  const inCash = found.free ? due : Math.min(due, found.caps.cash)
+  const suggested: Record<string, number> = {}
+  let rest = due - inCash
+  for (const cap of found.caps.accounts) {
+    const take = Math.min(rest, cap.left)
+    if (take) {
+      suggested[`account:${cap.accountId}`] = take
+      rest -= take
+    }
+  }
+  // What the cards cannot take is left to cash, for the server to allow or refuse.
+  const cash = roundToStep(inCash + rest, roundStep)
+  if (cash) {
+    suggested.cash = cash
+  }
+  return suggested
 }

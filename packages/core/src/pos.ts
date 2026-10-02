@@ -28,7 +28,7 @@ export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   system: 'Ichki hisob',
 }
 
-export const SYSTEM_ACCOUNTS = ['sales', 'rounding', 'fx', 'cash_diff', 'opening'] as const
+export const SYSTEM_ACCOUNTS = ['sales', 'rounding', 'fx', 'cash_diff', 'opening', 'exchange'] as const
 export type SystemAccount = (typeof SYSTEM_ACCOUNTS)[number]
 
 export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
@@ -37,6 +37,8 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
   fx: 'Kurs farqi',
   cash_diff: 'Kassa farqi (kamomad va ortiqcha)',
   opening: "Boshlang'ich qoldiq",
+  // What goods brought back were worth, on its way to the goods taken instead; empty between exchanges.
+  exchange: 'Almashtirish',
 }
 
 /** The accounts a person sets up; a till's own cash is made with the till. */
@@ -129,13 +131,19 @@ export function fromBase(base: number, uzsPerUsd: number): number {
 
 // ───────────────────────────── The sale ─────────────────────────────
 
-export const PAYMENT_METHODS = ['cash', 'card', 'terminal'] as const
+/** How a customer hands money over at the till, and how it is handed back. */
+export const TENDER_METHODS = ['cash', 'card', 'terminal'] as const
+export type TenderMethod = (typeof TENDER_METHODS)[number]
+
+/** What a sale can be paid with: money, or `exchange`: what goods brought back were worth, put towards new ones. */
+export const PAYMENT_METHODS = [...TENDER_METHODS, 'exchange'] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Naqd',
   card: 'Kartaga',
   terminal: 'Terminal',
+  exchange: 'Almashtirish',
 }
 
 export interface CartLine {
@@ -189,7 +197,7 @@ export function saleTotals(cart: readonly CartLine[], saleDiscount: number): Sal
 }
 
 export interface Tender {
-  method: PaymentMethod
+  method: TenderMethod
   currency: CurrencyCode
   /** In the tender's own currency. */
   amount: number
@@ -290,7 +298,7 @@ export type SaleLineInput = z.infer<typeof saleLineInputSchema>
 
 export const salePaymentInputSchema = z
   .object({
-    method: z.enum(PAYMENT_METHODS),
+    method: z.enum(TENDER_METHODS),
     /** The card or the terminal; cash goes to the till's own drawer. */
     accountId: idSchema.nullish().transform((value) => value ?? null),
     currency: z.enum(['UZS', 'USD']).default('UZS'),
@@ -307,6 +315,23 @@ export const salePaymentInputSchema = z
     }
   })
 export type SalePaymentInput = z.infer<typeof salePaymentInputSchema>
+
+/** A tagged piece is one piece, and is on a sale once. */
+function taggedOnce(sale: { lines: SaleLineInput[] }, context: z.RefinementCtx) {
+  const tags = new Set<string>()
+  sale.lines.forEach((line, index) => {
+    if (!line.epc) {
+      return
+    }
+    if (line.qty !== 1) {
+      context.addIssue({ code: 'custom', path: ['lines', index, 'qty'], message: 'RFID dona bittadan sotiladi' })
+    }
+    if (tags.has(line.epc)) {
+      context.addIssue({ code: 'custom', path: ['lines', index, 'epc'], message: 'Bu dona chekda bor' })
+    }
+    tags.add(line.epc)
+  })
+}
 
 export const saleInputSchema = z
   .object({
@@ -325,21 +350,7 @@ export const saleInputSchema = z
     total: amountSchema,
     note: optionalText(300),
   })
-  .superRefine((sale, context) => {
-    const tags = new Set<string>()
-    sale.lines.forEach((line, index) => {
-      if (!line.epc) {
-        return
-      }
-      if (line.qty !== 1) {
-        context.addIssue({ code: 'custom', path: ['lines', index, 'qty'], message: 'RFID dona bittadan sotiladi' })
-      }
-      if (tags.has(line.epc)) {
-        context.addIssue({ code: 'custom', path: ['lines', index, 'epc'], message: 'Bu dona chekda bor' })
-      }
-      tags.add(line.epc)
-    })
-  })
+  .superRefine(taggedOnce)
 export type SaleInput = z.infer<typeof saleInputSchema>
 
 export const SALE_STATUSES = ['completed', 'voided'] as const
@@ -378,6 +389,8 @@ export interface SaleListItemDto {
   costUzs: number | null
   /** How it was paid, in words: "Naqd, Terminal". */
   paidBy: string
+  /** What has come back of it since, in so'm. */
+  returnedTotal: number
 }
 
 export interface SaleLineDto {
@@ -392,6 +405,9 @@ export interface SaleLineDto {
   discount: number
   total: number
   epc: string | null
+  /** How many of them have been brought back, and what those were worth. */
+  returnedQty: number
+  returnedTotal: number
 }
 
 export interface SalePaymentDto {
@@ -420,6 +436,195 @@ export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
   voidReason: string | null
   lines: SaleLineDto[]
   payments: SalePaymentDto[]
+  /** The returns made against it. */
+  returns: { id: string; number: string; returnedAt: string; total: number }[]
+}
+
+// ───────────────────────────── Returns ─────────────────────────────
+
+/**
+ * A return takes goods back against the receipt they were sold on, and only
+ * what that receipt sold. Their value is what was paid for them, discounts
+ * taken off. It is handed back the way it was paid, or put towards other
+ * goods taken instead (an exchange): then only the difference changes hands.
+ */
+
+/**
+ * What so many of a sold line are worth coming back. The last of them take
+ * all that is left, so the parts add up to what was paid, to the tiyin.
+ */
+export function returnShare(
+  line: { qty: number; total: number; returnedQty: number; returnedTotal: number },
+  qty: number,
+): number {
+  const sold = Math.round(line.qty * 1000)
+  const left = sold - Math.round(line.returnedQty * 1000)
+  const asked = Math.round(qty * 1000)
+  const remaining = line.total - line.returnedTotal
+  if (asked >= left) {
+    return remaining
+  }
+  const share = Number((BigInt(line.total) * BigInt(asked) * 2n + BigInt(sold)) / (BigInt(sold) * 2n))
+  return Math.min(share, remaining)
+}
+
+export interface RefundSettlement {
+  /** Handed back, in so'm. */
+  paid: number
+  /** Still to hand back; 0 once covered. */
+  due: number
+  /** What rounding the cash left with the shop (+) or cost it (−), in so'm. */
+  rounding: number
+  problem:
+    /** Dollars are handed back and no rate is set. */
+    | 'rate'
+    /** More is handed back than is owed. */
+    | 'over'
+    | null
+}
+
+/**
+ * Money handed back against what a customer is owed. So'm cash may be the
+ * rest of it rounded to the till's step, as change is; nothing else may
+ * differ from the sum.
+ */
+export function settleRefund(
+  due: number,
+  refunds: readonly Tender[],
+  options: { uzsPerUsd: number | null; roundStep: number },
+): RefundSettlement {
+  if (refunds.some((refund) => refund.currency === 'USD') && !options.uzsPerUsd) {
+    return { paid: 0, due, rounding: 0, problem: 'rate' }
+  }
+  const worth = refunds.map((refund) => toBase(refund.amount, refund.currency, options.uzsPerUsd))
+  const paid = worth.reduce((sum, value) => sum + value, 0)
+  const cash = refunds.reduce(
+    (sum, refund, index) => sum + (refund.method === 'cash' && refund.currency === 'UZS' ? worth[index] : 0),
+    0,
+  )
+  const forCash = due - (paid - cash)
+  if (forCash < 0) {
+    return { paid, due: 0, rounding: 0, problem: 'over' }
+  }
+  if (cash === forCash || cash === roundToStep(forCash, options.roundStep)) {
+    return { paid, due: 0, rounding: forCash - cash, problem: null }
+  }
+  if (paid > due) {
+    return { paid, due: 0, rounding: 0, problem: 'over' }
+  }
+  return { paid, due: due - paid, rounding: 0, problem: null }
+}
+
+export const returnLineInputSchema = z.object({ saleLineId: idSchema, qty: quantitySchema })
+export type ReturnLineInput = z.infer<typeof returnLineInputSchema>
+
+/** The goods taken instead of the ones brought back: a sale, paid first with what came back. */
+export const exchangeInputSchema = z
+  .object({
+    sellerId: idSchema.nullish().transform((value) => value ?? null),
+    lines: z.array(saleLineInputSchema).min(1).max(300),
+    discount: amountSchema.default(0),
+    /** For the difference, when the new goods are worth more. */
+    payments: z.array(salePaymentInputSchema).max(10).default([]),
+    changeCurrency: z.enum(['UZS', 'USD']).default('UZS'),
+    total: amountSchema,
+  })
+  .superRefine(taggedOnce)
+export type ExchangeInput = z.infer<typeof exchangeInputSchema>
+
+export const returnInputSchema = z
+  .object({
+    /** Made by the till for each return: sent twice, it is still made once. */
+    clientKey: z.uuid(),
+    registerId: idSchema,
+    saleId: idSchema,
+    lines: z.array(returnLineInputSchema).min(1, 'Qaytariladigan tovarni tanlang').max(300),
+    reason: optionalText(200),
+    /** How the money goes back. Empty when all of it goes towards the goods taken instead. */
+    refunds: z.array(salePaymentInputSchema).max(10).default([]),
+    exchange: exchangeInputSchema.nullish().transform((value) => value ?? null),
+    /** What the till showed as the value coming back: if the receipt has changed since, the return is refused. */
+    total: amountSchema,
+  })
+  .superRefine((input, context) => {
+    const seen = new Set<string>()
+    input.lines.forEach((line, index) => {
+      if (seen.has(line.saleLineId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['lines', index, 'saleLineId'],
+          message: 'Bu qator ikki marta yozilgan',
+        })
+      }
+      seen.add(line.saleLineId)
+    })
+  })
+export type ReturnInput = z.infer<typeof returnInputSchema>
+
+export const returnLookupSchema = z.object({ code: z.string().trim().min(1).max(64) })
+
+export const returnListQuerySchema = listQuerySchema.extend({
+  locationId: idSchema.optional(),
+  shiftId: idSchema.optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+})
+export type ReturnListQuery = z.infer<typeof returnListQuerySchema>
+
+export interface ReturnListItemDto {
+  id: string
+  number: string
+  returnedAt: string
+  saleId: string
+  saleNumber: string
+  locationName: string
+  registerName: string
+  cashierName: string | null
+  qty: number
+  /** What the goods brought back were worth, in so'm. */
+  total: number
+  /** How much of it went towards goods taken instead. */
+  exchangeTotal: number
+  exchangeSaleId: string | null
+  exchangeSaleNumber: string | null
+  /** Made after the return period was over. */
+  late: boolean
+  reason: string | null
+}
+
+export interface ReturnDto extends ReturnListItemDto {
+  shiftNumber: string
+  rounding: number
+  uzsPerUsd: number | null
+  lines: {
+    id: string
+    productName: string
+    label: string
+    sku: string
+    qty: number
+    total: number
+    epc: string | null
+  }[]
+  /** The money handed back. */
+  refunds: SalePaymentDto[]
+}
+
+/** A receipt as the till sees it when goods are brought back. */
+export interface ReturnableDto {
+  sale: SaleDto
+  /** The line the scanned tag is on, when the receipt was found by a tag. */
+  lineId: string | null
+  /** The return period is over. */
+  late: boolean
+  /** How many days the shop takes goods back for; 0 for no limit. */
+  returnDays: number
+  /** This person may take goods back late, and hand money back otherwise than it was paid. */
+  free: boolean
+  /** How much may still go back each way, in so'm: what was paid that way, less what has gone back. */
+  caps: {
+    cash: number
+    accounts: { accountId: string; method: TenderMethod; name: string; last4: string | null; left: number }[]
+  }
 }
 
 // ───────────────────────────── At the till ─────────────────────────────
@@ -497,6 +702,10 @@ export interface ShiftTotals {
   changeUzs: number
   changeUsd: number
   rounding: number
+  /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
+  returns: number
+  returned: number
+  refunds: { method: PaymentMethod; accountName: string; currency: CurrencyCode; amount: number; base: number }[]
 }
 
 export interface ShiftDto {

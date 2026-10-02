@@ -253,6 +253,21 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE s.shift_id = $1 AND s.status = 'completed'
        GROUP BY p.method, a.name, p.currency
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange'], p.method), p.currency DESC, a.name`,
+      [shiftId],
+    )
+    const [returns]: { returns: number; returned: number }[] = await em.query(
+      `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
+       FROM sale_returns WHERE shift_id = $1`,
+      [shiftId],
+    )
+    const refunds: typeof payments = await em.query(
+      `SELECT p.method, a.name AS account_name, p.currency, sum(p.amount)::float8 AS amount, sum(p.base)::float8 AS base
+       FROM sale_return_payments p
+       JOIN sale_returns r ON r.id = p.return_id
+       JOIN accounts a ON a.id = p.account_id
+       WHERE r.shift_id = $1
+       GROUP BY p.method, a.name, p.currency
        ORDER BY array_position(ARRAY['cash', 'card', 'terminal'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
@@ -272,6 +287,15 @@ export class ShiftsService {
       changeUzs: sales.change_uzs,
       changeUsd: sales.change_usd,
       rounding: sales.rounding,
+      returns: returns.returns,
+      returned: returns.returned,
+      refunds: refunds.map((row) => ({
+        method: row.method,
+        accountName: row.account_name,
+        currency: row.currency,
+        amount: row.amount,
+        base: row.base,
+      })),
     }
   }
 

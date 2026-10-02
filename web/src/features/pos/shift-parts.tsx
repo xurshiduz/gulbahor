@@ -186,6 +186,13 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
         <Row label={t('pos.discount')} value={money(totals.discount)} />
         <Row label={t('pos.total')} value={money(totals.total)} strong />
         {totals.voided ? <Row label={t('pos.reportVoided')} value={formatNumber(totals.voided)} tone="bad" /> : null}
+        {totals.returns ? (
+          <Row
+            label={`${t('sales.tabReturns')} (${formatNumber(totals.returns)})`}
+            value={`−${money(totals.returned)}`}
+            tone="bad"
+          />
+        ) : null}
       </div>
       <div>
         <p className="eyebrow mb-1">{t('pos.reportPayments')}</p>
@@ -200,6 +207,15 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
         ) : (
           <p className="py-1 text-ink-3">—</p>
         )}
+        {totals.refunds.map((refund) => (
+          <Row
+            key={`back:${refund.method}:${refund.accountName}:${refund.currency}`}
+            label={`${t('sales.refunded')}: ${PAYMENT_METHOD_LABELS[refund.method]}${
+              refund.method === 'cash' ? '' : ` · ${refund.accountName}`
+            }`}
+            value={`−${money(refund.amount, refund.currency)}`}
+          />
+        ))}
         {totals.changeUzs ? <Row label={t('pos.changeGiven')} value={`−${money(totals.changeUzs)}`} /> : null}
         {totals.changeUsd ? <Row label={t('pos.changeGiven')} value={`−${money(totals.changeUsd, 'USD')}`} /> : null}
         {totals.rounding ? (

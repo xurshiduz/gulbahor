@@ -173,6 +173,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.sell', title: 'Sotish, smenani ochish va yopish' },
       { key: 'pos.void', title: 'Chekni bekor qilish' },
       { key: 'pos.discount', title: 'Chegaradan oshiq chegirma berish' },
+      { key: 'pos.return', title: 'Qaytarish va almashtirish' },
+      { key: 'pos.return_any', title: "Muddati o'tgan tovarni olish, pulni boshqa usulda qaytarish" },
     ],
   },
   {
@@ -334,7 +336,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     key: 'cashier',
     name: 'Kassir',
     description: 'Sotadi, qaytaradi, smenani ochadi va yopadi.',
-    permissions: ['products.view', 'stock.view', 'pos.sell'],
+    permissions: ['products.view', 'stock.view', 'pos.sell', 'pos.return'],
   },
   {
     key: 'seller',

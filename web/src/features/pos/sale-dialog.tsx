@@ -1,6 +1,7 @@
 import { formatMoney, PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS, type SaleDto } from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, Printer } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { Ban, Printer, Undo2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,6 +30,7 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
   const { t } = useTranslation()
   const { can, me } = useSession()
   const queryClient = useQueryClient()
+  const go = useNavigate()
   const [voiding, setVoiding] = useState(false)
   const [reason, setReason] = useState('')
   const receiptRef = useRef<HTMLDivElement>(null)
@@ -63,6 +65,19 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
             <Button variant="danger" className="mr-auto" onClick={() => setVoiding(true)}>
               <Ban />
               {t('sales.void')}
+            </Button>
+          ) : null}
+          {sale?.status === 'completed' &&
+          can('pos.return') &&
+          sale.lines.some((line) => line.returnedQty < line.qty) ? (
+            <Button
+              onClick={() => {
+                onClose()
+                void go({ to: '/pos', search: { return: sale.number } })
+              }}
+            >
+              <Undo2 />
+              {t('pos.returnTitle')}
             </Button>
           ) : null}
           <Button onClick={onClose}>{t('common.close')}</Button>
@@ -146,6 +161,12 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                       <p className="tabular text-xs text-ink-3">
                         {formatNumber(line.qty)} × {money(line.price)}
                         {line.discount ? ` − ${money(line.discount)}` : ''}
+                        {line.returnedQty ? (
+                          <span className="text-warn">
+                            {' · '}
+                            {t('sales.returnedMark', { qty: formatNumber(line.returnedQty) })}
+                          </span>
+                        ) : null}
                       </p>
                     </td>
                     <td className="tabular py-1.5 text-right font-medium whitespace-nowrap">{money(line.total)}</td>
@@ -183,6 +204,17 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
               ) : null}
             </div>
             {sale.note ? <p className="mt-2 text-xs text-ink-2">{sale.note}</p> : null}
+            {sale.returns.length ? (
+              <div className="mt-2 flex flex-col gap-0.5 border-t border-dashed border-line-strong pt-2">
+                {sale.returns.map((item) => (
+                  <Line
+                    key={item.id}
+                    label={`${t('sales.returnOne')} ${item.number} · ${formatDateTime(item.returnedAt)}`}
+                    value={`−${money(item.total)}`}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       )}

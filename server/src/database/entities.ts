@@ -10,6 +10,7 @@ import type {
   MarkupBase,
   OrgSettings,
   PaymentMethod,
+  TenderMethod,
   PriceKind,
   PrinterDpi,
   PrintJobStatus,
@@ -1664,6 +1665,10 @@ export class Sale {
   @Column('text', { nullable: true })
   voidReason: string | null
 
+  /** What has come back of it, in so'm. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  returnedTotal: number
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
@@ -1705,6 +1710,12 @@ export class SaleLine {
 
   @Column('uuid', { nullable: true })
   unitId: string | null
+
+  @Column('numeric', { transformer: numericAsNumber })
+  returnedQty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  returnedTotal: number
 }
 
 @Entity('sale_items')
@@ -1738,6 +1749,16 @@ export class SaleItem {
 
   @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
+
+  /** How much of the piece has come back, and at what cost. */
+  @Column('numeric', { transformer: numericAsNumber })
+  returnedQty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  returnedUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  returnedUzs: number
 }
 
 @Entity('sale_payments')
@@ -1773,6 +1794,145 @@ export class SalePayment {
   reference: string | null
 }
 
+@Entity('sale_returns')
+export class SaleReturn {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('uuid')
+  saleId: string
+
+  @Column('uuid')
+  shiftId: string
+
+  @Column('uuid')
+  registerId: string
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('timestamptz')
+  returnedAt: Date
+
+  @Column('date')
+  returnedOn: string
+
+  @Column('uuid', { nullable: true })
+  cashierId: string | null
+
+  @Column('text', { nullable: true })
+  cashierName: string | null
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  /** How much of the total went towards the goods taken instead. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  exchangeTotal: number
+
+  @Column('uuid', { nullable: true })
+  exchangeSaleId: string | null
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  rounding: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  uzsPerUsd: number | null
+
+  @Column('boolean')
+  late: boolean
+
+  @Column('text', { nullable: true })
+  reason: string | null
+
+  @Column('text')
+  searchKey: string
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('sale_return_lines')
+export class SaleReturnLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  returnId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  saleLineId: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUsd: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  costUzs: number
+
+  @Column('uuid', { nullable: true })
+  unitId: string | null
+}
+
+@Entity('sale_return_payments')
+export class SaleReturnPayment {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  returnId: string
+
+  @Column('int')
+  position: number
+
+  @Column('text')
+  method: TenderMethod
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+
+  @Column('text', { nullable: true })
+  reference: string | null
+}
+
 export type StockMovementKind =
   | 'receipt'
   | 'receipt_cancel'
@@ -1785,6 +1945,7 @@ export type StockMovementKind =
   | 'count'
   | 'sale'
   | 'sale_void'
+  | 'sale_return'
 
 export const ENTITIES = [
   Organization,
@@ -1830,4 +1991,7 @@ export const ENTITIES = [
   SaleLine,
   SaleItem,
   SalePayment,
+  SaleReturn,
+  SaleReturnLine,
+  SaleReturnPayment,
 ]

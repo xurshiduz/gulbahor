@@ -62,6 +62,7 @@ function BusinessSettings() {
         autoLockMinutes: me.org.settings.autoLockMinutes as number | null,
         changeRoundStep: me.org.settings.changeRoundStep as number | null,
         maxDiscountPercent: me.org.settings.maxDiscountPercent as number | null,
+        returnDays: me.org.settings.returnDays as number | null,
       },
     },
   })
@@ -120,6 +121,21 @@ function BusinessSettings() {
               name="settings.maxDiscountPercent"
               render={({ field }) => (
                 <NumberInput id={id} value={field.value} onChange={field.onChange} decimals={1} max={100} suffix="%" className="w-40" />
+              )}
+            />
+          )}
+        </Field>
+        <Field
+          label={t('settings.returnDays')}
+          hint={t('settings.returnDaysHint')}
+          error={errors.settings?.returnDays?.message}
+        >
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="settings.returnDays"
+              render={({ field }) => (
+                <NumberInput id={id} value={field.value} onChange={field.onChange} min={0} max={3650} suffix={t('settings.days')} className="w-40" />
               )}
             />
           )}
