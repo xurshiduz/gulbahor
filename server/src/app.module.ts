@@ -12,6 +12,7 @@ import { LabelsModule } from './modules/labels/labels.module'
 import { LocationsModule } from './modules/locations/locations.module'
 import { OrgsModule } from './modules/orgs/orgs.module'
 import { PartnersModule } from './modules/partners/partners.module'
+import { PricingModule } from './modules/pricing/pricing.module'
 import { ReceiptsModule } from './modules/receipts/receipts.module'
 import { RealtimeGatewayModule } from './modules/realtime/realtime.gateway'
 import { RealtimeModule } from './modules/realtime/realtime.module'
@@ -43,6 +44,7 @@ import { UsersModule } from './modules/users/users.module'
     ReceiptsModule,
     StockDocsModule,
     LabelsModule,
+    PricingModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

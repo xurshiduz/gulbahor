@@ -232,11 +232,20 @@ export interface AttributeDto {
 
 // ───────────────────────────── Price types ─────────────────────────────
 
-export const priceTypeInputSchema = z.object({
-  name: requiredText(60),
-  kind: z.enum(PRICE_KINDS),
-  currency: z.enum(CURRENCY_CODES as [CurrencyCode, ...CurrencyCode[]]),
-})
+export const priceTypeInputSchema = z
+  .object({
+    name: requiredText(60),
+    kind: z.enum(PRICE_KINDS),
+    currency: z.enum(CURRENCY_CODES as [CurrencyCode, ...CurrencyCode[]]),
+    /** Prices worked out by rule move in steps of this (minor units); 0 leaves them as worked out. */
+    roundStep: z.number().int().min(0).max(1_000_000_000_00).default(0),
+    /** What such a price ends with inside a step: 9 000 with a step of 10 000 gives 49 000, 59 000... */
+    roundEnding: z.number().int().min(0).max(1_000_000_000_00).default(0),
+  })
+  .refine((type) => type.roundEnding === 0 || type.roundEnding < type.roundStep, {
+    path: ['roundEnding'],
+    message: "Oxiri qadamdan kichik bo'lishi kerak",
+  })
 export type PriceTypeInput = z.infer<typeof priceTypeInputSchema>
 
 export interface PriceTypeDto {
@@ -244,6 +253,8 @@ export interface PriceTypeDto {
   name: string
   kind: PriceKind
   currency: CurrencyCode
+  roundStep: number
+  roundEnding: number
   isActive: boolean
 }
 

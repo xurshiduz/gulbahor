@@ -1,6 +1,7 @@
 import {
   CURRENCIES,
   CURRENCY_CODES,
+  formatMoney,
   PRICE_KIND_LABELS,
   PRICE_KINDS,
   priceTypeInputSchema,
@@ -23,8 +24,9 @@ import { DataTable } from '@/components/ui/data-table'
 import { Dialog, useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
-import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
+import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
@@ -81,6 +83,20 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         header: t('references.currency'),
         meta: { className: 'text-ink-2' },
         cell: ({ row }) => CURRENCIES[row.original.currency].symbol,
+      },
+      {
+        id: 'rounding',
+        header: t('references.rounding'),
+        meta: { className: 'tabular text-ink-2 whitespace-nowrap' },
+        cell: ({ row }) => {
+          const { roundStep, roundEnding, currency } = row.original
+          if (!roundStep) {
+            return <span className="text-ink-3">{t('references.roundNone')}</span>
+          }
+          return roundEnding
+            ? `…${formatMoney(roundEnding, currency, { symbol: false })}`
+            : formatMoney(roundStep, currency, { minor: 'auto' })
+        },
       },
       {
         id: 'status',
@@ -186,6 +202,8 @@ interface Values {
   name: string
   kind: PriceKind
   currency: CurrencyCode
+  roundStep: number | null
+  roundEnding: number | null
 }
 
 function PriceTypeDialog({
@@ -207,9 +225,13 @@ function PriceTypeDialog({
       name: type?.name ?? '',
       kind: type?.kind ?? (taken.has('wholesale') ? 'other' : 'wholesale'),
       currency: type?.currency ?? 'UZS',
+      // A new so'm price type rounds to the thousand, as the ready-made ones do.
+      roundStep: type ? type.roundStep : 100_000,
+      roundEnding: type?.roundEnding ?? 0,
     },
   })
   const errors = form.formState.errors
+  const currency = form.watch('currency')
 
   // There is one retail and one minimum type; they are offered only to the type that already is one.
   const kinds = PRICE_KINDS.filter(
@@ -245,7 +267,18 @@ function PriceTypeDialog({
     >
       <Form
         id={formId}
-        onSubmit={() => void zodSubmit(form, priceTypeInputSchema, (input) => mutation.mutate(input))()}
+        onSubmit={() =>
+          void form.handleSubmit((values) => {
+            const input = zodCheck(form, priceTypeInputSchema, {
+              ...values,
+              roundStep: values.roundStep ?? 0,
+              roundEnding: values.roundEnding ?? 0,
+            })
+            if (input) {
+              mutation.mutate(input)
+            }
+          })()
+        }
       >
         <Field label={t('references.name')} error={errors.name?.message} required>
           {(id) => <Input id={id} autoFocus invalid={!!errors.name} {...form.register('name')} />}
@@ -286,6 +319,50 @@ function PriceTypeDialog({
             )}
           </Field>
         ) : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label={t('references.roundStep')}
+            hint={t('references.roundStepHint')}
+            error={errors.roundStep?.message}
+          >
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="roundStep"
+                render={({ field }) => (
+                  <MoneyInput
+                    id={id}
+                    value={field.value}
+                    onChange={field.onChange}
+                    currency={currency}
+                    invalid={!!errors.roundStep}
+                  />
+                )}
+              />
+            )}
+          </Field>
+          <Field
+            label={t('references.roundEnding')}
+            hint={t('references.roundEndingHint')}
+            error={errors.roundEnding?.message}
+          >
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="roundEnding"
+                render={({ field }) => (
+                  <MoneyInput
+                    id={id}
+                    value={field.value}
+                    onChange={field.onChange}
+                    currency={currency}
+                    invalid={!!errors.roundEnding}
+                  />
+                )}
+              />
+            )}
+          </Field>
+        </div>
       </Form>
     </Dialog>
   )

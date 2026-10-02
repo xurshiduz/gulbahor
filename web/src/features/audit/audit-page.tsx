@@ -28,6 +28,8 @@ const ENTITIES = [
   'brand',
   'attribute',
   'price_type',
+  'price_revision',
+  'price_rule',
   'partner',
   'agent',
   'printer',

@@ -98,6 +98,9 @@ export async function createPriceTypes(em: EntityManager, orgId: string): Promis
       name: type.name,
       kind: type.kind,
       currency: 'UZS' as const,
+      // Prices in so'm are round thousands unless the business says otherwise.
+      roundStep: 100_000,
+      roundEnding: 0,
       sortOrder: index + 1,
       isActive: true,
     })),

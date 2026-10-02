@@ -6,6 +6,7 @@ import type {
   Gender,
   LabelSizeKey,
   LocationKind,
+  MarkupBase,
   OrgSettings,
   PriceKind,
   PrinterDpi,
@@ -391,6 +392,12 @@ export class PriceType {
 
   @Column('text')
   currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  roundStep: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  roundEnding: number
 
   @Column('int')
   sortOrder: number
@@ -1216,6 +1223,125 @@ export class PrintJob {
   doneAt: Date | null
 }
 
+/** How far above cost, or from the retail price, goods of one kind are sold. */
+@Entity('price_rules')
+export class PriceRule {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid', { nullable: true })
+  categoryId: string | null
+
+  @Column('uuid', { nullable: true })
+  brandId: string | null
+
+  @Column('text', { nullable: true })
+  season: Season | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('price_rule_markups')
+export class PriceRuleMarkup {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  ruleId: string
+
+  @Column('uuid')
+  priceTypeId: string
+
+  @Column('text')
+  base: MarkupBase
+
+  @Column('numeric', { transformer: numericAsNumber })
+  percent: number
+}
+
+/** One change of many prices at once. */
+@Entity('price_revisions')
+export class PriceRevision {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid', { nullable: true })
+  priceTypeId: string | null
+
+  @Column('text')
+  priceTypeName: string
+
+  @Column('text')
+  summary: string
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('int')
+  changed: number
+
+  @Column('uuid', { nullable: true })
+  revertsId: string | null
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('price_revision_lines')
+export class PriceRevisionLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  revisionId: string
+
+  @Column('uuid')
+  priceTypeId: string
+
+  @Column('uuid')
+  productId: string
+
+  @Column('uuid', { nullable: true })
+  variantId: string | null
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  oldAmount: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  newAmount: number | null
+
+  @Column('text')
+  currency: CurrencyCode
+}
+
 export type StockMovementKind =
   | 'receipt'
   | 'receipt_cancel'
@@ -1257,4 +1383,8 @@ export const ENTITIES = [
   StoreAgent,
   Printer,
   PrintJob,
+  PriceRule,
+  PriceRuleMarkup,
+  PriceRevision,
+  PriceRevisionLine,
 ]

@@ -43,9 +43,12 @@ export function Form({ onSubmit, children, className, id }: FormProps) {
     if (!form) {
       return
     }
+    // A field that commits on Enter has only just reported its value. The form is read a moment later,
+    // once whoever keeps that value has taken it in; read at once, it would be saved without it.
+    const submit = () => window.setTimeout(() => form.requestSubmit())
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault()
-      form.requestSubmit()
+      submit()
       return
     }
     const target = event.target as HTMLElement
@@ -63,7 +66,7 @@ export function Form({ onSubmit, children, className, id }: FormProps) {
     } else {
       // Leaving the last field commits what was typed in it before the form is read.
       target.blur()
-      form.requestSubmit()
+      submit()
     }
   }
 

@@ -7,13 +7,17 @@ import {
   formatMoney,
   RECEIPT_STATUS_LABELS,
   receiptInputSchema,
+  roundPrice,
   todayIn,
   toIsoDate,
   UNIT_INFO,
   unitCost,
+  withPercent,
   type AnyCurrency,
   type AttributeDto,
   type ExpenseBasis,
+  type Markup,
+  type MarkupLookupResult,
   type Page as PageOf,
   type PartnerDto,
   type PriceTypeDto,
@@ -24,7 +28,7 @@ import {
   type ReceiptStatus,
   type VariantLookupDto,
 } from '@gulbahor/core'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Ban, CheckCheck, Copy, MoreHorizontal, Plus, Tags, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -195,6 +199,16 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   const [dirty, setDirty] = useState(false)
   const [expensesDirty, setExpensesDirty] = useState(false)
   const [labelsOpen, setLabelsOpen] = useState(false)
+
+  // The markup each model's rule gives it: what a selling price is suggested from as the cost takes shape.
+  const productIds = useMemo(() => [...new Set(blocks.map((block) => block.productId))].sort(), [blocks])
+  const markups = useQuery({
+    queryKey: ['pricing', 'markups', productIds],
+    queryFn: () => api.post<MarkupLookupResult>('/pricing/markups', { productIds }),
+    enabled: status === 'draft' && can('products.prices') && productIds.length > 0,
+    placeholderData: keepPreviousData,
+    meta: { silent: true },
+  })
   // An RFID reader reports a tag many times over; each piece is taken once.
   const seenTags = useRef(new Set<string>())
 
@@ -728,6 +742,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     product={product}
                     attributes={attributes}
                     cost={cost?.blocks[index]}
+                    markups={markups.data?.[block.productId]}
                     header={header}
                     retailType={canPrice ? retailType : undefined}
                     wholesaleType={canPrice ? wholesaleType : undefined}
@@ -831,6 +846,8 @@ interface BlockCardProps {
   product: ReceiptProductDto
   attributes: AttributeDto[]
   cost: BlockCost | undefined
+  /** What the model's markup rule says for each price type. */
+  markups: Markup[] | undefined
   header: Header
   retailType: PriceTypeDto | undefined
   wholesaleType: PriceTypeDto | undefined
@@ -846,6 +863,7 @@ function BlockCard({
   product,
   attributes,
   cost,
+  markups,
   header,
   retailType,
   wholesaleType,
@@ -864,6 +882,28 @@ function BlockCard({
     each && block.retailPrice && retailType?.currency === 'UZS'
       ? Math.round(((block.retailPrice - each) / each) * 100)
       : null
+
+  // The price the model's rule gives: cost plus its markup, or so far from the retail price, rounded as the
+  // price type rounds. It shows faintly in the empty field and "=" takes it.
+  const suggest = (type: PriceTypeDto | undefined, retail: number | null): number | undefined => {
+    const rule = type && markups?.find((item) => item.priceTypeId === type.id)
+    if (!editable || !type || !rule) {
+      return undefined
+    }
+    const base = rule.base === 'retail' ? retail : type.currency === 'UZS' ? each : eachUsd
+    return base
+      ? roundPrice(withPercent(Math.round(base), rule.percent), { step: type.roundStep, ending: type.roundEnding })
+      : undefined
+  }
+  const retailSuggested = suggest(retailType, null)
+  const wholesaleSuggested = suggest(
+    wholesaleType,
+    retailType && retailType.currency === wholesaleType?.currency
+      ? (block.retailPrice ?? retailSuggested ?? null)
+      : null,
+  )
+  const offer = (amount: number | undefined, type: PriceTypeDto) =>
+    amount === undefined ? undefined : formatMoney(amount, type.currency, { symbol: false })
 
   return (
     <section data-block={block.key} className="rounded-lg border border-line bg-surface p-4 shadow-card">
@@ -903,6 +943,8 @@ function BlockCard({
                 onChange={(retailPrice) => onChange({ retailPrice })}
                 currency={retailType.currency}
                 disabled={!editable}
+                fillValue={retailSuggested}
+                placeholder={offer(retailSuggested, retailType)}
               />
             )}
           </Field>
@@ -916,6 +958,8 @@ function BlockCard({
                 onChange={(wholesalePrice) => onChange({ wholesalePrice })}
                 currency={wholesaleType.currency}
                 disabled={!editable}
+                fillValue={wholesaleSuggested}
+                placeholder={offer(wholesaleSuggested, wholesaleType)}
               />
             )}
           </Field>

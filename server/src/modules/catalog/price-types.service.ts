@@ -39,6 +39,8 @@ export class PriceTypesService {
           name: input.name,
           kind: input.kind,
           currency: input.currency,
+          roundStep: input.roundStep,
+          roundEnding: input.roundEnding,
           sortOrder: next,
           isActive: true,
         }),
@@ -61,14 +63,20 @@ export class PriceTypesService {
         throw AppError.validation({ kind: "Chakana narx turi doim bo'lishi kerak" })
       }
       await this.assertValid(em, input, id)
-      await em.update(PriceType, id, { name: input.name, kind: input.kind, currency: input.currency })
+      await em.update(PriceType, id, {
+        name: input.name,
+        kind: input.kind,
+        currency: input.currency,
+        roundStep: input.roundStep,
+        roundEnding: input.roundEnding,
+      })
       const after = await this.find(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'price_type.update',
         entity: 'price_type',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['name', 'kind', 'currency']),
+        changes: diff(before, after, ['name', 'kind', 'currency', 'roundStep', 'roundEnding']),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['price-types', 'products']))
       return toDto(after)
@@ -143,5 +151,13 @@ export class PriceTypesService {
 }
 
 function toDto(type: PriceType): PriceTypeDto {
-  return { id: type.id, name: type.name, kind: type.kind, currency: type.currency, isActive: type.isActive }
+  return {
+    id: type.id,
+    name: type.name,
+    kind: type.kind,
+    currency: type.currency,
+    roundStep: type.roundStep,
+    roundEnding: type.roundEnding,
+    isActive: type.isActive,
+  }
 }

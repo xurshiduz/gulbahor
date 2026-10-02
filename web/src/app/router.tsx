@@ -12,6 +12,7 @@ import { DevicesPage } from '@/features/devices/devices-page'
 import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
 import { PartnersPage } from '@/features/partners/partners-page'
+import { PricesPage } from '@/features/pricing/prices-page'
 import { ProfilePage } from '@/features/profile/profile-page'
 import { ReceiptPage } from '@/features/receipts/receipt-page'
 import { ReceiptsPage } from '@/features/receipts/receipts-page'
@@ -178,6 +179,22 @@ const partnersRoute = createRoute({
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
 })
 
+const pricesSearch = z.object({
+  ...plainList,
+  categoryId: z.string().optional().catch(undefined),
+  brandId: z.string().optional().catch(undefined),
+  season: z.enum(SEASONS).optional().catch(undefined),
+  presence: z.enum(['all', 'in']).default('all').catch('all'),
+  tab: z.enum(['list', 'rules', 'history']).default('list').catch('list'),
+})
+const pricesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/prices',
+  component: PricesPage,
+  validateSearch: pricesSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, presence: 'all', tab: 'list' })] },
+})
+
 const labelsSearch = z.object({
   page: listSearch.page,
   size: listSearch.size,
@@ -270,6 +287,7 @@ const routeTree = rootRoute.addChildren([
   homeRoute,
   productsRoute,
   productRoute,
+  pricesRoute,
   referencesRoute,
   stockRoute,
   receiptsRoute,

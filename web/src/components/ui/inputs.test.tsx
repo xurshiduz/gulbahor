@@ -414,6 +414,25 @@ describe('Form', () => {
     await userEvent.keyboard('{Enter}')
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
+
+  it('saves what was typed last, even in a field that reports only when it is left', async () => {
+    const onSave = vi.fn()
+    // A number field tells its owner the value on Enter or on leaving; Ctrl+Enter must not outrun that.
+    function Percent() {
+      const [percent, setPercent] = useState<number | null>(null)
+      return (
+        <Form onSubmit={() => onSave(percent)}>
+          <NumberInput value={percent} onChange={setPercent} decimals={2} />
+        </Form>
+      )
+    }
+    render(<Percent />)
+
+    screen.getByRole('textbox').focus()
+    await userEvent.keyboard('12,5{Control>}{Enter}{/Control}')
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave).toHaveBeenCalledWith(12.5)
+  })
 })
 
 describe('useScanner', () => {

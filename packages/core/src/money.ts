@@ -131,6 +131,26 @@ export function percentOf(minor: number, percent: string | number): number {
 
 export type RoundingMode = 'nearest' | 'up' | 'down'
 
+/** How a price type's prices are rounded, in minor units. A step of 0 leaves a price as it was worked out. */
+export interface PriceRounding {
+  /** Prices move in steps of this: 1 000 so'm. */
+  step: number
+  /** What a price ends with inside a step: 9 000 with a step of 10 000 gives 49 000, 59 000... */
+  ending: number
+}
+
+export const NO_ROUNDING: PriceRounding = { step: 0, ending: 0 }
+
+/** The nearest price the rounding allows. Nothing stays nothing; something never rounds down to nothing. */
+export function roundPrice(amount: number, rounding: PriceRounding): number {
+  if (rounding.step <= 0 || amount <= 0) {
+    return Math.max(0, amount)
+  }
+  const ending = rounding.ending % rounding.step
+  const rounded = roundToStep(Math.max(0, amount - ending), rounding.step) + ending
+  return rounded > 0 ? rounded : rounding.step
+}
+
 /** Rounds to a cash step such as 1 000 so'm (step given in minor units). */
 export function roundToStep(minor: number, stepMinor: number, mode: RoundingMode = 'nearest'): number {
   assertMinor(minor)

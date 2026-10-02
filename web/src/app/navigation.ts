@@ -1,5 +1,6 @@
 import type { LinkProps } from '@tanstack/react-router'
 import {
+  BadgePercent,
   BookMarked,
   Boxes,
   Building2,
@@ -51,6 +52,7 @@ export const NAVIGATION: NavGroup[] = [
     label: 'nav.groupCatalog',
     items: [
       { to: '/products', label: 'nav.products', icon: Shirt, permission: 'products.view' },
+      { to: '/prices', label: 'nav.prices', icon: BadgePercent, permission: 'products.view' },
       { to: '/references', label: 'nav.references', icon: BookMarked, permission: 'products.view' },
     ],
   },
