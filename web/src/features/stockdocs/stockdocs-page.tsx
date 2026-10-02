@@ -24,6 +24,7 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
@@ -138,18 +139,30 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
       {
         id: 'number',
         header: t('receipts.number'),
-        meta: { sortKey: 'number', fixed: true, className: 'w-px font-code text-xs whitespace-nowrap' },
+        meta: {
+          export: (row) => row.number,
+          sortKey: 'number',
+          fixed: true,
+          className: 'w-px font-code text-xs whitespace-nowrap',
+        },
         cell: ({ row }) => row.original.number,
       },
       {
         id: 'date',
         header: t('receipts.date'),
-        meta: { sortKey: 'docDate', className: 'tabular w-px whitespace-nowrap' },
+        meta: {
+          export: (row) => dayCell(row.docDate),
+          sortKey: 'docDate',
+          className: 'tabular w-px whitespace-nowrap',
+        },
         cell: ({ row }) => formatDay(row.original.docDate),
       },
       {
         id: 'location',
         header: kind === 'transfer' ? t('stockdocs.route') : t('receipts.location'),
+        meta: {
+          export: (row) => (row.toLocationName ? `${row.locationName} → ${row.toLocationName}` : row.locationName),
+        },
         cell: ({ row }) =>
           row.original.toLocationName ? (
             <span className="flex items-center gap-1.5">
@@ -166,6 +179,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
             {
               id: 'reason',
               header: t('stockdocs.reason'),
+              meta: { export: (row) => (row.reason ? WRITEOFF_REASON_LABELS[row.reason] : null) },
               cell: ({ row }) => (row.original.reason ? WRITEOFF_REASON_LABELS[row.original.reason] : ''),
             } satisfies ColumnDef<StockDocListItemDto>,
           ]
@@ -173,7 +187,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
       {
         id: 'qty',
         header: kind === 'count' ? t('stockdocs.counted') : t('receipts.totalQty'),
-        meta: { className: 'tabular text-right', headerClassName: 'text-right' },
+        meta: { export: (row) => row.qty, className: 'tabular text-right', headerClassName: 'text-right' },
         cell: ({ row }) => formatNumber(row.original.qty),
       },
       ...(kind !== 'writeoff'
@@ -181,7 +195,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
             {
               id: 'diff',
               header: kind === 'transfer' ? t('stockdocs.lost') : t('stockdocs.diff'),
-              meta: { className: 'tabular text-right', headerClassName: 'text-right' },
+              meta: { export: (row) => row.diffQty, className: 'tabular text-right', headerClassName: 'text-right' },
               cell: ({ row }) => {
                 const diff = row.original.diffQty
                 if (!diff) {
@@ -204,7 +218,11 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
             {
               id: 'cost',
               header: t('stockdocs.value'),
-              meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+              meta: {
+                export: (row) => moneyCell(row.costUzs),
+                className: 'tabular text-right whitespace-nowrap',
+                headerClassName: 'text-right',
+              },
               cell: ({ row }) =>
                 row.original.costUzs === null ? (
                   <span className="text-ink-3">—</span>
@@ -217,7 +235,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
       {
         id: 'status',
         header: t('common.status'),
-        meta: { className: 'w-px whitespace-nowrap' },
+        meta: { export: (row) => STOCK_DOC_STATUS_LABELS[row.status], className: 'w-px whitespace-nowrap' },
         cell: ({ row }) => (
           <Badge tone={DOC_STATUS_TONES[row.original.status]}>{STOCK_DOC_STATUS_LABELS[row.original.status]}</Badge>
         ),
@@ -225,7 +243,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
       {
         id: 'author',
         header: t('receipts.author'),
-        meta: { className: 'text-ink-2' },
+        meta: { export: (row) => row.createdByName, className: 'text-ink-2' },
         cell: ({ row }) => row.original.createdByName ?? '',
       },
     ],
@@ -254,6 +272,10 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
         loading={list.isFetching}
         rowId={(row) => row.id}
         onRowOpen={(row) => open(row.id)}
+        exportAs={{
+          fileName: t(`stockdocs.${kind}.title`),
+          rows: () => fetchAll<StockDocListItemDto>('/stock-documents', { kind, ...search }),
+        }}
         sort={search.sort}
         order={search.order}
         onSortChange={(sort, order) => filter({ sort, order })}

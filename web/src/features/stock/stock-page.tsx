@@ -26,6 +26,7 @@ import { useSession } from '@/features/auth/session'
 import { useAttributes, useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
 import { matrixOf } from '@/features/receipts/receipt-state'
 import { api } from '@/lib/api'
+import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { withFilter } from '@/lib/list-search'
@@ -70,13 +71,17 @@ export function StockPage() {
       {
         id: 'sku',
         header: t('products.sku'),
-        meta: { sortKey: 'sku', className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap' },
+        meta: {
+          export: (row) => row.sku,
+          sortKey: 'sku',
+          className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap',
+        },
         cell: ({ row }) => row.original.sku,
       },
       {
         id: 'name',
         header: t('products.name'),
-        meta: { sortKey: 'name', fixed: true },
+        meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
         cell: ({ row }) => (
           <span>
             <span className="font-medium">{row.original.name}</span>
@@ -84,16 +89,22 @@ export function StockPage() {
           </span>
         ),
       },
+      { id: 'brand', header: t('products.brand'), meta: { exportOnly: true, export: (row) => row.brandName } },
       {
         id: 'category',
         header: t('products.category'),
-        meta: { className: 'text-ink-2' },
+        meta: { export: (row) => row.categoryName, className: 'text-ink-2' },
         cell: ({ row }) => row.original.categoryName ?? <span className="text-ink-3">—</span>,
       },
       ...shownLocations.map((location): ColumnDef<StockListItemDto> => ({
         id: `at:${location.id}`,
         header: location.name,
-        meta: { label: location.name, className: 'tabular text-right', headerClassName: 'text-right' },
+        meta: {
+          label: location.name,
+          className: 'tabular text-right',
+          headerClassName: 'text-right',
+          export: (row) => row.byLocation[location.id] || null,
+        },
         cell: ({ row }) => {
           const qty = row.original.byLocation[location.id]
           return qty ? formatNumber(qty) : <span className="text-ink-3">—</span>
@@ -102,7 +113,12 @@ export function StockPage() {
       {
         id: 'qty',
         header: t('stock.total'),
-        meta: { sortKey: 'qty', className: 'tabular text-right font-semibold', headerClassName: 'text-right' },
+        meta: {
+          export: (row) => row.qty,
+          sortKey: 'qty',
+          className: 'tabular text-right font-semibold',
+          headerClassName: 'text-right',
+        },
         cell: ({ row }) => `${formatNumber(row.original.qty)} ${UNIT_INFO[row.original.unit].short}`,
       },
       ...(seesCost
@@ -110,7 +126,11 @@ export function StockPage() {
             {
               id: 'cost',
               header: t('stock.cost'),
-              meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+              meta: {
+                export: (row) => moneyCell(row.costUzs),
+                className: 'tabular text-right whitespace-nowrap',
+                headerClassName: 'text-right',
+              },
               cell: ({ row }) =>
                 row.original.costUzs ? (
                   <span title={formatMoney(row.original.costUsd ?? 0, 'USD')}>
@@ -125,7 +145,11 @@ export function StockPage() {
       {
         id: 'price',
         header: t('products.retailPrice'),
-        meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+        meta: {
+          export: (row) => moneyCell(row.retailPrice?.amount, row.retailPrice?.currency),
+          className: 'tabular text-right whitespace-nowrap',
+          headerClassName: 'text-right',
+        },
         cell: ({ row }) =>
           row.original.retailPrice ? (
             formatMoney(row.original.retailPrice.amount, row.original.retailPrice.currency)
@@ -149,6 +173,7 @@ export function StockPage() {
         loading={list.isFetching}
         rowId={(row) => row.productId}
         onRowOpen={(row) => setOpen(row.productId)}
+        exportAs={{ fileName: t('stock.title'), rows: () => fetchAll<StockListItemDto>('/stock', filters) }}
         sort={search.sort ?? 'name'}
         order={search.order}
         onSortChange={(sort, order) => void navigate({ search: (previous) => withFilter(previous, { sort, order }) })}

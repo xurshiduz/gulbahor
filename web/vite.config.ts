@@ -16,6 +16,10 @@ export default defineConfig({
     },
   },
   server: {
+    // Listens on every network interface, so a phone or a handheld terminal on the same Wi-Fi can open
+    // the system at this computer's address (http://192.168.x.x:5190). The API is reached through the
+    // proxy below, so only this port needs to be open.
+    host: true,
     port: 5190,
     strictPort: true,
     proxy: {

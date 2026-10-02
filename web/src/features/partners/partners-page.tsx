@@ -20,6 +20,7 @@ import { Page, SearchInput } from '@/components/ui/page'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { fetchAll } from '@/lib/excel'
 import { formatPhone } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
@@ -61,12 +62,18 @@ export function PartnersPage() {
       {
         id: 'name',
         header: t('partners.name'),
-        meta: { sortKey: 'name', fixed: true },
+        meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
         cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
       },
       {
         id: 'roles',
         header: t('partners.role'),
+        meta: {
+          export: (row) =>
+            [row.isSupplier ? t('partners.supplier') : null, row.isBuyer ? t('partners.buyer') : null]
+              .filter(Boolean)
+              .join(', '),
+        },
         cell: ({ row }) => (
           <span className="flex gap-1">
             {row.original.isSupplier ? <Badge tone="info">{t('partners.supplier')}</Badge> : null}
@@ -77,20 +84,20 @@ export function PartnersPage() {
       {
         id: 'phone',
         header: t('partners.phone'),
-        meta: { className: 'tabular whitespace-nowrap' },
+        meta: { export: (row) => (row.phone ? formatPhone(row.phone) : null), className: 'tabular whitespace-nowrap' },
         cell: ({ row }) =>
           row.original.phone ? formatPhone(row.original.phone) : <span className="text-ink-3">—</span>,
       },
       {
         id: 'note',
         header: t('partners.note'),
-        meta: { className: 'text-ink-2' },
+        meta: { export: (row) => row.note, className: 'text-ink-2' },
         cell: ({ row }) => row.original.note ?? '',
       },
       {
         id: 'status',
         header: t('common.status'),
-        meta: { className: 'w-px' },
+        meta: { export: (row) => (row.isActive ? t('common.active') : t('common.archived')), className: 'w-px' },
         cell: ({ row }) =>
           row.original.isActive ? <Badge tone="ok">{t('common.active')}</Badge> : <Badge>{t('common.archived')}</Badge>,
       },
@@ -158,6 +165,7 @@ export function PartnersPage() {
         loading={list.isFetching}
         rowId={(row) => row.id}
         onRowOpen={canManage ? (row) => open(row.id) : undefined}
+        exportAs={{ fileName: t('partners.title'), rows: () => fetchAll<PartnerDto>('/partners', filters) }}
         sort={search.sort ?? 'name'}
         order={search.order}
         onSortChange={(sort, order) => void navigate({ search: (previous) => withFilter(previous, { sort, order }) })}

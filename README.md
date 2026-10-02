@@ -52,7 +52,7 @@ docs            reja va qarorlar
    npm run dev:web       # http://localhost:5190
    ```
 
-   Web `/api` va `/socket.io` so'rovlarini serverga o'zi uzatadi.
+   Web `/api` va `/socket.io` so'rovlarini serverga o'zi uzatadi. U hamma tarmoq interfeysida tinglaydi, shuning uchun shu Wi-Fi'dagi telefon yoki qo'l terminalidan ham ochiladi: `http://<kompyuterning IP manzili>:5190` (Windows birinchi marta tarmoqqa ruxsat so'raydi).
 
 ## Tekshiruvlar
 

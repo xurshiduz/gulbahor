@@ -5,12 +5,13 @@ export type ThemeChoice = 'light' | 'dark' | 'system'
 const STORAGE_KEY = 'gb.theme'
 const listeners = new Set<() => void>()
 
+/** Light unless this person has chosen otherwise; following the system is a choice too. */
 function read(): ThemeChoice {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    return stored === 'light' || stored === 'dark' ? stored : 'system'
+    return stored === 'dark' || stored === 'system' ? stored : 'light'
   } catch {
-    return 'system'
+    return 'light'
   }
 }
 
@@ -21,11 +22,7 @@ function apply(choice: ThemeChoice) {
 
 export function setTheme(choice: ThemeChoice) {
   try {
-    if (choice === 'system') {
-      localStorage.removeItem(STORAGE_KEY)
-    } else {
-      localStorage.setItem(STORAGE_KEY, choice)
-    }
+    localStorage.setItem(STORAGE_KEY, choice)
   } catch {
     // The theme still applies for this visit.
   }
@@ -39,13 +36,10 @@ export function toggleTheme() {
 }
 
 export function useTheme(): ThemeChoice {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    read,
-  )
+  return useSyncExternalStore((listener) => {
+    listeners.add(listener)
+    return () => listeners.delete(listener)
+  }, read)
 }
 
 // Follow the system while the choice is "system".

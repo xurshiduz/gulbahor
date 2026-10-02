@@ -22,6 +22,7 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
+import { fetchAll, moneyCell } from '@/lib/excel'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { useScanner } from '@/lib/scanner'
@@ -82,13 +83,17 @@ export function ProductsPage() {
       {
         id: 'sku',
         header: t('products.sku'),
-        meta: { sortKey: 'sku', className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap' },
+        meta: {
+          export: (row) => row.sku,
+          sortKey: 'sku',
+          className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap',
+        },
         cell: ({ row }) => row.original.sku,
       },
       {
         id: 'name',
         header: t('products.name'),
-        meta: { sortKey: 'name', fixed: true },
+        meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
         cell: ({ row }) => (
           <span>
             <span className="font-medium">{row.original.name}</span>
@@ -96,21 +101,27 @@ export function ProductsPage() {
           </span>
         ),
       },
+      { id: 'brand', header: t('products.brand'), meta: { exportOnly: true, export: (row) => row.brandName } },
       {
         id: 'category',
         header: t('products.category'),
-        meta: { sortKey: 'category', className: 'text-ink-2' },
+        meta: { export: (row) => row.categoryName, sortKey: 'category', className: 'text-ink-2' },
         cell: ({ row }) => row.original.categoryName ?? <span className="text-ink-3">—</span>,
       },
       {
         id: 'variants',
         header: t('products.variants'),
+        meta: { export: (row) => row.variantCount },
         cell: ({ row }) => <Variants product={row.original} />,
       },
       {
         id: 'price',
         header: t('products.retailPrice'),
-        meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+        meta: {
+          export: (row) => moneyCell(row.retailPrice?.amount, row.retailPrice?.currency),
+          className: 'tabular text-right whitespace-nowrap',
+          headerClassName: 'text-right',
+        },
         cell: ({ row }) =>
           row.original.retailPrice ? (
             <span className="font-medium">
@@ -123,7 +134,10 @@ export function ProductsPage() {
       {
         id: 'season',
         header: t('products.season'),
-        meta: { className: 'whitespace-nowrap text-ink-2' },
+        meta: {
+          export: (row) => (row.season ? SEASON_LABELS[row.season] : null),
+          className: 'whitespace-nowrap text-ink-2',
+        },
         cell: ({ row }) => {
           const parts = [
             row.original.season ? SEASON_LABELS[row.original.season] : null,
@@ -133,8 +147,14 @@ export function ProductsPage() {
         },
       },
       {
+        id: 'year',
+        header: t('products.collectionYear'),
+        meta: { exportOnly: true, export: (row) => row.collectionYear },
+      },
+      {
         id: 'status',
         header: t('common.status'),
+        meta: { export: (row) => (row.isActive ? t('common.active') : t('common.archived')) },
         cell: ({ row }) =>
           row.original.isActive ? <Badge tone="ok">{t('common.active')}</Badge> : <Badge>{t('common.archived')}</Badge>,
       },
@@ -224,6 +244,10 @@ export function ProductsPage() {
         loading={list.isFetching}
         rowId={(row) => row.id}
         onRowOpen={(row) => open(row.id)}
+        exportAs={{
+          fileName: t('products.title'),
+          rows: () => fetchAll<ProductListItemDto>('/products', search),
+        }}
         sort={search.sort ?? 'name'}
         order={search.order}
         onSortChange={(sort, order) => void navigate({ search: (previous) => withFilter(previous, { sort, order }) })}

@@ -1,10 +1,24 @@
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type RowData } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp, Columns3, Inbox } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronUp,
+  Columns3,
+  FileSpreadsheet,
+  Inbox,
+} from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { cn } from '@/lib/cn'
+import { MAX_EXPORT_ROWS, saveExcel, type ExportCell, type ExportColumn, type ExportValue } from '@/lib/excel'
 import { formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { usePreference } from '@/lib/preferences'
@@ -24,6 +38,10 @@ declare module '@tanstack/react-table' {
     headerClassName?: string
     /** Always shown; left out of the column chooser. */
     fixed?: boolean
+    /** What the column holds as a plain value, for a spreadsheet. A column without it is left out of an export. */
+    export?: (row: TData) => ExportValue | ExportCell
+    /** Not shown on the screen: a column of the spreadsheet only, for what the screen folds into another column. */
+    exportOnly?: boolean
   }
 }
 
@@ -60,6 +78,12 @@ interface DataTableProps<T> {
   toolbar?: ReactNode
   empty?: ReactNode
   rowClassName?: (row: T) => string | undefined
+  /**
+   * Lets the list be saved as a spreadsheet: `rows` gives every row the
+   * filters cover, not only the page on the screen. The file has the columns
+   * that are shown, in the order they are shown.
+   */
+  exportAs?: { fileName: string; rows: () => Promise<T[]> }
 }
 
 /**
@@ -82,6 +106,7 @@ export function DataTable<T>({
   toolbar,
   empty,
   rowClassName,
+  exportAs,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const bodyRef = useRef<HTMLTableSectionElement>(null)
@@ -89,18 +114,33 @@ export function DataTable<T>({
   const [active, setActive] = useState(-1)
   const rows = useMemo(() => data ?? [], [data])
 
-  const [preference, setPreference] = usePreference<ColumnPreference>(preferenceKey ? `table.${preferenceKey}` : null, { hidden: [], order: [] })
+  const [preference, setPreference] = usePreference<ColumnPreference>(preferenceKey ? `table.${preferenceKey}` : null, {
+    hidden: [],
+    order: [],
+  })
 
   const columnIds = columns.map((column) => column.id as string)
   const ordered = useMemo(() => {
-    const known = preference.order.filter((id) => columnIds.includes(id))
-    return [...known, ...columnIds.filter((id) => !known.includes(id))]
+    const result = preference.order.filter((id) => columnIds.includes(id))
+    // A column the saved order does not know goes next to the one it is defined after, not to the far end.
+    columnIds.forEach((id, index) => {
+      if (!result.includes(id)) {
+        const before = columnIds
+          .slice(0, index)
+          .reverse()
+          .find((previous) => result.includes(previous))
+        result.splice(before ? result.indexOf(before) + 1 : 0, 0, id)
+      }
+    })
+    return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preference.order, columnIds.join('|')])
 
+  const shown = useMemo(() => columns.filter((column) => !column.meta?.exportOnly), [columns])
+
   const table = useReactTable({
     data: rows,
-    columns,
+    columns: shown,
     getCoreRowModel: getCoreRowModel(),
     getRowId: rowId,
     manualSorting: true,
@@ -183,12 +223,30 @@ export function DataTable<T>({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {toolbar || preferenceKey ? (
+      {toolbar || preferenceKey || exportAs ? (
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbar}</div>
+          {exportAs ? (
+            <ExportButton
+              fileName={exportAs.fileName}
+              rows={exportAs.rows}
+              columns={ordered.flatMap((id) => {
+                const column = columns.find((item) => item.id === id)
+                const meta = column?.meta
+                return column && meta?.export && !preference.hidden.includes(id)
+                  ? [
+                      {
+                        title: meta.label ?? (typeof column.header === 'string' ? column.header : id),
+                        value: meta.export,
+                      },
+                    ]
+                  : []
+              })}
+            />
+          ) : null}
           {preferenceKey ? (
             <ColumnChooser
-              columns={columns}
+              columns={shown}
               order={ordered}
               hidden={preference.hidden}
               onChange={(next) => setPreference(next)}
@@ -202,7 +260,9 @@ export function DataTable<T>({
           ref={scrollRef}
           tabIndex={0}
           onKeyDown={handleKeyDown}
-          onFocus={(event) => event.target === event.currentTarget && setActive((current) => (current < 0 && rows.length ? 0 : current))}
+          onFocus={(event) =>
+            event.target === event.currentTarget && setActive((current) => (current < 0 && rows.length ? 0 : current))
+          }
           className="min-h-0 flex-1 overflow-auto outline-none focus-visible:[&_tr[data-active=true]]:outline-accent"
         >
           <table className="w-full border-separate border-spacing-0 text-[13px]">
@@ -226,11 +286,19 @@ export function DataTable<T>({
                           <button
                             type="button"
                             tabIndex={-1}
-                            onClick={() => onSortChange(meta.sortKey as string, isSorted && order === 'asc' ? 'desc' : 'asc')}
+                            onClick={() =>
+                              onSortChange(meta.sortKey as string, isSorted && order === 'asc' ? 'desc' : 'asc')
+                            }
                             className="inline-flex items-center gap-1 uppercase hover:text-ink"
                           >
                             {label}
-                            {isSorted ? order === 'desc' ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" /> : null}
+                            {isSorted ? (
+                              order === 'desc' ? (
+                                <ArrowDown className="size-3" />
+                              ) : (
+                                <ArrowUp className="size-3" />
+                              )
+                            ) : null}
                           </button>
                         ) : (
                           label
@@ -269,7 +337,13 @@ export function DataTable<T>({
                       )}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className={cn('border-b border-line px-3 py-2 align-middle', cell.column.columnDef.meta?.className)}>
+                        <td
+                          key={cell.id}
+                          className={cn(
+                            'border-b border-line px-3 py-2 align-middle',
+                            cell.column.columnDef.meta?.className,
+                          )}
+                        >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
@@ -294,7 +368,9 @@ function Pagination({ page, size, total, pages, onPageChange, onSizeChange }: Ta
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-3 py-1.5 text-xs text-ink-3">
       <div className="flex items-center gap-3">
-        <span className="tabular">{t('table.range', { from: formatNumber(from), to: formatNumber(to), total: formatNumber(total) })}</span>
+        <span className="tabular">
+          {t('table.range', { from: formatNumber(from), to: formatNumber(to), total: formatNumber(total) })}
+        </span>
         <div className="flex items-center gap-1.5">
           <span className="hidden sm:inline">{t('table.perPage')}</span>
           <Select
@@ -306,23 +382,89 @@ function Pagination({ page, size, total, pages, onPageChange, onSizeChange }: Ta
         </div>
       </div>
       <nav className="flex items-center gap-0.5">
-        <Button variant="ghost" size="iconSm" disabled={current <= 1} onClick={() => onPageChange(1)} aria-label={t('table.first')}>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          disabled={current <= 1}
+          onClick={() => onPageChange(1)}
+          aria-label={t('table.first')}
+        >
           <ChevronsLeft />
         </Button>
-        <Button variant="ghost" size="iconSm" disabled={current <= 1} onClick={() => onPageChange(current - 1)} aria-label={t('table.prev')}>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          disabled={current <= 1}
+          onClick={() => onPageChange(current - 1)}
+          aria-label={t('table.prev')}
+        >
           <ChevronLeft />
         </Button>
         <span className="tabular px-2 font-medium text-ink-2">
           {formatNumber(current)} / {formatNumber(pages)}
         </span>
-        <Button variant="ghost" size="iconSm" disabled={current >= pages} onClick={() => onPageChange(current + 1)} aria-label={t('table.next')}>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          disabled={current >= pages}
+          onClick={() => onPageChange(current + 1)}
+          aria-label={t('table.next')}
+        >
           <ChevronRight />
         </Button>
-        <Button variant="ghost" size="iconSm" disabled={current >= pages} onClick={() => onPageChange(pages)} aria-label={t('table.last')}>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          disabled={current >= pages}
+          onClick={() => onPageChange(pages)}
+          aria-label={t('table.last')}
+        >
           <ChevronsRight />
         </Button>
       </nav>
     </div>
+  )
+}
+
+function ExportButton<T>({
+  fileName,
+  rows,
+  columns,
+}: {
+  fileName: string
+  rows: () => Promise<T[]>
+  columns: ExportColumn<T>[]
+}) {
+  const { t } = useTranslation()
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      const all = await rows()
+      if (!all.length) {
+        toast.error(t('table.exportEmpty'))
+        return
+      }
+      await saveExcel(fileName, columns, all)
+      if (all.length >= MAX_EXPORT_ROWS) {
+        toast.warning(t('table.exportCut', { count: all.length }))
+      } else {
+        toast.success(t('table.exported', { count: all.length }))
+      }
+    } catch {
+      toast.error(t('table.exportFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Tooltip content={t('table.export')}>
+      <Button size="icon" loading={busy} onClick={() => void save()} aria-label={t('table.export')}>
+        <FileSpreadsheet />
+      </Button>
+    </Tooltip>
   )
 }
 
@@ -340,7 +482,7 @@ function ColumnChooser<T>({
 }) {
   const { t } = useTranslation()
   const byId = new Map(columns.map((column) => [column.id as string, column]))
-  const choosable = order.filter((id) => !byId.get(id)?.meta?.fixed)
+  const choosable = order.filter((id) => byId.has(id) && !byId.get(id)?.meta?.fixed)
 
   const labelOf = (id: string) => {
     const column = byId.get(id)
@@ -368,14 +510,20 @@ function ColumnChooser<T>({
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={6} className="z-50 w-64 rounded-lg border border-line bg-surface p-2 shadow-float data-[state=open]:animate-pop-in">
+        <Popover.Content
+          align="end"
+          sideOffset={6}
+          className="z-50 w-64 rounded-lg border border-line bg-surface p-2 shadow-float data-[state=open]:animate-pop-in"
+        >
           <p className="eyebrow px-1.5 pb-1.5">{t('common.columns')}</p>
           <div className="flex flex-col">
             {choosable.map((id) => (
               <div key={id} className="flex h-8 items-center gap-1 rounded-md px-1.5 hover:bg-sunken">
                 <Checkbox
                   checked={!hidden.includes(id)}
-                  onChange={(checked) => onChange({ order, hidden: checked ? hidden.filter((item) => item !== id) : [...hidden, id] })}
+                  onChange={(checked) =>
+                    onChange({ order, hidden: checked ? hidden.filter((item) => item !== id) : [...hidden, id] })
+                  }
                   label={labelOf(id)}
                   className="min-w-0 flex-1"
                 />

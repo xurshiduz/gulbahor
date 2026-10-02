@@ -958,6 +958,11 @@ export const uz = {
     last: 'Oxirgi sahifa',
     prev: 'Oldingi',
     next: 'Keyingi',
+    export: "Excel'ga chiqarish",
+    exported: "{{count}} ta qator Excel'ga chiqarildi",
+    exportCut: 'Faqat birinchi {{count}} ta qator chiqarildi. Filtr bilan toraytiring',
+    exportEmpty: "Chiqariladigan qator yo'q",
+    exportFailed: "Faylni tayyorlab bo'lmadi",
   },
   input: {
     amountInvalid: "Summa noto'g'ri yozilgan",

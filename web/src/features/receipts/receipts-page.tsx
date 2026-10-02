@@ -22,6 +22,7 @@ import { Badge, EmptyState, Shortcut, Tooltip } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
@@ -76,37 +77,66 @@ export function ReceiptsPage() {
       {
         id: 'number',
         header: t('receipts.number'),
-        meta: { sortKey: 'number', fixed: true, className: 'w-px font-code text-xs whitespace-nowrap' },
+        meta: {
+          export: (row) => row.number,
+          sortKey: 'number',
+          fixed: true,
+          className: 'w-px font-code text-xs whitespace-nowrap',
+        },
         cell: ({ row }) => row.original.number,
       },
       {
         id: 'date',
         header: t('receipts.date'),
-        meta: { sortKey: 'docDate', className: 'tabular w-px whitespace-nowrap' },
+        meta: {
+          export: (row) => dayCell(row.docDate),
+          sortKey: 'docDate',
+          className: 'tabular w-px whitespace-nowrap',
+        },
         cell: ({ row }) => formatDay(row.original.docDate),
       },
-      { id: 'location', header: t('receipts.location'), cell: ({ row }) => row.original.locationName },
+      {
+        id: 'location',
+        header: t('receipts.location'),
+        meta: { export: (row) => row.locationName },
+        cell: ({ row }) => row.original.locationName,
+      },
       {
         id: 'supplier',
         header: t('receipts.supplier'),
+        meta: { export: (row) => row.supplierName },
         cell: ({ row }) => row.original.supplierName ?? <span className="text-ink-3">—</span>,
       },
       {
         id: 'qty',
         header: t('receipts.totalQty'),
-        meta: { className: 'tabular text-right', headerClassName: 'text-right' },
+        meta: { export: (row) => row.totals.qty, className: 'tabular text-right', headerClassName: 'text-right' },
         cell: ({ row }) => formatNumber(row.original.totals.qty),
       },
       {
         id: 'goods',
         header: t('receipts.totalGoods'),
-        meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+        meta: {
+          export: (row) => moneyCell(row.totals.goods, row.currency),
+          className: 'tabular text-right whitespace-nowrap',
+          headerClassName: 'text-right',
+        },
         cell: ({ row }) => formatMoney(row.original.totals.goods, row.original.currency),
+      },
+      {
+        id: 'currency',
+        header: t('receipts.currency'),
+        meta: { exportOnly: true, export: (row) => row.currency },
       },
       {
         id: 'cost',
         header: t('receipts.totalCost'),
-        meta: { sortKey: 'cost', className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+        meta: {
+          export: (row) => moneyCell(row.totals.costUzs),
+          sortKey: 'cost',
+          className: 'tabular text-right whitespace-nowrap',
+          headerClassName: 'text-right',
+        },
         cell: ({ row }) => (
           <span className="font-medium">{formatMoney(row.original.totals.costUzs, 'UZS', { minor: 'never' })}</span>
         ),
@@ -114,7 +144,7 @@ export function ReceiptsPage() {
       {
         id: 'status',
         header: t('common.status'),
-        meta: { className: 'w-px whitespace-nowrap' },
+        meta: { export: (row) => RECEIPT_STATUS_LABELS[row.status], className: 'w-px whitespace-nowrap' },
         cell: ({ row }) => (
           <span className="flex items-center gap-1.5">
             <Badge tone={STATUS_TONES[row.original.status]}>{RECEIPT_STATUS_LABELS[row.original.status]}</Badge>
@@ -129,7 +159,7 @@ export function ReceiptsPage() {
       {
         id: 'author',
         header: t('receipts.author'),
-        meta: { className: 'text-ink-2' },
+        meta: { export: (row) => row.createdByName, className: 'text-ink-2' },
         cell: ({ row }) => row.original.createdByName ?? '',
       },
     ],
@@ -167,6 +197,10 @@ export function ReceiptsPage() {
         loading={list.isFetching}
         rowId={(row) => row.id}
         onRowOpen={(row) => open(row.id)}
+        exportAs={{
+          fileName: t('receipts.title'),
+          rows: () => fetchAll<ReceiptListItemDto>('/receipts', search),
+        }}
         sort={search.sort}
         order={search.order}
         onSortChange={(sort, order) => void navigate({ search: (previous) => withFilter(previous, { sort, order }) })}

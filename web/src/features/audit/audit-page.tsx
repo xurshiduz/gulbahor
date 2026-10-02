@@ -12,6 +12,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { Page } from '@/components/ui/page'
 import { api } from '@/lib/api'
+import { fetchAll, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
 
 import { useAuditText } from './audit-text'
@@ -56,28 +57,46 @@ export function AuditPage() {
       {
         id: 'at',
         header: t('audit.at'),
-        meta: { fixed: true, className: 'tabular w-px whitespace-nowrap text-ink-2' },
+        meta: {
+          export: (row) => timeCell(row.at),
+          fixed: true,
+          className: 'tabular w-px whitespace-nowrap text-ink-2',
+        },
         cell: ({ row }) => formatDateTime(row.original.at),
       },
       {
         id: 'actor',
         header: t('audit.actor'),
-        meta: { className: 'whitespace-nowrap' },
+        meta: { export: (row) => row.actorName ?? t('audit.system'), className: 'whitespace-nowrap' },
         cell: ({ row }) => row.original.actorName ?? <span className="text-ink-3">{t('audit.system')}</span>,
       },
       {
         id: 'action',
         header: t('audit.action'),
-        meta: { fixed: true, className: 'whitespace-nowrap' },
+        meta: { export: (row) => describe.action(row.action), fixed: true, className: 'whitespace-nowrap' },
         cell: ({ row }) => {
           const failed = row.original.action.endsWith('_failed') || row.original.action.endsWith('_locked')
           return <Badge tone={failed ? 'bad' : 'neutral'}>{describe.action(row.original.action)}</Badge>
         },
       },
-      { id: 'summary', header: t('audit.what'), cell: ({ row }) => row.original.summary ?? '—' },
+      {
+        id: 'summary',
+        header: t('audit.what'),
+        meta: { export: (row) => row.summary },
+        cell: ({ row }) => row.original.summary ?? '—',
+      },
       {
         id: 'changes',
         header: t('audit.changes'),
+        meta: {
+          export: (row) =>
+            Object.entries(row.changes ?? {})
+              .map(
+                ([field, [before, after]]) =>
+                  `${describe.field(field)}: ${describe.value(field, before)} → ${describe.value(field, after)}`,
+              )
+              .join('; '),
+        },
         cell: ({ row }) => {
           const changes = row.original.changes
           if (!changes) {
@@ -100,7 +119,7 @@ export function AuditPage() {
       {
         id: 'ip',
         header: 'IP',
-        meta: { className: 'font-code w-px text-xs whitespace-nowrap text-ink-3' },
+        meta: { export: (row) => row.ip, className: 'font-code w-px text-xs whitespace-nowrap text-ink-3' },
         cell: ({ row }) => row.original.ip ?? '',
       },
     ],
@@ -115,6 +134,7 @@ export function AuditPage() {
         data={list.data?.items}
         loading={list.isFetching}
         rowId={(row) => row.id}
+        exportAs={{ fileName: t('audit.title'), rows: () => fetchAll<AuditDto>('/audit', search) }}
         preferenceKey="audit"
         pagination={{
           page: search.page,

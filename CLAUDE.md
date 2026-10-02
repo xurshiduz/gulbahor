@@ -55,10 +55,12 @@ Kiyim savdosi uchun ERP. Biznes talablari, qarorlar va bosqichlar `docs/REJA.md`
 - `QtyMatrix`: `hints` — bo'sh katakda xira ko'rinadigan son (qoldiq), `limits` — undan oshsa katak qizaradi, `zero` — yozilgan 0 saqlanadi (inventarizatsiyada "qaradim, yo'q").
 - Hujjat formasi (tovar, kirim, sklad hujjatlari) serverdan kelgan holatni bir marta oladi va o'zi yuritadi. Realtime qayta yuklash formani qayta boshlamasligi kerak: forma `key` i faqat o'zining saqlashlari bilan o'zgaradi (`receipt-page.tsx` dagi `version`).
 - Excel: o'qish — `read-excel-file/browser`, yozish — `write-excel-file/browser`, ikkalasi ham kerak bo'lganda `import()` bilan yuklanadi.
+- Ro'yxatni Excel'ga chiqarish: ustunning `meta.export` i qatordan oddiy qiymat qaytaradi (pul — `moneyCell`, sana — `dayCell`, vaqt — `timeCell`, `lib/excel.ts`), `DataTable` ga `exportAs={{ fileName, rows: () => fetchAll(path, filtr) }}` beriladi. Ekranda boshqa ustunga qo'shib ko'rsatilgan narsa (brend) uchun `meta.exportOnly` ustun yoziladi. `export` siz ustun faylga tushmaydi.
 
 ## Lokal muhit
 
 - `npm run dev:server` (3100) va `npm run dev:web` (5190). Baza `gulbahor`, testlar `gulbahor_test` da.
+- Lokal bazada har tayyor rolga bittadan sinov xodimi bor; login va parollari `server/.env.test-users` da (git'ga tushmaydi). Egasiniki `server/.env` da.
 - Server testlari haqiqiy bazada ishlaydi va ikki biznes orasidagi ajratishni tekshiradi. Har modulning o'z `*.spec.ts` fayli bor (`app.spec.ts`, `catalog.spec.ts`, `receiving.spec.ts`, `import.spec.ts`, `stockdocs.spec.ts`, `labels.spec.ts`, `pricing.spec.ts`), hammasi `testing/harness.ts` dagi `startApp()` bilan boshlanadi: u bazani tozalaydi va sozlangan ikki biznesni (Alpha, Beta) beradi. Fayllar navbat bilan ishlaydi (`maxWorkers: 1`).
 
 ## Holat
@@ -73,6 +75,8 @@ Etiketka va RFID donalar ham tayyor (`modules/labels`, `features/labels`, `featu
 
 Narxlar ham tayyor (`modules/pricing`, `features/pricing`): narx turining yaxlitlash qoidasi, ustama qoidalari (kategoriya, brend, sezon; eng aniq mos kelgani ishlaydi), "Narxlar" sahifasi — ro'yxat filtri ommaviy o'zgartirishning qamrovi ham, tarix va qaytarish, kirimda narx taklifi.
 
-2-bosqichning qolgani: jadvallarni Excel'ga chiqarish, hisobdan chiqarishga rasm biriktirish, narx o'zgargan tovarga yorliqni qayta chop etish. Gulbahor'ning eski kodi `main` branch tarixida: RFID uchun `backend/src/modules/inbound-documents/labels/{epc,zpl}.ts`, to'lov integratsiyalari uchun `backend/src/modules/integrations/clients`.
+Asosiy ro'yxatlar Excel'ga chiqariladi. Web hamma tarmoq interfeysida tinglaydi (`vite.config.ts` da `host: true`), mavzu standart holatda yorug'.
+
+2-bosqichning qolgani: hisobdan chiqarishga rasm biriktirish, narx o'zgargan tovarga yorliqni qayta chop etish. Gulbahor'ning eski kodi `main` branch tarixida: RFID uchun `backend/src/modules/inbound-documents/labels/{epc,zpl}.ts`, to'lov integratsiyalari uchun `backend/src/modules/integrations/clients`.
 
 Foydalanuvchidan kutilayotganlar `docs/REJA.md` ning oxirgi bo'limida: 3-bosqichdan oldin RFID uskunalari modellari, 6-bosqichdan oldin bank botlari xabar namunalari so'raladi.

@@ -958,6 +958,11 @@ export const ru: Dictionary = {
     last: 'Последняя страница',
     prev: 'Предыдущая',
     next: 'Следующая',
+    export: 'Выгрузить в Excel',
+    exported: 'Выгружено строк в Excel: {{count}}',
+    exportCut: 'Выгружены только первые строки: {{count}}. Сузьте фильтр',
+    exportEmpty: 'Нет строк для выгрузки',
+    exportFailed: 'Не удалось подготовить файл',
   },
   input: {
     amountInvalid: 'Сумма написана неверно',

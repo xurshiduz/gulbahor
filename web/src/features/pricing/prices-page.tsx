@@ -29,6 +29,7 @@ import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
 import { api } from '@/lib/api'
+import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
@@ -104,13 +105,17 @@ export function PricesPage() {
       {
         id: 'sku',
         header: t('products.sku'),
-        meta: { sortKey: 'sku', className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap' },
+        meta: {
+          export: (row) => row.sku,
+          sortKey: 'sku',
+          className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap',
+        },
         cell: ({ row }) => row.original.sku,
       },
       {
         id: 'name',
         header: t('products.name'),
-        meta: { sortKey: 'name', fixed: true },
+        meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
         cell: ({ row }) => (
           <span>
             <span className="font-medium">{row.original.name}</span>
@@ -118,16 +123,17 @@ export function PricesPage() {
           </span>
         ),
       },
+      { id: 'brand', header: t('products.brand'), meta: { exportOnly: true, export: (row) => row.brandName } },
       {
         id: 'category',
         header: t('products.category'),
-        meta: { className: 'text-ink-2' },
+        meta: { export: (row) => row.categoryName, className: 'text-ink-2' },
         cell: ({ row }) => row.original.categoryName ?? '',
       },
       {
         id: 'qty',
         header: t('stock.total'),
-        meta: { className: 'tabular text-right', headerClassName: 'text-right' },
+        meta: { export: (row) => row.qty, className: 'tabular text-right', headerClassName: 'text-right' },
         cell: ({ row }) => (row.original.qty ? formatNumber(row.original.qty) : <span className="text-ink-3">—</span>),
       },
       ...(seesCost
@@ -135,7 +141,11 @@ export function PricesPage() {
             {
               id: 'cost',
               header: t('pricing.cost'),
-              meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+              meta: {
+                export: (row) => moneyCell(row.unitCostUzs),
+                className: 'tabular text-right whitespace-nowrap',
+                headerClassName: 'text-right',
+              },
               cell: ({ row }) =>
                 row.original.unitCostUzs === null ? (
                   <span className="text-ink-3">—</span>
@@ -148,7 +158,11 @@ export function PricesPage() {
       ...types.map((type): ColumnDef<PriceListItemDto> => ({
         id: type.id,
         header: type.name,
-        meta: { className: 'tabular text-right whitespace-nowrap', headerClassName: 'text-right' },
+        meta: {
+          className: 'tabular text-right whitespace-nowrap',
+          headerClassName: 'text-right',
+          export: (row) => moneyCell(row.prices[type.id], type.currency),
+        },
         cell: ({ row }) => {
           const amount = row.original.prices[type.id]
           if (amount === undefined) {
@@ -206,6 +220,11 @@ export function PricesPage() {
             data={list.data?.items}
             loading={list.isFetching}
             rowId={(row) => row.productId}
+            exportAs={{
+              fileName: t('pricing.title'),
+              rows: () =>
+                fetchAll<PriceListItemDto>('/pricing/products', { ...listSearch, uzsRate: uzsRate ?? undefined }),
+            }}
             onRowOpen={(row) => void go({ to: '/products/$productId', params: { productId: row.productId } })}
             sort={search.sort ?? 'name'}
             order={search.order}
