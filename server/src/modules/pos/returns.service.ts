@@ -46,6 +46,7 @@ import { nextNumbers } from '../catalog/counters'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
+import { allows, ApprovalsService } from './approvals.service'
 import { SalesService } from './sales.service'
 
 const DOCUMENT = 'sale_return'
@@ -94,6 +95,7 @@ export class ReturnsService {
     private readonly stock: StockService,
     private readonly ledger: LedgerService,
     private readonly sales: SalesService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   /** The receipt goods are brought back on: found by its number, or by the tag of a piece it sold. */
@@ -141,6 +143,7 @@ export class ReturnsService {
   }
 
   async create(actor: Actor, input: ReturnInput): Promise<ReturnDto> {
+    const approver = await this.approvals.verify(actor, input.approval, input.registerId)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       // The till sends a return again when it did not hear back: the one it made the first time is the answer.
       const again = await em.findOneBy(SaleReturn, { clientKey: input.clientKey })
@@ -175,12 +178,16 @@ export class ReturnsService {
       const today = await this.ledger.today(em, actor.orgId)
       const usd = actor.modules.includes('usd')
       const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
-      const free = can(actor, 'pos.return_any')
+      // What a cashier may not do alone goes through on their own right, or on a manager's PIN given with it.
+      const own = can(actor, 'pos.return_any')
+      const free = own || allows(approver, 'pos.return_any')
       const late = isLate(sale.soldOn, today, settings.returnDays)
       if (late && !free) {
         throw AppError.conflict(
           'RETURN_LATE',
-          `Qaytarish muddati (${settings.returnDays} kun) o'tgan: rahbar ruxsati kerak`,
+          approver
+            ? `${approver.name} muddati o'tgan qaytarishni tasdiqlay olmaydi`
+            : `Qaytarish muddati (${settings.returnDays} kun) o'tgan: rahbar ruxsati kerak`,
         )
       }
 
@@ -327,6 +334,7 @@ export class ReturnsService {
           actor,
           { ...input.exchange, clientKey: randomUUID(), registerId: register.id, note: null } as SaleInput,
           total,
+          approver,
         )
         credit = sold.credit
         exchange = sold.sale
@@ -338,6 +346,8 @@ export class ReturnsService {
       const accounts = await em.findBy(Account, {
         id: In(input.refunds.flatMap((refund) => (refund.accountId ? [refund.accountId] : []))),
       })
+      /** Money goes back otherwise than it was paid: to an account the sale was not paid to, or past a cap. */
+      let otherwise = false
       const refunds: {
         method: TenderMethod
         account: Account
@@ -360,11 +370,9 @@ export class ReturnsService {
           account = await this.ledger.cashAccount(em, register, refund.currency)
         } else {
           account = accounts.find((item) => item.id === refund.accountId)
-          const fits =
-            account &&
-            account.kind === refund.method &&
-            account.isActive &&
-            (free || caps.accounts.some((cap) => cap.accountId === account?.id))
+          const paidHere = caps.accounts.some((cap) => cap.accountId === account?.id)
+          otherwise ||= !paidHere
+          const fits = account && account.kind === refund.method && account.isActive && (free || paidHere)
           if (!fits) {
             fields[`refunds.${index}.accountId`] =
               refund.method === 'card' ? "Bu chek shu kartaga to'lanmagan" : "Bu chek shu terminal orqali to'lanmagan"
@@ -389,18 +397,22 @@ export class ReturnsService {
       if (settlement.due > 0) {
         throw AppError.validation({ refunds: `Yana ${formatMoney(settlement.due)} qaytarilishi kerak` })
       }
-      if (!free) {
-        const elsewhere = refunds.reduce((sum, refund) => sum + (refund.method === 'cash' ? 0 : refund.base), 0)
-        if (due - elsewhere > caps.cash) {
+      const elsewhere = refunds.reduce((sum, refund) => sum + (refund.method === 'cash' ? 0 : refund.base), 0)
+      if (due - elsewhere > caps.cash) {
+        otherwise = true
+        if (!free) {
           throw AppError.badRequest(
             'REFUND_METHOD',
             `Naqd ko'pi bilan ${formatMoney(caps.cash)} qaytariladi: qolgani to'langan usulda qaytadi`,
             { refunds: "Pul to'langan usulda qaytariladi" },
           )
         }
-        for (const cap of caps.accounts) {
-          const back = refunds.reduce((sum, refund) => sum + (refund.account.id === cap.accountId ? refund.base : 0), 0)
-          if (back > cap.left) {
+      }
+      for (const cap of caps.accounts) {
+        const back = refunds.reduce((sum, refund) => sum + (refund.account.id === cap.accountId ? refund.base : 0), 0)
+        if (back > cap.left) {
+          otherwise = true
+          if (!free) {
             throw AppError.badRequest(
               'REFUND_METHOD',
               `«${cap.name}»ga ko'pi bilan ${formatMoney(cap.left)} qaytariladi`,
@@ -409,6 +421,8 @@ export class ReturnsService {
           }
         }
       }
+      // The manager's word is written down only where it was needed.
+      const vouched = !own && (late || otherwise) ? approver : null
 
       if (refunds.length) {
         await em.insert(
@@ -449,6 +463,8 @@ export class ReturnsService {
         exchangeTotal: credit,
         exchangeSaleId: exchange?.id ?? null,
         rounding: settlement.rounding,
+        approvedBy: vouched?.id ?? null,
+        approvedByName: vouched?.name ?? null,
       })
 
       await this.audit.record(em, actor.orgId, actor, {
@@ -457,7 +473,9 @@ export class ReturnsService {
         entityId: made.id,
         summary: `${number}: ${sale.number} dan ${made.qty} dona, ${formatMoney(total)}${
           exchange ? `, almashtirildi (${exchange.number})` : ''
-        }${late ? ", muddati o'tgan" : ''}${input.reason ? `. ${input.reason}` : ''}`,
+        }${late ? ", muddati o'tgan" : ''}${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${
+          input.reason ? `. ${input.reason}` : ''
+        }`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['returns', 'sales', 'stock', 'shifts', 'money', 'pos']))
       return this.load(em, await em.findOneByOrFail(SaleReturn, { id: made.id }))
@@ -583,6 +601,7 @@ export class ReturnsService {
       exchangeSaleNumber: row.exchangeSaleId ? (numberOf.get(row.exchangeSaleId) ?? null) : null,
       late: row.late,
       reason: row.reason,
+      approvedByName: row.approvedByName,
     }))
   }
 

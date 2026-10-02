@@ -7,6 +7,7 @@ import { Pricing1790000005000 } from './1790000005000-pricing'
 import { Pos1790000006000 } from './1790000006000-pos'
 import { Returns1790000007000 } from './1790000007000-returns'
 import { MoneyTransfers1790000008000 } from './1790000008000-money-transfers'
+import { TillControls1790000009000 } from './1790000009000-till-controls'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -19,4 +20,5 @@ export const MIGRATIONS = [
   Pos1790000006000,
   Returns1790000007000,
   MoneyTransfers1790000008000,
+  TillControls1790000009000,
 ]

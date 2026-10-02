@@ -10,6 +10,7 @@ import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
+import { ApprovalsService } from './approvals.service'
 import { sellables } from './items'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
@@ -23,6 +24,7 @@ export class PosService {
     private readonly money: MoneyService,
     private readonly shifts: ShiftsService,
     private readonly transfers: MoneyTransfersService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   /** Everything a till needs to start: its shift, the rate, where money can go, the shop's rules. */
@@ -55,6 +57,7 @@ export class PosService {
         cards: accounts.filter((account) => account.kind === 'card'),
         terminals: accounts.filter((account) => account.kind === 'terminal'),
         sellers,
+        approvers: await this.approvals.approversAt(em, register.locationId, actor.userId),
         drawers: {
           UZS: drawers.find((account) => account.currency === 'UZS')?.id ?? null,
           USD: drawers.find((account) => account.currency === 'USD')?.id ?? null,

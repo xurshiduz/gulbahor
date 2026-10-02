@@ -124,6 +124,12 @@ export function ReturnsTab({ locations }: { locations: { id: string; name: strin
         ),
       },
       {
+        id: 'approvedBy',
+        header: t('pos.approvedBy'),
+        meta: { export: (row) => row.approvedByName, className: 'text-ink-2' },
+        cell: ({ row }) => row.original.approvedByName ?? '',
+      },
+      {
         id: 'late',
         header: t('sales.late'),
         meta: { exportOnly: true, export: (row) => (row.late ? t('common.yes') : '') },

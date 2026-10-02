@@ -40,6 +40,7 @@ import { nextNumbers } from '../catalog/counters'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
+import { allows, ApprovalsService, type Approver } from './approvals.service'
 import { sellables } from './items'
 
 const DOCUMENT = 'sale'
@@ -68,16 +69,18 @@ export class SalesService {
     private readonly realtime: RealtimeService,
     private readonly stock: StockService,
     private readonly ledger: LedgerService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   async create(actor: Actor, input: SaleInput): Promise<SaleDto> {
+    const approver = await this.approvals.verify(actor, input.approval, input.registerId)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       // The till sends a sale again when it did not hear back: the sale it made the first time is the answer.
       const again = await em.findOneBy(Sale, { clientKey: input.clientKey })
       if (again) {
         return this.loadIn(em, actor, again)
       }
-      const { sale } = await this.createIn(em, actor, input, 0)
+      const { sale } = await this.createIn(em, actor, input, 0, approver)
       afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'stock', 'shifts', 'money', 'pos']))
       return this.loadIn(em, actor, sale)
     })
@@ -94,6 +97,7 @@ export class SalesService {
     actor: Actor,
     input: SaleInput,
     credit: number,
+    approver: Approver | null = null,
   ): Promise<{ sale: Sale; credit: number }> {
     const register = await em.findOneBy(Register, { id: input.registerId })
     if (!register || !register.isActive || !mayWorkAt(actor, register.locationId)) {
@@ -171,10 +175,15 @@ export class SalesService {
     if (offered > totals.subtotal) {
       throw AppError.validation({ discount: 'Chegirma tovar summasidan katta' })
     }
-    if (totals.discount * 100 > totals.subtotal * settings.maxDiscountPercent && !can(actor, 'pos.discount')) {
+    // Over the limit a cashier needs someone's word: their own right, or a manager's PIN given with the sale.
+    const overLimit = totals.discount * 100 > totals.subtotal * settings.maxDiscountPercent
+    const vouched = overLimit && !can(actor, 'pos.discount')
+    if (vouched && !allows(approver, 'pos.discount')) {
       throw AppError.badRequest(
         'DISCOUNT_OVER_LIMIT',
-        `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
+        approver
+          ? `${approver.name} chegaradan oshiq chegirmani tasdiqlay olmaydi`
+          : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
         { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
       )
     }
@@ -284,6 +293,8 @@ export class SalesService {
         costUsd: 0,
         costUzs: 0,
         paidBy,
+        approvedBy: vouched ? (approver?.id ?? null) : null,
+        approvedByName: vouched ? (approver?.name ?? null) : null,
         note: input.note ?? null,
         searchKey: searchKey([number, actor.name, seller?.fullName ?? ''].join(' ')),
       }),
@@ -421,7 +432,7 @@ export class SalesService {
       entityId: sale.id,
       summary: `${number}: ${sale.qty} dona, ${formatMoney(totals.total)}${
         totals.discount ? `, chegirma ${formatMoney(totals.discount)}` : ''
-      } (${paidBy})`,
+      } (${paidBy})${vouched && approver ? `, tasdiqladi: ${approver.name}` : ''}`,
     })
     return { sale: await em.findOneByOrFail(Sale, { id: sale.id }), credit: used }
   }
@@ -616,6 +627,7 @@ export class SalesService {
       voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
       voidedByName: sale.voidedByName,
       voidReason: sale.voidReason,
+      approvedByName: sale.approvedByName,
       lines: lines.map((line) => ({
         id: line.id,
         variantId: line.variant_id,

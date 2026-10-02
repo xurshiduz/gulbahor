@@ -1670,6 +1670,13 @@ export class Sale {
   @Column('bigint', { transformer: bigintAsNumber })
   returnedTotal: number
 
+  /** Who allowed a discount over the limit, when the cashier could not. */
+  @Column('uuid', { nullable: true })
+  approvedBy: string | null
+
+  @Column('text', { nullable: true })
+  approvedByName: string | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
@@ -1858,6 +1865,13 @@ export class SaleReturn {
   @Column('text', { nullable: true })
   reason: string | null
 
+  /** Who allowed it, when it was late or the money went back otherwise than it was paid. */
+  @Column('uuid', { nullable: true })
+  approvedBy: string | null
+
+  @Column('text', { nullable: true })
+  approvedByName: string | null
+
   @Column('text')
   searchKey: string
 
@@ -1932,6 +1946,30 @@ export class SaleReturnPayment {
 
   @Column('text', { nullable: true })
   reference: string | null
+}
+
+@Entity('shift_terminal_counts')
+export class ShiftTerminalCount {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  shiftId: string
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  counted: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  expected: number
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  diff: number
 }
 
 @Entity('money_transfers')
@@ -2066,4 +2104,5 @@ export const ENTITIES = [
   SaleReturnLine,
   SaleReturnPayment,
   MoneyTransfer,
+  ShiftTerminalCount,
 ]

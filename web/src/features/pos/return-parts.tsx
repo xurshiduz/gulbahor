@@ -44,6 +44,8 @@ interface ReturnPickerProps {
   code?: string
   /** What was picked before, to change it. */
   current?: Returning | null
+  /** Someone at the shop can allow what this cashier may not: late goods are then picked, and asked for at the till. */
+  mayAsk?: boolean
   onPick: (returning: Returning) => void
   onClose: () => void
 }
@@ -54,7 +56,7 @@ interface ReturnPickerProps {
  * have come back. The money, or the goods taken instead, are dealt with on
  * the till itself.
  */
-export function ReturnPicker({ code, current, onPick, onClose }: ReturnPickerProps) {
+export function ReturnPicker({ code, current, mayAsk, onPick, onClose }: ReturnPickerProps) {
   const { t } = useTranslation()
   const [text, setText] = useState(code ?? '')
   const [busy, setBusy] = useState(false)
@@ -102,7 +104,8 @@ export function ReturnPicker({ code, current, onPick, onClose }: ReturnPickerPro
   const lines = found?.sale.lines ?? []
   const total = lines.reduce((sum, line) => sum + (qty[line.id] ? returnShare(line, qty[line.id]) : 0), 0)
   const picked = lines.some((line) => qty[line.id])
-  const refused = !!found && found.late && !found.free
+  const asks = !!found && found.late && !found.free
+  const refused = asks && !mayAsk
 
   const confirm = () => {
     if (!found || !picked) {
@@ -174,7 +177,7 @@ export function ReturnPicker({ code, current, onPick, onClose }: ReturnPickerPro
                 )}
               >
                 {t('pos.returnLate', { days: found.returnDays })}
-                {refused ? `. ${t('pos.returnLateDenied')}` : ''}
+                {refused ? `. ${t('pos.returnLateDenied')}` : asks ? `. ${t('pos.returnLateAsk')}` : ''}
               </p>
             ) : null}
             <table className="w-full text-[13px]">
@@ -286,10 +289,15 @@ export function ReturnDialog({ returnId, onClose }: { returnId: string; onClose:
           <p className="text-xs text-ink-3">
             {t('sales.cashier')}: {data.cashierName}
           </p>
-          {data.late || data.reason ? (
+          {data.late || data.reason || data.approvedByName ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {data.late ? <Badge tone="warn">{t('sales.late')}</Badge> : null}
               {data.reason ? <span className="text-xs text-ink-2">{data.reason}</span> : null}
+              {data.approvedByName ? (
+                <span className="text-xs text-ink-3">
+                  {t('pos.approvedBy')}: {data.approvedByName}
+                </span>
+              ) : null}
             </div>
           ) : null}
 

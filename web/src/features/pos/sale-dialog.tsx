@@ -149,6 +149,12 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
               </div>
             ) : null}
 
+            {sale.approvedByName ? (
+              <p className="mt-1 text-xs text-ink-3">
+                {t('pos.approvedBy')}: {sale.approvedByName}
+              </p>
+            ) : null}
+
             <table className="mt-3 w-full border-t border-dashed border-line-strong">
               <tbody>
                 {sale.lines.map((line) => (

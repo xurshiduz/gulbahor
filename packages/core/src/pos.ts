@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { allocateExact, roundToStep, type CurrencyCode } from './money'
-import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
+import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
 
 /**
  * The till: where money is kept, the shift a cashier works, and the sale.
@@ -326,6 +326,17 @@ export const salePaymentInputSchema = z
   })
 export type SalePaymentInput = z.infer<typeof salePaymentInputSchema>
 
+/**
+ * A manager's word for what the cashier may not do alone: a discount over the
+ * limit, goods taken back late, money handed back otherwise than it was
+ * paid. The manager stands at the till and types their PIN; it is checked
+ * with the deed and never kept.
+ */
+export const approvalSchema = z.object({ userId: idSchema, pin: pinSchema })
+export type ApprovalInput = z.infer<typeof approvalSchema>
+
+const approvalField = approvalSchema.nullish().transform((value) => value ?? null)
+
 /** A tagged piece is one piece, and is on a sale once. */
 function taggedOnce(sale: { lines: SaleLineInput[] }, context: z.RefinementCtx) {
   const tags = new Set<string>()
@@ -359,6 +370,7 @@ export const saleInputSchema = z
     /** What the till showed as the total: if prices have changed since, the sale is refused rather than made at another sum. */
     total: amountSchema,
     note: optionalText(300),
+    approval: approvalField,
   })
   .superRefine(taggedOnce)
 export type SaleInput = z.infer<typeof saleInputSchema>
@@ -444,6 +456,8 @@ export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
   voidedAt: string | null
   voidedByName: string | null
   voidReason: string | null
+  /** Who allowed a discount over the limit, when the cashier could not. */
+  approvedByName: string | null
   lines: SaleLineDto[]
   payments: SalePaymentDto[]
   /** The returns made against it. */
@@ -555,6 +569,8 @@ export const returnInputSchema = z
     exchange: exchangeInputSchema.nullish().transform((value) => value ?? null),
     /** What the till showed as the value coming back: if the receipt has changed since, the return is refused. */
     total: amountSchema,
+    /** For the return, and for the goods taken instead when their discount needs it too. */
+    approval: approvalField,
   })
   .superRefine((input, context) => {
     const seen = new Set<string>()
@@ -600,6 +616,8 @@ export interface ReturnListItemDto {
   /** Made after the return period was over. */
   late: boolean
   reason: string | null
+  /** Who allowed it, when it was late or the money went back otherwise than it was paid. */
+  approvedByName: string | null
 }
 
 export interface ReturnDto extends ReturnListItemDto {
@@ -671,6 +689,8 @@ export interface PosContextDto {
   cards: AccountDto[]
   terminals: AccountDto[]
   sellers: { id: string; name: string }[]
+  /** Who at this shop may allow what the cashier may not, with a PIN to say so: for discounts, for returns. */
+  approvers: { id: string; name: string; discount: boolean; returns: boolean }[]
   /** The till's own cash accounts by currency; one that has never held money does not exist yet. */
   drawers: Record<CurrencyCode, string | null>
   /** Where cash from this till can be handed over to: the shop's safes, without their balances. */
@@ -707,6 +727,11 @@ export const shiftCloseSchema = z.object({
   handovers: z
     .array(z.object({ toAccountId: idSchema, amount: amountSchema.refine((value) => value > 0) }))
     .max(4)
+    .default([]),
+  /** What each terminal's own end-of-day slip says it took: checked against the payments rung up on it. */
+  terminals: z
+    .array(z.object({ accountId: idSchema, amount: amountSchema }))
+    .max(20)
     .default([]),
 })
 export type ShiftCloseInput = z.infer<typeof shiftCloseSchema>
@@ -761,6 +786,11 @@ export interface ShiftDto {
   diffUsd: number | null
   note: string | null
   totals: ShiftTotals | null
+  /**
+   * The terminals' own totals as typed at closing. What the till had rung up
+   * on each, and the difference, are for those who check the cashier.
+   */
+  terminals: { accountId: string; name: string; counted: number; expected: number | null; diff: number | null }[]
 }
 
 export const shiftListQuerySchema = listQuerySchema.extend({

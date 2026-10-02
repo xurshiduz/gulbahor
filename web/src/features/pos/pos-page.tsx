@@ -3,6 +3,7 @@ import {
   settle,
   settleRefund,
   toBase,
+  type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
   type PosItemDto,
@@ -48,6 +49,7 @@ import {
   type Returning,
   type TenderRow,
 } from './pos-state'
+import { ApprovalDialog } from './approval'
 import { HandoverDialog, WaitingTransfers } from './handover'
 import { ReturnDialog, ReturnPicker } from './return-parts'
 import { SaleDialog } from './sale-dialog'
@@ -233,6 +235,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [highlight, setHighlight] = useState(0)
   const [closing, setClosing] = useState(false)
   const [handing, setHanding] = useState(false)
+  /** A manager is being asked for their word: who may give it, and for what. */
+  const [asking, setAsking] = useState<{ who: { id: string; name: string }[]; reason: string } | null>(null)
   const [searching, setSearching] = useState(false)
   const [last, setLast] = useState<LastDocument | null>(null)
   const [viewing, setViewing] = useState<LastDocument | null>(null)
@@ -305,7 +309,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const refreshCart = () =>
     cart.lines.length ? refresh.mutate(cart.lines.map((line) => line.item.variantId)) : undefined
 
-  const idle = !closing && !viewing && !picking && !handing
+  const idle = !closing && !viewing && !picking && !handing && !asking
   // A scan lands in the cart wherever the cursor is; a count typed before it applies to it.
   useScanner((code) => lookup(code, multiplier ?? 1), { enabled: idle })
 
@@ -476,16 +480,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
   })
   const busy = sell.isPending || giveBack.isPending
 
-  const complete = () => {
+  const complete = (approval: ApprovalInput | null = null) => {
     if (busy || (!cart.lines.length && !returning)) {
       return
     }
     if (cart.lines.some((line) => badDiscount(line.discountText)) || badDiscount(cart.discountText)) {
       toast.error(t('pos.badDiscount'))
-      return
-    }
-    if (overLimit) {
-      toast.error(t('pos.overLimit', { percent: context.maxDiscountPercent }))
       return
     }
     if (entered.length && refunding && (refund.problem || refund.due > 0)) {
@@ -514,6 +514,48 @@ function Till({ context, registers, onSwitch }: TillProps) {
             ? [{ method: row.method, accountId: row.accountId, currency: row.currency, amount: suggested[row.key] }]
             : [],
         )
+    // What the cashier may not do alone waits for a manager's PIN; with it, the same deed is sent again.
+    const beyond =
+      refunding &&
+      !!returning &&
+      !returning.found.free &&
+      (toRefund -
+        amounts.reduce(
+          (sum, row) => sum + (row.method === 'cash' ? 0 : toBase(row.amount as number, row.currency, rate)),
+          0,
+        ) >
+        returning.found.caps.cash ||
+        returning.found.caps.accounts.some(
+          (cap) =>
+            amounts.reduce((sum, row) => sum + (row.accountId === cap.accountId ? (row.amount as number) : 0), 0) >
+            cap.left,
+        ))
+    const late = !!returning && returning.found.late && !returning.found.free
+    if (!approval && (overLimit || late || beyond)) {
+      const who = context.approvers.filter(
+        (approver) => (!overLimit || approver.discount) && (!(late || beyond) || approver.returns),
+      )
+      if (!who.length) {
+        toast.error(t('pos.noApprover'))
+        return
+      }
+      setAsking({
+        who,
+        reason: [
+          overLimit
+            ? t('pos.approvalDiscount', {
+                percent: percent.toFixed(1).replace('.', ','),
+                limit: context.maxDiscountPercent,
+              })
+            : null,
+          late ? t('pos.returnLate', { days: returning?.found.returnDays }) : null,
+          beyond ? t('pos.approvalRefund') : null,
+        ]
+          .filter(Boolean)
+          .join('. '),
+      })
+      return
+    }
     const goods = {
       sellerId: cart.sellerId,
       lines: cart.lines.map((line, index) => ({
@@ -527,7 +569,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       total: totals.total,
     }
     if (!returning) {
-      sell.mutate({ clientKey: clientKey.current, registerId, ...goods, payments: amounts })
+      sell.mutate({ clientKey: clientKey.current, registerId, ...goods, payments: amounts, approval })
       return
     }
     giveBack.mutate({
@@ -540,6 +582,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
         total: credit,
         refunds: refunding ? amounts : [],
         exchange: cart.lines.length ? { ...goods, payments: refunding ? [] : amounts } : null,
+        approval,
       },
       change:
         !refunding && (settlement.changeUzs || settlement.changeUsd)
@@ -555,8 +598,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
   useHotkey('f7', () => focusTender('card'), { label: t('pos.payCard'), group, enabled: idle })
   useHotkey('f8', () => focusTender('terminal'), { label: t('pos.payTerminal'), group, enabled: idle })
-  useHotkey('f9', complete, { label: t('pos.complete'), group, enabled: idle })
-  useHotkey('mod+enter', complete, { enabled: idle })
+  useHotkey('f9', () => complete(), { label: t('pos.complete'), group, enabled: idle })
+  useHotkey('mod+enter', () => complete(), { enabled: idle })
 
   useEffect(() => {
     focusSearch()
@@ -819,7 +862,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
               </div>
             ) : null}
             {overLimit ? (
-              <p className="mt-1 text-xs text-bad">{t('pos.overLimit', { percent: context.maxDiscountPercent })}</p>
+              <p className="mt-1 text-xs text-bad">
+                {t(context.approvers.some((approver) => approver.discount) ? 'pos.overLimitAsk' : 'pos.overLimit', {
+                  percent: context.maxDiscountPercent,
+                })}
+              </p>
             ) : null}
             {returning ? (
               <div className="mt-2 flex items-baseline justify-between text-[13px] text-warn">
@@ -987,7 +1034,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               className="h-11 text-sm"
               disabled={!cart.lines.length && !returning}
               loading={busy}
-              onClick={complete}
+              onClick={() => complete()}
             >
               {returning ? (cart.lines.length ? t('pos.exchangeAction') : t('pos.returnAction')) : t('pos.complete')}
               <Shortcut combo="f9" className="ml-1 opacity-70" />
@@ -1016,12 +1063,24 @@ function Till({ context, registers, onSwitch }: TillProps) {
         <ReturnPicker
           code={picking.code}
           current={picking.code ? null : returning}
+          mayAsk={context.approvers.some((approver) => approver.returns)}
           onPick={(picked) => {
             setReturning(picked)
             setPicking(null)
             window.setTimeout(focusSearch)
           }}
           onClose={() => setPicking(null)}
+        />
+      ) : null}
+      {asking ? (
+        <ApprovalDialog
+          approvers={asking.who}
+          reason={asking.reason}
+          onApprove={(approval) => {
+            setAsking(null)
+            complete(approval)
+          }}
+          onClose={() => setAsking(null)}
         />
       ) : null}
       {viewing?.kind === 'sale' ? <SaleDialog saleId={viewing.id} onClose={() => setViewing(null)} /> : null}

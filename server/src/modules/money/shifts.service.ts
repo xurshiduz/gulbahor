@@ -17,7 +17,7 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Account, Location, Register, Shift } from '../../database/entities'
+import { Account, Location, Register, Shift, ShiftTerminalCount } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
@@ -137,6 +137,23 @@ export class ShiftsService {
           note: `${shift.number} yopildi`,
         })
       }
+      // What each terminal's own slip says it took, against what was rung up on it in this shift.
+      const rung = await this.terminalTotals(em, id)
+      for (const [index, terminal] of input.terminals.entries()) {
+        const account = await em.findOneBy(Account, { id: terminal.accountId, kind: 'terminal' })
+        if (!account) {
+          throw AppError.validation({ [`terminals.${index}.accountId`]: 'Terminal topilmadi' })
+        }
+        const expected = rung.get(account.id) ?? 0
+        await em.insert(ShiftTerminalCount, {
+          orgId: actor.orgId,
+          shiftId: id,
+          accountId: account.id,
+          counted: terminal.amount,
+          expected,
+          diff: terminal.amount - expected,
+        })
+      }
       await em.update(Shift, id, {
         status: 'closed',
         closedBy: actor.userId,
@@ -240,7 +257,40 @@ export class ShiftsService {
       diffUsd: reviews ? shift.diffUsd : null,
       note: shift.note,
       totals: await this.totals(em, id),
+      terminals: await this.terminals(em, id, reviews),
     }
+  }
+
+  /** What was taken through each terminal in a shift: payments rung up on it, less what was handed back to it. */
+  private async terminalTotals(em: EntityManager, shiftId: string): Promise<Map<string, number>> {
+    const rows: { account_id: string; amount: number }[] = await em.query(
+      `SELECT account_id, sum(amount)::float8 AS amount FROM (
+         SELECT p.account_id, p.base AS amount FROM sale_payments p JOIN sales s ON s.id = p.sale_id
+         WHERE s.shift_id = $1 AND s.status = 'completed' AND p.method = 'terminal'
+         UNION ALL
+         SELECT p.account_id, -p.base FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
+         WHERE r.shift_id = $1 AND p.method = 'terminal'
+       ) x GROUP BY account_id`,
+      [shiftId],
+    )
+    return new Map(rows.map((row) => [row.account_id, row.amount]))
+  }
+
+  private async terminals(em: EntityManager, shiftId: string, reviews: boolean): Promise<ShiftDto['terminals']> {
+    const rows: { account_id: string; name: string; counted: number; expected: number; diff: number }[] =
+      await em.query(
+        `SELECT c.account_id, a.name, c.counted::float8 AS counted, c.expected::float8 AS expected, c.diff::float8 AS diff
+         FROM shift_terminal_counts c JOIN accounts a ON a.id = c.account_id
+         WHERE c.shift_id = $1 ORDER BY a.name`,
+        [shiftId],
+      )
+    return rows.map((row) => ({
+      accountId: row.account_id,
+      name: row.name,
+      counted: row.counted,
+      expected: reviews ? row.expected : null,
+      diff: reviews ? row.diff : null,
+    }))
   }
 
   /** The Z-report: what was sold in the shift and how it was paid. */

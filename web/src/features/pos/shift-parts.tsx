@@ -83,6 +83,8 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
   const [cashUsd, setCashUsd] = useState<number | null>(null)
   const [note, setNote] = useState('')
   const [handings, setHandings] = useState(() => emptyHandings(context.safes))
+  /** What each terminal's end-of-day slip says, as far as the cashier typed it. */
+  const [slips, setSlips] = useState<Record<string, number | null>>({})
 
   const close = useMutation({
     mutationFn: (input: unknown) => api.post<ShiftDto>(`/shifts/${shift.id}/close`, input),
@@ -103,7 +105,11 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
       toast.error(t('pos.handoverOver'))
       return
     }
-    const parsed = shiftCloseSchema.safeParse({ cashUzs, cashUsd: cashUsd ?? 0, note, handovers })
+    const terminals = context.terminals.flatMap((terminal) => {
+      const amount = slips[terminal.id]
+      return amount === null || amount === undefined ? [] : [{ accountId: terminal.id, amount }]
+    })
+    const parsed = shiftCloseSchema.safeParse({ cashUzs, cashUsd: cashUsd ?? 0, note, handovers, terminals })
     if (parsed.success) {
       close.mutate(parsed.data)
     }
@@ -143,6 +149,22 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
           onChange={setHandings}
           limits={{ UZS: cashUzs, USD: cashUsd }}
         />
+        {context.terminals.length ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {context.terminals.map((terminal) => (
+              <Field key={terminal.id} label={t('pos.terminalSlip', { name: terminal.name })}>
+                {(id) => (
+                  <MoneyInput
+                    id={id}
+                    value={slips[terminal.id] ?? null}
+                    onChange={(amount) => setSlips((current) => ({ ...current, [terminal.id]: amount }))}
+                    currency="UZS"
+                  />
+                )}
+              </Field>
+            ))}
+          </div>
+        ) : null}
         <Field label={t('receipts.note')}>
           {(id) => <Input id={id} value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} />}
         </Field>
@@ -237,6 +259,24 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           <Row label={t('pos.rounding')} value={`${totals.rounding > 0 ? '+' : ''}${money(totals.rounding)}`} />
         ) : null}
       </div>
+      {shift.terminals.length ? (
+        <div className="sm:col-span-2">
+          <p className="eyebrow mb-1">{t('pos.reportTerminals')}</p>
+          <div className="grid gap-x-8 sm:grid-cols-2">
+            {shift.terminals.map((terminal) => (
+              <div key={terminal.accountId}>
+                <Row
+                  label={`${terminal.name}: ${t('pos.counted').toLowerCase()}`}
+                  value={money(terminal.counted)}
+                  strong
+                />
+                {terminal.expected !== null ? <Row label={t('pos.expected')} value={money(terminal.expected)} /> : null}
+                {diff(terminal.diff, 'UZS')}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="sm:col-span-2">
         <p className="eyebrow mb-1">{t('pos.reportDrawer')}</p>
         <div className="grid gap-x-8 sm:grid-cols-2">
