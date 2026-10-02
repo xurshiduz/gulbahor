@@ -5,17 +5,19 @@
   "workspaces": [
     "packages/*",
     "server",
-    "web"
+    "web",
+    "agent"
   ],
   "scripts": {
     "build:core": "npm run build -w @gulbahor/core",
+    "build:agent": "npm run build -w @gulbahor/agent",
     "dev:server": "npm run build:core && npm run dev -w server",
     "dev:web": "npm run dev -w web",
-    "build": "npm run build:core && npm run build -w server && npm run build -w web",
-    "test": "npm run test -w @gulbahor/core && npm run test -w server && npm run test -w web",
-    "typecheck": "npm run build:core && npm run typecheck -w server && npm run typecheck -w web",
+    "build": "npm run build:core && npm run build:agent && npm run build -w server && npm run build -w web",
+    "test": "npm run test -w @gulbahor/core && npm run build:agent && npm run test -w @gulbahor/agent && npm run test -w server && npm run test -w web",
+    "typecheck": "npm run build:core && npm run build:agent && npm run typecheck -w @gulbahor/agent && npm run typecheck -w server && npm run typecheck -w web",
     "lint": "npm run lint -w server && npm run lint -w web",
-    "format": "prettier --write \"packages/*/src/**/*.ts\" \"server/src/**/*.ts\" \"web/src/**/*.{ts,tsx,css}\""
+    "format": "prettier --write \"packages/*/src/**/*.ts\" \"server/src/**/*.ts\" \"agent/src/**/*.ts\" \"web/src/**/*.{ts,tsx,css}\""
   },
   "devDependencies": {
     "prettier": "^3.6.2",

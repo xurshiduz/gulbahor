@@ -26,7 +26,7 @@ import {
 } from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, Ban, CheckCheck, Copy, MoreHorizontal, Plus, Trash2, TriangleAlert, X } from 'lucide-react'
+import { ArrowLeft, Ban, CheckCheck, Copy, MoreHorizontal, Plus, Tags, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -47,6 +47,7 @@ import { QtyMatrix } from '@/components/ui/qty-matrix'
 import { useSession } from '@/features/auth/session'
 import { useAttributes, usePriceTypes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
+import { LabelDialog } from '@/features/labels/label-dialog'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
@@ -193,6 +194,9 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [dirty, setDirty] = useState(false)
   const [expensesDirty, setExpensesDirty] = useState(false)
+  const [labelsOpen, setLabelsOpen] = useState(false)
+  // An RFID reader reports a tag many times over; each piece is taken once.
+  const seenTags = useRef(new Set<string>())
 
   const touch = () => setDirty(true)
   const patchHeader = (patch: Partial<Header>) => {
@@ -260,10 +264,18 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     (code) => {
       api
         .get<VariantLookupDto>('/products/lookup', { code })
-        .then((found) => addProduct(found.productId, found.variantId))
+        .then((found) => {
+          if (found.epc) {
+            if (seenTags.current.has(found.epc)) {
+              return
+            }
+            seenTags.current.add(found.epc)
+          }
+          return addProduct(found.productId, found.variantId)
+        })
         .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
     },
-    { enabled: editable },
+    { enabled: editable && !labelsOpen },
   )
 
   // ── Saving ──
@@ -431,6 +443,21 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     enabled: editable && canPost,
   })
 
+  // Labels are made for the document as it is saved: its lines are what the pieces are counted from.
+  const canLabel = !!receipt && status !== 'cancelled' && receipt.lines.length > 0 && can('labels.print')
+  const openLabels = () => {
+    if (dirty) {
+      toast.error(t('labels.saveFirst'))
+    } else {
+      setLabelsOpen(true)
+    }
+  }
+  useHotkey('f8', openLabels, {
+    label: t('labels.title'),
+    group: t('shortcuts.groupForm'),
+    enabled: canLabel && !labelsOpen,
+  })
+
   // A new receipt starts at the search box once its header is filled in from the last one.
   useEffect(() => {
     if (!receipt && header.locationId && header.uzsRate) {
@@ -489,6 +516,13 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
           {status === 'posted' && canPost && expensesDirty ? (
             <Button variant="primary" onClick={() => saveExpenses.mutate()} loading={saveExpenses.isPending}>
               {t('receipts.saveExpenses')}
+            </Button>
+          ) : null}
+          {canLabel ? (
+            <Button onClick={openLabels}>
+              <Tags />
+              {t('labels.button')}
+              <Shortcut combo="f8" className="ml-1" />
             </Button>
           ) : null}
           {receipt && can('receipts.manage') ? (
@@ -775,6 +809,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
           </div>
         </Form>
       </div>
+      {labelsOpen && receipt ? <LabelDialog receipt={receipt} onClose={() => setLabelsOpen(false)} /> : null}
     </Page>
   )
 }

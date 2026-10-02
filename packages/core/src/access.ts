@@ -24,7 +24,7 @@ export const MODULES: ModuleInfo[] = [
     key: 'rfid',
     title: 'RFID',
     description: 'Har dona alohida kuzatiladi: etiketka chop etish, RFID bilan sotish, sanash va darvoza.',
-    ready: false,
+    ready: true,
   },
   {
     key: 'partners',
@@ -167,6 +167,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'labels',
+    title: 'Etiketka',
+    permissions: [{ key: 'labels.print', title: 'Etiketka chop etish va RFID belgi yaratish' }],
+  },
+  {
+    key: 'devices',
+    title: 'Qurilmalar',
+    permissions: [{ key: 'devices.manage', title: "Printer va do'kon agentlarini sozlash" }],
+  },
+  {
     key: 'partners',
     title: 'Yetkazib beruvchilar va hamkorlar',
     permissions: [
@@ -247,6 +257,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'transfers.*',
       'writeoffs.*',
       'counts.*',
+      'labels.*',
+      'devices.*',
       'partners.*',
       'audit.view',
     ],
@@ -281,6 +293,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'writeoffs.manage',
       'counts.view',
       'counts.manage',
+      'labels.print',
     ],
   },
   {
@@ -311,6 +324,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'writeoffs.manage',
       'counts.view',
       'counts.manage',
+      'labels.print',
       'partners.view',
     ],
   },

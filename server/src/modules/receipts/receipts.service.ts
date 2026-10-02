@@ -36,6 +36,7 @@ import {
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
+import { settleReceiptUnits, voidReceiptUnits } from '../labels/units'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, TRANSIT, type Movement } from '../stock/stock.service'
 
@@ -182,6 +183,8 @@ export class ReceiptsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const receipt = await this.lock(em, actor, id)
       this.assertStatus(receipt, 'draft')
+      // Labels printed for it stand for nothing now.
+      await voidReceiptUnits(em, id)
       await em.delete(Receipt, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'receipt.delete',
@@ -274,6 +277,9 @@ export class ReceiptsService {
         ...totalColumns(costing.totals),
       })
 
+      // Pieces labelled before posting are on hand from now on.
+      await settleReceiptUnits(em, id, receipt.locationId)
+
       const priced = can(actor, 'products.prices') ? await this.applyPrices(em, actor, lines) : 0
       await this.audit.record(em, actor.orgId, actor, {
         action: 'receipt.post',
@@ -283,7 +289,7 @@ export class ReceiptsService {
           priced ? `; ${priced} ta model narxi yangilandi` : ''
         }`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'products']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'products', 'labels']))
       return this.load(em, await this.find(em, actor, id))
     })
   }
@@ -322,6 +328,7 @@ export class ReceiptsService {
         }
       })
       await this.stock.apply(em, actor.orgId, actor.userId, movements)
+      await voidReceiptUnits(em, id)
       await em.update(Receipt, id, { status: 'cancelled', cancelledAt: new Date(), cancelledBy: actor.userId })
       await this.audit.record(em, actor.orgId, actor, {
         action: 'receipt.cancel',

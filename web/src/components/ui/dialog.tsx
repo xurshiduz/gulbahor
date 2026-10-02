@@ -42,6 +42,17 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
             'rounded-xl border border-line bg-surface shadow-float outline-none data-[state=open]:animate-pop-in',
             SIZES[size],
           )}
+          onKeyDown={(event) => {
+            // Ctrl+Enter saves from anywhere in the dialog; inside the form, the form has already taken it.
+            if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.defaultPrevented) {
+              return
+            }
+            const submit = event.currentTarget.querySelector<HTMLButtonElement>('button[type="submit"]:not(:disabled)')
+            if (submit) {
+              event.preventDefault()
+              submit.click()
+            }
+          }}
         >
           <div className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-3.5">
             <div className="min-w-0 flex-1">

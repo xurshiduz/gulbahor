@@ -450,4 +450,6 @@ export interface VariantLookupDto {
   productName: string
   sku: string
   label: string
+  /** Set when the code was an RFID tag: that one piece, to be counted once however often it is read. */
+  epc?: string | null
 }

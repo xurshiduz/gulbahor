@@ -10,6 +10,7 @@ Hozir 1-bosqich (asos) tayyor: bir-biridan ajratilgan bizneslar, kirish va sessi
 packages/core   pul (tiyinda), kiritishni o'qish, qidiruv, API shartnomalari — server va web uchun umumiy
 server          NestJS 11, TypeORM, PostgreSQL, Socket.IO
 web             React 19, Vite, TanStack Router/Query/Table, Tailwind 4, Radix
+agent           do'kon kompyuterida ishlaydigan kichik dastur: printerlarni serverga bog'laydi (agent/README.md)
 docs            reja va qarorlar
 ```
 

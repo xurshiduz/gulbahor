@@ -187,6 +187,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
   const [onHand, setOnHand] = useState<Record<string, number>>(() => doc?.onHand ?? {})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [dirty, setDirty] = useState(false)
+  const seenTags = useRef(new Set<string>())
 
   const touch = () => {
     setDirty(true)
@@ -255,7 +256,16 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
     (code) => {
       api
         .get<VariantLookupDto>('/products/lookup', { code })
-        .then((found) => addProduct(found.productId, found.variantId))
+        .then((found) => {
+          // An RFID reader reports a tag many times over; each piece is counted once.
+          if (found.epc) {
+            if (seenTags.current.has(found.epc)) {
+              return
+            }
+            seenTags.current.add(found.epc)
+          }
+          return addProduct(found.productId, found.variantId)
+        })
         .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
     },
     { enabled: editable },

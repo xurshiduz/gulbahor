@@ -1,6 +1,7 @@
 import {
   formatMoney,
   internalBarcode,
+  normalizeEpc,
   variantLabel,
   type AxisSummary,
   type Page,
@@ -173,9 +174,33 @@ export class ProductsService {
     return this.db.tenant(actor.orgId, async ({ em }) => this.load(em, id))
   }
 
-  /** Which variant a scanned barcode or a typed article belongs to. */
+  /** Which variant a scanned barcode, a typed article or a read RFID tag belongs to. */
   async lookup(actor: Actor, code: string): Promise<VariantLookupDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
+      const epc = normalizeEpc(code)
+      if (epc) {
+        const tagged: { product_id: string; variant_id: string; name: string; sku: string; value_names: string[] }[] =
+          await em.query(
+            `SELECT p.id AS product_id, v.id AS variant_id, p.name, v.sku, ${VALUE_NAMES} AS value_names
+             FROM rfid_units u
+             JOIN product_variants v ON v.id = u.variant_id
+             JOIN products p ON p.id = v.product_id
+             ${VALUE_JOINS}
+             WHERE u.epc = $1 AND u.status <> 'void'`,
+            [epc],
+          )
+        if (tagged[0]) {
+          const [unit] = tagged
+          return {
+            productId: unit.product_id,
+            variantId: unit.variant_id,
+            productName: unit.name,
+            sku: unit.sku,
+            label: variantLabel(unit.value_names),
+            epc,
+          }
+        }
+      }
       const rows: { product_id: string; variant_id: string; name: string; sku: string; value_names: string[] }[] =
         await em.query(
           `SELECT p.id AS product_id, v.id AS variant_id, p.name, v.sku, ${VALUE_NAMES} AS value_names
@@ -189,7 +214,7 @@ export class ProductsService {
           [code],
         )
       if (!rows[0]) {
-        throw AppError.notFound('Bu kod bilan tovar topilmadi')
+        throw AppError.notFound(epc ? "Bu RFID belgi tizimda yo'q" : 'Bu kod bilan tovar topilmadi')
       }
       const [row] = rows
       return {

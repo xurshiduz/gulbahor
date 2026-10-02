@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
+    "@gulbahor/agent": "*",
     "@nestjs/cli": "^11.0.10",
     "@nestjs/testing": "^11.1.6",
     "@types/cookie-parser": "^1.4.9",
@@ -45,6 +46,7 @@
     "@types/supertest": "^7.2.1",
     "eslint": "^9.37.0",
     "jest": "^30.2.0",
+    "socket.io-client": "^4.8.1",
     "supertest": "^7.3.0",
     "ts-jest": "^29.4.4",
     "typescript-eslint": "^8.46.0"

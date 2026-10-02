@@ -4,14 +4,18 @@ import type {
   CurrencyCode,
   ExpenseBasis,
   Gender,
+  LabelSizeKey,
   LocationKind,
   OrgSettings,
   PriceKind,
+  PrinterDpi,
+  PrintJobStatus,
   ReceiptStatus,
   Season,
   StockDocKind,
   StockDocStatus,
   Unit,
+  UnitStatus,
   WriteoffReason,
 } from '@gulbahor/core'
 import { Column, CreateDateColumn, Entity, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
@@ -1041,6 +1045,177 @@ export class StockDocumentItem {
   costUzs: number
 }
 
+/** One tagged piece: its code, what it is, where it was last known to be. */
+@Entity('rfid_units')
+export class RfidUnit {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  epc: string
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('uuid', { nullable: true })
+  batchId: string | null
+
+  @Column('uuid', { nullable: true })
+  receiptId: string | null
+
+  @Column('int', { nullable: true })
+  unitNo: number | null
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('text')
+  status: UnitStatus
+
+  @Column('int')
+  printCount: number
+
+  @Column('timestamptz', { nullable: true })
+  lastPrintedAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+/** The program in a shop that reaches its printers and readers for the server. */
+@Entity('agents')
+export class StoreAgent {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('text')
+  keyHash: string
+
+  @Column('text', { nullable: true })
+  hostname: string | null
+
+  @Column('text', { nullable: true })
+  version: string | null
+
+  @Column('timestamptz', { nullable: true })
+  lastSeenAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('printers')
+export class Printer {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('uuid')
+  agentId: string
+
+  @Column('text')
+  host: string
+
+  @Column('int')
+  port: number
+
+  @Column('int')
+  dpi: PrinterDpi
+
+  @Column('text')
+  labelSize: LabelSizeKey
+
+  @Column('boolean')
+  rfid: boolean
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('print_jobs')
+export class PrintJob {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid', { nullable: true })
+  printerId: string | null
+
+  @Column('uuid', { nullable: true })
+  agentId: string | null
+
+  @Column('text')
+  printerName: string
+
+  @Column('text')
+  title: string
+
+  @Column('int')
+  labels: number
+
+  /** The commands themselves: large, so read only when a job is sent. */
+  @Column('text', { select: false })
+  payload: string
+
+  @Column('text')
+  status: PrintJobStatus
+
+  @Column('text', { nullable: true })
+  error: string | null
+
+  @Column('int')
+  attempts: number
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @Column('timestamptz', { nullable: true })
+  sentAt: Date | null
+
+  @Column('timestamptz', { nullable: true })
+  doneAt: Date | null
+}
+
 export type StockMovementKind =
   | 'receipt'
   | 'receipt_cancel'
@@ -1078,4 +1253,8 @@ export const ENTITIES = [
   StockDocument,
   StockDocumentLine,
   StockDocumentItem,
+  RfidUnit,
+  StoreAgent,
+  Printer,
+  PrintJob,
 ]

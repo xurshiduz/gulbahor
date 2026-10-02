@@ -440,7 +440,9 @@ Hozir tovarlarda oddiy shtrix-kod bor. RFID'ga o'tish bir martalik ish sifatida 
 
 ### Kerakli uskunalar
 
-Reja eng yangi modellar bo'yicha tuzilgan (2026-yil oktabr holatiga). Aniq modellar 3-bosqichdan oldin tasdiqlanadi (1-savol).
+Reja eng yangi modellar bo'yicha tuzilgan (2026-yil oktabr holatiga).
+
+**Tanlov (2026-10-02).** Printer — **Chainway CP30**: eski Gulbahor ham shu printer uchun yozilgan, u ZPL tilini tushunadi, tarmoqqa (LAN) ulanadi, 203 va 300 dpi kallagi bor. Qo'l terminali — **Chainway C72** ("klaviatura" rejimi bor, tizim uning brauzerida ochiladi). Kassa o'quvchisi va darvoza ham shu ishlab chiqaruvchidan olinsa (R3, UR4), hammasi bitta SDK va bitta sotuvchi bo'ladi. Kod ZPL'ga yozilgan, shuning uchun Zebra ZD621R ham ishlayveradi. Kassa o'quvchisi va darvoza modeli 3-bosqichdan oldin tasdiqlanadi (1-savol).
 
 | Joy | Uskuna | Tavsiya etilgan model | Nimaga kerak | Talab |
 | --- | --- | --- | --- | --- |
@@ -638,7 +640,7 @@ Akada bor-yo'qligi noma'lum, lekin boshqa bizneslarda uchraydi. Shuning uchun mo
   - To'lov (obuna) va sotish bilan bog'liq qismlar keyinroq qo'shiladi.
 - **Server — virtual server (VPS).** Hamma do'kon va sklad bitta serverga ulanadi, rahbar hamma narsani jonli ko'radi. Boshlanishiga Ubuntu 24.04, 4 vCPU, 8 GB RAM va 80 GB SSD yetadi. Baza har kuni avtomatik zaxiralanadi, zaxira boshqa joyda saqlanadi.
 - **Internet uzilsa.** To'liq oflayn kassa qilinmaydi: u RFID holati, darvoza va karta nazoratini murakkablashtiradi. Buning o'rniga har do'konda zaxira 4G internet bo'ladi. Kerak bo'lsa keyinroq qisqa uzilishlar uchun kassada navbat qo'shiladi: chek noyob kalit bilan saqlanib, aloqa tiklanganda yuboriladi.
-- **Do'kon agenti.** Har do'kon kompyuterida kichik dastur ishlaydi. U darvoza, stol o'quvchisi va printerlar bilan gaplashadi, chunki brauzer ularga to'g'ridan-to'g'ri ulana olmaydi. Darvoza qarori tez chiqishi uchun agent do'kondagi donalarning holatini xotirada saqlaydi va serverdan realtime yangilab turadi.
+- **Do'kon agenti.** Har do'kon kompyuterida kichik dastur ishlaydi. U darvoza, stol o'quvchisi va printerlar bilan gaplashadi, chunki brauzer ularga to'g'ridan-to'g'ri ulana olmaydi, server esa domenda turadi va do'konning ichki tarmog'ini ko'rmaydi. Agent serverga o'zi ulanadi (do'konga statik IP va ochiq port kerak emas), server ishni shu aloqa orqali beradi. Etiketka chop etish qismi tayyor (`agent/`); darvoza va stol o'quvchisi 3-bosqichda qo'shiladi. Darvoza qarori tez chiqishi uchun agent do'kondagi donalarning holatini xotirada saqlaydi va serverdan realtime yangilab turadi.
 - **Backend:** NestJS, TypeORM (migratsiyalar bilan), PostgreSQL, Socket.IO.
 - **Frontend:** React 19, Vite, TanStack Router, Query, Table va Virtual, Tailwind 4, Radix, cmdk.
 - **Telegram:** egasining akkauntidan bank xabarlarini o'qish (userbot); rahbar, hamkor va mijoz botlari.
@@ -749,7 +751,7 @@ Aka Billz'dagi inputlardan norozi. Shuning uchun inputlar tizimning eng kuchli j
 ## 14. Bosqichlar
 
 1. **Asos — tayyor (2026-10-01).** `xurshiduz/gulbahor` ichida yangi loyiha tuzilmasi, migratsiyalar, ko'p tashkilot (RLS), modullarni yoqish va o'chirish, kirish va huquqlar, joylar (do'kon va sklad), frontend qobig'i, klaviatura qatlami, jadval va inputlar.
-2. **Tovar va sklad — davom etmoqda.** Tayyor (2026-10-01): tovar katalogi (kategoriyalar, brendlar, rang va o'lcham shkalalari, narx turlari, model va variantlar, shtrix-kodlar, narxlar); yetkazib beruvchilar; kirim hujjati (istalgan xarid valyutasi, yo'l va bojxona xarajatlarini taqsimlash, kechikkan xarajat); qoldiq; Excel'dan kirim; ko'chirish (jo'natildi → "yo'lda" → qabul, kamomad yo'qotish bo'lib yoziladi, qabulgacha qaytarib olish mumkin); hisobdan chiqarish (sabab bilan, tasdiq alohida ruxsat, bekor qilinsa tovar qaytadi); inventarizatsiya (qisman yoki to'liq, natija tasdiq bilan qoldiqqa o'tadi, hisobdagi sonni ko'rish ruxsatga bog'liq). Qolgani: RFID etiketka va donalar, narxlarni ommaviy o'zgartirish va ustama qoidalari, jadvallarni Excel'ga chiqarish, hisobdan chiqarishga rasm biriktirish (fayl saqlash bilan birga).
+2. **Tovar va sklad — davom etmoqda.** Tayyor (2026-10-01): tovar katalogi (kategoriyalar, brendlar, rang va o'lcham shkalalari, narx turlari, model va variantlar, shtrix-kodlar, narxlar); yetkazib beruvchilar; kirim hujjati (istalgan xarid valyutasi, yo'l va bojxona xarajatlarini taqsimlash, kechikkan xarajat); qoldiq; Excel'dan kirim; ko'chirish (jo'natildi → "yo'lda" → qabul, kamomad yo'qotish bo'lib yoziladi, qabulgacha qaytarib olish mumkin); hisobdan chiqarish (sabab bilan, tasdiq alohida ruxsat, bekor qilinsa tovar qaytadi); inventarizatsiya (qisman yoki to'liq, natija tasdiq bilan qoldiqqa o'tadi, hisobdagi sonni ko'rish ruxsatga bog'liq). Tayyor (2026-10-02): etiketka va RFID donalar — har donaga takrorlanmas kod (EPC), kirimdan yoki qoldiqdan etiketka chop etish, do'kon agenti orqali printerga yuborish (navbat, qayta yuborish, sinov etiketkasi), RFID kodni skanerlab tovarni topish (bitta dona bir marta sanaladi). Qolgani: narxlarni ommaviy o'zgartirish va ustama qoidalari, jadvallarni Excel'ga chiqarish, hisobdan chiqarishga rasm biriktirish (fayl saqlash bilan birga); donaning joyi va holatini hujjatlar bo'yicha yuritish (sotildi, ko'chirildi) va brendning o'z RFID belgisini ro'yxatga olish — 3-bosqichda, qo'l terminali bilan birga.
 3. **Kassa.** RFID yoki shtrix-kod bilan sotish, to'lovlar, terminal, qaytarish va almashtirish, otlojka, smena va inkassatsiya; do'kon agenti va darvoza.
 4. **Pul va hamkorlar.** Hisoblar, ikki tomonlama yozuv, valyuta va kurs farqi, harajatlar, hamkorlar (qarz va konsignatsiya ikki tomonga), akt-sverka, davrni yopish; mijozlar, hamkorlar va boshlang'ich qarzlarni Excel'dan import qilish.
 5. **Birinchi do'konda ishga tushirish** (quyida).
@@ -771,7 +773,7 @@ Aka Billz'dagi inputlardan norozi. Shuning uchun inputlar tizimning eng kuchli j
 
 ### Sizga
 
-1. **Eslatma — 3-bosqich (kassa, do'kon agenti, darvoza) boshlanishidan oldin so'raladi:** sotib olinadigan yoki bor RFID uskunalarining aniq modeli: printer, qo'l terminali, kassa o'quvchisi, darvoza. Hozircha reja 8-bo'limdagi eng yangi modellar bo'yicha tuzilgan.
+1. **Eslatma — 3-bosqich (kassa, do'kon agenti, darvoza) boshlanishidan oldin so'raladi:** kassa o'quvchisi va darvozaning aniq modeli. Printer (Chainway CP30) va qo'l terminali (Chainway C72) tanlangan (8-bo'lim). Printer kelganda: haqiqiy etiketkada sinab ko'rish kerak (o'lcham, kirill harflari, chipga yozish) — hozircha buyruqlar faqat dasturiy testdan o'tgan.
 
 ### Akaga
 

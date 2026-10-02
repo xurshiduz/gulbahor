@@ -29,6 +29,8 @@ const ENTITIES = [
   'attribute',
   'price_type',
   'partner',
+  'agent',
+  'printer',
   'user',
   'role',
   'location',

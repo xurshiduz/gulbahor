@@ -1,4 +1,4 @@
-import { GENDERS, LOCATION_KINDS, SEASONS } from '@gulbahor/core'
+import { GENDERS, LOCATION_KINDS, PRINT_JOB_STATUSES, SEASONS } from '@gulbahor/core'
 import { createRootRoute, createRoute, createRouter, redirect, stripSearchParams } from '@tanstack/react-router'
 import { z } from 'zod'
 
@@ -8,6 +8,8 @@ import { ProductsPage } from '@/features/catalog/products-page'
 import { ReferencesPage } from '@/features/catalog/references-page'
 import { HomePage } from '@/features/dashboard/home-page'
 import { InputsDemoPage } from '@/features/dev/inputs-demo-page'
+import { DevicesPage } from '@/features/devices/devices-page'
+import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
 import { PartnersPage } from '@/features/partners/partners-page'
 import { ProfilePage } from '@/features/profile/profile-page'
@@ -176,6 +178,31 @@ const partnersRoute = createRoute({
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
 })
 
+const labelsSearch = z.object({
+  page: listSearch.page,
+  size: listSearch.size,
+  q: listSearch.q,
+  status: z
+    .enum(['all', ...PRINT_JOB_STATUSES])
+    .default('all')
+    .catch('all'),
+})
+const labelsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/labels',
+  component: LabelsPage,
+  validateSearch: labelsSearch,
+  search: { middlewares: [stripSearchParams({ page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size, status: 'all' })] },
+})
+
+const devicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/devices',
+  component: DevicesPage,
+  validateSearch: z.object({ tab: z.enum(['printers', 'agents']).default('printers').catch('printers') }),
+  search: { middlewares: [stripSearchParams({ tab: 'printers' })] },
+})
+
 const usersSearch = z.object({
   ...listSearch,
   status: z.enum(['active', 'blocked', 'all']).default('all').catch('all'),
@@ -253,8 +280,10 @@ const routeTree = rootRoute.addChildren([
   writeoffRoute,
   countsRoute,
   countRoute,
+  labelsRoute,
   partnersRoute,
   locationsRoute,
+  devicesRoute,
   usersRoute,
   rolesRoute,
   auditRoute,

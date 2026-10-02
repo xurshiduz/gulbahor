@@ -10,6 +10,9 @@ coverage/
 .env.*
 !.env.example
 
+# Do'kon agentining kaliti
+agent.json
+
 # Yuklangan fayllar
 uploads/
 
