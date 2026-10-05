@@ -776,6 +776,10 @@ export class ReceiptLine {
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   wholesalePrice: number | null
 
+  /** Prices for the other price types, by price type id. */
+  @Column('jsonb', { default: () => "'{}'" })
+  otherPrices: Record<string, number>
+
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   costUsd: number | null
 

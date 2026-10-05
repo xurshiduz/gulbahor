@@ -83,6 +83,8 @@ Billz hamma turdagi do'kon uchun qilingan, shuning uchun unda kiyim do'koniga ke
 4. **Kirimdagi "qo'shimcha xarajat" ustuni yashiriladi.** Standart 0. Kerak bo'lgan biznes sozlamadan yoqadi.
 5. **Savdolashish.** Kassada qator narxini yoki chek summasini to'g'ridan-to'g'ri yozish: "1 600 000". Tizim farqni chegirma qilib yozadi, chekda "kelishilgan narx" deb ko'rinadi.
 
+Qilingan (2026-10-05): 1-band — kirimda har faol narx turining o'z maydoni bor (Chakana, Ulgurji, Minimal, "Oila" va qo'shilgan har qanday tur); bo'sh maydonda tizim taklifi xira ko'rinadi (ustama qoidasidan), `=` uni oladi. Kirim o'tkazilganda yozilgan narxlar tovarga qo'yiladi; yozilmagan narx turi o'zgarmaydi. 3-band — minimal narx kassada ishlaydi. 4-band — "qo'shimcha xarajat" maydoni yashirin, Sozlamalar → Biznes da yoqiladi (eski kirimda yozilgan bo'lsa, o'sha kirimda ko'rinaveradi). 5-band — kassada kelishilgan summa. 2-band (kassada narx turini tanlash) — navbatda.
+
 ### Narx turlari: to'liq qoida
 
 **Narx turi istalgancha yaratiladi.** Chakana, ulgurji, oila, xodimlar uchun, doimiy mijoz uchun — rahbar o'zi nom beradi. Har narx turida:

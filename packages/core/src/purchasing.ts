@@ -120,6 +120,11 @@ export const receiptLineInputSchema = z.object({
   /** Prices to put on the model when the document is posted, each in its price type's currency. */
   retailPrice: nullableAmount,
   wholesalePrice: nullableAmount,
+  /**
+   * The same for every other price type the business keeps (the floor, a family price, a second wholesale
+   * one), by the price type's id. The retail type and the first wholesale one have the fields above.
+   */
+  otherPrices: z.record(idSchema, amountSchema).default({}),
 })
 export type ReceiptLineInput = z.infer<typeof receiptLineInputSchema>
 
@@ -225,6 +230,8 @@ export interface ReceiptLineDto {
   extra: number
   retailPrice: number | null
   wholesalePrice: number | null
+  /** Prices for the other price types, by price type id. */
+  otherPrices: Record<string, number>
   /** Landed cost of the whole line; null until the receipt is posted. */
   costUsd: number | null
   costUzs: number | null

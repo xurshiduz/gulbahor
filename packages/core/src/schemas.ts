@@ -170,6 +170,11 @@ export interface OrgSettings {
   maxRateLossPercent: number
   /** Goods are taken back for this many days after the sale; later needs someone allowed to. 0 sets no limit. */
   returnDays: number
+  /**
+   * A receipt has a field for a cost known for one model alone, beside its price. Most businesses share
+   * every cost out over the whole shipment and never need it, so it is off until someone asks for it.
+   */
+  receiptLineExtra: boolean
 }
 
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {
@@ -178,6 +183,7 @@ export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   maxDiscountPercent: 10,
   maxRateLossPercent: 2,
   returnDays: 14,
+  receiptLineExtra: false,
 }
 
 export interface OrgDto {
@@ -199,6 +205,7 @@ export const orgUpdateSchema = z.object({
     maxDiscountPercent: z.coerce.number().min(0).max(100).optional(),
     maxRateLossPercent: z.coerce.number().min(0).max(100).optional(),
     returnDays: z.coerce.number().int().min(0).max(3650).optional(),
+    receiptLineExtra: z.boolean().optional(),
   }),
 })
 export type OrgUpdateInput = z.infer<typeof orgUpdateSchema>

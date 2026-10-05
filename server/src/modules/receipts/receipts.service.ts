@@ -206,7 +206,7 @@ export class ReceiptsService {
       const expenses = await em.find(ReceiptExpense, { where: { receiptId: id }, order: { position: 'ASC' } })
       const receipt = await this.createIn(em, actor, {
         ...header(source),
-        lines: lines.map(({ variantId, supplierId, qty, price, extra, retailPrice, wholesalePrice }) => ({
+        lines: lines.map(({ variantId, supplierId, qty, price, extra, retailPrice, wholesalePrice, otherPrices }) => ({
           variantId,
           supplierId,
           qty,
@@ -214,6 +214,7 @@ export class ReceiptsService {
           extra,
           retailPrice,
           wholesalePrice,
+          otherPrices,
         })),
         expenses: expenses.map(({ name, amount, currency, basis, isEstimate }) => ({
           name,
@@ -552,6 +553,7 @@ export class ReceiptsService {
         extra: line.extra,
         retailPrice: line.retailPrice,
         wholesalePrice: line.wholesalePrice,
+        otherPrices: line.otherPrices,
         costUsd: line.costUsd,
         costUzs: line.costUzs,
       })),
@@ -644,9 +646,15 @@ export class ReceiptsService {
     const variantIds = [...new Set(input.lines.map((line) => line.variantId))]
     const variants = variantIds.length ? await em.findBy(ProductVariant, { id: In(variantIds) }) : []
     const found = new Set(variants.map((variant) => variant.id))
+    // A price can be set only for a price type the business keeps, and only in the field that is its own.
+    const { others } = await priceFields(em)
+    const priced = new Set(others.map((type) => type.id))
     input.lines.forEach((line, index) => {
       if (!found.has(line.variantId)) {
         fields[`lines.${index}.variantId`] = 'Tovar topilmadi'
+      }
+      if (Object.keys(line.otherPrices).some((id) => !priced.has(id))) {
+        fields[`lines.${index}.otherPrices`] = 'Narx turi topilmadi'
       }
       if (line.supplierId && !known.has(line.supplierId)) {
         fields[`lines.${index}.supplierId`] = 'Yetkazib beruvchi topilmadi'
@@ -775,13 +783,21 @@ export class ReceiptsService {
    * says otherwise keeps its own. Returns how many models were touched.
    */
   private async applyPrices(em: EntityManager, actor: Actor, lines: ReceiptLine[]): Promise<number> {
-    const types = await em.findBy(PriceType, { kind: In(['retail', 'wholesale']), isActive: true })
+    const { retail, wholesale, others } = await priceFields(em)
     const variants = await em.findBy(ProductVariant, { id: In([...new Set(lines.map((line) => line.variantId))]) })
     const productOf = new Map(variants.map((variant) => [variant.id, variant.productId]))
     const touched = new Set<string>()
 
-    for (const type of types) {
-      const pick = (line: ReceiptLine) => (type.kind === 'retail' ? line.retailPrice : line.wholesalePrice)
+    for (const type of [retail, wholesale, ...others]) {
+      if (!type) {
+        continue
+      }
+      const pick = (line: ReceiptLine): number | null =>
+        type === retail
+          ? line.retailPrice
+          : type === wholesale
+            ? line.wholesalePrice
+            : (line.otherPrices[type.id] ?? null)
       const byProduct = new Map<string, Map<string, number>>()
       for (const line of lines) {
         const amount = pick(line)
@@ -823,6 +839,20 @@ export class ReceiptsService {
     }
     return touched.size
   }
+}
+
+/**
+ * Which price type each price field of a line is for. The retail type and the
+ * first wholesale one have fields of their own; every other active price type
+ * is set through `otherPrices`. The screen picks them the same way.
+ */
+async function priceFields(
+  em: EntityManager,
+): Promise<{ retail: PriceType | undefined; wholesale: PriceType | undefined; others: PriceType[] }> {
+  const types = await em.find(PriceType, { where: { isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } })
+  const retail = types.find((type) => type.kind === 'retail')
+  const wholesale = types.find((type) => type.kind === 'wholesale')
+  return { retail, wholesale, others: types.filter((type) => type !== retail && type !== wholesale) }
 }
 
 function header(

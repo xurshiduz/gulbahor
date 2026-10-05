@@ -1106,6 +1106,9 @@ export const uz = {
     maxRateLoss: 'Dollarni kursdan qimmat olish chegarasi',
     maxRateLossHint:
       "Mijoz «50 dollarni 600 000 deb oling» desa, kassir dollarni kun kursidan shuncha foizgacha qimmat ola oladi. Undan ortig'iga rahbar tasdig'i kerak. Farq «Kurs farqi» hisobiga yoziladi.",
+    receiptLineExtra: "Kirimda har tovarga «qo'shimcha xarajat» maydoni",
+    receiptLineExtraHint:
+      "Odatda xarajat partiyaga pastdan kiritiladi va hamma tovarga o'zi taqsimlanadi. Faqat bitta tovarga tegishli xarajatni alohida yozish kerak bo'lsa, yoqing.",
     returnDays: 'Qaytarish muddati',
     returnDaysHint:
       'Sotuvdan keyin shuncha kun ichida tovar qaytarib olinadi; keyinroq faqat ruxsati bor xodim oladi. 0 — muddat cheklanmagan.',
@@ -1321,6 +1324,7 @@ export const uz = {
       changeRoundStep: 'Qaytimni yaxlitlash (tiyin)',
       maxDiscountPercent: 'Chegirma chegarasi (%)',
       maxRateLossPercent: 'Dollarni kursdan qimmat olish chegarasi (%)',
+      receiptLineExtra: "Kirimda «qo'shimcha xarajat» maydoni",
       returnDays: 'Qaytarish muddati (kun)',
       uzsPerUsd: 'Dollar kursi',
       last4: 'Kartaning oxirgi 4 raqami',

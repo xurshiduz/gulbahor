@@ -64,6 +64,7 @@ function BusinessSettings() {
         maxDiscountPercent: me.org.settings.maxDiscountPercent as number | null,
         maxRateLossPercent: me.org.settings.maxRateLossPercent as number | null,
         returnDays: me.org.settings.returnDays as number | null,
+        receiptLineExtra: me.org.settings.receiptLineExtra,
       },
     },
   })
@@ -166,6 +167,18 @@ function BusinessSettings() {
             />
           )}
         </Field>
+        <Controller
+          control={form.control}
+          name="settings.receiptLineExtra"
+          render={({ field }) => (
+            <Switch
+              checked={field.value}
+              onChange={field.onChange}
+              label={t('settings.receiptLineExtra')}
+              hint={t('settings.receiptLineExtraHint')}
+            />
+          )}
+        />
         <div>
           <Button type="submit" variant="primary" loading={mutation.isPending} disabled={!form.formState.isDirty}>
             {t('common.save')}

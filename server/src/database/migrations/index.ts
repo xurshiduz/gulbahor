@@ -13,6 +13,7 @@ import { Readers1790000011000 } from './1790000011000-readers'
 import { AgreedWorth1790000012000 } from './1790000012000-agreed-worth'
 import { MoneyOps1790000013000 } from './1790000013000-money-ops'
 import { AccountShops1790000014000 } from './1790000014000-account-shops'
+import { ReceiptPrices1790000015000 } from './1790000015000-receipt-prices'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -31,4 +32,5 @@ export const MIGRATIONS = [
   AgreedWorth1790000012000,
   MoneyOps1790000013000,
   AccountShops1790000014000,
+  ReceiptPrices1790000015000,
 ]

@@ -234,6 +234,10 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   const foreign = header.currency !== 'USD' && header.currency !== 'UZS'
   const retailType = priceTypes.find((type) => type.kind === 'retail' && type.isActive)
   const wholesaleType = priceTypes.find((type) => type.kind === 'wholesale' && type.isActive)
+  // Every other price the business keeps has its field too: the floor, a family price, a second wholesale one.
+  const otherTypes = priceTypes.filter((type) => type.isActive && type !== retailType && type !== wholesaleType)
+  // A cost known for one model alone: asked for in the settings, or already written on this receipt.
+  const lineExtra = me.org.settings.receiptLineExtra || blocks.some((block) => block.extra)
   const canPrice = can('products.prices')
 
   // ── Adding goods ──
@@ -746,6 +750,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     header={header}
                     retailType={canPrice ? retailType : undefined}
                     wholesaleType={canPrice ? wholesaleType : undefined}
+                    otherTypes={canPrice ? otherTypes : []}
+                    lineExtra={lineExtra}
                     supplierOptions={supplierOptions}
                     editable={editable}
                     onChange={(patch) => patchBlock(block.key, patch)}
@@ -772,16 +778,20 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                   weightless={cost?.costing.weightless ?? []}
                 />
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink-3">
-                  <span>{t('receipts.extraCurrency')}</span>
-                  <div data-enter-skip className="w-28">
-                    <Select
-                      value={header.extraCurrency}
-                      onChange={(extraCurrency) => patchHeader({ extraCurrency: extraCurrency as AnyCurrency })}
-                      options={expenseCurrencies.map((code) => ({ value: code, label: code }))}
-                      disabled={!editable}
-                      className="h-7 text-xs"
-                    />
-                  </div>
+                  {lineExtra ? (
+                    <>
+                      <span>{t('receipts.extraCurrency')}</span>
+                      <div data-enter-skip className="w-28">
+                        <Select
+                          value={header.extraCurrency}
+                          onChange={(extraCurrency) => patchHeader({ extraCurrency: extraCurrency as AnyCurrency })}
+                          options={expenseCurrencies.map((code) => ({ value: code, label: code }))}
+                          disabled={!editable}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </>
+                  ) : null}
                   <span className="min-w-0 flex-1">{t('receipts.expensesHint')}</span>
                 </div>
               </Card>
@@ -851,6 +861,10 @@ interface BlockCardProps {
   header: Header
   retailType: PriceTypeDto | undefined
   wholesaleType: PriceTypeDto | undefined
+  /** The price types beyond those two: each has its field. */
+  otherTypes: PriceTypeDto[]
+  /** The field for a cost known for this model alone is shown. */
+  lineExtra: boolean
   supplierOptions: { value: string; label: string }[]
   editable: boolean
   onChange: (patch: Partial<Block>) => void
@@ -867,6 +881,8 @@ function BlockCard({
   header,
   retailType,
   wholesaleType,
+  otherTypes,
+  lineExtra,
   supplierOptions,
   editable,
   onChange,
@@ -923,17 +939,19 @@ function BlockCard({
             />
           )}
         </Field>
-        <Field label={t('receipts.extra')} className="w-32">
-          {(id) => (
-            <MoneyInput
-              id={id}
-              value={block.extra}
-              onChange={(extra) => onChange({ extra })}
-              currency={header.extraCurrency}
-              disabled={!editable}
-            />
-          )}
-        </Field>
+        {lineExtra ? (
+          <Field label={t('receipts.extra')} className="w-32">
+            {(id) => (
+              <MoneyInput
+                id={id}
+                value={block.extra}
+                onChange={(extra) => onChange({ extra })}
+                currency={header.extraCurrency}
+                disabled={!editable}
+              />
+            )}
+          </Field>
+        ) : null}
         {retailType ? (
           <Field label={retailType.name} className="w-36">
             {(id) => (
@@ -964,6 +982,28 @@ function BlockCard({
             )}
           </Field>
         ) : null}
+        {otherTypes.map((type) => {
+          // A price worked out from the retail one follows what is typed there, or what is offered there.
+          const suggested = suggest(
+            type,
+            retailType && retailType.currency === type.currency ? (block.retailPrice ?? retailSuggested ?? null) : null,
+          )
+          return (
+            <Field key={type.id} label={type.name} className="w-36">
+              {(id) => (
+                <MoneyInput
+                  id={id}
+                  value={block.otherPrices[type.id] ?? null}
+                  onChange={(amount) => onChange({ otherPrices: { ...block.otherPrices, [type.id]: amount } })}
+                  currency={type.currency}
+                  disabled={!editable}
+                  fillValue={suggested}
+                  placeholder={offer(suggested, type)}
+                />
+              )}
+            </Field>
+          )
+        })}
         {editable ? (
           <Button variant="ghost" size="icon" tabIndex={-1} onClick={onRemove} aria-label={t('common.delete')}>
             <X />

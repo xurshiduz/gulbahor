@@ -27,8 +27,15 @@ export interface Block {
   extra: number | null
   retailPrice: number | null
   wholesalePrice: number | null
+  /** Prices for the other price types, by price type id. */
+  otherPrices: Record<string, number | null>
   /** By variant id. */
   qty: Record<string, number | null>
+}
+
+/** The prices that hold a sum, as a line sends them. */
+export function setPrices(prices: Record<string, number | null>): Record<string, number> {
+  return Object.fromEntries(Object.entries(prices).filter((entry): entry is [string, number] => entry[1] !== null))
 }
 
 export interface ExpenseDraft {
@@ -76,6 +83,7 @@ export function newBlock(productId: string, like?: Block): Block {
     extra: like?.extra ?? null,
     retailPrice: like?.retailPrice ?? null,
     wholesalePrice: like?.wholesalePrice ?? null,
+    otherPrices: { ...like?.otherPrices },
     qty: {},
   }
 }
@@ -92,6 +100,10 @@ export function blocksOf(receipt: ReceiptDto): Block[] {
       line.extra,
       line.retailPrice,
       line.wholesalePrice,
+      // The same prices are the same whatever order they were written in.
+      Object.entries(line.otherPrices)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .join(';'),
     ].join('|')
     let block = byIdentity.get(identity)
     if (!block) {
@@ -103,6 +115,7 @@ export function blocksOf(receipt: ReceiptDto): Block[] {
         extra: line.extra || null,
         retailPrice: line.retailPrice,
         wholesalePrice: line.wholesalePrice,
+        otherPrices: { ...line.otherPrices },
         qty: {},
       }
       byIdentity.set(identity, block)
@@ -143,6 +156,7 @@ export function linesOf(
           extra: block.extra ?? 0,
           retailPrice: block.retailPrice,
           wholesalePrice: block.wholesalePrice,
+          otherPrices: setPrices(block.otherPrices),
         })
         blockOf.push(index)
       }

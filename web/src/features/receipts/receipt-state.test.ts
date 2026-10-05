@@ -96,6 +96,7 @@ describe('blocks and lines', () => {
       extra: 0,
       retailPrice: null,
       wholesalePrice: null,
+      otherPrices: {},
       costUsd: null,
       costUzs: null,
     })
@@ -111,6 +112,50 @@ describe('blocks and lines', () => {
       ['shirt', 300, { 'black-S': 2, 'black-M': 3 }],
       ['belt', 150, { 'belt-1': 4 }],
       ['shirt', 350, { 'white-L': 1 }],
+    ])
+  })
+
+  it('carries a price for every other price type, and tells blocks apart by them', () => {
+    const block: Block = {
+      ...newBlock('shirt'),
+      price: 300,
+      // The floor is set; the family price was looked at and left empty.
+      otherPrices: { min: 60_000_00, family: null },
+      qty: { 'black-S': 2, 'black-M': 1 },
+    }
+    const { lines } = linesOf([block], products)
+    expect(lines.map((line) => line.otherPrices)).toEqual([{ min: 60_000_00 }, { min: 60_000_00 }])
+    // The next block of the same model starts from the same prices, and is its own.
+    const next = newBlock('shirt', block)
+    expect(next.otherPrices).toEqual({ min: 60_000_00, family: null })
+    next.otherPrices.min = 1
+    expect(block.otherPrices.min).toBe(60_000_00)
+
+    const saved = (variantId: string, otherPrices: Record<string, number>) => ({
+      id: variantId,
+      variantId,
+      productId: 'shirt',
+      supplierId: null,
+      qty: 1,
+      price: 300,
+      extra: 0,
+      retailPrice: null,
+      wholesalePrice: null,
+      otherPrices,
+      costUsd: null,
+      costUzs: null,
+    })
+    const blocks = blocksOf({
+      lines: [
+        saved('black-S', { min: 60_000_00, family: 50_000_00 }),
+        // The same prices written the other way round are the same prices.
+        saved('black-M', { family: 50_000_00, min: 60_000_00 }),
+        saved('white-L', { min: 65_000_00 }),
+      ],
+    } as unknown as ReceiptDto)
+    expect(blocks.map((item) => [Object.keys(item.qty), item.otherPrices])).toEqual([
+      [['black-S', 'black-M'], { min: 60_000_00, family: 50_000_00 }],
+      [['white-L'], { min: 65_000_00 }],
     ])
   })
 

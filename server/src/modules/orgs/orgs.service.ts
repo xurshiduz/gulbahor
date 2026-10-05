@@ -71,6 +71,7 @@ export class OrgsService {
             'maxDiscountPercent',
             'maxRateLossPercent',
             'returnDays',
+            'receiptLineExtra',
           ]),
         },
       })

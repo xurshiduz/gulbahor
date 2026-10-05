@@ -301,6 +301,8 @@ export class ReceiptImportService {
         extra: row.extra,
         retailPrice: row.retailPrice,
         wholesalePrice: row.wholesalePrice,
+        // A sheet has columns for the two; the others are set on the receipt's own screen.
+        otherPrices: {},
       }
     })
     const receipt = await this.receipts.createIn(
