@@ -62,7 +62,7 @@ export class PriceTypesService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
       if (before.kind === 'retail' && input.kind !== 'retail') {
-        throw AppError.validation({ kind: "Chakana narx turi doim bo'lishi kerak" })
+        throw AppError.validation({ kind: 'Chakana narx turi doim bo‘lishi kerak' })
       }
       await this.assertValid(em, input, id)
       await em.update(PriceType, id, {
@@ -101,7 +101,7 @@ export class PriceTypesService {
       const before = await this.find(em, id)
       if (before.isActive !== active) {
         if (!active && before.kind === 'retail') {
-          throw AppError.conflict('RETAIL_REQUIRED', "Chakana narx turini arxivlab bo'lmaydi")
+          throw AppError.conflict('RETAIL_REQUIRED', 'Chakana narx turini arxivlab bo‘lmaydi')
         }
         await em.update(PriceType, id, { isActive: active })
         await this.audit.record(em, actor.orgId, actor, {
@@ -121,10 +121,10 @@ export class PriceTypesService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const type = await this.find(em, id)
       if (type.kind === 'retail') {
-        throw AppError.conflict('RETAIL_REQUIRED', "Chakana narx turini o'chirib bo'lmaydi")
+        throw AppError.conflict('RETAIL_REQUIRED', 'Chakana narx turini o‘chirib bo‘lmaydi')
       }
       if (await em.countBy(Price, { priceTypeId: id })) {
-        throw AppError.conflict('IN_USE', "Bu narx turida narxlar qo'yilgan. O'chirish o'rniga arxivlang")
+        throw AppError.conflict('IN_USE', 'Bu narx turida narxlar qo‘yilgan. O‘chirish o‘rniga arxivlang')
       }
       await em.delete(PriceType, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -155,7 +155,7 @@ export class PriceTypesService {
       fields.name = 'Bunday narx turi bor'
     }
     if ((input.kind === 'retail' || input.kind === 'min') && others.some((other) => other.kind === input.kind)) {
-      fields.kind = input.kind === 'retail' ? "Chakana narx turi bitta bo'ladi" : "Minimal narx turi bitta bo'ladi"
+      fields.kind = input.kind === 'retail' ? 'Chakana narx turi bitta bo‘ladi' : 'Minimal narx turi bitta bo‘ladi'
     }
     if (Object.keys(fields).length) {
       throw AppError.validation(fields)

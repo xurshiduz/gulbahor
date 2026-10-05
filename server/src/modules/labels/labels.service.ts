@@ -171,7 +171,7 @@ export class LabelsService {
       if (item.count > units) {
         fields[`items.${index}.count`] = units
           ? `Hujjatda bu tovardan ${units} dona bor`
-          : "Bu tovar hujjatda yo'q: hujjatni saqlab, qayta urinib ko'ring"
+          : 'Bu tovar hujjatda yo‘q: hujjatni saqlab, qayta urinib ko‘ring'
       }
     })
     throwIfAny(fields)

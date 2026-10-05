@@ -1,12 +1,12 @@
 import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@gulbahor/core'
 import { Outlet, useNavigate } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Search, Sun, UserRound } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Sun, UserRound } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Menu } from '@/components/ui/controls'
-import { Shortcut, Tooltip } from '@/components/ui/feedback'
+import { Tooltip } from '@/components/ui/feedback'
 import { PageChrome } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { tillHere } from '@/features/partners/payment-lines'
@@ -83,7 +83,8 @@ export function Shell() {
 
   const openHelp = useCallback(() => setHelpOpen(true), [])
 
-  useHotkey('mod+k', () => setPaletteOpen((open) => !open), { label: t('command.open'), group: t('shortcuts.groupGlobal') })
+  // Opened from the keyboard alone: the top bar has no box for it.
+  useHotkey('mod+q', () => setPaletteOpen((open) => !open), { label: t('command.open'), group: t('shortcuts.groupGlobal') })
   useHotkey('f1', openHelp, { label: t('shortcuts.help'), group: t('shortcuts.groupGlobal'), everywhere: true })
   // As Windows locks with Win+L. Ctrl is the key here: the browser's own use of it (the address bar) gives way inside the app.
   useHotkey('mod+l', lock, { label: t('command.lock'), group: t('shortcuts.groupGlobal'), enabled: me.user.hasPin, everywhere: true })
@@ -91,7 +92,9 @@ export function Shell() {
   useHotkey('alt+l', lock, { enabled: me.user.hasPin, everywhere: true })
   // Not over a window that is already open: one thing is finished before the next is begun.
   const pay = (kind: 'in' | 'out') => (document.querySelector('[role="dialog"]') ? false : setPaying(kind))
-  useHotkey('alt+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+  useHotkey('mod+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+  // The key it had while Ctrl+K was the search.
+  useHotkey('alt+k', () => pay('in'), { enabled: canPay })
   useHotkey('alt+c', () => pay('out'), { label: t('payments.payOut'), group: t('shortcuts.groupGlobal'), enabled: canPay })
   const spend = (kind: MoneyOpKind) => (document.querySelector('[role="dialog"]') ? false : setSpending(kind))
   useHotkey('alt+x', () => spend('expense'), { label: t('ops.expense'), group: t('shortcuts.groupGlobal'), enabled: canSpend })
@@ -181,18 +184,6 @@ export function Shell() {
           {/* The name of the screen in view. */}
           <div ref={setTitleSlot} className="flex min-w-0 flex-1 items-baseline gap-2" />
 
-          {/* On a narrow screen the search is only its icon, so the name is not cut short. */}
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            aria-label={t('command.open')}
-            className="flex h-8 w-9 shrink-0 items-center justify-center gap-2 rounded-md border border-line bg-sunken px-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong lg:w-64 lg:justify-start"
-          >
-            <Search className="size-4 shrink-0" />
-            <span className="hidden flex-1 truncate text-left lg:block">{t('command.placeholder')}</span>
-            <Shortcut combo="mod+k" className="hidden lg:inline-flex" />
-          </button>
-
           <div className="flex shrink-0 items-center gap-1">
             {canPay || canSpend ? (
               <Menu
@@ -205,7 +196,7 @@ export function Shell() {
                 items={[
                   ...(canPay
                     ? [
-                        { label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'alt+k', onSelect: () => setPaying('in') },
+                        { label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'mod+k', onSelect: () => setPaying('in') },
                         { label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') },
                       ]
                     : []),

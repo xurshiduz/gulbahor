@@ -62,7 +62,7 @@ export class RolesService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
       if (before.isSystem) {
-        throw AppError.forbidden("«Egasi» roli o'zgartirilmaydi", 'SYSTEM_ROLE')
+        throw AppError.forbidden('«Egasi» roli o‘zgartirilmaydi', 'SYSTEM_ROLE')
       }
       // Only what is being added needs to be within the actor's own rights; what the role already had may stay.
       this.assertGrantable(
@@ -97,7 +97,7 @@ export class RolesService {
     await this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const role = await this.find(em, id)
       if (role.isSystem) {
-        throw AppError.forbidden("«Egasi» roli o'chirilmaydi", 'SYSTEM_ROLE')
+        throw AppError.forbidden('«Egasi» roli o‘chirilmaydi', 'SYSTEM_ROLE')
       }
       const [{ count }] = await em.query(`SELECT count(*)::int AS count FROM user_roles WHERE role_id = $1`, [id])
       if (count) {
@@ -137,13 +137,13 @@ export class RolesService {
   private assertGrantable(actor: Actor, permissions: string[]) {
     for (const permission of permissions) {
       if (permission === ALL_PERMISSIONS || !GRANTABLE.has(permission)) {
-        throw AppError.validation({ permissions: `Noma'lum ruxsat: ${permission}` })
+        throw AppError.validation({ permissions: `Noma’lum ruxsat: ${permission}` })
       }
       const held = permission.endsWith('.*')
         ? PERMISSION_KEYS.filter((key) => key.startsWith(permission.slice(0, -1))).every((key) => hasPermission(actor.permissions, key))
         : hasPermission(actor.permissions, permission)
       if (!held) {
-        throw AppError.forbidden("O'zingizda yo'q ruxsatni boshqaga bera olmaysiz", 'ESCALATION')
+        throw AppError.forbidden('O‘zingizda yo‘q ruxsatni boshqaga bera olmaysiz', 'ESCALATION')
       }
     }
   }

@@ -110,11 +110,11 @@ export class CategoriesService {
       if (await em.countBy(Category, { parentId: id })) {
         throw AppError.conflict(
           'HAS_CHILDREN',
-          "Ichida kategoriyalar bor. Avval ularni o'chiring yoki boshqa joyga ko'chiring",
+          'Ichida kategoriyalar bor. Avval ularni o‘chiring yoki boshqa joyga ko‘chiring',
         )
       }
       if (await this.productCount(em, id)) {
-        throw AppError.conflict('IN_USE', "Bu kategoriyada tovarlar bor. O'chirish o'rniga arxivlang")
+        throw AppError.conflict('IN_USE', 'Bu kategoriyada tovarlar bor. O‘chirish o‘rniga arxivlang')
       }
       await em.delete(Category, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -160,14 +160,14 @@ export class CategoriesService {
       while (cursor) {
         const parent: Category | null = await em.findOneBy(Category, { id: cursor })
         if (!parent || parent.id === selfId) {
-          fields.parentId = parent ? "Kategoriyani o'zining ichiga ko'chirib bo'lmaydi" : 'Kategoriya topilmadi'
+          fields.parentId = parent ? 'Kategoriyani o‘zining ichiga ko‘chirib bo‘lmaydi' : 'Kategoriya topilmadi'
           break
         }
         depth++
         cursor = parent.parentId
       }
       if (!fields.parentId && depth > MAX_DEPTH) {
-        fields.parentId = `Kategoriyalar ko'pi bilan ${MAX_DEPTH} qavat bo'ladi`
+        fields.parentId = `Kategoriyalar ko‘pi bilan ${MAX_DEPTH} qavat bo‘ladi`
       }
     }
 

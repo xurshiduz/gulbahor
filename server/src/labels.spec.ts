@@ -281,7 +281,7 @@ describe('Labels', () => {
       ).body
       expect(found).toMatchObject({ epc: unit.epc, productName: expect.any(String) })
       const stranger = await alpha.get('/api/products/lookup').query({ code: '303400000000000000000001' }).expect(404)
-      expect(stranger.body.error.message).toBe("Bu RFID belgi tizimda yo'q")
+      expect(stranger.body.error.message).toBe('Bu RFID belgi tizimda yo‘q')
       // Another business reading our tag learns nothing.
       await beta.get('/api/products/lookup').query({ code: unit.epc }).expect(404)
     })

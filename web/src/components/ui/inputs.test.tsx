@@ -171,7 +171,7 @@ describe('DateInput', () => {
 
 describe('Combobox', () => {
   const options = [
-    { value: '1', label: "Anvar G'ofurov" },
+    { value: '1', label: 'Anvar G‘ofurov' },
     { value: '2', label: 'Дилноза Каримова' },
     { value: '3', label: 'Shohruh Abdullayev' },
   ]
@@ -187,7 +187,7 @@ describe('Combobox', () => {
     expect(onChange).toHaveBeenLastCalledWith('2')
 
     await userEvent.type(input, 'фтмфк')
-    expect(screen.getAllByRole('option')[0].textContent).toBe("Anvar G'ofurov")
+    expect(screen.getAllByRole('option')[0].textContent).toBe('Anvar G‘ofurov')
   })
 
   it('offers to create what is not there, but only on purpose', async () => {

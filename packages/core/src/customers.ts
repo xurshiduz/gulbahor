@@ -47,7 +47,7 @@ const percentSchema = z
   .min(0)
   .max(100)
   .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
-    message: "Foizda ko'pi bilan 2 ta kasr xona bo'ladi",
+    message: 'Foizda ko‘pi bilan 2 ta kasr xona bo‘ladi',
   })
 
 // ───────────────────────────── Loyalty ─────────────────────────────

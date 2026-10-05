@@ -351,7 +351,7 @@ export function TenderPanel({
                   value={changeCurrency}
                   onChange={(value) => onChangeCurrency(value as CurrencyCode)}
                   options={[
-                    { value: 'UZS', label: "so'm" },
+                    { value: 'UZS', label: 'so‘m' },
                     { value: 'USD', label: '$' },
                   ]}
                   className="h-7 w-20 text-xs"

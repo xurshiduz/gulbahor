@@ -76,7 +76,7 @@ export class ApprovalsService {
       throw AppError.validation({ approval: 'Bu xodim tasdiqlay olmaydi' })
     }
     if (!found.pin_hash) {
-      throw AppError.validation({ approval: `${found.full_name}: PIN kod o'rnatilmagan` })
+      throw AppError.validation({ approval: `${found.full_name}: PIN kod o‘rnatilmagan` })
     }
     if (await verifySecret(approval.pin, found.pin_hash)) {
       if (found.pin_failures) {
@@ -94,14 +94,14 @@ export class ApprovalsService {
           action: 'auth.pin_locked',
           entity: 'user',
           entityId: found.id,
-          summary: `${found.full_name}: tasdiqlashda PIN ${MAX_FAILURES} marta noto'g'ri kiritildi, PIN o'chirildi`,
+          summary: `${found.full_name}: tasdiqlashda PIN ${MAX_FAILURES} marta noto‘g‘ri kiritildi, PIN o‘chirildi`,
         })
       }
     })
     throw AppError.validation({
       approval: locked
-        ? `PIN ko'p marta noto'g'ri kiritildi: ${found.full_name} yangi PIN o'rnatishi kerak`
-        : `PIN noto'g'ri. Yana ${MAX_FAILURES - failures} ta urinish qoldi`,
+        ? `PIN ko‘p marta noto‘g‘ri kiritildi: ${found.full_name} yangi PIN o‘rnatishi kerak`
+        : `PIN noto‘g‘ri. Yana ${MAX_FAILURES - failures} ta urinish qoldi`,
     })
   }
 

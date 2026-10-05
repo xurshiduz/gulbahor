@@ -39,7 +39,7 @@ interface Values {
   language: Language
 }
 
-const LANGUAGE_LABELS: Record<Language, string> = { uz: "O'zbekcha", ru: 'Русский' }
+const LANGUAGE_LABELS: Record<Language, string> = { uz: 'O‘zbekcha', ru: 'Русский' }
 const FORM_ID = 'user-form'
 
 type Option = Pick<LocationDto, 'id' | 'name' | 'code' | 'kind' | 'parentId'>

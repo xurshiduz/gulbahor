@@ -70,7 +70,7 @@ describe('Pricing', () => {
     zaraId = (await alpha.post('/api/brands').send({ name: 'Zara' }).expect(201)).body.id
 
     const attributes = (await alpha.get('/api/attributes').expect(200)).body as (Named & { values: Named[] })[]
-    const size = attributes.find((attribute) => attribute.name === "O'lcham (harfli)")!
+    const size = attributes.find((attribute) => attribute.name === 'O‘lcham (harfli)')!
     const sizeId = (name: string) => size.values.find((value) => value.name === name)!.id
     const price = (amount: number) => ({ priceTypeId: retail, amount, currency: 'UZS' })
 
@@ -350,7 +350,7 @@ describe('Pricing', () => {
         createdByName: 'Alpha Owner',
         revertedByNumber: null,
       })
-      expect(page.items[2].summary).toBe("Tannarxdan qoida bo'yicha")
+      expect(page.items[2].summary).toBe('Tannarxdan qoida bo‘yicha')
       expect(page.items[0].summary).toBe('Chakana −30%')
     })
 

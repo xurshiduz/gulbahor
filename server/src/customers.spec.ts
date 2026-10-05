@@ -130,15 +130,15 @@ describe('Customers', () => {
   })
 
   it('are found by a name in any script, or by a few digits of the phone', async () => {
-    await alpha.post('/api/customers').send({ name: "G'ayrat Olimov", phone: '93 555 11 22' }).expect(201)
+    await alpha.post('/api/customers').send({ name: 'G‘ayrat Olimov', phone: '93 555 11 22' }).expect(201)
     const names = async (q: string) =>
       ((await alpha.get('/api/customers').query({ q }).expect(200)).body.items as CustomerRow[]).map(
         (item) => item.name,
       )
     expect(await names('нодира')).toEqual(['Nodira Karimova'])
-    expect(await names('gayrat')).toEqual(["G'ayrat Olimov"])
+    expect(await names('gayrat')).toEqual(['G‘ayrat Olimov'])
     expect(await names('1234567')).toEqual(['Nodira Karimova'])
-    expect(await names('935551122')).toEqual(["G'ayrat Olimov"])
+    expect(await names('935551122')).toEqual(['G‘ayrat Olimov'])
     // The till finds them the same way, and tells a cashier no more than who they are.
     const found = (await cashier.get('/api/pos/customers').query({ q: '90123' }).expect(200)).body
     expect(found).toEqual([
@@ -323,7 +323,7 @@ describe('Customers', () => {
         members: 0,
       })
       regular = (
-        await alpha.post('/api/customers/groups').send({ name: 'Doimiy', reminder: "Sumka sovg'a" }).expect(201)
+        await alpha.post('/api/customers/groups').send({ name: 'Doimiy', reminder: 'Sumka sovg‘a' }).expect(201)
       ).body
 
       expect((await alpha.post('/api/customers/groups').send({ name: 'oila' })).body.error.fields.name).toBeDefined()
@@ -370,7 +370,7 @@ describe('Customers', () => {
         name: 'Nodira Aliyeva',
         phone: '+998901234567',
         groups: ['Oila', 'Doimiy'],
-        reminders: ['Chek berish kerak', "Sumka sovg'a"],
+        reminders: ['Chek berish kerak', 'Sumka sovg‘a'],
         discountPercent: 0,
         discountReason: null,
         priceType: { id: familyPrice, name: 'Oila' },
@@ -418,7 +418,7 @@ describe('Customers', () => {
       const [picked] = (await cashier.get('/api/pos/customers').query({ q: '1234567' }).expect(200)).body
       expect(picked).toMatchObject({
         groups: ['Doimiy'],
-        reminders: ["Sumka sovg'a"],
+        reminders: ['Sumka sovg‘a'],
         priceType: null,
         noExchange: false,
       })

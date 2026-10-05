@@ -115,10 +115,10 @@ export class ReturnsService {
           [epc],
         )
         if (!unit) {
-          throw AppError.notFound("Bu RFID belgi tizimda yo'q")
+          throw AppError.notFound('Bu RFID belgi tizimda yo‘q')
         }
         if (unit.status !== 'sold' || !unit.sale_id) {
-          throw AppError.conflict('UNIT_NOT_SOLD', "Bu dona sotilmagan: uni qaytarib olib bo'lmaydi")
+          throw AppError.conflict('UNIT_NOT_SOLD', 'Bu dona sotilmagan: uni qaytarib olib bo‘lmaydi')
         }
         sale = await em.findOneBy(Sale, { id: unit.sale_id })
         lineId = (await em.findOneBy(SaleLine, { saleId: unit.sale_id, unitId: unit.id }))?.id ?? null
@@ -193,8 +193,8 @@ export class ReturnsService {
         throw AppError.conflict(
           'RETURN_LATE',
           approver
-            ? `${approver.name} muddati o'tgan qaytarishni tasdiqlay olmaydi`
-            : `Qaytarish muddati (${settings.returnDays} kun) o'tgan: rahbar ruxsati kerak`,
+            ? `${approver.name} muddati o‘tgan qaytarishni tasdiqlay olmaydi`
+            : `Qaytarish muddati (${settings.returnDays} kun) o‘tgan: rahbar ruxsati kerak`,
         )
       }
 
@@ -223,12 +223,12 @@ export class ReturnsService {
       input.lines.forEach((item, index) => {
         const line = lineOf.get(item.saleLineId)
         if (!line) {
-          fields[`lines.${index}.saleLineId`] = "Bu qator chekda yo'q"
+          fields[`lines.${index}.saleLineId`] = 'Bu qator chekda yo‘q'
           return
         }
         const left = (milli(line.qty) - milli(line.returnedQty)) / 1000
         if (item.qty > left) {
-          fields[`lines.${index}.qty`] = left ? `Ko'pi bilan ${left} ta qaytariladi` : 'Bu tovar allaqachon qaytarilgan'
+          fields[`lines.${index}.qty`] = left ? `Ko‘pi bilan ${left} ta qaytariladi` : 'Bu tovar allaqachon qaytarilgan'
         } else if (!decimalsOf.get(line.variantId) && !Number.isInteger(item.qty)) {
           fields[`lines.${index}.qty`] = 'Bu tovar butun dona bilan qaytariladi'
         } else {
@@ -238,7 +238,7 @@ export class ReturnsService {
       throwIfAny(fields)
       const total = taken.reduce((sum, item) => sum + item.total, 0)
       if (total !== input.total) {
-        throw AppError.conflict('RETURN_CHANGED', "Chek o'zgargan: uni qaytadan ochib, summani tekshiring")
+        throw AppError.conflict('RETURN_CHANGED', 'Chek o‘zgargan: uni qaytadan ochib, summani tekshiring')
       }
 
       // ── The return. ──
@@ -388,7 +388,7 @@ export class ReturnsService {
           continue
         }
         if (refund.currency === 'USD' && !rate) {
-          fields[`refunds.${index}.currency`] = "Dollar kursi qo'yilmagan"
+          fields[`refunds.${index}.currency`] = 'Dollar kursi qo‘yilmagan'
           continue
         }
         let account: Account | undefined
@@ -407,7 +407,7 @@ export class ReturnsService {
             (free || paidHere)
           if (!fits) {
             fields[`refunds.${index}.accountId`] =
-              refund.method === 'card' ? "Bu chek shu kartaga to'lanmagan" : "Bu chek shu terminal orqali to'lanmagan"
+              refund.method === 'card' ? 'Bu chek shu kartaga to‘lanmagan' : 'Bu chek shu terminal orqali to‘lanmagan'
             continue
           }
         }
@@ -435,8 +435,8 @@ export class ReturnsService {
         if (!free) {
           throw AppError.badRequest(
             'REFUND_METHOD',
-            `Naqd ko'pi bilan ${formatMoney(caps.cash)} qaytariladi: qolgani to'langan usulda qaytadi`,
-            { refunds: "Pul to'langan usulda qaytariladi" },
+            `Naqd ko‘pi bilan ${formatMoney(caps.cash)} qaytariladi: qolgani to‘langan usulda qaytadi`,
+            { refunds: 'Pul to‘langan usulda qaytariladi' },
           )
         }
       }
@@ -447,8 +447,8 @@ export class ReturnsService {
           if (!free) {
             throw AppError.badRequest(
               'REFUND_METHOD',
-              `«${cap.name}»ga ko'pi bilan ${formatMoney(cap.left)} qaytariladi`,
-              { refunds: "Pul to'langan usulda qaytariladi" },
+              `«${cap.name}»ga ko‘pi bilan ${formatMoney(cap.left)} qaytariladi`,
+              { refunds: 'Pul to‘langan usulda qaytariladi' },
             )
           }
         }
@@ -524,7 +524,7 @@ export class ReturnsService {
         entityId: made.id,
         summary: `${number}: ${sale.number} dan ${made.qty} dona, ${formatMoney(total)}${
           exchange ? `, almashtirildi (${exchange.number})` : ''
-        }${late ? ", muddati o'tgan" : ''}${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${
+        }${late ? ', muddati o‘tgan' : ''}${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${
           input.reason ? `. ${input.reason}` : ''
         }`,
       })

@@ -702,7 +702,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                         value={header.uzsRate}
                         onChange={(uzsRate) => patchHeader({ uzsRate })}
                         decimals={2}
-                        suffix="so'm"
+                        suffix="so‘m"
                         invalid={!!errors.uzsRate}
                         disabled={!editable}
                       />

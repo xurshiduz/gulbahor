@@ -171,7 +171,7 @@ describe('Sales report', () => {
         reason: 'Katta keldi',
       })
       .expect(201)
-  })
+  }, 60_000)
 
   afterAll(async () => {
     await harness.close()

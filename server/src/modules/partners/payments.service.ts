@@ -110,14 +110,14 @@ export class PartnerPaymentsService {
         // Dollars are valued at the day's rate, whatever is agreed: without one there is nothing to value them by.
         const changes = account.currency !== partner.currency
         if ((changes || account.currency === 'USD') && !dayRate) {
-          fields[`lines.${index}.amount`] = "Dollar kursi qo'yilmagan"
+          fields[`lines.${index}.amount`] = 'Dollar kursi qo‘yilmagan'
           continue
         }
         if (input.kind === 'out') {
           const out = (spent.get(account.id) ?? 0) + line.amount
           spent.set(account.id, out)
           if (out > account.balance) {
-            fields[`lines.${index}.amount`] = "Hisobda buncha pul yo'q"
+            fields[`lines.${index}.amount`] = 'Hisobda buncha pul yo‘q'
             continue
           }
         }
@@ -151,7 +151,7 @@ export class PartnerPaymentsService {
       }
       const settled = lines.reduce((sum, line) => sum + line.settled, 0)
       if (settled !== input.settled) {
-        throw AppError.conflict('RATE_CHANGED', "Kurs o'zgargan: summani qayta tekshiring")
+        throw AppError.conflict('RATE_CHANGED', 'Kurs o‘zgargan: summani qayta tekshiring')
       }
 
       const payment = await this.save(em, actor, {
@@ -232,7 +232,7 @@ export class PartnerPaymentsService {
       const today = await this.ledger.today(em, actor.orgId)
       const rate = partner.currency === 'USD' ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
       if (partner.currency === 'USD' && !rate) {
-        throw AppError.validation({ amount: "Dollar kursi qo'yilmagan" })
+        throw AppError.validation({ amount: 'Dollar kursi qo‘yilmagan' })
       }
       const change = input.owes === 'partner' ? input.amount : -input.amount
       const base = toBase(change, partner.currency, rate)
@@ -280,10 +280,10 @@ export class PartnerPaymentsService {
       await em.query(`SELECT 1 FROM partner_payments WHERE id = $1 FOR UPDATE`, [id])
       const payment = await em.findOneBy(PartnerPayment, { id })
       if (!payment) {
-        throw AppError.notFound("To'lov topilmadi")
+        throw AppError.notFound('To‘lov topilmadi')
       }
       if (payment.status !== 'posted') {
-        throw AppError.conflict('PAYMENT_CANCELLED', "Bu to'lov allaqachon bekor qilingan")
+        throw AppError.conflict('PAYMENT_CANCELLED', 'Bu to‘lov allaqachon bekor qilingan')
       }
       if (payment.kind === 'opening' && !can(actor, 'partners.adjust')) {
         throw AppError.forbidden()
@@ -291,7 +291,7 @@ export class PartnerPaymentsService {
       const lines = await em.find(PartnerPaymentLine, { where: { paymentId: id }, order: { position: 'ASC' } })
       const shiftIds = lines.flatMap((line) => (line.shiftId ? [line.shiftId] : []))
       if (shiftIds.length && (await em.countBy(Shift, { id: In(shiftIds), status: 'closed' }))) {
-        throw AppError.conflict('SHIFT_CLOSED', "Smena yopilgan: bu to'lov teskari to'lov bilan tuzatiladi")
+        throw AppError.conflict('SHIFT_CLOSED', 'Smena yopilgan: bu to‘lov teskari to‘lov bilan tuzatiladi')
       }
       if (payment.kind === 'in') {
         // Taking back money that came in means it leaves the accounts it went into.
@@ -340,7 +340,7 @@ export class PartnerPaymentsService {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const payment = await em.findOneBy(PartnerPayment, { id })
       if (!payment) {
-        throw AppError.notFound("To'lov topilmadi")
+        throw AppError.notFound('To‘lov topilmadi')
       }
       return this.load(em, payment)
     })

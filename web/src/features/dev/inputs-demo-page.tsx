@@ -15,7 +15,7 @@ import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
 
 const PEOPLE: ComboOption[] = [
-  { value: '1', label: "Anvar G'ofurov", hint: '+998 90 123 45 67' },
+  { value: '1', label: 'Anvar G‘ofurov', hint: '+998 90 123 45 67' },
   { value: '2', label: 'Дилноза Каримова', hint: '+998 91 234 56 78' },
   { value: '3', label: "Oʻgʻiloy To‘xtayeva", hint: '+998 93 345 67 89' },
   { value: '4', label: 'Shohruh Abdullayev', hint: '+998 94 456 78 90' },

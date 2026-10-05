@@ -237,7 +237,7 @@ export class ReceiptsService {
       this.assertStatus(receipt, 'draft')
       const lines = await em.find(ReceiptLine, { where: { receiptId: id }, order: { position: 'ASC' } })
       if (!lines.length) {
-        throw AppError.validation({ lines: "Kirimda kamida bitta qator bo'lishi kerak" })
+        throw AppError.validation({ lines: 'Kirimda kamida bitta qator bo‘lishi kerak' })
       }
       const expenses = await em.find(ReceiptExpense, { where: { receiptId: id }, order: { position: 'ASC' } })
       const costing = await this.cost(em, receipt, lines, expenses)
@@ -366,7 +366,7 @@ export class ReceiptsService {
         if (!here || scaled(here.qty) !== scaled(batch.qty)) {
           throw AppError.conflict(
             'RECEIPT_IN_USE',
-            "Bu kirimdagi tovarning bir qismi sotilgan, ko'chirilgan yoki hisobdan chiqarilgan. Uni bekor qilib bo'lmaydi",
+            'Bu kirimdagi tovarning bir qismi sotilgan, ko‘chirilgan yoki hisobdan chiqarilgan. Uni bekor qilib bo‘lmaydi',
           )
         }
         return {
@@ -634,7 +634,7 @@ export class ReceiptsService {
       (location.kind as string) === TRANSIT ||
       !this.mayWorkAt(actor, input.locationId)
     ) {
-      fields.locationId = "Faol do'kon yoki skladni tanlang"
+      fields.locationId = 'Faol do‘kon yoki skladni tanlang'
     }
 
     const supplierIds = [
@@ -881,7 +881,7 @@ function assertConvertible(receipt: Receipt, expenses: ReceiptExpenseInput[]) {
   const fields: Record<string, string> = {}
   expenses.forEach((expense, index) => {
     if (expense.currency !== 'USD' && expense.currency !== 'UZS' && expense.currency !== receipt.currency) {
-      fields[`expenses.${index}.currency`] = "Dollar, so'm yoki hujjat valyutasini tanlang"
+      fields[`expenses.${index}.currency`] = 'Dollar, so‘m yoki hujjat valyutasini tanlang'
     }
   })
   if (Object.keys(fields).length) {

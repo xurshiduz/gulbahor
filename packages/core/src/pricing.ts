@@ -47,7 +47,7 @@ const percentSchema = z
   .min(-99)
   .max(10_000)
   .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
-    message: "Foizda ko'pi bilan 2 ta kasr xona bo'ladi",
+    message: 'Foizda ko‘pi bilan 2 ta kasr xona bo‘ladi',
   })
 
 const nullableId = idSchema.nullish().transform((value) => value ?? null)
@@ -141,8 +141,8 @@ export const REPRICE_KINDS = ['percent', 'amount', 'markup', 'from_type'] as con
 export type RepriceKind = (typeof REPRICE_KINDS)[number]
 
 export const REPRICE_KIND_LABELS: Record<RepriceKind, string> = {
-  percent: "Foizga o'zgartirish",
-  amount: "Summaga o'zgartirish",
+  percent: 'Foizga o‘zgartirish',
+  amount: 'Summaga o‘zgartirish',
   markup: 'Tannarx va ustamadan hisoblash',
   from_type: 'Boshqa narx turidan hisoblash',
 }
@@ -205,10 +205,10 @@ export const REPRICE_SKIPS = ['no_price', 'no_cost', 'no_rule', 'no_source'] as 
 export type RepriceSkip = (typeof REPRICE_SKIPS)[number]
 
 export const REPRICE_SKIP_LABELS: Record<RepriceSkip, string> = {
-  no_price: "Narx qo'yilmagan",
-  no_cost: "Tannarx noma'lum",
-  no_rule: "Ustama qoidasi yo'q",
-  no_source: "Asos narx qo'yilmagan",
+  no_price: 'Narx qo‘yilmagan',
+  no_cost: 'Tannarx noma’lum',
+  no_rule: 'Ustama qoidasi yo‘q',
+  no_source: 'Asos narx qo‘yilmagan',
 }
 
 export interface RepriceLineDto {

@@ -92,13 +92,13 @@ describe('the sales report', () => {
   it('gives the numbers of the days, what they are made of and how they moved', () => {
     render(<SalesReport data={report} />)
     // 19 against 15,2 million: a quarter more.
-    expect(tile('Sof tushum')).toBe("Sof tushum19 000 000 so'm+25%sotildi 20 mln")
-    expect(tile('Foyda')).toBe("Foyda7 000 000 so'm+34,6%ustama 58,3%")
+    expect(tile('Sof tushum')).toBe('Sof tushum19 000 000 so‘m+25%sotildi 20 mln')
+    expect(tile('Foyda')).toBe('Foyda7 000 000 so‘m+34,6%ustama 58,3%')
     expect(tile('Cheklar')).toBe('Cheklar40−20%56 dona')
     // 500 000 a receipt against 320 000.
-    expect(tile("O'rtacha chek")).toBe("O'rtacha chek500 000 so'm+56,3%chekda 1,4 dona")
-    expect(tile('Chegirma')).toBe("Chegirma1 500 000 so'm+50%narxning 7%")
-    expect(tile('Qaytarish')).toBe("Qaytarish1 000 000 so'm+25%2 ta, 3 dona")
+    expect(tile('O‘rtacha chek')).toBe('O‘rtacha chek500 000 so‘m+56,3%chekda 1,4 dona')
+    expect(tile('Chegirma')).toBe('Chegirma1 500 000 so‘m+50%narxning 7%')
+    expect(tile('Qaytarish')).toBe('Qaytarish1 000 000 so‘m+25%2 ta, 3 dona')
   })
 
   it('counts more takings as good news, and more given away or brought back as bad', () => {
@@ -120,10 +120,10 @@ describe('the sales report', () => {
     const above = chart.querySelector('[aria-live]') as HTMLElement
     // With nothing pointed at, it says which days these are and what they are set against.
     expect(plain(above.textContent)).toContain('01.10.2026 – 05.10.2026')
-    expect(plain(above.textContent)).toContain("O'tgan shunday davr (26.09.2026 – 30.09.2026): 15 200 000 so'm")
+    expect(plain(above.textContent)).toContain('O‘tgan shunday davr (26.09.2026 – 30.09.2026): 15 200 000 so‘m')
 
     await userEvent.hover(chart.querySelector('[data-bar="2026-10-02"]') as HTMLElement)
-    expect(plain(above.textContent)).toBe("02.10.2026Sof tushum: 6 400 000 so'mFoyda: 2 400 000 so'm12 ta chek")
+    expect(plain(above.textContent)).toBe('02.10.2026Sof tushum: 6 400 000 so‘mFoyda: 2 400 000 so‘m12 ta chek')
     // The chart tops out at a round eight million: the tallest day reaches it, the first stands at five eighths.
     const height = (day: string) => (chart.querySelector(`[data-bar="${day}"] > span`) as HTMLElement).style.height
     expect(height('2026-10-04')).toBe('100%')
@@ -151,24 +151,24 @@ describe('the sales report', () => {
         .getAllByRole('listitem')
         .map((row) => plain(row.textContent))
 
-    expect(rows("Do'konlar")).toEqual([
-      "Gulbahor 112 000 000 so'm63%26 ta chek · foyda 4,5 mln",
-      "Gulbahor 27 000 000 so'm37%14 ta chek · foyda 2,5 mln",
+    expect(rows('Do‘konlar')).toEqual([
+      'Gulbahor 112 000 000 so‘m63%26 ta chek · foyda 4,5 mln',
+      'Gulbahor 27 000 000 so‘m37%14 ta chek · foyda 2,5 mln',
     ])
     // Dollars are counted in so'm with the rest; how many there were stands beside.
-    expect(rows("To'lov turlari")).toEqual([
-      "Naqd so'm11 000 000 so'm58%",
-      "Kartaga6 000 000 so'm32%",
-      "Naqd dollar1 800 000 so'm9%150 $",
-      "Qarzga200 000 so'm1%",
+    expect(rows('To‘lov turlari')).toEqual([
+      'Naqd so‘m11 000 000 so‘m58%',
+      'Kartaga6 000 000 so‘m32%',
+      'Naqd dollar1 800 000 so‘m9%150 $',
+      'Qarzga200 000 so‘m1%',
     ])
-    expect(rows('Kassirlar')).toEqual(["Dilnoza Karimova20 000 000 so'm100%40 ta chek"])
+    expect(rows('Kassirlar')).toEqual(['Dilnoza Karimova20 000 000 so‘m100%40 ta chek'])
     expect(rows('Kategoriyalar')).toEqual([
-      "Ustki kiyim9 000 000 so'm79%12 dona",
-      "Kategoriyasiz2 400 000 so'm21%30 dona",
+      'Ustki kiyim9 000 000 so‘m79%12 dona',
+      'Kategoriyasiz2 400 000 so‘m21%30 dona',
     ])
 
-    const goods = card("Eng ko'p sotilgan tovarlar")
+    const goods = card('Eng ko‘p sotilgan tovarlar')
     expect(goods.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
       'Tovar',
       'Soni',
@@ -180,7 +180,7 @@ describe('the sales report', () => {
         .getAllByRole('row')
         .slice(1)
         .map((row) => plain(row.textContent)),
-    ).toEqual(["Palto1042-00129 000 000 so'm3 600 000 so'm", "Sharf2210-01302 400 000 so'm1 500 000 so'm"])
+    ).toEqual(['Palto1042-00129 000 000 so‘m3 600 000 so‘m', 'Sharf2210-01302 400 000 so‘m1 500 000 so‘m'])
   })
 
   it('shows no profit, anywhere, to someone who may not see what goods cost', () => {
@@ -190,7 +190,7 @@ describe('the sales report', () => {
     expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Tovar', 'Soni', 'Sof tushum'])
     // One shop alone is not a list of shops.
     render(<SalesReport data={{ ...withoutCost, shops: [withoutCost.shops[0]] }} />)
-    expect(screen.getAllByRole('heading', { name: "Do'konlar" })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { name: 'Do‘konlar' })).toHaveLength(1)
   })
 
   it('says so when nothing was sold, and what the days before had brought', () => {
@@ -205,9 +205,9 @@ describe('the sales report', () => {
       categories: [],
     }
     render(<SalesReport data={quiet} />)
-    expect(screen.getByText("Bu davrda savdo bo'lmagan")).toBeTruthy()
-    expect(plain(screen.getByText(/O'tgan shunday davrda/).textContent)).toBe(
-      "O'tgan shunday davrda (26.09.2026 – 30.09.2026) 15 200 000 so'm savdo bo'lgan.",
+    expect(screen.getByText('Bu davrda savdo bo‘lmagan')).toBeTruthy()
+    expect(plain(screen.getByText(/O‘tgan shunday davrda/).textContent)).toBe(
+      'O‘tgan shunday davrda (26.09.2026 – 30.09.2026) 15 200 000 so‘m savdo bo‘lgan.',
     )
     expect(screen.queryByText('Sof tushum')).toBeNull()
   })
@@ -245,7 +245,7 @@ describe('the days a report is asked for', () => {
       />,
     )
     expect(screen.getAllByRole('button', { pressed: true }).map((button) => button.textContent)).toEqual(['Oy'])
-    await userEvent.click(screen.getByRole('button', { name: "O'tgan oy" }))
+    await userEvent.click(screen.getByRole('button', { name: 'O‘tgan oy' }))
     expect(onPeriod).toHaveBeenCalledWith('last_month')
     // The two dates show what the name stands for.
     expect(screen.getAllByRole('textbox').map((field) => (field as HTMLInputElement).value)).toEqual([

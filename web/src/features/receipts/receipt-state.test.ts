@@ -12,7 +12,7 @@ const attributes: AttributeDto[] = [
     isActive: true,
     values: [value('white', '#FFFFFF'), value('black', '#000000')],
   },
-  { id: 'size', name: "O'lcham", kind: 'size', isActive: true, values: ['S', 'M', 'L'].map((id) => value(id)) },
+  { id: 'size', name: 'O‘lcham', kind: 'size', isActive: true, values: ['S', 'M', 'L'].map((id) => value(id)) },
 ]
 
 const shirt: ReceiptProductDto = {

@@ -175,11 +175,11 @@ describe('the stand on the screen', () => {
 
   it('names each place by what it holds: a card by its number, a drawer by its till', () => {
     show()
-    expect(line('drawer-1')).toBe("So'm naqdGulbahor 1 kassasi5 000 000 so'm")
+    expect(line('drawer-1')).toBe('So‘m naqdGulbahor 1 kassasi5 000 000 so‘m')
     expect(line('drawer-1-usd')).toBe('Dollar naqdGulbahor 1 kassasi300,00 $')
-    expect(line('safe')).toBe("So'm naqd (Asosiy seyf)Gulbahor 11 000 000 so'm")
+    expect(line('safe')).toBe('So‘m naqd (Asosiy seyf)Gulbahor 11 000 000 so‘m')
     expect(line('humo')).toBe(
-      "So'm karta (9860 1234 5678 9012)Humo · Ipak yo‘li · Gulbahor 1 · Gulbahor 24 000 000 so'm",
+      'So‘m karta (9860 1234 5678 9012)Humo · Ipak yo‘li · Gulbahor 1 · Gulbahor 24 000 000 so‘m',
     )
     expect(line('visa')).toContain('Dollar karta (4000 1234 5678 9010)')
     expect(line('terminal')).toContain('Terminal (Ipak terminal)')
@@ -188,14 +188,14 @@ describe('the stand on the screen', () => {
   it('adds each currency up, the money on its way with it, and all of it as so’m', () => {
     show()
     const uzs = within(card('UZS'))
-    expect(plain(card('UZS').querySelector('header')?.textContent ?? '')).toBe("So'm17 000 000 so'm")
-    expect(plain(uzs.getByText('Naqd').closest('div')?.textContent ?? '')).toBe("Naqd9 000 000 so'm")
-    expect(plain(uzs.getByText('Naqdsiz').closest('div')?.textContent ?? '')).toBe("Naqdsiz6 000 000 so'm")
+    expect(plain(card('UZS').querySelector('header')?.textContent ?? '')).toBe('So‘m17 000 000 so‘m')
+    expect(plain(uzs.getByText('Naqd').closest('div')?.textContent ?? '')).toBe('Naqd9 000 000 so‘m')
+    expect(plain(uzs.getByText('Naqdsiz').closest('div')?.textContent ?? '')).toBe('Naqdsiz6 000 000 so‘m')
     expect(plain(card('UZS').querySelector('[data-half="transit"]')?.textContent ?? '')).toContain('PO-000007')
     expect(card('USD').querySelector('[data-half="transit"]')).toBeNull()
     // 17 000 000 so'm and 1 000 $ at 12 650.
-    expect(plain(screen.getByText("Hammasi so'mda").parentElement?.textContent ?? '')).toBe(
-      "Hammasi so'mda29 650 000 so'mkun kursi 12 650",
+    expect(plain(screen.getByText('Hammasi so‘mda').parentElement?.textContent ?? '')).toBe(
+      'Hammasi so‘mda29 650 000 so‘mkun kursi 12 650',
     )
   })
 

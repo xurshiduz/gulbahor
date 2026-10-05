@@ -193,7 +193,7 @@ export class PosService {
           throw AppError.conflict('UNIT_SOLD', `Bu dona sotilgan${unit.number ? ` (chek ${unit.number})` : ''}`)
         }
         if (unit?.status === 'ready') {
-          throw AppError.conflict('UNIT_NOT_RECEIVED', "Bu dona hali kirim qilinmagan: kirim hujjati o'tkazilmagan")
+          throw AppError.conflict('UNIT_NOT_RECEIVED', 'Bu dona hali kirim qilinmagan: kirim hujjati o‘tkazilmagan')
         }
         if (unit?.status === 'in_stock') {
           variantId = unit.variant_id
@@ -223,7 +223,7 @@ export class PosService {
           )
         : []
       if (!item) {
-        throw AppError.notFound(epc ? "Bu RFID belgi tizimda yo'q" : 'Bu kod bilan tovar topilmadi')
+        throw AppError.notFound(epc ? 'Bu RFID belgi tizimda yo‘q' : 'Bu kod bilan tovar topilmadi')
       }
       return { ...item, epc: tag }
     })

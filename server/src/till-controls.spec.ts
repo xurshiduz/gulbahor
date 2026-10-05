@@ -148,7 +148,7 @@ describe('Till controls', () => {
 
       const wrong = await discounted({ userId: managerId, pin: '0000' })
       expect(wrong.status).toBe(400)
-      expect(wrong.body.error.fields.approval).toBe("PIN noto'g'ri. Yana 4 ta urinish qoldi")
+      expect(wrong.body.error.fields.approval).toBe('PIN noto‘g‘ri. Yana 4 ta urinish qoldi')
       // Somebody who may not allow it, their PIN right or not; and nobody vouches for themselves.
       const powerless = await discounted({ userId: otherId, pin: PIN })
       expect(powerless.body.error.code).toBe('DISCOUNT_OVER_LIMIT')
@@ -179,13 +179,13 @@ describe('Till controls', () => {
     it('cannot be guessed: after five wrong PINs the PIN is taken away', async () => {
       for (const left of [4, 3, 2, 1]) {
         const wrong = await discounted({ userId: managerId, pin: '0000' })
-        expect(wrong.body.error.fields.approval).toBe(`PIN noto'g'ri. Yana ${left} ta urinish qoldi`)
+        expect(wrong.body.error.fields.approval).toBe(`PIN noto‘g‘ri. Yana ${left} ta urinish qoldi`)
       }
       const last = await discounted({ userId: managerId, pin: '0000' })
-      expect(last.body.error.fields.approval).toContain("yangi PIN o'rnatishi kerak")
+      expect(last.body.error.fields.approval).toContain('yangi PIN o‘rnatishi kerak')
       // Even the right PIN is no good now.
       expect((await discounted({ userId: managerId, pin: PIN })).body.error.fields.approval).toContain(
-        "PIN kod o'rnatilmagan",
+        'PIN kod o‘rnatilmagan',
       )
       expect((await manager.get('/api/auth/me').expect(200)).body.user.hasPin).toBe(false)
       const [locked] = await sql<{ summary: string }[]>(
@@ -210,7 +210,7 @@ describe('Till controls', () => {
         await alpha
           .post('/api/products')
           .send({
-            name: "Ko'ylak",
+            name: 'Ko‘ylak',
             axisIds: [],
             variants: [{ valueIds: [] }],
             prices: [priceOf('retail', som(200_000)), priceOf('min', som(190_000))],
@@ -231,7 +231,7 @@ describe('Till controls', () => {
         .expect(201)
       await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
 
-      const found = (await cashier.get('/api/pos/search').query({ registerId, q: "ko'ylak" }).expect(200)).body
+      const found = (await cashier.get('/api/pos/search').query({ registerId, q: 'ko‘ylak' }).expect(200)).body
       expect(found).toEqual([expect.objectContaining({ price: som(200_000), minPrice: som(190_000) })])
       // The shirt has no floor.
       const shirts = (await cashier.get('/api/pos/search').query({ registerId, q: 'futbolka' }).expect(200)).body
@@ -253,7 +253,7 @@ describe('Till controls', () => {
       const under = await two(som(20_001))
       expect(under.status).toBe(400)
       expect(under.body.error.code).toBe('BELOW_MIN_PRICE')
-      expect(under.body.error.message).toContain("Ko'ylak")
+      expect(under.body.error.message).toContain('Ko‘ylak')
       expect(under.body.error.fields['lines.0.discount']).toContain('380')
       const powerless = await two(som(20_001), { approval: { userId: otherId, pin: PIN } })
       expect(powerless.body.error.code).toBe('BELOW_MIN_PRICE')

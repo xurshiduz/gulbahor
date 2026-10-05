@@ -57,7 +57,7 @@ describe('parsePhone', () => {
 describe('search keys', () => {
   it('folds Cyrillic, apostrophes and case into one key', () => {
     expect(searchKey('Анвар')).toBe('anvar')
-    expect(searchKey("O'g'il")).toBe(searchKey('Oʻg‘il'))
+    expect(searchKey('O‘g‘il')).toBe(searchKey('Oʻg‘il'))
     expect(searchKey('Ўғил')).toBe('ogil')
     expect(searchKey('Futbolka, QORA / XL')).toBe('futbolka qora xl')
     expect(searchKey('Елена')).toBe(searchKey('Yelena'))

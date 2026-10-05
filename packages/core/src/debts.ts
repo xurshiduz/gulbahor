@@ -148,7 +148,7 @@ export const debtPaymentInputSchema = z.object({
         settled: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullish(),
       }),
     )
-    .min(1, "To'lovni kiriting")
+    .min(1, 'To‘lovni kiriting')
     .max(10),
   /** What the screen showed it comes to in so'm: if the rate has changed since, it is refused. */
   total: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),

@@ -25,7 +25,7 @@ export type AccountKind = (typeof ACCOUNT_KINDS)[number]
 export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   cash: 'Kassa (naqd)',
   // Cash that is in no till's drawer: a safe, or what somebody carries.
-  safe: "Naqd (seyf yoki qo'lda)",
+  safe: 'Naqd (seyf yoki qo‘lda)',
   card: 'Plastik karta',
   terminal: 'Bank terminali',
   bank: 'Bank hisob raqami',
@@ -55,13 +55,13 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
   rounding: 'Yaxlitlash farqi',
   fx: 'Kurs farqi',
   cash_diff: 'Kassa farqi (kamomad va ortiqcha)',
-  opening: "Boshlang'ich qoldiq",
+  opening: 'Boshlang‘ich qoldiq',
   // What customers owe for goods sold on credit.
   receivables: 'Mijozlar qarzi',
   // What goods brought back were worth, on its way to the goods taken instead; empty between exchanges.
   exchange: 'Almashtirish',
   // Money that has left one account and is not yet confirmed in the other.
-  transit: "Yo'ldagi pul",
+  transit: 'Yo‘ldagi pul',
   // What goods received from suppliers were worth: the other side of what the business owes them for those goods.
   purchases: 'Tovar xaridi',
   // What was spent on running the business, and what it earned otherwise than by selling goods.
@@ -115,14 +115,14 @@ export const accountInputSchema = z
   })
   .superRefine((account, context) => {
     if (account.currency !== 'UZS' && account.kind === 'terminal') {
-      context.addIssue({ code: 'custom', path: ['currency'], message: "Terminal faqat so'mda" })
+      context.addIssue({ code: 'custom', path: ['currency'], message: 'Terminal faqat so‘mda' })
     }
     // A terminal and a safe stand in one place; a card and a bank account go wherever their owner does.
     if (new Set(account.locationIds).size > 1 && !SHARED_ACCOUNT_KINDS.includes(account.kind)) {
       context.addIssue({
         code: 'custom',
         path: ['locationIds'],
-        message: "Terminal va seyf bitta do'konda turadi",
+        message: 'Terminal va seyf bitta do‘konda turadi',
       })
     }
   })
@@ -186,7 +186,7 @@ export const rateSchema = z
   .positive()
   .max(1_000_000)
   .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
-    message: "Kursda ko'pi bilan 2 ta kasr xona bo'ladi",
+    message: 'Kursda ko‘pi bilan 2 ta kasr xona bo‘ladi',
   })
 
 export const rateInputSchema = z.object({ date: z.iso.date(), uzsPerUsd: rateSchema })
@@ -456,7 +456,7 @@ const quantitySchema = z
   .positive()
   .max(1_000_000)
   .refine((qty) => Math.abs(qty * 1000 - Math.round(qty * 1000)) < 1e-6, {
-    message: "Miqdorda ko'pi bilan 3 ta kasr xona bo'ladi",
+    message: 'Miqdorda ko‘pi bilan 3 ta kasr xona bo‘ladi',
   })
 
 export const saleLineInputSchema = z.object({
@@ -495,7 +495,7 @@ export const salePaymentInputSchema = z
       context.addIssue({ code: 'custom', path: ['accountId'], message: 'Karta yoki terminalni tanlang' })
     }
     if (payment.method !== 'cash' && payment.currency !== 'UZS') {
-      context.addIssue({ code: 'custom', path: ['currency'], message: "Karta va terminal faqat so'mda" })
+      context.addIssue({ code: 'custom', path: ['currency'], message: 'Karta va terminal faqat so‘mda' })
     }
   })
 export type SalePaymentInput = z.infer<typeof salePaymentInputSchema>
@@ -548,7 +548,7 @@ export const saleInputSchema = z
     /** The price type the whole sale is made at, when it is not the retail one: wholesale, a family price. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     promoCode: promoCodeSchema,
-    lines: z.array(saleLineInputSchema).min(1, "Chekda kamida bitta tovar bo'lishi kerak").max(300),
+    lines: z.array(saleLineInputSchema).min(1, 'Chekda kamida bitta tovar bo‘lishi kerak').max(300),
     /** Off the whole sale, on top of what each line has. */
     discount: amountSchema.default(0),
     payments: z.array(salePaymentInputSchema).max(10).default([]),
@@ -564,7 +564,7 @@ export const saleInputSchema = z
   .superRefine(taggedOnce)
   .superRefine((sale, context) => {
     if (!sale.payments.length && !sale.debt) {
-      context.addIssue({ code: 'custom', path: ['payments'], message: "To'lovni kiriting" })
+      context.addIssue({ code: 'custom', path: ['payments'], message: 'To‘lovni kiriting' })
     }
     if (sale.debt && !sale.customerId) {
       context.addIssue({ code: 'custom', path: ['customerId'], message: 'Qarzga sotish uchun mijozni tanlang' })
@@ -1101,7 +1101,7 @@ export const MONEY_TRANSFER_STATUSES = ['sent', 'received', 'rejected', 'cancell
 export type MoneyTransferStatus = (typeof MONEY_TRANSFER_STATUSES)[number]
 
 export const MONEY_TRANSFER_STATUS_LABELS: Record<MoneyTransferStatus, string> = {
-  sent: "Yo'lda",
+  sent: 'Yo‘lda',
   received: 'Qabul qilingan',
   rejected: 'Rad etilgan',
   cancelled: 'Qaytarib olingan',

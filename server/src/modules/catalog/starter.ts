@@ -22,13 +22,13 @@ const COLORS: [name: string, hex: string][] = [
   ['Qizil', '#E53935'],
   ['Bordo', '#7B1E3A'],
   ['Pushti', '#F48FB1'],
-  ["To'q sariq", '#FB8C00'],
+  ['To‘q sariq', '#FB8C00'],
   ['Sariq', '#FDD835'],
   ['Yashil', '#43A047'],
   ['Xaki', '#7C7A4B'],
   ['Havorang', '#64B5F6'],
-  ["Ko'k", '#1E88E5'],
-  ["To'q ko'k", '#1A237E'],
+  ['Ko‘k', '#1E88E5'],
+  ['To‘q ko‘k', '#1A237E'],
   ['Binafsha', '#8E24AA'],
   ['Jigarrang', '#6D4C41'],
   ['Bej', '#D9C7A7'],
@@ -38,14 +38,14 @@ const ATTRIBUTES: { key: string; name: string; kind: AttributeKind; values: [nam
   { key: 'color', name: 'Rang', kind: 'color', values: COLORS },
   {
     key: 'alpha',
-    name: "O'lcham (harfli)",
+    name: 'O‘lcham (harfli)',
     kind: 'size',
     values: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'].map((name) => [name]),
   },
-  { key: 'numeric', name: "O'lcham (raqamli)", kind: 'size', values: range(38, 60, 2).map((size) => [String(size)]) },
+  { key: 'numeric', name: 'O‘lcham (raqamli)', kind: 'size', values: range(38, 60, 2).map((size) => [String(size)]) },
   { key: 'jeans', name: 'Jinsi (bel)', kind: 'size', values: range(26, 40, 1).map((size) => [String(size)]) },
-  { key: 'shoes', name: "Poyabzal o'lchami", kind: 'size', values: range(35, 46, 1).map((size) => [String(size)]) },
-  { key: 'kids', name: "Bolalar bo'yi", kind: 'size', values: range(80, 164, 6).map((size) => [String(size)]) },
+  { key: 'shoes', name: 'Poyabzal o‘lchami', kind: 'size', values: range(35, 46, 1).map((size) => [String(size)]) },
+  { key: 'kids', name: 'Bolalar bo‘yi', kind: 'size', values: range(80, 164, 6).map((size) => [String(size)]) },
 ]
 
 /** `axes` names the attributes a model in the category starts with; without it the business default applies. */
@@ -53,7 +53,7 @@ const CATEGORIES: { name: string; axes?: string[]; children?: { name: string; ax
   {
     name: 'Erkaklar kiyimi',
     children: [
-      { name: "Ko'ylaklar" },
+      { name: 'Ko‘ylaklar' },
       { name: 'Futbolkalar' },
       { name: 'Shimlar', axes: ['color', 'numeric'] },
       { name: 'Jinsilar', axes: ['color', 'jeans'] },
@@ -64,7 +64,7 @@ const CATEGORIES: { name: string; axes?: string[]; children?: { name: string; ax
   {
     name: 'Ayollar kiyimi',
     children: [
-      { name: "Ko'ylaklar" },
+      { name: 'Ko‘ylaklar' },
       { name: 'Bluzkalar' },
       { name: 'Yubkalar' },
       { name: 'Shimlar', axes: ['color', 'numeric'] },
@@ -75,7 +75,7 @@ const CATEGORIES: { name: string; axes?: string[]; children?: { name: string; ax
   {
     name: 'Bolalar kiyimi',
     axes: ['color', 'kids'],
-    children: [{ name: "O'g'il bolalar" }, { name: 'Qiz bolalar' }, { name: 'Chaqaloqlar' }],
+    children: [{ name: 'O‘g‘il bolalar' }, { name: 'Qiz bolalar' }, { name: 'Chaqaloqlar' }],
   },
   { name: 'Poyabzal', axes: ['color', 'shoes'] },
   { name: 'Aksessuarlar', axes: ['color'] },

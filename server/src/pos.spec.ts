@@ -357,7 +357,7 @@ describe('Till', () => {
       })
       expect(over.status).toBe(400)
       const short = await sell({ ...line, payments: [cash(som(30_000))] })
-      expect(short.body.error.fields.payments).toBe(`To'lov yetarli emas: yana ${formatMoney(som(10_000))}`)
+      expect(short.body.error.fields.payments).toBe(`To‘lov yetarli emas: yana ${formatMoney(som(10_000))}`)
       const elsewhere = await sell({
         ...line,
         payments: [{ method: 'card', accountId: terminalId, amount: som(40_000) }],
@@ -623,7 +623,7 @@ describe('Till', () => {
         rounding: -som(250),
       })
       expect(closed.totals.payments).toEqual([
-        { method: 'cash', accountName: "Kassa 1 (so'm)", currency: 'UZS', amount: som(337_000), base: som(337_000) },
+        { method: 'cash', accountName: 'Kassa 1 (so‘m)', currency: 'UZS', amount: som(337_000), base: som(337_000) },
         { method: 'cash', accountName: 'Kassa 1 (dollar)', currency: 'USD', amount: usd(5), base: som(64_250) },
         { method: 'card', accountName: 'Humo', currency: 'UZS', amount: som(30_000), base: som(30_000) },
       ])

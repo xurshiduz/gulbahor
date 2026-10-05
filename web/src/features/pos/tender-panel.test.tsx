@@ -107,7 +107,7 @@ describe('the rows money is paid into', () => {
   it('are named by their card, and the first of a kind carries the key', () => {
     render(<Money due={som(200_000)} onComplete={() => undefined} />)
     const row = (key: string) => plain(document.querySelector(`[data-tender="${key}"]`)?.textContent)
-    expect(row('cash')).toContain("Naqd so'm")
+    expect(row('cash')).toContain('Naqd so‘m')
     expect(row('account:humo')).toContain('Humo *3073')
     expect(row('account:humo')).toContain('F7')
     expect(row('account:uzcard')).toContain('Uzcard *8841')
@@ -187,9 +187,9 @@ describe('leaving part of it owing', () => {
     unmount()
     render(<Money due={som(200_000)} onComplete={() => undefined} borrower={{ owed: som(150_000) }} />)
     // What they owe already stands beside the field, before more is lent.
-    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-lend]')?.textContent)).toContain("qarzi 150 000 so'm")
+    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-lend]')?.textContent)).toContain('qarzi 150 000 so‘m')
     // No day is asked for until something is lent.
-    expect(screen.queryByLabelText("To'lash muddati")).toBeNull()
+    expect(screen.queryByLabelText('To‘lash muddati')).toBeNull()
   })
 
   it('takes what is lent off what is to be paid, and asks by when', async () => {
@@ -200,7 +200,7 @@ describe('leaving part of it owing', () => {
     await userEvent.type(screen.getByLabelText(/Qarzga/), '300000{Enter}')
     await waitFor(() => expect(document.activeElement).toBe(field('cash')))
     expect(sold).not.toHaveBeenCalled()
-    expect(screen.getByLabelText("To'lash muddati")).toBeTruthy()
+    expect(screen.getByLabelText('To‘lash muddati')).toBeTruthy()
     // Why a manager will be asked is said as soon as there is something to ask about.
     expect(screen.getByText('Rahbar tasdig‘i kerak')).toBeTruthy()
     // The rest is what cash is offered for.
@@ -284,7 +284,7 @@ describe('the receipt beside the money', () => {
   it('shows what is sold, what came off, and what it comes to', () => {
     const cart: Cart = {
       lines: [
-        { key: 'a', item: { ...item("Ko'ylak", som(900_000)), label: 'M, qora' }, qty: 2, discountText: '100000' },
+        { key: 'a', item: { ...item('Ko‘ylak', som(900_000)), label: 'M, qora' }, qty: 2, discountText: '100000' },
         { key: 'b', item: item('Sharf', som(70_000)), qty: 1, discountText: '' },
       ],
       discountText: '=1 600 000',
@@ -312,15 +312,15 @@ describe('the receipt beside the money', () => {
     expect(text).toContain('Gulbahor 1 kassasi')
     expect(text).toContain('Narx: Oila')
     expect(text).toContain('Mijoz: Nodira Karimova')
-    expect(text).toContain("Ko'ylak, M, qora")
+    expect(text).toContain('Ko‘ylak, M, qora')
     // Everything that came off a line is said on the line: the 1 600 000 agreed on is 170 000 less than the
     // lines came to, and the dresses bear their share of it beside the 100 000 of their own.
     const [dresses, scarf] = totals.lines
     expect(dresses.total + scarf.total).toBe(160_000_000)
-    expect(text).toContain(`2 × 900 000 so'm − ${plain(formatMoney(dresses.discount, 'UZS', { minor: 'auto' }))}`)
+    expect(text).toContain(`2 × 900 000 so‘m − ${plain(formatMoney(dresses.discount, 'UZS', { minor: 'auto' }))}`)
     expect(text).toContain(plain(formatMoney(dresses.total, 'UZS', { minor: 'auto' })))
-    expect(plain(screen.getByText('Chegirma').parentElement?.textContent)).toContain("−270 000 so'm")
-    expect(plain(screen.getByText('Jami').parentElement?.textContent)).toContain("1 600 000 so'm")
+    expect(plain(screen.getByText('Chegirma').parentElement?.textContent)).toContain('−270 000 so‘m')
+    expect(plain(screen.getByText('Jami').parentElement?.textContent)).toContain('1 600 000 so‘m')
     expect(text).toContain('Sotuvchi: Dilnoza')
   })
 })

@@ -5,11 +5,11 @@ import { QueryFailedError } from 'typeorm'
 import type { ErrorBody } from './errors'
 
 const STATUS_MESSAGES: Record<number, string> = {
-  400: "So'rov noto'g'ri",
+  400: 'So‘rov noto‘g‘ri',
   401: 'Tizimga kiring',
-  403: "Bu amal uchun ruxsatingiz yo'q",
+  403: 'Bu amal uchun ruxsatingiz yo‘q',
   404: 'Topilmadi',
-  429: "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring",
+  429: 'Juda ko‘p urinish. Birozdan keyin qayta urinib ko‘ring',
 }
 
 /** Turns every failure into `{ error: { code, message, fields? } }`. */
@@ -43,11 +43,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return { status: 409, body: { code: 'DUPLICATE', message: 'Bunday yozuv allaqachon bor' } }
       }
       if (code === '23503') {
-        return { status: 409, body: { code: 'IN_USE', message: "Bu yozuv boshqa joyda ishlatilgan, o'chirib bo'lmaydi" } }
+        return { status: 409, body: { code: 'IN_USE', message: 'Bu yozuv boshqa joyda ishlatilgan, o‘chirib bo‘lmaydi' } }
       }
     }
 
     this.logger.error(exception instanceof Error ? exception.stack : String(exception))
-    return { status: 500, body: { code: 'INTERNAL', message: "Serverda xatolik yuz berdi. Qayta urinib ko'ring" } }
+    return { status: 500, body: { code: 'INTERNAL', message: 'Serverda xatolik yuz berdi. Qayta urinib ko‘ring' } }
   }
 }

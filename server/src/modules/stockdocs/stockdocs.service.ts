@@ -156,7 +156,7 @@ export class StockDocsService {
       need(actor, doc.kind, 'manage')
       assertStatus(doc, 'draft')
       if (input.kind !== doc.kind) {
-        throw AppError.validation({ kind: "Hujjat turini o'zgartirib bo'lmaydi" })
+        throw AppError.validation({ kind: 'Hujjat turini o‘zgartirib bo‘lmaydi' })
       }
       await this.assertValid(em, actor, input)
       await em.update(StockDocument, id, header(input))
@@ -187,11 +187,11 @@ export class StockDocsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const doc = await this.lock(em, actor, id)
       if (doc.kind !== 'transfer') {
-        throw AppError.conflict('WRONG_KIND', "Faqat ko'chirish jo'natiladi")
+        throw AppError.conflict('WRONG_KIND', 'Faqat ko‘chirish jo‘natiladi')
       }
       need(actor, doc.kind, 'manage')
       assertStatus(doc, 'draft')
-      this.assertWorksAt(actor, doc.locationId, "Faqat tovar turgan joyning xodimi jo'natadi")
+      this.assertWorksAt(actor, doc.locationId, 'Faqat tovar turgan joyning xodimi jo‘natadi')
 
       const lines = await this.lines(em, id)
       const taken = await this.takeOut(em, actor, doc, lines, 'transfer', await this.stock.transit(em, actor.orgId))
@@ -228,7 +228,7 @@ export class StockDocsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const doc = await this.lock(em, actor, id)
       if (doc.kind !== 'transfer') {
-        throw AppError.conflict('WRONG_KIND', "Faqat ko'chirish qabul qilinadi")
+        throw AppError.conflict('WRONG_KIND', 'Faqat ko‘chirish qabul qilinadi')
       }
       need(actor, doc.kind, 'manage')
       assertStatus(doc, 'sent')
@@ -240,7 +240,7 @@ export class StockDocsService {
       const fields: Record<string, string> = {}
       lines.forEach((line, index) => {
         if (scaled(received.get(line.id) ?? line.qty) > scaled(line.qty)) {
-          fields[`lines.${index}.receivedQty`] = `Jo'natilgandan ko'p qabul qilib bo'lmaydi (jo'natilgan: ${line.qty})`
+          fields[`lines.${index}.receivedQty`] = `Jo‘natilgandan ko‘p qabul qilib bo‘lmaydi (jo‘natilgan: ${line.qty})`
         }
       })
       throwIfAny(fields)
@@ -263,7 +263,7 @@ export class StockDocsService {
           // Its value is whatever the goods on the way are worth now: a late bill may have changed it since they left.
           const [piece] = onTheWay.pieces
           if (!piece || onTheWay.missing) {
-            throw AppError.conflict('TRANSIT_MISSING', "Yo'ldagi tovar qoldig'i hujjatga mos kelmayapti")
+            throw AppError.conflict('TRANSIT_MISSING', 'Yo‘ldagi tovar qoldig‘i hujjatga mos kelmayapti')
           }
           const arrivedPart = part(piece, here)
           const lostPart = part(piece, gone, arrivedPart)
@@ -293,7 +293,7 @@ export class StockDocsService {
         entityId: id,
         summary: lost
           ? `${doc.number}: ${unscaled(lost)} dona yetib kelmadi (${formatMoney(lostUzs)})`
-          : `${doc.number}: to'liq qabul qilindi`,
+          : `${doc.number}: to‘liq qabul qilindi`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock']))
       return this.load(em, actor, await this.find(em, actor, id))
@@ -305,7 +305,7 @@ export class StockDocsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const doc = await this.lock(em, actor, id)
       if (doc.kind === 'transfer') {
-        throw AppError.conflict('WRONG_KIND', "Ko'chirish jo'natiladi va qabul qilinadi")
+        throw AppError.conflict('WRONG_KIND', 'Ko‘chirish jo‘natiladi va qabul qilinadi')
       }
       need(actor, doc.kind, 'post')
       assertStatus(doc, 'draft')
@@ -351,12 +351,12 @@ export class StockDocsService {
       if (doc.kind === 'transfer') {
         need(actor, doc.kind, 'manage')
         assertStatus(doc, 'sent')
-        this.assertWorksAt(actor, doc.locationId, "Faqat jo'natgan joyning xodimi qaytarib oladi")
+        this.assertWorksAt(actor, doc.locationId, 'Faqat jo‘natgan joyning xodimi qaytarib oladi')
         const transit = await this.stock.transit(em, actor.orgId)
         for (const item of items) {
           const [onTheWay] = await this.stock.pickBatches(em, transit, [{ batchId: item.batchId, qty: item.qty }])
           if (!onTheWay.pieces[0] || onTheWay.missing) {
-            throw AppError.conflict('TRANSIT_MISSING', "Yo'ldagi tovar qoldig'i hujjatga mos kelmayapti")
+            throw AppError.conflict('TRANSIT_MISSING', 'Yo‘ldagi tovar qoldig‘i hujjatga mos kelmayapti')
           }
           movements.push(...move('transfer_cancel', doc, item.lineId, transit, doc.locationId, onTheWay.pieces[0]))
         }
@@ -368,7 +368,7 @@ export class StockDocsService {
           movements.push(...move('writeoff_cancel', doc, item.lineId, null, doc.locationId, item))
         }
       } else {
-        throw AppError.conflict('WRONG_KIND', "Inventarizatsiya bekor qilinmaydi: yangi sanash bilan to'g'rilanadi")
+        throw AppError.conflict('WRONG_KIND', 'Inventarizatsiya bekor qilinmaydi: yangi sanash bilan to‘g‘rilanadi')
       }
 
       await this.stock.apply(em, actor.orgId, actor.userId, movements)
@@ -400,7 +400,7 @@ export class StockDocsService {
     to: string | null,
   ): Promise<{ cost: { costUsd: number; costUzs: number } }> {
     if (!lines.length) {
-      throw AppError.validation({ lines: "Hujjatda kamida bitta tovar bo'lishi kerak" })
+      throw AppError.validation({ lines: 'Hujjatda kamida bitta tovar bo‘lishi kerak' })
     }
     const picked = await this.stock.pick(
       em,
@@ -472,7 +472,7 @@ export class StockDocsService {
       }
     }
     if (!lines.length) {
-      throw AppError.validation({ lines: "Hujjatda kamida bitta tovar bo'lishi kerak" })
+      throw AppError.validation({ lines: 'Hujjatda kamida bitta tovar bo‘lishi kerak' })
     }
 
     const onHand = await this.stock.onHand(
@@ -709,10 +709,10 @@ export class StockDocsService {
 
     // A document is made by someone who works where the goods are.
     if (!(await place(input.locationId)) || !(actor.allLocations || actor.locationIds.includes(input.locationId))) {
-      fields.locationId = "O'zingiz ishlaydigan faol joyni tanlang"
+      fields.locationId = 'O‘zingiz ishlaydigan faol joyni tanlang'
     }
     if (input.kind === 'transfer' && input.toLocationId && !(await place(input.toLocationId))) {
-      fields.toLocationId = "Faol do'kon yoki skladni tanlang"
+      fields.toLocationId = 'Faol do‘kon yoki skladni tanlang'
     }
 
     const variantIds = input.lines.map((line) => line.variantId)

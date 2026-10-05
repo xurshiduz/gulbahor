@@ -23,7 +23,7 @@ export interface ImportField {
 export const IMPORT_FIELDS = [
   { key: 'name', title: 'Nomi', headers: ['наименование', 'название', 'товар', 'nomi', 'tovar', 'name'] },
   { key: 'sku', title: 'Artikul', headers: ['артикул', 'artikul', 'article', 'sku'] },
-  { key: 'size', title: "O'lcham", headers: ['v_размер', 'размер', "o'lcham", 'olcham', 'razmer', 'size'] },
+  { key: 'size', title: 'O‘lcham', headers: ['v_размер', 'размер', "o'lcham", 'olcham', 'razmer', 'size'] },
   { key: 'color', title: 'Rang', headers: ['v_цвет', 'цвет', 'rang', 'color', 'colour'] },
   {
     key: 'qty',
@@ -37,7 +37,7 @@ export const IMPORT_FIELDS = [
   },
   {
     key: 'extra',
-    title: "Qo'shimcha xarajat (1 dona)",
+    title: 'Qo‘shimcha xarajat (1 dona)',
     headers: ['доп расход', 'доп. расход', 'дополнительный расход', "qo'shimcha xarajat", 'extra'],
   },
   {
@@ -77,7 +77,7 @@ export type ImportMapping = Partial<Record<ImportFieldKey, number>>
 const tidy = (header: unknown) =>
   String(header ?? '')
     .toLowerCase()
-    .replace(/[‘’ʻ`]/g, "'")
+    .replace(/[‘’ʻʼ`´]/g, "'")
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -146,7 +146,7 @@ const SEASON_WORDS: [Season, RegExp][] = [
 ]
 
 const wordOf = <T extends string>(words: [T, RegExp][], text: string): T | null =>
-  words.find(([, pattern]) => pattern.test(text.toLowerCase().trim()))?.[0] ?? null
+  words.find(([, pattern]) => pattern.test(tidy(text)))?.[0] ?? null
 
 export interface ImportRow {
   /** The row's number in the sheet, as the person sees it. */
@@ -227,7 +227,7 @@ export function readImportRow(cells: readonly unknown[], mapping: ImportMapping,
     qty = parsed.ok ? parsed.value : Number.NaN
   }
   if (!(qty > 0) || qty > 1_000_000 || Math.abs(qty * 1000 - Math.round(qty * 1000)) > 1e-6) {
-    problems.push("Soni noto'g'ri yoki yozilmagan")
+    problems.push('Soni noto‘g‘ri yoki yozilmagan')
   }
 
   const amounts = {
@@ -238,13 +238,13 @@ export function readImportRow(cells: readonly unknown[], mapping: ImportMapping,
   }
   const titles = {
     price: 'Xarid narxi',
-    extra: "Qo'shimcha xarajat",
+    extra: 'Qo‘shimcha xarajat',
     retailPrice: 'Chakana narx',
     wholesalePrice: 'Ulgurji narx',
   }
   for (const key of Object.keys(amounts) as (keyof typeof amounts)[]) {
     if (amounts[key].bad) {
-      problems.push(`${titles[key]} noto'g'ri yozilgan`)
+      problems.push(`${titles[key]} noto‘g‘ri yozilgan`)
     }
   }
 

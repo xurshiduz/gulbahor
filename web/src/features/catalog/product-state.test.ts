@@ -18,7 +18,7 @@ import {
 const value = (id: string) => ({ id, name: id, hex: null, isActive: true })
 const attributes: AttributeDto[] = [
   { id: 'color', name: 'Rang', kind: 'color', isActive: true, values: ['black', 'white'].map(value) },
-  { id: 'size', name: "O'lcham", kind: 'size', isActive: true, values: ['S', 'M', 'L'].map(value) },
+  { id: 'size', name: 'O‘lcham', kind: 'size', isActive: true, values: ['S', 'M', 'L'].map(value) },
 ]
 
 const saved = {

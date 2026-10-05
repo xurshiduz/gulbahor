@@ -175,7 +175,7 @@ export class PromotionsService {
       const before = await this.find(em, id)
       // What it gave on the receipts it is on stays what it was: its kind does not change under them.
       if (before.kind !== input.kind && (await this.used(em, id))) {
-        throw AppError.validation({ kind: "Cheklarda ishlatilgan aksiyaning turi o'zgartirilmaydi" })
+        throw AppError.validation({ kind: 'Cheklarda ishlatilgan aksiyaning turi o‘zgartirilmaydi' })
       }
       await this.assertValid(em, input, id)
       await em.update(Promotion, id, {
@@ -219,7 +219,7 @@ export class PromotionsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const promotion = await this.find(em, id)
       if (await this.used(em, id)) {
-        throw AppError.conflict('IN_USE', "Bu aksiya cheklarda bor. O'chirish o'rniga to'xtating")
+        throw AppError.conflict('IN_USE', 'Bu aksiya cheklarda bor. O‘chirish o‘rniga to‘xtating')
       }
       await em.delete(Promotion, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -251,7 +251,7 @@ export class PromotionsService {
     const fields: Record<string, string> = {}
     const all = async (entity: typeof Location | typeof Product | typeof Category | typeof Brand, list: string[]) =>
       !list.length || (await em.countBy(entity, { id: In(list) })) === new Set(list).size
-    if (!(await all(Location, input.locationIds))) fields.locationIds = "Do'kon topilmadi"
+    if (!(await all(Location, input.locationIds))) fields.locationIds = 'Do‘kon topilmadi'
     if (!(await all(Product, input.productIds))) fields.productIds = 'Tovar topilmadi'
     if (!(await all(Category, input.categoryIds))) fields.categoryIds = 'Kategoriya topilmadi'
     if (!(await all(Brand, input.brandIds))) fields.brandIds = 'Brend topilmadi'

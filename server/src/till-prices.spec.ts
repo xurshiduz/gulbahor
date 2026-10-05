@@ -70,14 +70,14 @@ describe('Price types at the till', () => {
       ).body as PriceType
     types.family = await add('Oila', 'approval', true)
     types.vip = await add('VIP', 'permitted')
-    types.list = await add("Ro'yxat narxi", 'none')
+    types.list = await add('Ro‘yxat narxi', 'none')
 
     const price = (type: PriceType, amount: number) => ({ priceTypeId: type.id, amount, currency: 'UZS' })
     dress = (
       await alpha
         .post('/api/products')
         .send({
-          name: "Ko'ylak",
+          name: 'Ko‘ylak',
           axisIds: [],
           variants: [{ valueIds: [] }],
           // No VIP price: there the retail one stands.
@@ -166,7 +166,7 @@ describe('Price types at the till', () => {
 
   it('price the goods the till finds, the retail price standing where they have none', async () => {
     const found = async (priceTypeId?: string) =>
-      (await cashier.get('/api/pos/search').query({ registerId, q: "ko'ylak", priceTypeId }).expect(200)).body[0]
+      (await cashier.get('/api/pos/search').query({ registerId, q: 'ko‘ylak', priceTypeId }).expect(200)).body[0]
     expect((await found()).price).toBe(som(200_000))
     expect(await found(types.wholesale.id)).toMatchObject({ price: som(170_000), minPrice: som(160_000) })
     expect((await found(types.vip.id)).price).toBe(som(200_000))

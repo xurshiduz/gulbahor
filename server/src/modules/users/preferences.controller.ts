@@ -35,7 +35,7 @@ export class PreferencesController {
     @Body(zod(preferenceSchema)) body: { value?: unknown },
   ): Promise<void> {
     if (!KEY.test(key)) {
-      throw AppError.badRequest('BAD_KEY', "Sozlama nomi noto'g'ri")
+      throw AppError.badRequest('BAD_KEY', 'Sozlama nomi noto‘g‘ri')
     }
     const json = JSON.stringify(body.value ?? null)
     if (json.length > 20_000) {

@@ -13,7 +13,7 @@ export const STOCK_DOC_KINDS = ['transfer', 'writeoff', 'count'] as const
 export type StockDocKind = (typeof STOCK_DOC_KINDS)[number]
 
 export const STOCK_DOC_KIND_LABELS: Record<StockDocKind, string> = {
-  transfer: "Ko'chirish",
+  transfer: 'Ko‘chirish',
   writeoff: 'Hisobdan chiqarish',
   count: 'Inventarizatsiya',
 }
@@ -24,8 +24,8 @@ export type StockDocStatus = (typeof STOCK_DOC_STATUSES)[number]
 
 export const STOCK_DOC_STATUS_LABELS: Record<StockDocStatus, string> = {
   draft: 'Qoralama',
-  sent: "Yo'lda",
-  posted: "O'tkazilgan",
+  sent: 'Yo‘lda',
+  posted: 'O‘tkazilgan',
   cancelled: 'Bekor qilingan',
 }
 
@@ -34,9 +34,9 @@ export type WriteoffReason = (typeof WRITEOFF_REASONS)[number]
 
 export const WRITEOFF_REASON_LABELS: Record<WriteoffReason, string> = {
   defect: 'Brak',
-  loss: "Yo'qolgan",
-  theft: "O'g'irlik",
-  sample: "Namuna yoki sovg'a",
+  loss: 'Yo‘qolgan',
+  theft: 'O‘g‘irlik',
+  sample: 'Namuna yoki sovg‘a',
   other: 'Boshqa sabab',
 }
 
@@ -52,7 +52,7 @@ const quantity = z
   .min(0)
   .max(1_000_000)
   .refine((qty) => Math.abs(qty * 1000 - Math.round(qty * 1000)) < 1e-6, {
-    message: "Miqdorda ko'pi bilan 3 ta kasr xona bo'ladi",
+    message: 'Miqdorda ko‘pi bilan 3 ta kasr xona bo‘ladi',
   })
 
 export const stockDocLineInputSchema = z.object({
@@ -82,7 +82,7 @@ export const stockDocInputSchema = z
   .superRefine((doc, context) => {
     if (doc.kind === 'transfer') {
       if (!doc.toLocationId) {
-        context.addIssue({ code: 'custom', path: ['toLocationId'], message: "Qayerga ko'chirilishini tanlang" })
+        context.addIssue({ code: 'custom', path: ['toLocationId'], message: 'Qayerga ko‘chirilishini tanlang' })
       } else if (doc.toLocationId === doc.locationId) {
         context.addIssue({ code: 'custom', path: ['toLocationId'], message: 'Boshqa joyni tanlang' })
       }
@@ -100,7 +100,7 @@ export const stockDocInputSchema = z
         context.addIssue({
           code: 'custom',
           path: ['lines', index, 'qty'],
-          message: "Miqdor noldan katta bo'lishi kerak",
+          message: 'Miqdor noldan katta bo‘lishi kerak',
         })
       }
     })

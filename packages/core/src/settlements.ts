@@ -53,7 +53,7 @@ export function settledFor(
     return { settled: cashBase, cashBase, partnerBase: cashBase, fx: 0 }
   }
   if (!uzsPerUsd) {
-    throw new RangeError("A rate is needed to settle a dollar account with so'm")
+    throw new RangeError('A rate is needed to settle a dollar account with so‘m')
   }
   const settled = fromBase(amount, uzsPerUsd)
   const partnerBase = toBase(settled, 'USD', uzsPerUsd)
@@ -223,16 +223,16 @@ export const PARTNER_PAYMENT_KINDS = ['in', 'out', 'opening'] as const
 export type PartnerPaymentKind = (typeof PARTNER_PAYMENT_KINDS)[number]
 
 export const PARTNER_PAYMENT_KIND_LABELS: Record<PartnerPaymentKind, string> = {
-  in: "Hamkordan to'lov",
-  out: "Hamkorga to'lov",
-  opening: "Boshlang'ich qoldiq",
+  in: 'Hamkordan to‘lov',
+  out: 'Hamkorga to‘lov',
+  opening: 'Boshlang‘ich qoldiq',
 }
 
 export const PARTNER_PAYMENT_STATUSES = ['posted', 'cancelled'] as const
 export type PartnerPaymentStatus = (typeof PARTNER_PAYMENT_STATUSES)[number]
 
 export const PARTNER_PAYMENT_STATUS_LABELS: Record<PartnerPaymentStatus, string> = {
-  posted: "O'tkazilgan",
+  posted: 'O‘tkazilgan',
   cancelled: 'Bekor qilingan',
 }
 
@@ -257,7 +257,7 @@ export const partnerPaymentInputSchema = z.object({
   clientKey: z.uuid(),
   partnerId: idSchema,
   kind: z.enum(['in', 'out']),
-  lines: z.array(partnerPaymentLineSchema).min(1, "To'lovni kiriting").max(10),
+  lines: z.array(partnerPaymentLineSchema).min(1, 'To‘lovni kiriting').max(10),
   /** What the screen showed as settled on the partner's account: if the rate has changed since, the payment is refused. */
   settled: moneySchema,
   note: optionalText(300),

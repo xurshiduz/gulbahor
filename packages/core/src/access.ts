@@ -29,38 +29,38 @@ export const MODULES: ModuleInfo[] = [
   {
     key: 'partners',
     title: 'Hamkorlar',
-    description: "Boshqa sotuvchilarga qarzga tovar berish, to'lovlar, akt-sverka, kredit limiti.",
+    description: 'Boshqa sotuvchilarga qarzga tovar berish, to‘lovlar, akt-sverka, kredit limiti.',
     ready: false,
   },
   {
     key: 'consignment',
     title: 'Konsignatsiya',
-    description: "Tovar sotilgandan keyin to'lanadi, sotilmagani qaytariladi.",
+    description: 'Tovar sotilgandan keyin to‘lanadi, sotilmagani qaytariladi.',
     ready: false,
     requires: ['partners'],
   },
   {
     key: 'cards',
     title: 'Kartalar nazorati',
-    description: "Bank xabarlari Telegram'dan o'qiladi: kartaga pul tushgani sotuvga bog'lanadi.",
+    description: 'Bank xabarlari Telegram’dan o‘qiladi: kartaga pul tushgani sotuvga bog‘lanadi.',
     ready: false,
   },
   {
     key: 'terminal',
     title: 'Bank terminali',
-    description: "Terminal to'lovlari bank tushumi bilan solishtiriladi, komissiya hisobga olinadi.",
+    description: 'Terminal to‘lovlari bank tushumi bilan solishtiriladi, komissiya hisobga olinadi.',
     ready: false,
   },
   {
     key: 'landed_cost',
     title: 'Import xarajatlari',
-    description: "Yo'l, bojxona va boshqa xarajatlar tovar tannarxiga taqsimlanadi.",
+    description: 'Yo‘l, bojxona va boshqa xarajatlar tovar tannarxiga taqsimlanadi.',
     ready: false,
   },
   {
     key: 'loyalty',
     title: 'Keshbek',
-    description: "Mijoz telefon raqami bo'yicha taniladi, xariddan ball oladi, chek Telegram'ga keladi.",
+    description: 'Mijoz telefon raqami bo‘yicha taniladi, xariddan ball oladi, chek Telegram’ga keladi.',
     ready: false,
   },
   {
@@ -107,63 +107,63 @@ export interface PermissionGroup {
 export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     key: 'locations',
-    title: "Do'kon va skladlar",
+    title: 'Do‘kon va skladlar',
     permissions: [
-      { key: 'locations.view', title: "Ko'rish" },
-      { key: 'locations.manage', title: "Qo'shish va tahrirlash" },
+      { key: 'locations.view', title: 'Ko‘rish' },
+      { key: 'locations.manage', title: 'Qo‘shish va tahrirlash' },
     ],
   },
   {
     key: 'products',
     title: 'Tovarlar',
     permissions: [
-      { key: 'products.view', title: "Ko'rish" },
-      { key: 'products.manage', title: "Qo'shish va tahrirlash" },
-      { key: 'products.prices', title: "Narxlarni va narx turlarini o'zgartirish" },
-      { key: 'products.references', title: "Kategoriya, brend, rang va o'lchamlarni boshqarish" },
+      { key: 'products.view', title: 'Ko‘rish' },
+      { key: 'products.manage', title: 'Qo‘shish va tahrirlash' },
+      { key: 'products.prices', title: 'Narxlarni va narx turlarini o‘zgartirish' },
+      { key: 'products.references', title: 'Kategoriya, brend, rang va o‘lchamlarni boshqarish' },
     ],
   },
   {
     key: 'receipts',
     title: 'Kirim',
     permissions: [
-      { key: 'receipts.view', title: "Kirim hujjatlarini ko'rish" },
+      { key: 'receipts.view', title: 'Kirim hujjatlarini ko‘rish' },
       { key: 'receipts.manage', title: 'Qoralama yaratish va tahrirlash' },
-      { key: 'receipts.post', title: "O'tkazish, bekor qilish va xarajatlarni o'zgartirish" },
+      { key: 'receipts.post', title: 'O‘tkazish, bekor qilish va xarajatlarni o‘zgartirish' },
     ],
   },
   {
     key: 'stock',
     title: 'Qoldiq',
     permissions: [
-      { key: 'stock.view', title: "Qoldiqni ko'rish" },
-      { key: 'stock.cost', title: "Tannarxni ko'rish" },
+      { key: 'stock.view', title: 'Qoldiqni ko‘rish' },
+      { key: 'stock.cost', title: 'Tannarxni ko‘rish' },
     ],
   },
   {
     key: 'transfers',
-    title: "Ko'chirish",
+    title: 'Ko‘chirish',
     permissions: [
-      { key: 'transfers.view', title: "Ko'rish" },
-      { key: 'transfers.manage', title: "Jo'natish va qabul qilish" },
+      { key: 'transfers.view', title: 'Ko‘rish' },
+      { key: 'transfers.manage', title: 'Jo‘natish va qabul qilish' },
     ],
   },
   {
     key: 'writeoffs',
     title: 'Hisobdan chiqarish',
     permissions: [
-      { key: 'writeoffs.view', title: "Ko'rish" },
+      { key: 'writeoffs.view', title: 'Ko‘rish' },
       { key: 'writeoffs.manage', title: 'Qoralama yaratish va tahrirlash' },
-      { key: 'writeoffs.post', title: "Tasdiqlash (o'tkazish) va bekor qilish" },
+      { key: 'writeoffs.post', title: 'Tasdiqlash (o‘tkazish) va bekor qilish' },
     ],
   },
   {
     key: 'counts',
     title: 'Inventarizatsiya',
     permissions: [
-      { key: 'counts.view', title: "Ko'rish" },
+      { key: 'counts.view', title: 'Ko‘rish' },
       { key: 'counts.manage', title: 'Sanash' },
-      { key: 'counts.post', title: "Natijani tasdiqlash: farq qoldiqqa o'tadi" },
+      { key: 'counts.post', title: 'Natijani tasdiqlash: farq qoldiqqa o‘tadi' },
     ],
   },
   {
@@ -175,25 +175,25 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.discount', title: 'Chegaradan oshiq chegirma berish' },
       { key: 'pos.prices', title: 'Maxsus narx turida sotish (ulgurji, oila)' },
       { key: 'pos.return', title: 'Qaytarish va almashtirish' },
-      { key: 'pos.return_any', title: "Muddati o'tgan tovarni olish, pulni boshqa usulda qaytarish" },
-      { key: 'pos.debt', title: "Taqiqlangan, muddati o'tgan yoki chegaradan oshgan mijozga qarzga sotish" },
+      { key: 'pos.return_any', title: 'Muddati o‘tgan tovarni olish, pulni boshqa usulda qaytarish' },
+      { key: 'pos.debt', title: 'Taqiqlangan, muddati o‘tgan yoki chegaradan oshgan mijozga qarzga sotish' },
     ],
   },
   {
     key: 'sales',
     title: 'Cheklar va smenalar',
     permissions: [
-      { key: 'sales.view', title: "Hamma cheklarni ko'rish" },
-      { key: 'sales.shifts', title: "Smenalar va kassa farqini ko'rish" },
+      { key: 'sales.view', title: 'Hamma cheklarni ko‘rish' },
+      { key: 'sales.shifts', title: 'Smenalar va kassa farqini ko‘rish' },
     ],
   },
   {
     key: 'money',
     title: 'Pul',
     permissions: [
-      { key: 'money.view', title: "Hisoblar va qoldiqlarni ko'rish" },
+      { key: 'money.view', title: 'Hisoblar va qoldiqlarni ko‘rish' },
       { key: 'money.manage', title: 'Kassa, karta va terminallarni sozlash' },
-      { key: 'money.rates', title: "Kunlik kursni qo'yish" },
+      { key: 'money.rates', title: 'Kunlik kursni qo‘yish' },
       { key: 'money.collect', title: 'Kassadan pulni qabul qilish va kassaga pul berish' },
       { key: 'money.ops', title: 'Xarajat va boshqa kirimni yozish' },
       { key: 'money.categories', title: 'Xarajat va kirim turlarini boshqarish' },
@@ -208,36 +208,36 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: 'devices',
     title: 'Qurilmalar',
     permissions: [
-      { key: 'devices.manage', title: "Printer, o'quvchi va do'kon agentlarini sozlash" },
-      { key: 'devices.alarms', title: "Darvoza signallarini ko'rish" },
+      { key: 'devices.manage', title: 'Printer, o‘quvchi va do‘kon agentlarini sozlash' },
+      { key: 'devices.alarms', title: 'Darvoza signallarini ko‘rish' },
     ],
   },
   {
     key: 'customers',
     title: 'Mijozlar',
     permissions: [
-      { key: 'customers.view', title: "Mijozlar bazasini ko'rish" },
-      { key: 'customers.manage', title: "Qo'shish, tahrirlash va arxivlash" },
-      { key: 'customers.debts', title: "Mijozlar qarzini ko'rish, to'lov olish va to'lovni bekor qilish" },
+      { key: 'customers.view', title: 'Mijozlar bazasini ko‘rish' },
+      { key: 'customers.manage', title: 'Qo‘shish, tahrirlash va arxivlash' },
+      { key: 'customers.debts', title: 'Mijozlar qarzini ko‘rish, to‘lov olish va to‘lovni bekor qilish' },
     ],
   },
   {
     key: 'promotions',
     title: 'Marketing',
     permissions: [
-      { key: 'promotions.view', title: "Aksiyalarni ko'rish" },
-      { key: 'promotions.manage', title: "Aksiya qo'shish, o'zgartirish va to'xtatish" },
+      { key: 'promotions.view', title: 'Aksiyalarni ko‘rish' },
+      { key: 'promotions.manage', title: 'Aksiya qo‘shish, o‘zgartirish va to‘xtatish' },
     ],
   },
   {
     key: 'partners',
     title: 'Yetkazib beruvchilar va hamkorlar',
     permissions: [
-      { key: 'partners.view', title: "Ko'rish" },
-      { key: 'partners.manage', title: "Qo'shish va tahrirlash" },
-      { key: 'partners.debts', title: "Qarz va hisob-kitobni ko'rish" },
-      { key: 'partners.pay', title: "To'lovlarni kiritish va bekor qilish" },
-      { key: 'partners.adjust', title: "Boshlang'ich qoldiqni kiritish" },
+      { key: 'partners.view', title: 'Ko‘rish' },
+      { key: 'partners.manage', title: 'Qo‘shish va tahrirlash' },
+      { key: 'partners.debts', title: 'Qarz va hisob-kitobni ko‘rish' },
+      { key: 'partners.pay', title: 'To‘lovlarni kiritish va bekor qilish' },
+      { key: 'partners.adjust', title: 'Boshlang‘ich qoldiqni kiritish' },
     ],
   },
   {
@@ -250,8 +250,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: 'users',
     title: 'Xodimlar',
     permissions: [
-      { key: 'users.view', title: "Ko'rish" },
-      { key: 'users.manage', title: "Qo'shish, tahrirlash, bloklash, parolni yangilash" },
+      { key: 'users.view', title: 'Ko‘rish' },
+      { key: 'users.manage', title: 'Qo‘shish, tahrirlash, bloklash, parolni yangilash' },
     ],
   },
   {
@@ -266,8 +266,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
   {
     key: 'audit',
-    title: "O'zgarishlar tarixi",
-    permissions: [{ key: 'audit.view', title: "Ko'rish" }],
+    title: 'O‘zgarishlar tarixi',
+    permissions: [{ key: 'audit.view', title: 'Ko‘rish' }],
   },
 ]
 
@@ -309,7 +309,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   {
     key: 'manager',
     name: 'Boshqaruvchi',
-    description: "Egasining o'rinbosari: do'konlar va xodimlarga qaraydi.",
+    description: 'Egasining o‘rinbosari: do‘konlar va xodimlarga qaraydi.',
     permissions: [
       'locations.*',
       'users.*',
@@ -359,8 +359,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   },
   {
     key: 'store_manager',
-    name: "Do'kon menejeri",
-    description: "O'z do'koni: chegirma va qaytarishni tasdiqlaydi, smenadan pulni qabul qiladi.",
+    name: 'Do‘kon menejeri',
+    description: 'O‘z do‘koni: chegirma va qaytarishni tasdiqlaydi, smenadan pulni qabul qiladi.',
     permissions: [
       'locations.view',
       'users.view',
@@ -397,7 +397,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   {
     key: 'warehouse',
     name: 'Sklad mudiri',
-    description: "Kirim, etiketka, ko'chirish va inventarizatsiya.",
+    description: 'Kirim, etiketka, ko‘chirish va inventarizatsiya.',
     permissions: [
       'locations.view',
       'products.view',
@@ -417,7 +417,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   {
     key: 'partners_manager',
     name: 'Hamkorlar menejeri',
-    description: "Hamkorlarga tovar beradi, to'lov qabul qiladi, akt yuboradi.",
+    description: 'Hamkorlarga tovar beradi, to‘lov qabul qiladi, akt yuboradi.',
     permissions: ['products.view', 'stock.view', 'partners.*'],
   },
 ]

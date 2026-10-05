@@ -75,7 +75,7 @@ export function AuthLayout({ title, subtitle, children, wide }: { title: string;
             onClick={() => setLanguage(language)}
             className={`rounded px-2 py-1 hover:bg-sunken ${i18n.language === language ? 'font-semibold text-ink' : ''}`}
           >
-            {language === 'uz' ? "O'zbekcha" : 'Русский'}
+            {language === 'uz' ? 'O‘zbekcha' : 'Русский'}
           </button>
         ))}
         <button type="button" onClick={toggleTheme} aria-label="Theme" className="ml-1 rounded p-1.5 hover:bg-sunken">

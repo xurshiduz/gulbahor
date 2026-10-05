@@ -54,7 +54,7 @@ describe('buildLabelZpl', () => {
     details: 'Qora · M',
     sku: '1001-06',
     barcode: '2000000000015',
-    price: "95 000 so'm",
+    price: '95 000 so‘m',
     epc: '47554C00000000000000002A',
   }
 
@@ -111,7 +111,8 @@ describe('a label laid out by the template', () => {
     details: 'Qora · M',
     sku: '1001-06',
     barcode: '2000000000015',
-    price: "95 000 so'm",
+    // As it is written on the screen; the printer gets the plain apostrophe its own font has.
+    price: '95 000 so‘m',
     epc: '47554C00000000000000002A',
   }
   const format = { size: '50x30', dpi: 203 } as const
@@ -180,7 +181,7 @@ describe('a label laid out by the template', () => {
     expect(y(narrow, "95 000 so'm")).toBe(194)
     expect(y(narrow, '1001-06  #00002A')).toBe(172)
     expect(bars(narrow)).toMatchObject({ y: 90, height: 44 })
-    expect(labelTextWidth("95 000 so'm", 30)).toBe(150)
+    expect(labelTextWidth('95 000 so‘m', 30)).toBe(150)
   })
 
   it('needs something to know the goods by', () => {

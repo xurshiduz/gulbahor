@@ -73,7 +73,7 @@ export class AgentHub {
     }
     try {
       const answer = (await socket.timeout(ANSWER_TIMEOUT_MS).emitWithAck('print', order)) as AgentPrintAnswer
-      return answer?.ok ? { ok: true } : { ok: false, error: String(answer?.error ?? "Noma'lum xato") }
+      return answer?.ok ? { ok: true } : { ok: false, error: String(answer?.error ?? 'Noma’lum xato') }
     } catch {
       return { ok: false, error: 'Agent javob bermadi' }
     }

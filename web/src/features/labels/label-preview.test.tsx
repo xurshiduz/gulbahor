@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest'
 import { LabelPreview, wrapLabelText } from './label-preview'
 
 const label: LabelData = {
-  name: "Ayollar ko'ylagi uzun, yozgi kolleksiya",
+  name: 'Ayollar ko‘ylagi uzun, yozgi kolleksiya',
   details: 'Qora · 44',
   sku: '8018-08',
   barcode: '2000000000015',
-  price: "910 000 so'm",
+  price: '910 000 so‘m',
   epc: '47554C00000000000000002A',
 }
 
@@ -36,6 +36,7 @@ describe('a label on screen', () => {
     const { box, texts, bars } = shown()
     expect(box).toBe('0 0 400 240')
     // A long name runs onto a second line, as the printer breaks it.
+    // And with the plain apostrophe, the one the printer's font has.
     expect(texts).toEqual([
       "Ayollar ko'ylagi uzun, yozgi",
       'kolleksiya',

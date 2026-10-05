@@ -180,7 +180,7 @@ export class CustomersService {
       }
       const after = await loyaltyTiers(em)
       const words = (tiers: LoyaltyTier[]) =>
-        tiers.map((tier) => `${tier.from / 100} dan ${tier.percent}%`).join('; ') || "yo'q"
+        tiers.map((tier) => `${tier.from / 100} dan ${tier.percent}%`).join('; ') || 'yo‘q'
       await this.audit.record(em, actor.orgId, actor, {
         action: 'loyalty.update',
         entity: 'loyalty',

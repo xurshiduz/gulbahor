@@ -121,11 +121,11 @@ describe('Expenses and other income', () => {
     it('is a list every business starts with', () => {
       const names = (kind: string) => categories.filter((item) => item.kind === kind).map((item) => item.name)
       expect(names('expense')).toEqual(expect.arrayContaining(['Ijara', 'Ish haqi', 'Oshxona', 'Egasi oldi']))
-      expect(names('income')).toEqual(['Boshqa daromad', "Egasi qo'shdi"])
+      expect(names('income')).toEqual(['Boshqa daromad', 'Egasi qo‘shdi'])
       // What the owner takes or brings is neither spent nor earned.
       expect(categories.filter((item) => !item.inProfit).map((item) => item.name)).toEqual([
         'Egasi oldi',
-        "Egasi qo'shdi",
+        'Egasi qo‘shdi',
       ])
     })
 
@@ -142,10 +142,10 @@ describe('Expenses and other income', () => {
       const renamed = (
         await accountant
           .put(`/api/money/categories/${made.id}`)
-          .send({ kind: 'expense', name: "Taksi va yo'l haqi", inProfit: true })
+          .send({ kind: 'expense', name: 'Taksi va yo‘l haqi', inProfit: true })
           .expect(200)
       ).body
-      expect(renamed.name).toBe("Taksi va yo'l haqi")
+      expect(renamed.name).toBe('Taksi va yo‘l haqi')
       expect((await accountant.post(`/api/money/categories/${made.id}/archive`).expect(200)).body.isActive).toBe(false)
 
       // A shop's manager writes expenses but does not name their kinds; a cashier does neither.
@@ -154,7 +154,7 @@ describe('Expenses and other income', () => {
       await cashier.get('/api/money/categories').expect(403)
       categories = (await alpha.get('/api/money/categories').expect(200)).body
       // Nothing can be written under an archived kind.
-      const refused = await spend("Taksi va yo'l haqi", [{ accountId: drawerId, amount: som(10_000) }], som(10_000))
+      const refused = await spend('Taksi va yo‘l haqi', [{ accountId: drawerId, amount: som(10_000) }], som(10_000))
       expect(refused.status).toBe(400)
       expect(refused.body.error.fields.categoryId).toBeDefined()
     })
@@ -175,7 +175,7 @@ describe('Expenses and other income', () => {
         categoryName: 'Oshxona',
         inProfit: true,
         total: som(85_000),
-        paidBy: "Kassa 1 (so'm)",
+        paidBy: 'Kassa 1 (so‘m)',
         note: 'Tushlik',
         createdByName: 'Anvar Menejer',
       })
@@ -195,7 +195,7 @@ describe('Expenses and other income', () => {
       )
       // There is nothing on the card to pay with.
       expect(short.status).toBe(400)
-      expect(short.body.error.fields['lines.1.amount']).toBe("Hisobda buncha pul yo'q")
+      expect(short.body.error.fields['lines.1.amount']).toBe('Hisobda buncha pul yo‘q')
       expect(moved(before, await balances())).toEqual({})
 
       const op = (

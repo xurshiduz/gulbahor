@@ -87,7 +87,7 @@ export class BrandsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const brand = await this.find(em, id)
       if (await this.productCount(em, id)) {
-        throw AppError.conflict('IN_USE', "Bu brendda tovarlar bor. O'chirish o'rniga arxivlang")
+        throw AppError.conflict('IN_USE', 'Bu brendda tovarlar bor. O‘chirish o‘rniga arxivlang')
       }
       await em.delete(Brand, id)
       await this.audit.record(em, actor.orgId, actor, {

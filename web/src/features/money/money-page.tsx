@@ -699,7 +699,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
                     value={field.value}
                     onChange={field.onChange}
                     options={[
-                      { value: 'UZS', label: "So'm" },
+                      { value: 'UZS', label: 'So‘m' },
                       { value: 'USD', label: 'AQSH dollari' },
                     ]}
                     className="w-48"

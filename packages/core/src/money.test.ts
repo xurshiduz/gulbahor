@@ -64,7 +64,7 @@ describe('percentOf and roundToStep', () => {
 
 describe('formatMoney', () => {
   it('groups thousands and hides zero tiyin', () => {
-    expect(formatMoney(125_000_000, 'UZS', { group: ' ' })).toBe("1 250 000 so'm")
+    expect(formatMoney(125_000_000, 'UZS', { group: ' ' })).toBe('1 250 000 so‘m')
     expect(formatMoney(125_000_050, 'UZS', { group: ' ', symbol: false })).toBe('1 250 000,50')
     expect(formatMoney(7_905, 'USD', { group: ' ' })).toBe('79,05 $')
   })

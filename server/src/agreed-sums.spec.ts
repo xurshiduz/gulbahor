@@ -188,7 +188,7 @@ describe('Agreed sums', () => {
       )
       expect(over.status).toBe(400)
       expect(over.body.error.fields['lines.0.settled']).toBe(
-        "Kelishilgan summa kun kursidan 10,2% farq qiladi: 2% dan ortig'iga kurs qo'yish ruxsati kerak",
+        'Kelishilgan summa kun kursidan 10,2% farq qiladi: 2% dan ortig‘iga kurs qo‘yish ruxsati kerak',
       )
       // A slip the other way short-changes the partner, and is held to the same limit.
       const under = await one(
@@ -366,7 +366,7 @@ describe('Agreed sums', () => {
       const terminal = await alpha
         .post('/api/money/accounts')
         .send({ kind: 'terminal', name: 'POS $', currency: 'USD' })
-      expect(terminal.body.error.fields.currency).toBe("Terminal faqat so'mda")
+      expect(terminal.body.error.fields.currency).toBe('Terminal faqat so‘mda')
 
       // Dollars to the card settle a so'm account as dollars in the drawer do: here, as agreed.
       const before = await balances()

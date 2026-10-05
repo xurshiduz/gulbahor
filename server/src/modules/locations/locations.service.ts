@@ -114,7 +114,7 @@ export class LocationsService {
       await this.assertParent(em, input, id)
 
       if (before.kind !== input.kind && (before.kind === 'zone' || input.kind === 'zone')) {
-        throw AppError.validation({ kind: "Do'kon ichidagi joyni boshqa turga o'zgartirib bo'lmaydi" })
+        throw AppError.validation({ kind: 'Do‘kon ichidagi joyni boshqa turga o‘zgartirib bo‘lmaydi' })
       }
 
       const patch = {
@@ -151,12 +151,12 @@ export class LocationsService {
       if (!active) {
         const children = await em.countBy(Location, { parentId: id, isActive: true })
         if (children) {
-          throw AppError.conflict('HAS_CHILDREN', "Avval shu do'kon ichidagi joylarni arxivlang")
+          throw AppError.conflict('HAS_CHILDREN', 'Avval shu do‘kon ichidagi joylarni arxivlang')
         }
       } else if (before.parentId) {
         const parent = await em.findOneBy(Location, { id: before.parentId })
         if (!parent?.isActive) {
-          throw AppError.conflict('PARENT_ARCHIVED', "Avval u joylashgan do'konni arxivdan chiqaring")
+          throw AppError.conflict('PARENT_ARCHIVED', 'Avval u joylashgan do‘konni arxivdan chiqaring')
         }
       }
 
@@ -194,7 +194,7 @@ export class LocationsService {
   private async find(em: EntityManager, id: string): Promise<Row> {
     const { entities, raw } = await this.baseQuery(em).andWhere('l.id = :id', { id }).getRawAndEntities()
     if (!entities[0]) {
-      throw AppError.notFound("Do'kon yoki sklad topilmadi")
+      throw AppError.notFound('Do‘kon yoki sklad topilmadi')
     }
     return { ...entities[0], parentName: raw[0].parent_name }
   }
@@ -221,7 +221,7 @@ export class LocationsService {
     }
     const parent = await em.findOneBy(Location, { id: input.parentId })
     if (!parent || parent.id === selfId || !parent.isActive || (parent.kind !== 'store' && parent.kind !== 'mixed')) {
-      throw AppError.validation({ parentId: "Faol do'konni tanlang" })
+      throw AppError.validation({ parentId: 'Faol do‘konni tanlang' })
     }
   }
 }

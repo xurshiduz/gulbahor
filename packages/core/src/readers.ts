@@ -20,7 +20,7 @@ export const READER_KINDS = ['desk', 'gate'] as const
 export type ReaderKind = (typeof READER_KINDS)[number]
 
 export const READER_KIND_LABELS: Record<ReaderKind, string> = {
-  desk: "Kassa o'quvchisi",
+  desk: 'Kassa o‘quvchisi',
   gate: 'Darvoza',
 }
 
@@ -42,7 +42,7 @@ export const readerInputSchema = z
       .trim()
       .min(1, 'Manzilni kiriting')
       .max(120)
-      .refine(isLocalHost, "Faqat do'kon tarmog'idagi manzil bo'lishi mumkin"),
+      .refine(isLocalHost, 'Faqat do‘kon tarmog‘idagi manzil bo‘lishi mumkin'),
     port: z.number().int().min(1).max(65535).default(DEFAULT_READER_PORT),
   })
   .superRefine((reader, context) => {
@@ -50,7 +50,7 @@ export const readerInputSchema = z
       context.addIssue({ code: 'custom', path: ['registerId'], message: 'Kassani tanlang' })
     }
     if (reader.kind === 'gate' && !reader.locationId) {
-      context.addIssue({ code: 'custom', path: ['locationId'], message: "Do'konni tanlang" })
+      context.addIssue({ code: 'custom', path: ['locationId'], message: 'Do‘konni tanlang' })
     }
   })
 export type ReaderInput = z.infer<typeof readerInputSchema>

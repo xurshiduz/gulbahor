@@ -123,7 +123,7 @@ export class PrintQueueService {
       em.query(
         `UPDATE print_jobs SET status = 'failed', error = $2, done_at = now()
          WHERE agent_id = $1 AND status = 'sent' AND sent_at < now() - interval '1 minute'`,
-        [agentId, "Javob kelmadi: aloqa uzilgan. Etiketka chiqmagan bo'lsa, qayta yuboring"],
+        [agentId, 'Javob kelmadi: aloqa uzilgan. Etiketka chiqmagan bo‘lsa, qayta yuboring'],
       ),
     )
   }
@@ -152,7 +152,7 @@ export class PrintQueueService {
       // The printer may have moved to another agent since, or be gone.
       const printer = found.printerId ? await em.findOneBy(Printer, { id: found.printerId }) : null
       if (!printer) {
-        throw AppError.conflict('PRINTER_GONE', "Bu printer o'chirilgan. Etiketkani qaytadan chop eting")
+        throw AppError.conflict('PRINTER_GONE', 'Bu printer o‘chirilgan. Etiketkani qaytadan chop eting')
       }
       await em.update(PrintJob, id, { status: 'queued', error: null, agentId: printer.agentId, doneAt: null })
       afterCommit(() => this.realtime.changed(actor.orgId, ['printjobs']))

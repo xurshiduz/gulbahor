@@ -161,14 +161,14 @@ export class PricingService {
         throw AppError.validation({ 'operation.priceTypeId': 'Boshqa narx turini tanlang' })
       }
       if (source && source.currency !== type.currency) {
-        throw AppError.validation({ 'operation.priceTypeId': "Narx turlarining valyutasi bir xil bo'lishi kerak" })
+        throw AppError.validation({ 'operation.priceTypeId': 'Narx turlarining valyutasi bir xil bo‘lishi kerak' })
       }
 
       const subjects = await this.subjects(em, input.filter)
       if (subjects.length > MAX_MODELS) {
         throw AppError.badRequest(
           'TOO_MANY',
-          `Bir martada ko'pi bilan ${MAX_MODELS} ta model o'zgartiriladi. Filtr bilan toraytiring`,
+          `Bir martada ko‘pi bilan ${MAX_MODELS} ta model o‘zgartiriladi. Filtr bilan toraytiring`,
         )
       }
       const ids = subjects.map((subject) => subject.id)
@@ -273,7 +273,7 @@ export class PricingService {
         return result
       }
       if (!changed) {
-        throw AppError.conflict('NOTHING_TO_CHANGE', "O'zgaradigan narx yo'q")
+        throw AppError.conflict('NOTHING_TO_CHANGE', 'O‘zgaradigan narx yo‘q')
       }
 
       const revision = await this.record(em, actor, type, changes, {
@@ -456,14 +456,14 @@ export class PricingService {
       await em.query(`SELECT 1 FROM price_revisions WHERE id = $1 FOR UPDATE`, [id])
       const revision = await em.findOneBy(PriceRevision, { id })
       if (!revision) {
-        throw AppError.notFound("Narx o'zgarishi topilmadi")
+        throw AppError.notFound('Narx o‘zgarishi topilmadi')
       }
       if (await em.findOneBy(PriceRevision, { revertsId: id })) {
-        throw AppError.conflict('ALREADY_REVERTED', "Bu o'zgarish allaqachon qaytarilgan")
+        throw AppError.conflict('ALREADY_REVERTED', 'Bu o‘zgarish allaqachon qaytarilgan')
       }
       const type = revision.priceTypeId ? await em.findOneBy(PriceType, { id: revision.priceTypeId }) : null
       if (!type) {
-        throw AppError.conflict('TYPE_GONE', "Bu narx turi o'chirilgan")
+        throw AppError.conflict('TYPE_GONE', 'Bu narx turi o‘chirilgan')
       }
 
       const rows: {
@@ -485,7 +485,7 @@ export class PricingService {
       const standing = rows.filter((row) => row.current === row.new_amount)
       const models = standing.filter((row) => !row.variant_id && !row.location_id).length
       if (!standing.length) {
-        throw AppError.conflict('NOTHING_TO_CHANGE', "Bu narxlar keyin yana o'zgargan: qaytariladigan narx yo'q")
+        throw AppError.conflict('NOTHING_TO_CHANGE', 'Bu narxlar keyin yana o‘zgargan: qaytariladigan narx yo‘q')
       }
 
       const undo = await this.record(
@@ -539,7 +539,7 @@ export class PricingService {
         if (!type) {
           fields[`markups.${index}.priceTypeId`] = 'Narx turi topilmadi'
         } else if (markup.base === 'retail' && type.kind === 'retail') {
-          fields[`markups.${index}.base`] = "Chakana narxning o'zi chakana narxdan hisoblanmaydi"
+          fields[`markups.${index}.base`] = 'Chakana narxning o‘zi chakana narxdan hisoblanmaydi'
         }
       })
       const [same] = await em.query(
@@ -815,7 +815,7 @@ function describe(operation: RepriceOperation, currency: CurrencyCode, sourceNam
     case 'from_type':
       return `${sourceName} ${percentText(operation.percent)}`
     case 'markup': {
-      const how = operation.percent === null ? "qoida bo'yicha" : percentText(operation.percent)
+      const how = operation.percent === null ? 'qoida bo‘yicha' : percentText(operation.percent)
       return `Tannarxdan ${how}${operation.uzsRate ? `, kurs ${operation.uzsRate}` : ''}`
     }
   }

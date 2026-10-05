@@ -35,7 +35,7 @@ interface Props {
 }
 
 /**
- * Ctrl+K: go to any screen or run any action by typing a few letters of its
+ * Ctrl+Q: go to any screen or run any action by typing a few letters of its
  * name, in either script and either keyboard layout.
  */
 export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay, onSpend }: Props) {
@@ -63,7 +63,7 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay, o
     const actions: Command[] = [
       ...(onPay
         ? [
-            { id: 'pay-in', label: t('payments.takeIn'), group: t('command.actions'), icon: ArrowDownLeft, shortcut: 'alt+k', run: () => onPay('in') },
+            { id: 'pay-in', label: t('payments.takeIn'), group: t('command.actions'), icon: ArrowDownLeft, shortcut: 'mod+k', run: () => onPay('in') },
             { id: 'pay-out', label: t('payments.payOut'), group: t('command.actions'), icon: ArrowUpRight, shortcut: 'alt+c', run: () => onPay('out') },
           ]
         : []),

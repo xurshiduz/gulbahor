@@ -52,7 +52,7 @@ describe('Prices set by a receipt', () => {
     dress = (
       await alpha
         .post('/api/products')
-        .send({ name: "Ko'ylak", axisIds: [], variants: [{ valueIds: [] }], prices: [] })
+        .send({ name: 'Ko‘ylak', axisIds: [], variants: [{ valueIds: [] }], prices: [] })
         .expect(201)
     ).body
   }, 60_000)
@@ -95,7 +95,7 @@ describe('Prices set by a receipt', () => {
     const registerId = (
       await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201)
     ).body.id
-    const found = (await alpha.get('/api/pos/search').query({ registerId, q: "ko'ylak" }).expect(200)).body
+    const found = (await alpha.get('/api/pos/search').query({ registerId, q: 'ko‘ylak' }).expect(200)).body
     expect(found[0]).toMatchObject({ price: som(200_000), minPrice: som(150_000) })
 
     // A copy of the receipt carries them along.

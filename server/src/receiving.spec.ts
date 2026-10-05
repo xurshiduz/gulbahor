@@ -78,7 +78,7 @@ describe('Receiving', () => {
 
     const attributes = (await alpha.get('/api/attributes')).body as AttributeRow[]
     const color = attributes.find((attribute) => attribute.kind === 'color')!
-    const size = attributes.find((attribute) => attribute.name === "O'lcham (harfli)")!
+    const size = attributes.find((attribute) => attribute.name === 'O‘lcham (harfli)')!
     const value = (attribute: AttributeRow, name: string) => attribute.values.find((item) => item.name === name)!.id
     const model = async (name: string, weightG: number, sizes: string[]) =>
       (

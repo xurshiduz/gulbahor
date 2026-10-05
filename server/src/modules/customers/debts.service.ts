@@ -177,7 +177,7 @@ export class CustomerDebtsService {
       )
       const owed = debts.reduce((sum, debt) => sum + debt.left, 0)
       if (!owed) {
-        throw AppError.conflict('NO_DEBT_LEFT', `${customer.name}: qarzi yo'q`)
+        throw AppError.conflict('NO_DEBT_LEFT', `${customer.name}: qarzi yo‘q`)
       }
 
       const today = await this.ledger.today(em, actor.orgId)
@@ -216,7 +216,7 @@ export class CustomerDebtsService {
           shiftId = open.id
         }
         if (account.currency === 'USD' && !dayRate) {
-          fields[`lines.${index}.amount`] = "Dollar kursi qo'yilmagan"
+          fields[`lines.${index}.amount`] = 'Dollar kursi qo‘yilmagan'
           continue
         }
         // Dollars may be taken for an agreed sum of so'm, within what this person may agree to.
@@ -240,13 +240,13 @@ export class CustomerDebtsService {
       }
       const total = lines.reduce((sum, line) => sum + line.base, 0)
       if (total !== input.total) {
-        throw AppError.conflict('RATE_CHANGED', "Kurs o'zgargan: summani qayta tekshiring")
+        throw AppError.conflict('RATE_CHANGED', 'Kurs o‘zgargan: summani qayta tekshiring')
       }
       const { parts, rest } = spreadOverDebts(debts, total)
       if (rest > 0) {
         throw AppError.validation(
           { total: `Qarzi ${formatMoney(owed)}` },
-          `${customer.name}ning qarzi ${formatMoney(owed)}: undan ko'p olinmaydi`,
+          `${customer.name}ning qarzi ${formatMoney(owed)}: undan ko‘p olinmaydi`,
         )
       }
 
@@ -341,15 +341,15 @@ export class CustomerDebtsService {
       await em.query(`SELECT 1 FROM debt_payments WHERE id = $1 FOR UPDATE`, [id])
       const payment = await em.findOneBy(DebtPayment, { id })
       if (!payment) {
-        throw AppError.notFound("To'lov topilmadi")
+        throw AppError.notFound('To‘lov topilmadi')
       }
       if (payment.status !== 'posted') {
-        throw AppError.conflict('PAYMENT_CANCELLED', "Bu to'lov allaqachon bekor qilingan")
+        throw AppError.conflict('PAYMENT_CANCELLED', 'Bu to‘lov allaqachon bekor qilingan')
       }
       const lines = await em.find(DebtPaymentLine, { where: { paymentId: id }, order: { position: 'ASC' } })
       const shiftIds = lines.flatMap((line) => (line.shiftId ? [line.shiftId] : []))
       if (shiftIds.length && (await em.countBy(Shift, { id: In(shiftIds), status: 'closed' }))) {
-        throw AppError.conflict('SHIFT_CLOSED', "Smena yopilgan: bu to'lov endi bekor qilinmaydi")
+        throw AppError.conflict('SHIFT_CLOSED', 'Smena yopilgan: bu to‘lov endi bekor qilinmaydi')
       }
       const ids = [...new Set(lines.map((line) => line.accountId))].sort()
       await em.query(`SELECT 1 FROM accounts WHERE id = ANY($1) ORDER BY id FOR UPDATE`, [ids])

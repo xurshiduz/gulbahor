@@ -61,7 +61,7 @@ export class AuthService {
           em,
           user.orgId,
           { userId: user.id, name: user.fullName, ip: meta.ip },
-          { action: 'auth.login_failed', entity: 'user', entityId: user.id, summary: `Noto'g'ri parol · ${meta.device}` },
+          { action: 'auth.login_failed', entity: 'user', entityId: user.id, summary: `Noto‘g‘ri parol · ${meta.device}` },
         ),
       )
       throw this.invalidCredentials()
@@ -206,7 +206,7 @@ export class AuthService {
   async changePassword(actor: Actor, input: ChangePasswordInput): Promise<void> {
     const user = await this.db.tenant(actor.orgId, ({ em }) => em.findOneByOrFail(User, { id: actor.userId }))
     if (!(await verifySecret(input.current, user.passwordHash))) {
-      throw AppError.validation({ current: "Joriy parol noto'g'ri" })
+      throw AppError.validation({ current: 'Joriy parol noto‘g‘ri' })
     }
     const passwordHash = await hashSecret(input.next)
 
@@ -223,7 +223,7 @@ export class AuthService {
         action: 'auth.password_changed',
         entity: 'user',
         entityId: user.id,
-        summary: "Parol o'zgartirildi",
+        summary: 'Parol o‘zgartirildi',
       })
       afterCommit(() => this.actors.invalidate())
     })
@@ -232,7 +232,7 @@ export class AuthService {
   async setPin(actor: Actor, input: SetPinInput): Promise<void> {
     const user = await this.db.tenant(actor.orgId, ({ em }) => em.findOneByOrFail(User, { id: actor.userId }))
     if (!(await verifySecret(input.password, user.passwordHash))) {
-      throw AppError.validation({ password: "Parol noto'g'ri" })
+      throw AppError.validation({ password: 'Parol noto‘g‘ri' })
     }
     const pinHash = await hashSecret(input.pin)
     await this.db.tenant(actor.orgId, async ({ em }) => {
@@ -241,7 +241,7 @@ export class AuthService {
         action: 'auth.pin_set',
         entity: 'user',
         entityId: user.id,
-        summary: "PIN kod o'rnatildi",
+        summary: 'PIN kod o‘rnatildi',
       })
     })
   }
@@ -254,7 +254,7 @@ export class AuthService {
   async removePin(actor: Actor, input: RemovePinInput): Promise<void> {
     const user = await this.db.tenant(actor.orgId, ({ em }) => em.findOneByOrFail(User, { id: actor.userId }))
     if (!(await verifySecret(input.password, user.passwordHash))) {
-      throw AppError.validation({ password: "Parol noto'g'ri" })
+      throw AppError.validation({ password: 'Parol noto‘g‘ri' })
     }
     if (!user.pinHash) {
       return
@@ -265,7 +265,7 @@ export class AuthService {
         action: 'auth.pin_removed',
         entity: 'user',
         entityId: user.id,
-        summary: "PIN kod o'chirildi",
+        summary: 'PIN kod o‘chirildi',
       })
     })
   }
@@ -277,7 +277,7 @@ export class AuthService {
   async unlock(actor: Actor, pin: string): Promise<void> {
     const user = await this.db.tenant(actor.orgId, ({ em }) => em.findOneByOrFail(User, { id: actor.userId }))
     if (!user.pinHash) {
-      throw AppError.badRequest('NO_PIN', "PIN kod o'rnatilmagan")
+      throw AppError.badRequest('NO_PIN', 'PIN kod o‘rnatilmagan')
     }
 
     if (await verifySecret(pin, user.pinHash)) {
@@ -297,16 +297,16 @@ export class AuthService {
           action: 'auth.pin_locked',
           entity: 'user',
           entityId: user.id,
-          summary: `PIN ${MAX_PIN_FAILURES} marta noto'g'ri kiritildi, sessiya yopildi`,
+          summary: `PIN ${MAX_PIN_FAILURES} marta noto‘g‘ri kiritildi, sessiya yopildi`,
         })
         afterCommit(() => this.actors.invalidate())
       }
     })
 
     if (locked) {
-      throw AppError.unauthorized('SESSION_ENDED', "PIN ko'p marta noto'g'ri kiritildi. Parol bilan qayta kiring")
+      throw AppError.unauthorized('SESSION_ENDED', 'PIN ko‘p marta noto‘g‘ri kiritildi. Parol bilan qayta kiring')
     }
-    throw AppError.validation({ pin: `PIN noto'g'ri. Yana ${MAX_PIN_FAILURES - failures} ta urinish qoldi` })
+    throw AppError.validation({ pin: `PIN noto‘g‘ri. Yana ${MAX_PIN_FAILURES - failures} ta urinish qoldi` })
   }
 
   async sessions(actor: Actor): Promise<SessionDto[]> {
@@ -339,7 +339,7 @@ export class AuthService {
   }
 
   private invalidCredentials() {
-    return AppError.unauthorized('INVALID_CREDENTIALS', "Login yoki parol noto'g'ri")
+    return AppError.unauthorized('INVALID_CREDENTIALS', 'Login yoki parol noto‘g‘ri')
   }
 
   private sessionEnded() {

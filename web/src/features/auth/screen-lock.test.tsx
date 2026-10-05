@@ -41,13 +41,13 @@ describe('the locked screen', () => {
   it('shakes, turns red and empties when the PIN is wrong, ready for another try', async () => {
     const asked = vi
       .spyOn(api, 'post')
-      .mockRejectedValueOnce(new ApiError(400, 'VALIDATION', 'Xato', { pin: "PIN noto'g'ri. Yana 4 ta urinish qoldi" }))
+      .mockRejectedValueOnce(new ApiError(400, 'VALIDATION', 'Xato', { pin: 'PIN noto‘g‘ri. Yana 4 ta urinish qoldi' }))
       .mockResolvedValueOnce(undefined as never)
     const opened = vi.fn()
     render(<ScreenLock onUnlocked={opened} />)
 
     await userEvent.keyboard('0000')
-    expect((await screen.findByRole('alert')).textContent).toBe("PIN noto'g'ri. Yana 4 ta urinish qoldi")
+    expect((await screen.findByRole('alert')).textContent).toBe('PIN noto‘g‘ri. Yana 4 ta urinish qoldi')
     expect(opened).not.toHaveBeenCalled()
     expect(boxes()).toEqual(['empty', 'empty', 'empty', 'empty'])
     expect(field().getAttribute('aria-invalid')).toBe('true')

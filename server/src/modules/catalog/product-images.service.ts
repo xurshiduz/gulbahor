@@ -69,7 +69,7 @@ function check(input: ProductImageInput): Checked[] {
     const data = said ? Buffer.from(said.base64, 'base64') : null
     const found = data ? readImageSize(data) : null
     if (!said || !data || !found || found.format !== said.format) {
-      fields[field] = "Bu rasm emas yoki formati noto'g'ri"
+      fields[field] = 'Bu rasm emas yoki formati noto‘g‘ri'
     } else if (data.length > IMAGE_MAX_BYTES[size] || Math.max(found.width, found.height) > IMAGE_SIZES[size]) {
       fields[field] = 'Rasm juda katta'
     } else {
@@ -78,7 +78,7 @@ function check(input: ProductImageInput): Checked[] {
     return []
   })
   if (checked.length === IMAGE_SIZE_KEYS.length && new Set(checked.map((file) => file.format)).size > 1) {
-    fields.large = "Rasmning uch o'lchami bir xil formatda bo'lishi kerak"
+    fields.large = 'Rasmning uch o‘lchami bir xil formatda bo‘lishi kerak'
   }
   if (Object.keys(fields).length) {
     throw AppError.validation(fields)
@@ -127,7 +127,7 @@ export class ProductImagesService {
         const product = await this.lock(em, productId)
         const count = await em.countBy(ProductImage, { productId })
         if (count >= MAX_PRODUCT_IMAGES) {
-          throw AppError.conflict('TOO_MANY_IMAGES', `Bir tovarga ko'pi bilan ${MAX_PRODUCT_IMAGES} ta rasm qo'yiladi`)
+          throw AppError.conflict('TOO_MANY_IMAGES', `Bir tovarga ko‘pi bilan ${MAX_PRODUCT_IMAGES} ta rasm qo‘yiladi`)
         }
         await this.assertValue(em, productId, input.valueId)
 
@@ -190,7 +190,7 @@ export class ProductImagesService {
       const images = await em.findBy(ProductImage, { productId })
       const known = new Set(images.map((image) => image.id))
       if (new Set(input.ids).size !== known.size || !input.ids.every((id) => known.has(id))) {
-        throw AppError.conflict('IMAGES_CHANGED', "Rasmlar o'zgargan. Sahifani yangilang")
+        throw AppError.conflict('IMAGES_CHANGED', 'Rasmlar o‘zgargan. Sahifani yangilang')
       }
       for (const [index, id] of input.ids.entries()) {
         await em.update(ProductImage, id, { sortOrder: index })
@@ -260,7 +260,7 @@ export class ProductImagesService {
       [productId, valueId],
     )
     if (!used) {
-      throw AppError.validation({ valueId: "Bu tovarda bunday rang yoki o'lcham yo'q" })
+      throw AppError.validation({ valueId: 'Bu tovarda bunday rang yoki o‘lcham yo‘q' })
     }
   }
 }

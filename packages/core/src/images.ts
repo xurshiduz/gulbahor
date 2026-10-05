@@ -34,13 +34,13 @@ const picture = (bytes: number) =>
   z
     .string()
     .max(Math.ceil((bytes * 4) / 3) + 64, 'Rasm juda katta')
-    .regex(PICTURE, "Rasm WebP yoki JPEG bo'lishi kerak")
+    .regex(PICTURE, 'Rasm WebP yoki JPEG bo‘lishi kerak')
 
 export const productImageInputSchema = z.object({
   small: picture(IMAGE_MAX_BYTES.s),
   medium: picture(IMAGE_MAX_BYTES.m),
   large: picture(IMAGE_MAX_BYTES.l),
-  blur: z.string().max(BLUR_MAX_LENGTH, 'Rasm juda katta').regex(PICTURE, "Rasm WebP yoki JPEG bo'lishi kerak"),
+  blur: z.string().max(BLUR_MAX_LENGTH, 'Rasm juda katta').regex(PICTURE, 'Rasm WebP yoki JPEG bo‘lishi kerak'),
   /** The colour (or another value of the model) the photograph shows; none for all of them. */
   valueId: idSchema.nullish().transform((value) => value ?? null),
 })

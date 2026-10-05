@@ -77,7 +77,7 @@ describe('who is at the counter', () => {
     const saved = vi.spyOn(api, 'post').mockResolvedValue({ id: 'c2', name: 'Sardor', phone: '+998977000001' } as never)
     render(<Counter />)
     await userEvent.type(screen.getByRole('textbox', { name: 'Mijoz' }), '977000001')
-    await waitFor(() => expect(screen.getByText("Yangi mijoz qo'shish")).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Yangi mijoz qo‘shish')).toBeTruthy())
     await userEvent.keyboard('{Enter}')
 
     // Digits were typed: they are the phone, and the cursor waits at the name.
@@ -106,14 +106,14 @@ describe('who is at the counter', () => {
       </QueryClientProvider>
     )
     const { rerender } = render(owing({ owed: 45_000_000, overdue: 0, dueDate: '2026-11-04' }))
-    expect(plain(screen.getByRole('note').textContent)).toContain("Qarzi: 450 000 so'm")
-    expect(screen.getByRole('note').textContent).not.toContain("muddati o'tgani")
-    await userEvent.click(screen.getByRole('button', { name: "To'lov olish" }))
+    expect(plain(screen.getByRole('note').textContent)).toContain('Qarzi: 450 000 so‘m')
+    expect(screen.getByRole('note').textContent).not.toContain('muddati o‘tgani')
+    await userEvent.click(screen.getByRole('button', { name: 'To‘lov olish' }))
     expect(takes).toHaveBeenCalledTimes(1)
 
     // What is past its day is said apart: it is why more may not be lent.
     rerender(owing({ owed: 45_000_000, overdue: 20_000_000, dueDate: '2026-09-01' }))
-    expect(plain(screen.getByRole('note').textContent)).toContain("muddati o'tgani 200 000 so'm")
+    expect(plain(screen.getByRole('note').textContent)).toContain('muddati o‘tgani 200 000 so‘m')
 
     // Nothing owed, nothing said.
     rerender(owing({ owed: 0, overdue: 0, dueDate: null }))

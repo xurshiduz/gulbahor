@@ -103,7 +103,7 @@ export class PartnersService {
       if (before.currency !== input.currency && account) {
         const [used] = await em.query(`SELECT 1 FROM ledger_lines WHERE account_id = $1 LIMIT 1`, [account.id])
         if (used) {
-          throw AppError.validation({ currency: "Hisob-kitob boshlangan hamkorning valyutasi o'zgartirilmaydi" })
+          throw AppError.validation({ currency: 'Hisob-kitob boshlangan hamkorning valyutasi o‘zgartirilmaydi' })
         }
         await em.update(Account, account.id, { currency: input.currency })
       }

@@ -36,7 +36,7 @@ export const PROMOTION_STATE_LABELS: Record<PromotionState, string> = {
   scheduled: 'Kutilmoqda',
   running: 'Ketmoqda',
   ended: 'Tugagan',
-  stopped: "To'xtatilgan",
+  stopped: 'To‘xtatilgan',
 }
 
 const ids = z.array(idSchema).max(500).default([])
@@ -87,10 +87,10 @@ export const promotionInputSchema = z
         context.addIssue({ code: 'custom', path: ['value'], message: 'Foiz 100 dan oshmaydi' })
       }
       if (Math.abs(promotion.value * 100 - Math.round(promotion.value * 100)) > 1e-6) {
-        context.addIssue({ code: 'custom', path: ['value'], message: "Foizda ko'pi bilan 2 ta kasr xona bo'ladi" })
+        context.addIssue({ code: 'custom', path: ['value'], message: 'Foizda ko‘pi bilan 2 ta kasr xona bo‘ladi' })
       }
     } else if (!Number.isInteger(promotion.value)) {
-      context.addIssue({ code: 'custom', path: ['value'], message: "Narx noto'g'ri" })
+      context.addIssue({ code: 'custom', path: ['value'], message: 'Narx noto‘g‘ri' })
     }
     if (promotion.endsOn && promotion.endsOn < promotion.startsOn) {
       context.addIssue({ code: 'custom', path: ['endsOn'], message: 'Tugash kuni boshlanishidan oldin' })

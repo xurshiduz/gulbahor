@@ -74,7 +74,7 @@ export class MoneyService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.findRegister(em, id)
       if (before.locationId !== input.locationId && (await em.countBy(Shift, { registerId: id }))) {
-        throw AppError.validation({ locationId: "Smenasi bo'lgan kassani boshqa do'konga o'tkazib bo'lmaydi" })
+        throw AppError.validation({ locationId: 'Smenasi bo‘lgan kassani boshqa do‘konga o‘tkazib bo‘lmaydi' })
       }
       await this.assertRegister(em, input, id)
       if (before.locationId !== input.locationId) {
@@ -161,8 +161,8 @@ export class MoneyService {
       if (changes && (await this.ledger.isUsed(em, id))) {
         throw AppError.validation(
           before.kind !== input.kind
-            ? { kind: "Pul o'tgan hisobning turini o'zgartirib bo'lmaydi" }
-            : { currency: "Pul o'tgan hisobning valyutasini o'zgartirib bo'lmaydi" },
+            ? { kind: 'Pul o‘tgan hisobning turini o‘zgartirib bo‘lmaydi' }
+            : { currency: 'Pul o‘tgan hisobning valyutasini o‘zgartirib bo‘lmaydi' },
         )
       }
       await this.assertAccount(em, input, id)
@@ -215,7 +215,7 @@ export class MoneyService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const today = await this.ledger.today(em, actor.orgId)
       if (input.date < today) {
-        throw AppError.validation({ date: "O'tgan kunning kursi o'zgartirilmaydi" })
+        throw AppError.validation({ date: 'O‘tgan kunning kursi o‘zgartirilmaydi' })
       }
       const before = await em.findOneBy(ExchangeRate, { rateDate: input.date })
       await em.query(
@@ -227,7 +227,7 @@ export class MoneyService {
       await this.audit.record(em, actor.orgId, actor, {
         action: 'rate.set',
         entity: 'rate',
-        summary: `${input.date}: 1 $ = ${input.uzsPerUsd} so'm`,
+        summary: `${input.date}: 1 $ = ${input.uzsPerUsd} so‘m`,
         changes: before ? { uzsPerUsd: [before.uzsPerUsd, input.uzsPerUsd] } : null,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
@@ -250,7 +250,7 @@ export class MoneyService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const register = await this.findRegister(em, id)
       if (!register.isActive) {
-        throw AppError.conflict('REGISTER_ARCHIVED', "Arxivdagi kassa asosiy bo'la olmaydi")
+        throw AppError.conflict('REGISTER_ARCHIVED', 'Arxivdagi kassa asosiy bo‘la olmaydi')
       }
       if (!register.isMain) {
         await em.update(Register, { locationId: register.locationId, isMain: true }, { isMain: false })
@@ -397,17 +397,17 @@ export class MoneyService {
       input.locationId,
     ])
     if (!place || place.kind === 'transit') {
-      throw AppError.validation({ locationId: "Do'kon topilmadi" })
+      throw AppError.validation({ locationId: 'Do‘kon topilmadi' })
     }
     if (place.kind === 'warehouse') {
-      throw AppError.validation({ locationId: "Skladda kassa bo'lmaydi. Joy turini «Do'kon va sklad» qiling" })
+      throw AppError.validation({ locationId: 'Skladda kassa bo‘lmaydi. Joy turini «Do‘kon va sklad» qiling' })
     }
     const [taken] = await em.query(
       `SELECT 1 FROM registers WHERE location_id = $1 AND lower(name) = lower($2) AND id IS DISTINCT FROM $3`,
       [input.locationId, input.name, exceptId ?? null],
     )
     if (taken) {
-      throw AppError.validation({ name: "Bu do'konda shunday nomli kassa bor" })
+      throw AppError.validation({ name: 'Bu do‘konda shunday nomli kassa bor' })
     }
   }
 

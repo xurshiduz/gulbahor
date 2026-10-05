@@ -187,7 +187,7 @@ export class StockService {
     }
     const [created]: { id: string }[] = await em.query(
       `INSERT INTO locations (org_id, kind, name, code, search_key) VALUES ($1, 'transit', $2, 'YOLDA', '') RETURNING id`,
-      [orgId, "Yo'lda"],
+      [orgId, 'Yo‘lda'],
     )
     return created.id
   }

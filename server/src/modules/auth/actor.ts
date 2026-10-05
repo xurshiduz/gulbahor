@@ -47,7 +47,7 @@ export function clientIp(request: Request): string | null {
 /** "Chrome · Windows" from a user-agent string; enough to tell sessions apart. */
 export function describeDevice(userAgent: string | undefined): string {
   if (!userAgent) {
-    return "Noma'lum qurilma"
+    return 'Noma’lum qurilma'
   }
   const browser =
     /Edg\//.test(userAgent) ? 'Edge'

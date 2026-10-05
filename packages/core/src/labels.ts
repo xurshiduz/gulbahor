@@ -145,7 +145,7 @@ export const labelTemplateSchema = z
   })
   .refine((template) => template.showName || template.showBarcode || template.showSku, {
     path: ['showName'],
-    message: "Etiketkada nom, shtrix-kod yoki artikuldan biri bo'lishi kerak",
+    message: 'Etiketkada nom, shtrix-kod yoki artikuldan biri bo‘lishi kerak',
   })
 export type LabelTemplate = z.infer<typeof labelTemplateSchema>
 
@@ -190,10 +190,14 @@ export interface LabelLayout {
   items: (LabelText | LabelBars)[]
 }
 
-/** `^` and `~` start a command and `\` an escape; none may come from a product's name. */
+/**
+ * `^` and `~` start a command and `\` an escape; none may come from a product's name. The letters o‘ and g‘
+ * go to the printer with a plain apostrophe: its own font has no other, and would leave a gap where one stood.
+ */
 const clean = (value: string | null | undefined) =>
   String(value ?? '')
     .replace(/[\^~\\]/g, ' ')
+    .replace(/[‘’ʻʼ`´]/g, "'")
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -380,7 +384,7 @@ export const labelPrintSchema = z
       context.addIssue({
         code: 'custom',
         path: ['items'],
-        message: `Bir martada ko'pi bilan ${MAX_LABELS_PER_JOB} ta etiketka chop etiladi`,
+        message: `Bir martada ko‘pi bilan ${MAX_LABELS_PER_JOB} ta etiketka chop etiladi`,
       })
     }
     if (request.rfid && !request.receiptId && !request.locationId) {

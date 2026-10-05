@@ -137,7 +137,7 @@ describe('API', () => {
     it('finds people whatever script or keyboard layout the query was typed in', async () => {
       await alpha
         .post('/api/users')
-        .send({ fullName: "Anvar G'ofurov", phone: '8 90 123-45-67', login: 'anvar', password: PASSWORD, roleIds: [cashierRoleId], allLocations: false, locationIds: [shopId] })
+        .send({ fullName: 'Anvar G‘ofurov', phone: '8 90 123-45-67', login: 'anvar', password: PASSWORD, roleIds: [cashierRoleId], allLocations: false, locationIds: [shopId] })
         .expect(201)
 
       for (const q of ['анвар', 'фтмфк', "gofurov anvar", '901234567']) {
@@ -217,7 +217,7 @@ describe('API', () => {
       expect((await agent.get('/api/auth/me').expect(200)).body.user.hasPin).toBe(true)
 
       const refused = await agent.post('/api/auth/pin/remove').send({ password: 'not-the-password' }).expect(400)
-      expect(refused.body.error.fields.password).toBe("Parol noto'g'ri")
+      expect(refused.body.error.fields.password).toBe('Parol noto‘g‘ri')
       expect((await agent.get('/api/auth/me').expect(200)).body.user.hasPin).toBe(true)
 
       await agent.post('/api/auth/pin/remove').send({ password: PASSWORD }).expect(204)

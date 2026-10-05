@@ -36,7 +36,7 @@ export class AuthGuard implements CanActivate {
 
     const module = this.reflector.getAllAndOverride<string | undefined>(MODULE_KEY, targets)
     if (module && !actor.modules.includes(module)) {
-      throw AppError.forbidden("Bu bo'lim sizning biznesingizda yoqilmagan", 'MODULE_OFF')
+      throw AppError.forbidden('Bu bo‘lim sizning biznesingizda yoqilmagan', 'MODULE_OFF')
     }
 
     const permissions = this.reflector.getAllAndOverride<string[] | undefined>(PERMISSIONS_KEY, targets) ?? []

@@ -207,7 +207,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
   const diff = (value: number | null, currency: 'UZS' | 'USD') =>
     value === null ? null : (
       <Row
-        label={`${t('pos.diff')} (${currency === 'USD' ? '$' : "so'm"})`}
+        label={`${t('pos.diff')} (${currency === 'USD' ? '$' : 'so‘m'})`}
         value={`${value > 0 ? '+' : ''}${money(value, currency)}`}
         strong
         tone={value < 0 ? 'bad' : value > 0 ? 'ok' : undefined}

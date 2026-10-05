@@ -129,7 +129,7 @@ export class ShiftsService {
         }
         handed[from.currency] += handover.amount
         if (handed[from.currency] > (from.currency === 'USD' ? input.cashUsd : input.cashUzs)) {
-          throw AppError.validation({ [`handovers.${index}.amount`]: "Sanalgan puldan ko'p topshirib bo'lmaydi" })
+          throw AppError.validation({ [`handovers.${index}.amount`]: 'Sanalgan puldan ko‘p topshirib bo‘lmaydi' })
         }
         const sent = await this.transfers.sendIn(em, actor, {
           clientKey: randomUUID(),
@@ -452,7 +452,7 @@ export class ShiftsService {
         continue
       }
       if (currency === 'USD' && !rate) {
-        throw AppError.conflict('NO_RATE', "Dollar kursi qo'yilmagan. Avval kursni kiriting")
+        throw AppError.conflict('NO_RATE', 'Dollar kursi qo‘yilmagan. Avval kursni kiriting')
       }
       const base = toBase(diff, currency, rate?.uzsPerUsd ?? null)
       const fresh = kind === 'shift_open' && !(await this.ledger.isUsed(em, account.id))

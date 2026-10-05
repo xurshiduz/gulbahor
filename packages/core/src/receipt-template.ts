@@ -22,7 +22,7 @@ export const RECEIPT_LOGO_MAX = 200_000
 const logoSchema = z
   .string()
   .max(RECEIPT_LOGO_MAX, 'Logotip juda katta')
-  .regex(/^(data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*)?$/, "Logotip rasm bo'lishi kerak")
+  .regex(/^(data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*)?$/, 'Logotip rasm bo‘lishi kerak')
   .nullish()
   .transform((value) => value || null)
 

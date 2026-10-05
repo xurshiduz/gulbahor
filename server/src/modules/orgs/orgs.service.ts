@@ -157,12 +157,12 @@ export class OrgsService {
   /** The first-run wizard: name the business, list its shops and pick what it needs. Runs once. */
   async setup(actor: Actor, input: SetupInput): Promise<OrgDto> {
     if (!actor.isOwner) {
-      throw AppError.forbidden("Boshlang'ich sozlashni faqat egasi qiladi")
+      throw AppError.forbidden('Boshlang‘ich sozlashni faqat egasi qiladi')
     }
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
       if (org.setupCompleted) {
-        throw AppError.conflict('ALREADY_SET_UP', "Boshlang'ich sozlash allaqachon bajarilgan")
+        throw AppError.conflict('ALREADY_SET_UP', 'Boshlang‘ich sozlash allaqachon bajarilgan')
       }
 
       const names = input.locations.map((location) => location.name.toLowerCase())
@@ -199,7 +199,7 @@ export class OrgsService {
         action: 'org.setup',
         entity: 'org',
         entityId: actor.orgId,
-        summary: `Boshlang'ich sozlash: ${input.name}`,
+        summary: `Boshlang‘ich sozlash: ${input.name}`,
       })
 
       afterCommit(() => {

@@ -254,10 +254,10 @@ describe('the search field', () => {
 describe('change', () => {
   it("is said dollars first, then so'm", () => {
     const plain = (text: string) => text.replace(/\s/g, ' ')
-    expect(plain(changeText(som(10_000), 0))).toBe("10 000 so'm")
-    expect(plain(changeText(som(11_000), 600))).toBe("6 $ + 11 000 so'm")
+    expect(plain(changeText(som(10_000), 0))).toBe('10 000 so‘m')
+    expect(plain(changeText(som(11_000), 600))).toBe('6 $ + 11 000 so‘m')
     expect(plain(changeText(0, 600))).toBe('6 $')
-    expect(plain(changeText(0, 0))).toBe("0 so'm")
+    expect(plain(changeText(0, 0))).toBe('0 so‘m')
   })
 })
 

@@ -59,7 +59,7 @@ export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number]
 
 export const RECEIPT_STATUS_LABELS: Record<ReceiptStatus, string> = {
   draft: 'Qoralama',
-  posted: "O'tkazilgan",
+  posted: 'O‘tkazilgan',
   cancelled: 'Bekor qilingan',
 }
 
@@ -68,9 +68,9 @@ export const EXPENSE_BASES = ['value', 'quantity', 'weight'] as const
 export type ExpenseBasis = (typeof EXPENSE_BASES)[number]
 
 export const EXPENSE_BASIS_LABELS: Record<ExpenseBasis, string> = {
-  value: "Qiymat bo'yicha",
-  quantity: "Dona bo'yicha",
-  weight: "Vazn bo'yicha",
+  value: 'Qiymat bo‘yicha',
+  quantity: 'Dona bo‘yicha',
+  weight: 'Vazn bo‘yicha',
 }
 
 const currencySchema = z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
@@ -81,16 +81,16 @@ const amountSchema = z.number().int().min(0).max(1_000_000_000_000_00)
 /** How many units of something one dollar buys. Kept to six decimals. */
 const rateSchema = z
   .number()
-  .positive({ message: "Kurs noldan katta bo'lishi kerak" })
+  .positive({ message: 'Kurs noldan katta bo‘lishi kerak' })
   .max(1_000_000_000)
   .transform((rate) => Number(rate.toFixed(6)))
 
 const quantitySchema = z
   .number()
-  .positive({ message: "Miqdor noldan katta bo'lishi kerak" })
+  .positive({ message: 'Miqdor noldan katta bo‘lishi kerak' })
   .max(1_000_000)
   .refine((qty) => Number.isInteger(Math.round(qty * 1000)) && Math.abs(qty * 1000 - Math.round(qty * 1000)) < 1e-6, {
-    message: "Miqdorda ko'pi bilan 3 ta kasr xona bo'ladi",
+    message: 'Miqdorda ko‘pi bilan 3 ta kasr xona bo‘ladi',
   })
 
 const nullableId = idSchema.nullish().transform((value) => value || null)
@@ -153,7 +153,7 @@ export const receiptInputSchema = z
       context.addIssue({
         code: 'custom',
         path: ['extraCurrency'],
-        message: "Dollar, so'm yoki hujjat valyutasini tanlang",
+        message: 'Dollar, so‘m yoki hujjat valyutasini tanlang',
       })
     }
     receipt.expenses.forEach((expense, index) => {
@@ -161,7 +161,7 @@ export const receiptInputSchema = z
         context.addIssue({
           code: 'custom',
           path: ['expenses', index, 'currency'],
-          message: "Dollar, so'm yoki hujjat valyutasini tanlang",
+          message: 'Dollar, so‘m yoki hujjat valyutasini tanlang',
         })
       }
     })

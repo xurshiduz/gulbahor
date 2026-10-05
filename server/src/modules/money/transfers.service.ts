@@ -96,7 +96,7 @@ export class MoneyTransfersService {
       fields.toAccountId = 'Hisob topilmadi'
     }
     if (from && to && !fields.fromAccountId && !fields.toAccountId && from.currency !== to.currency) {
-      fields.toAccountId = `Bu hisob ${to.currency === 'USD' ? 'dollarda' : "so'mda"}: valyutasi boshqa`
+      fields.toAccountId = `Bu hisob ${to.currency === 'USD' ? 'dollarda' : 'so‘mda'}: valyutasi boshqa`
     }
     const first = Object.values(fields)[0]
     if (!from || !to || first) {
@@ -109,12 +109,12 @@ export class MoneyTransfersService {
     }
     // Said without the sum: a cashier is not told what the books hold.
     if (input.amount > from.balance) {
-      throw AppError.validation({ amount: "Hisobda buncha pul yo'q" })
+      throw AppError.validation({ amount: 'Hisobda buncha pul yo‘q' })
     }
     const today = await this.ledger.today(em, actor.orgId)
     const rate = from.currency === 'USD' ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
     if (from.currency === 'USD' && !rate) {
-      throw AppError.validation({ amount: "Dollar kursi qo'yilmagan" })
+      throw AppError.validation({ amount: 'Dollar kursi qo‘yilmagan' })
     }
     const base = toBase(input.amount, from.currency, rate)
 
@@ -211,7 +211,7 @@ export class MoneyTransfersService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const transfer = await this.waiting(em, id)
       if (transfer.sentBy !== actor.userId && !can(actor, 'money.manage')) {
-        throw AppError.forbidden("O'tkazmani uni yuborgan odam qaytarib oladi")
+        throw AppError.forbidden('O‘tkazmani uni yuborgan odam qaytarib oladi')
       }
       await this.back(em, actor, transfer, 'cancelled', null)
       afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts']))
@@ -309,7 +309,7 @@ export class MoneyTransfersService {
    */
   private async mayTake(em: EntityManager, actor: Actor, transfer: MoneyTransfer, to: Account): Promise<string | null> {
     if (transfer.sentBy === actor.userId && !can(actor, 'money.manage')) {
-      throw AppError.forbidden("O'zingiz yuborgan pulni o'zingiz qabul qila olmaysiz: uni qabul qiluvchi tasdiqlaydi")
+      throw AppError.forbidden('O‘zingiz yuborgan pulni o‘zingiz qabul qila olmaysiz: uni qabul qiluvchi tasdiqlaydi')
     }
     if (!mayWorkAt(actor, to)) {
       throw AppError.forbidden()
@@ -338,10 +338,10 @@ export class MoneyTransfersService {
     await em.query(`SELECT 1 FROM money_transfers WHERE id = $1 FOR UPDATE`, [id])
     const transfer = await em.findOneBy(MoneyTransfer, { id })
     if (!transfer) {
-      throw AppError.notFound("O'tkazma topilmadi")
+      throw AppError.notFound('O‘tkazma topilmadi')
     }
     if (transfer.status !== 'sent') {
-      throw AppError.conflict('TRANSFER_DECIDED', "Bu o'tkazma allaqachon yakunlangan")
+      throw AppError.conflict('TRANSFER_DECIDED', 'Bu o‘tkazma allaqachon yakunlangan')
     }
     return transfer
   }

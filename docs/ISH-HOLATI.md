@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b, 9, UI tuzatishlar, 5d va PIN kataklari ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 (10a dan keyin) — core 171, agent 17, server 283, web 159; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-06 (kirim-chiqim, Pul holati, o‘/g‘ imlosi va Ctrl+Q dan keyin) — core 178, agent 17, server 296, web 174; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -127,6 +127,9 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] 11b. Pul joylarining nomi ("So'm naqd", "So'm karta (raqami)"), karta raqami, dollar kartasi, kassa maydoni doim.
    - [x] 11c. "Pul → Pul holati": valyuta → naqd / naqdsiz → har joy; yo'ldagi pul; butun biznes yoki bitta do'kon.
    - [x] Menyu akkordeoni (bitta bo'lim ochiq).
+   - [x] Kirim: yangi xarajat standart holatda dona bo'yicha, xarajat nomida takliflar yo'q; har tovarning o'z yetkazib beruvchisi maydoni yashirin ("Sozlamalar → Biznes"dan yoqiladi).
+   - [x] O‘ va g‘ harflari: ekrandagi hamma o'zbekcha matn `‘` va `’` bilan (1107 ta matn, 112 fayl); etiketka printerga oddiy apostrof bilan ketadi; tizim yozgan nomlar migratsiya bilan o'tkazildi.
+   - [x] Qidiruv Ctrl+Q ga ko'chdi, yuqori paneldagi qutisi olib tashlandi; Ctrl+K — hamkordan to'lov olish.
 
 12. **Dinamik valyuta** (KEYINGI-REJA, 8-bo'lim: "Aniqlashtirish" va "Valyuta ishining bo'laklari") — taklif va reja yozilgan, **foydalanuvchi "boshla" demaguncha boshlanmaydi**:
    - [ ] V1. Valyutalar ro'yxati va kurslar.
@@ -152,3 +155,5 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `a9681de59d59c43412fd70e51a0ce544f0286114` | PIN 4 ta katak (bloklash ekrani, tasdiq, profil), menyu tugmasi yuqori panelda, 8c qilinmaydi |
 | `8b9d9a57111518124605318d43e6bd1c119bf083` | PIN'ni o'chirish, parol maydonida ko'z, Alt+L menyuda, hisobotlar rejasi |
 | `ab3af58f2131bed57313c824df8865d61db2e5a0` | 10a: savdo hisoboti (Hisobotlar → Savdo) va bosh sahifada bugungi savdo; Ctrl+L, Ctrl+M |
+| `3ffd62a21e0048fd893d051b495729f694f642bf` | 11: juft maydon va kurs farqi, pul joylarining nomi va karta raqami, "Pul holati", menyu akkordeoni; kirimda dona bo'yicha va yashirin yetkazib beruvchi maydoni; valyuta taklifi va rejasi |
+| `c043d1b528b33d4f3c70b1d124080811260355d2` | O‘ va g‘ imlosi (1107 ta matn, migratsiya bilan), qidiruv Ctrl+Q da va yuqori panelda qutisiz, Ctrl+K — to'lov olish |

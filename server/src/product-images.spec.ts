@@ -81,11 +81,11 @@ describe('Product photographs', () => {
 
     const attributes = (await alpha.get('/api/attributes').expect(200)).body as AttributeRow[]
     color = attributes.find((attribute) => attribute.kind === 'color')!
-    size = attributes.find((attribute) => attribute.name === "O'lcham (harfli)")!
+    size = attributes.find((attribute) => attribute.name === 'O‘lcham (harfli)')!
     const create = async (body: Record<string, unknown>) =>
       (await alpha.post('/api/products').send(body).expect(201)).body.id as string
     dressId = await create({
-      name: "Ko'ylak",
+      name: 'Ko‘ylak',
       axisIds: [color.id, size.id],
       variants: [
         { valueIds: [valueId(color, 'Qora'), valueId(size, 'M')] },

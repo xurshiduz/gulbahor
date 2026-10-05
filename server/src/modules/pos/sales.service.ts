@@ -154,7 +154,7 @@ export class SalesService {
     }
     const mayPrice = can(actor, 'pos.prices') || theirs
     if (priceType?.tillAccess === 'permitted' && !mayPrice) {
-      throw AppError.forbidden(`«${priceType.name}» narxida sotishga ruxsat yo'q`)
+      throw AppError.forbidden(`«${priceType.name}» narxida sotishga ruxsat yo‘q`)
     }
     // A manager's word, for a price type that takes one.
     const pricedByWord = priceType?.tillAccess === 'approval' && !mayPrice
@@ -163,15 +163,15 @@ export class SalesService {
         'PRICE_TYPE_NEEDS_WORD',
         approver
           ? `${approver.name} «${priceType?.name}» narxida sotishni tasdiqlay olmaydi`
-          : `«${priceType?.name}» narxida sotish uchun rahbar tasdig'i kerak`,
-        { priceTypeId: "Rahbar tasdig'i kerak" },
+          : `«${priceType?.name}» narxida sotish uchun rahbar tasdig‘i kerak`,
+        { priceTypeId: 'Rahbar tasdig‘i kerak' },
       )
     }
 
     // ── The promotions in force here today, with the code the customer said. ──
     const running = await runningAt(em, register.locationId, today, input.promoCode)
     if (input.promoCode && !running.promotions.some((promotion) => promotion.code === input.promoCode)) {
-      throw AppError.validation({ promoCode: "Bunday promokod yo'q, yoki muddati o'tgan" })
+      throw AppError.validation({ promoCode: 'Bunday promokod yo‘q, yoki muddati o‘tgan' })
     }
 
     // ── The goods: what each is and what it costs here, by the system's prices, not the till's. ──
@@ -190,7 +190,7 @@ export class SalesService {
       if (!item) {
         fields[`lines.${index}.variantId`] = 'Tovar topilmadi'
       } else if (item.price === null) {
-        fields[`lines.${index}.variantId`] = `«${item.name}»: chakana narx qo'yilmagan`
+        fields[`lines.${index}.variantId`] = `«${item.name}»: chakana narx qo‘yilmagan`
       } else if (!item.decimals && !Number.isInteger(line.qty)) {
         fields[`lines.${index}.qty`] = `«${item.name}» butun dona bilan sotiladi`
       }
@@ -211,7 +211,7 @@ export class SalesService {
       if (!unit || unit.variant_id !== line.variantId) {
         fields[`lines.${index}.epc`] = 'Bu RFID belgi shu tovarga tegishli emas'
       } else if (unit.status !== 'in_stock') {
-        fields[`lines.${index}.epc`] = unit.status === 'sold' ? 'Bu dona allaqachon sotilgan' : "Bu dona qoldiqda yo'q"
+        fields[`lines.${index}.epc`] = unit.status === 'sold' ? 'Bu dona allaqachon sotilgan' : 'Bu dona qoldiqda yo‘q'
       }
     })
     throwIfAny(fields)
@@ -239,7 +239,7 @@ export class SalesService {
       input.discount,
     )
     if (totals.total !== input.total) {
-      throw AppError.conflict('PRICE_CHANGED', "Narxlar o'zgargan. Chekni yangilab, summani qayta tekshiring")
+      throw AppError.conflict('PRICE_CHANGED', 'Narxlar o‘zgargan. Chekni yangilab, summani qayta tekshiring')
     }
     const offered = input.discount + input.lines.reduce((sum, line) => sum + line.discount, 0)
     if (offered > totals.subtotal - totals.auto) {
@@ -262,8 +262,8 @@ export class SalesService {
         'DISCOUNT_OVER_LIMIT',
         approver
           ? `${approver.name} chegaradan oshiq chegirmani tasdiqlay olmaydi`
-          : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
-        { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
+          : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig‘i kerak`,
+        { discount: `Ko‘pi bilan ${settings.maxDiscountPercent}%` },
       )
     }
     if (under.length && !allowed) {
@@ -271,7 +271,7 @@ export class SalesService {
         'BELOW_MIN_PRICE',
         approver
           ? `${approver.name} minimal narxdan past sotishni tasdiqlay olmaydi`
-          : `«${priced[under[0]].name}» minimal narxdan past: rahbar tasdig'i kerak`,
+          : `«${priced[under[0]].name}» minimal narxdan past: rahbar tasdig‘i kerak`,
         Object.fromEntries(
           under.map((index) => {
             const line = priced[index]
@@ -305,7 +305,7 @@ export class SalesService {
         continue
       }
       if (payment.currency === 'USD' && !rate) {
-        fields[`payments.${index}.currency`] = "Dollar kursi qo'yilmagan"
+        fields[`payments.${index}.currency`] = 'Dollar kursi qo‘yilmagan'
         continue
       }
       let account: Account | undefined
@@ -343,14 +343,14 @@ export class SalesService {
         'RATE_LOSS_OVER_LIMIT',
         approver
           ? `${approver.name} dollarni kursdan qimmat olishni tasdiqlay olmaydi`
-          : `Dollar kun kursidan ${settings.maxRateLossPercent}% dan ko'proq qimmat olinmoqda: rahbar tasdig'i kerak`,
-        { payments: `Kursdan farq ko'pi bilan ${settings.maxRateLossPercent}%` },
+          : `Dollar kun kursidan ${settings.maxRateLossPercent}% dan ko‘proq qimmat olinmoqda: rahbar tasdig‘i kerak`,
+        { payments: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
       )
     }
     // Goods brought back pay first; the customer's money is for what is left.
     const used = Math.min(credit, totals.total)
     if (used < credit && payments.length) {
-      throw AppError.validation({ payments: "Qaytarilgan tovar summasi yetarli: qo'shimcha to'lov kerak emas" })
+      throw AppError.validation({ payments: 'Qaytarilgan tovar summasi yetarli: qo‘shimcha to‘lov kerak emas' })
     }
 
     // ── What is left owing: only to a customer on the books, and only as far as the shop lends. ──
@@ -361,7 +361,7 @@ export class SalesService {
         throw AppError.validation({ customerId: 'Qarzga sotish uchun mijozni tanlang' })
       }
       if (input.debt.dueDate < today) {
-        throw AppError.validation({ debt: "Qarz muddati o'tgan kunga qo'yilmaydi" })
+        throw AppError.validation({ debt: 'Qarz muddati o‘tgan kunga qo‘yilmaydi' })
       }
       if (owed > totals.total - used) {
         throw AppError.validation({ debt: 'Qarz chek summasidan oshmasligi kerak' })
@@ -380,11 +380,11 @@ export class SalesService {
             bar === 'barred'
               ? `${customer.name}: bu mijozga qarzga berilmaydi`
               : bar === 'overdue'
-                ? `${customer.name}: muddati o'tgan qarzi bor (${formatMoney(standing.debt.overdue)})`
+                ? `${customer.name}: muddati o‘tgan qarzi bor (${formatMoney(standing.debt.overdue)})`
                 : `${customer.name}: qarzi chegaradan oshadi (${formatMoney(standing.debt.owed + owed)}, chegara ${formatMoney(settings.debtLimit)})`
           throw AppError.badRequest(
             bar === 'barred' ? 'NO_DEBT' : bar === 'overdue' ? 'DEBT_OVERDUE' : 'DEBT_OVER_LIMIT',
-            approver ? `${approver.name} qarzga sotishni tasdiqlay olmaydi` : `${why}: rahbar tasdig'i kerak`,
+            approver ? `${approver.name} qarzga sotishni tasdiqlay olmaydi` : `${why}: rahbar tasdig‘i kerak`,
             { debt: why },
           )
         }
@@ -408,7 +408,7 @@ export class SalesService {
       })
     }
     if (settlement.due > 0) {
-      throw AppError.validation({ payments: `To'lov yetarli emas: yana ${formatMoney(settlement.due)}` })
+      throw AppError.validation({ payments: `To‘lov yetarli emas: yana ${formatMoney(settlement.due)}` })
     }
 
     const seller = input.sellerId ? await em.findOneBy(User, { id: input.sellerId, isActive: true }) : null
@@ -653,12 +653,12 @@ export class SalesService {
       }
       // What a return has touched is put right by another return: a void would put the same goods back twice.
       if (sale.returnedTotal) {
-        throw AppError.conflict('SALE_RETURNED', "Bu chekdan tovar qaytarilgan: uni bekor qilib bo'lmaydi")
+        throw AppError.conflict('SALE_RETURNED', 'Bu chekdan tovar qaytarilgan: uni bekor qilib bo‘lmaydi')
       }
       if (await em.findOneBy(SalePayment, { saleId: id, method: 'exchange' })) {
         throw AppError.conflict(
           'SALE_EXCHANGED',
-          "Bu chek almashtirish bilan to'langan: bekor qilinmaydi, tovar qaytarish orqali olinadi",
+          'Bu chek almashtirish bilan to‘langan: bekor qilinmaydi, tovar qaytarish orqali olinadi',
         )
       }
       // Money already brought against what it left owing was brought for a sale that stood.
@@ -666,7 +666,7 @@ export class SalesService {
       if (debt?.paid) {
         throw AppError.conflict(
           'SALE_DEBT_PAID',
-          "Bu chekning qarziga to'lov tushgan: avval o'sha to'lov bekor qilinadi",
+          'Bu chekning qarziga to‘lov tushgan: avval o‘sha to‘lov bekor qilinadi',
         )
       }
       const [open]: { id: string }[] = await em.query(

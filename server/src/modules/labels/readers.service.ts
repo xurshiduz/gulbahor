@@ -348,7 +348,7 @@ export class ReadersService {
   private async row(em: EntityManager, id: string): Promise<ReaderRow> {
     const [row] = await this.rows(em, id)
     if (!row) {
-      throw AppError.notFound("O'quvchi topilmadi")
+      throw AppError.notFound('O‘quvchi topilmadi')
     }
     return row
   }
@@ -364,7 +364,7 @@ export class ReadersService {
       exceptId ?? null,
     ])
     if (taken) {
-      throw AppError.validation({ name: "Bu nomli o'quvchi bor" })
+      throw AppError.validation({ name: 'Bu nomli o‘quvchi bor' })
     }
     if (!(await em.findOneBy(StoreAgent, { id: input.agentId }))) {
       throw AppError.validation({ agentId: 'Agent topilmadi' })
@@ -379,13 +379,13 @@ export class ReadersService {
         [register.id, exceptId ?? null],
       )
       if (other) {
-        throw AppError.validation({ registerId: `Bu kassaning o'quvchisi bor: ${(other as { name: string }).name}` })
+        throw AppError.validation({ registerId: `Bu kassaning o‘quvchisi bor: ${(other as { name: string }).name}` })
       }
       return { registerId: register.id, locationId: null }
     }
     const [place] = await em.query(`SELECT 1 FROM locations WHERE id = $1 AND kind <> 'transit'`, [input.locationId])
     if (!place) {
-      throw AppError.validation({ locationId: "Do'kon topilmadi" })
+      throw AppError.validation({ locationId: 'Do‘kon topilmadi' })
     }
     return { registerId: null, locationId: input.locationId }
   }

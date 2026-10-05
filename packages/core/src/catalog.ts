@@ -19,7 +19,7 @@ export const GENDER_LABELS: Record<Gender, string> = {
   men: 'Erkaklar',
   women: 'Ayollar',
   unisex: 'Uniseks',
-  boys: "O'g'il bolalar",
+  boys: 'O‘g‘il bolalar',
   girls: 'Qiz bolalar',
 }
 
@@ -29,7 +29,7 @@ export type Season = (typeof SEASONS)[number]
 export const SEASON_LABELS: Record<Season, string> = {
   ss: 'Bahor-yoz',
   aw: 'Kuz-qish',
-  all: "Yil bo'yi",
+  all: 'Yil bo‘yi',
 }
 
 export const UNITS = ['pcs', 'pair', 'set', 'kg', 'm'] as const
@@ -49,7 +49,7 @@ export type AttributeKind = (typeof ATTRIBUTE_KINDS)[number]
 
 export const ATTRIBUTE_KIND_LABELS: Record<AttributeKind, string> = {
   color: 'Rang',
-  size: "O'lcham",
+  size: 'O‘lcham',
   other: 'Boshqa',
 }
 
@@ -69,7 +69,7 @@ export const MAX_BARCODES = 10
 
 /** Countries goods usually come from; anything else can be typed in. */
 export const ORIGIN_COUNTRIES = [
-  "O'zbekiston",
+  'O‘zbekiston',
   'Xitoy',
   'Turkiya',
   'Rossiya',
@@ -81,8 +81,8 @@ export const ORIGIN_COUNTRIES = [
   'Italiya',
   'Germaniya',
   'Polsha',
-  "Qirg'iziston",
-  "Qozog'iston",
+  'Qirg‘iziston',
+  'Qozog‘iston',
   'BAA',
 ]
 
@@ -129,7 +129,7 @@ export const barcodeSchema = z
       .string()
       .min(4, { message: 'Shtrix-kod juda qisqa' })
       .max(48)
-      .regex(/^[\x21-\x7E]+$/, { message: "Shtrix-kodda faqat lotin harflari, raqam va belgilar bo'ladi" }),
+      .regex(/^[\x21-\x7E]+$/, { message: 'Shtrix-kodda faqat lotin harflari, raqam va belgilar bo‘ladi' }),
   )
 
 const skuSchema = z
@@ -155,7 +155,7 @@ const nullableId = idSchema.nullish().transform((value) => value || null)
 
 const axisIdsSchema = z
   .array(idSchema)
-  .max(MAX_AXES, { message: `Ko'pi bilan ${MAX_AXES} ta xususiyat` })
+  .max(MAX_AXES, { message: `Ko‘pi bilan ${MAX_AXES} ta xususiyat` })
   .refine((ids) => new Set(ids).size === ids.length, { message: 'Xususiyat takrorlangan' })
 
 export const categoryInputSchema = z.object({
@@ -251,7 +251,7 @@ export const TILL_ACCESS_LABELS: Record<TillAccess, string> = {
   none: 'Kassada tanlanmaydi',
   all: 'Hamma kassir tanlaydi',
   permitted: 'Faqat ruxsati bor xodimlar',
-  approval: "Rahbar tasdig'i bilan",
+  approval: 'Rahbar tasdig‘i bilan',
 }
 
 /** The kinds of price a sale can be made at beside the retail one: the floor is never sold at. */
@@ -272,11 +272,11 @@ export const priceTypeInputSchema = z
   })
   .refine((type) => type.roundEnding === 0 || type.roundEnding < type.roundStep, {
     path: ['roundEnding'],
-    message: "Oxiri qadamdan kichik bo'lishi kerak",
+    message: 'Oxiri qadamdan kichik bo‘lishi kerak',
   })
   .refine((type) => type.tillAccess === 'none' || TILL_PRICE_KINDS.includes(type.kind), {
     path: ['tillAccess'],
-    message: "Chakana narx — kassaning o'z narxi; minimal narxda esa sotilmaydi",
+    message: 'Chakana narx — kassaning o‘z narxi; minimal narxda esa sotilmaydi',
   })
 export type PriceTypeInput = z.infer<typeof priceTypeInputSchema>
 
@@ -319,7 +319,7 @@ export const variantInputSchema = z.object({
   sku: skuSchema,
   barcodes: z
     .array(barcodeSchema)
-    .max(MAX_BARCODES, { message: `Ko'pi bilan ${MAX_BARCODES} ta shtrix-kod` })
+    .max(MAX_BARCODES, { message: `Ko‘pi bilan ${MAX_BARCODES} ta shtrix-kod` })
     .default([]),
   isActive: z.boolean().default(true),
   /** Prices that differ from the model's; a price type left out follows the model. */
@@ -375,7 +375,7 @@ export const productInputSchema = z
     variants: z
       .array(variantInputSchema)
       .min(1, { message: 'Kamida bitta variant kerak' })
-      .max(MAX_VARIANTS, { message: `Bitta modelda ko'pi bilan ${MAX_VARIANTS} ta variant` }),
+      .max(MAX_VARIANTS, { message: `Bitta modelda ko‘pi bilan ${MAX_VARIANTS} ta variant` }),
     prices: pricesSchema.default([]),
   })
   .superRefine((product, context) => {

@@ -118,7 +118,7 @@ export class MoneyOpsService {
         if (await em.countBy(MoneyOp, { categoryId: id })) {
           throw AppError.validation({
             [input.kind !== category.kind ? 'kind' : 'inProfit']:
-              "Bu tur bilan yozuvlar bor: o'zgartirib bo'lmaydi. Yangi tur oching, buni arxivlang",
+              'Bu tur bilan yozuvlar bor: o‘zgartirib bo‘lmaydi. Yangi tur oching, buni arxivlang',
           })
         }
       }
@@ -222,14 +222,14 @@ export class MoneyOpsService {
           shiftId = open.id
         }
         if (account.currency === 'USD' && !dayRate) {
-          fields[`lines.${index}.amount`] = "Dollar kursi qo'yilmagan"
+          fields[`lines.${index}.amount`] = 'Dollar kursi qo‘yilmagan'
           continue
         }
         if (input.kind === 'expense') {
           const out = (spent.get(account.id) ?? 0) + line.amount
           spent.set(account.id, out)
           if (out > account.balance) {
-            fields[`lines.${index}.amount`] = "Hisobda buncha pul yo'q"
+            fields[`lines.${index}.amount`] = 'Hisobda buncha pul yo‘q'
             continue
           }
         }
@@ -254,7 +254,7 @@ export class MoneyOpsService {
       }
       const total = lines.reduce((sum, line) => sum + line.base, 0)
       if (total !== input.total) {
-        throw AppError.conflict('RATE_CHANGED', "Kurs o'zgargan: summani qayta tekshiring")
+        throw AppError.conflict('RATE_CHANGED', 'Kurs o‘zgargan: summani qayta tekshiring')
       }
 
       const prefix = input.kind === 'expense' ? 'XR' : 'KR'

@@ -162,10 +162,10 @@ describe('readImportRow', () => {
 
   it('says what is wrong with a row, and skips an empty one', () => {
     expect(row({ 0: null })?.problems).toEqual(['Nomi yozilmagan'])
-    expect(row({ 4: 0 })?.problems).toEqual(["Soni noto'g'ri yoki yozilmagan"])
+    expect(row({ 4: 0 })?.problems).toEqual(['Soni noto‘g‘ri yoki yozilmagan'])
     expect(row({ 5: 'abc', 10: -5 })?.problems).toEqual([
-      "Xarid narxi noto'g'ri yozilgan",
-      "Chakana narx noto'g'ri yozilgan",
+      'Xarid narxi noto‘g‘ri yozilgan',
+      'Chakana narx noto‘g‘ri yozilgan',
     ])
     expect(row({ 0: null, 4: null })).toBeNull()
   })

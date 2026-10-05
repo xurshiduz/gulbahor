@@ -218,7 +218,7 @@ export class ProductsService {
           [code],
         )
       if (!rows[0]) {
-        throw AppError.notFound(epc ? "Bu RFID belgi tizimda yo'q" : 'Bu kod bilan tovar topilmadi')
+        throw AppError.notFound(epc ? 'Bu RFID belgi tizimda yo‘q' : 'Bu kod bilan tovar topilmadi')
       }
       const [row] = rows
       return {
@@ -990,6 +990,6 @@ function limit(changes: Changes): Changes {
   }
   return {
     ...Object.fromEntries(entries.slice(0, AUDIT_DETAIL_LIMIT)),
-    more: [null, `yana ${entries.length - AUDIT_DETAIL_LIMIT} ta o'zgarish`],
+    more: [null, `yana ${entries.length - AUDIT_DETAIL_LIMIT} ta o‘zgarish`],
   }
 }

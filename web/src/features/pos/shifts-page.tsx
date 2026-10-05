@@ -118,7 +118,7 @@ export function ShiftsPage() {
         ? ([
             {
               id: 'diffUzs',
-              header: `${t('pos.diff')} (so'm)`,
+              header: `${t('pos.diff')} (so‘m)`,
               meta: {
                 export: (row) => moneyCell(row.diffUzs),
                 className: 'tabular text-right whitespace-nowrap',

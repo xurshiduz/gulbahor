@@ -117,7 +117,7 @@ export class AttributesService {
       if (used) {
         throw AppError.conflict(
           'IN_USE',
-          "Bu xususiyat tovar yoki kategoriyalarda ishlatilgan. O'chirish o'rniga arxivlang",
+          'Bu xususiyat tovar yoki kategoriyalarda ishlatilgan. O‘chirish o‘rniga arxivlang',
         )
       }
       await em.delete(Attribute, id)
@@ -148,7 +148,7 @@ export class AttributesService {
         return true
       })
       if (!fresh.length) {
-        throw AppError.validation({ name: "Bu qiymat ro'yxatda bor" })
+        throw AppError.validation({ name: 'Bu qiymat ro‘yxatda bor' })
       }
 
       await em.insert(
@@ -186,7 +186,7 @@ export class AttributesService {
         })
         .getCount()
       if (clash) {
-        throw AppError.validation({ name: "Bu qiymat ro'yxatda bor" })
+        throw AppError.validation({ name: 'Bu qiymat ro‘yxatda bor' })
       }
 
       await em.update(AttributeValue, valueId, { name: input.name, hex: attribute.kind === 'color' ? input.hex : null })
@@ -238,7 +238,7 @@ export class AttributesService {
         [valueId],
       )
       if (used) {
-        throw AppError.conflict('IN_USE', "Bu qiymat tovarlarda ishlatilgan. O'chirish o'rniga arxivlang")
+        throw AppError.conflict('IN_USE', 'Bu qiymat tovarlarda ishlatilgan. O‘chirish o‘rniga arxivlang')
       }
       await em.delete(AttributeValue, valueId)
       await this.audit.record(em, actor.orgId, actor, {
@@ -262,7 +262,7 @@ export class AttributesService {
       const from = await this.findValue(em, valueId)
       const into = await em.findOneBy(AttributeValue, { id: input.intoId })
       if (!into || into.id === from.id || into.attributeId !== from.attributeId) {
-        throw AppError.validation({ intoId: "Shu ro'yxatdagi boshqa qiymatni tanlang" })
+        throw AppError.validation({ intoId: 'Shu ro‘yxatdagi boshqa qiymatni tanlang' })
       }
       const attribute = await this.find(em, from.attributeId)
       const moved = (column: string) => `CASE WHEN a.${column} = $1::uuid THEN $2::uuid ELSE a.${column} END`

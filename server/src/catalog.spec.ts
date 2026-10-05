@@ -55,7 +55,7 @@ describe('Catalogue', () => {
 
     const attributes = (await alpha.get('/api/attributes').expect(200)).body as AttributeRow[]
     color = attributes.find((attribute) => attribute.kind === 'color')!
-    size = attributes.find((attribute) => attribute.name === "O'lcham (harfli)")!
+    size = attributes.find((attribute) => attribute.name === 'O‘lcham (harfli)')!
     priceTypes = (await alpha.get('/api/price-types').expect(200)).body
     const categories = (await alpha.get('/api/categories').expect(200)).body as (Named & { parentId: string | null })[]
     shirtsId = categories.find((category) => category.name === 'Futbolkalar')!.id

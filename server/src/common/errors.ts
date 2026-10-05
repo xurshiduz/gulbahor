@@ -20,7 +20,7 @@ export class AppError extends HttpException {
     return new AppError(HttpStatus.BAD_REQUEST, { code, message, fields })
   }
 
-  static validation(fields: Record<string, string>, message = "Ma'lumotlar noto'g'ri kiritilgan") {
+  static validation(fields: Record<string, string>, message = 'Ma’lumotlar noto‘g‘ri kiritilgan') {
     return new AppError(HttpStatus.BAD_REQUEST, { code: 'VALIDATION', message, fields })
   }
 
@@ -28,7 +28,7 @@ export class AppError extends HttpException {
     return new AppError(HttpStatus.UNAUTHORIZED, { code, message })
   }
 
-  static forbidden(message = "Bu amal uchun ruxsatingiz yo'q", code = 'FORBIDDEN') {
+  static forbidden(message = 'Bu amal uchun ruxsatingiz yo‘q', code = 'FORBIDDEN') {
     return new AppError(HttpStatus.FORBIDDEN, { code, message })
   }
 

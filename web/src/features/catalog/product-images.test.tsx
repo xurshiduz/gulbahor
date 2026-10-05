@@ -68,7 +68,7 @@ describe("a model's photographs", () => {
     // Each says which colour it shows.
     expect(within(first).getByRole('combobox').textContent).toContain('Qora')
     expect(within(second).getByRole('combobox').textContent).toContain('Hamma rang')
-    expect(screen.getByText("Rasm qo'shish")).toBeTruthy()
+    expect(screen.getByText('Rasm qo‘shish')).toBeTruthy()
   })
 
   it('makes another the face at once, and puts it back when the server will not have it', async () => {
@@ -89,9 +89,9 @@ describe("a model's photographs", () => {
     const user = userEvent.setup()
     const remove = vi.spyOn(api, 'delete').mockResolvedValue([photo('b')])
     shown(<Card start={[photo('a'), photo('b')]} />)
-    await user.click(screen.getAllByRole('button', { name: "O'chirish" })[0])
+    await user.click(screen.getAllByRole('button', { name: 'O‘chirish' })[0])
     expect(remove).not.toHaveBeenCalled()
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: "O'chirish" }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'O‘chirish' }))
     expect(remove).toHaveBeenCalledWith('/products/p1/images/a')
     await waitFor(() => expect(order()).toEqual(['/api/files/org/b/m.webp']))
   })
@@ -99,14 +99,14 @@ describe("a model's photographs", () => {
   it('is only looked at by those who may not change the catalogue', () => {
     shown(<Card start={[photo('a')]} canManage={false} colors={[]} />)
     expect(order()).toEqual(['/api/files/org/a/m.webp'])
-    expect(screen.queryByText("Rasm qo'shish")).toBeNull()
-    expect(screen.queryByRole('button', { name: "O'chirish" })).toBeNull()
+    expect(screen.queryByText('Rasm qo‘shish')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'O‘chirish' })).toBeNull()
     expect(screen.queryByRole('combobox')).toBeNull()
   })
 
   it('waits for a model to be saved before it takes any', () => {
     shown(<ProductImages productId={null} images={[]} colors={[]} canManage />)
-    expect(screen.getByText("Rasmlar tovar saqlangandan keyin qo'shiladi.")).toBeTruthy()
-    expect(screen.queryByText("Rasm qo'shish")).toBeNull()
+    expect(screen.getByText('Rasmlar tovar saqlangandan keyin qo‘shiladi.')).toBeTruthy()
+    expect(screen.queryByText('Rasm qo‘shish')).toBeNull()
   })
 })

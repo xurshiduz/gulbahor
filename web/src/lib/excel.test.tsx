@@ -131,7 +131,7 @@ describe('DataTable export', () => {
     expect(screen.queryByText('Brend')).toBeNull()
     expect(screen.getByText('Polo')).toBeTruthy()
 
-    await userEvent.click(screen.getByRole('button', { name: "Excel'ga chiqarish" }))
+    await userEvent.click(screen.getByRole('button', { name: 'Excel’ga chiqarish' }))
     await vi.waitFor(() => expect(saveExcel).toHaveBeenCalledTimes(1))
     const [title, exported, rows] = saveExcel.mock.calls[0]
     expect(title).toBe('Tovarlar')

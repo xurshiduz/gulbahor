@@ -144,7 +144,7 @@ describe('Money transfers', () => {
         status: 'sent',
         currency: 'UZS',
         amount: som(300_000),
-        fromAccountName: "Kassa 1 (so'm)",
+        fromAccountName: 'Kassa 1 (so‘m)',
         toAccountName: 'Seyf',
         sentByName: 'Dilnoza Kassir',
         note: 'Tushlik',
@@ -158,7 +158,7 @@ describe('Money transfers', () => {
         {
           id: transferId,
           number: 'PO-000001',
-          fromName: "Kassa 1 (so'm)",
+          fromName: 'Kassa 1 (so‘m)',
           toName: 'Seyf',
           toKind: 'safe',
           toLocationId: null,
@@ -192,7 +192,7 @@ describe('Money transfers', () => {
       const tooMuch = await send({ fromAccountId: drawerId, toAccountId: safeId, amount: som(900_000) })
       expect(tooMuch.status).toBe(400)
       // The sum the books hold is not told.
-      expect(tooMuch.body.error.fields.amount).toBe("Hisobda buncha pul yo'q")
+      expect(tooMuch.body.error.fields.amount).toBe('Hisobda buncha pul yo‘q')
       await send({ fromAccountId: safeId, toAccountId: drawerId, amount: som(10_000) }).expect(403)
       const same = await send({ fromAccountId: drawerId, toAccountId: drawerId, amount: som(10_000) })
       expect(same.status).toBe(400)
@@ -244,7 +244,7 @@ describe('Money transfers', () => {
 
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context.transfers).toEqual([
-        expect.objectContaining({ id: sent.id, toAccountName: "Kassa 1 (so'm)", mayReceive: true, mayCancel: false }),
+        expect.objectContaining({ id: sent.id, toAccountName: 'Kassa 1 (so‘m)', mayReceive: true, mayCancel: false }),
       ])
       await cashier.post(`/api/money/transfers/${sent.id}/receive`).expect(200)
       expect(await balances()).toMatchObject({ safe_UZS: som(100_000), cash_UZS: som(400_000), transit: 0 })
@@ -278,7 +278,7 @@ describe('Money transfers', () => {
         .expect(200)
       // Both handovers are announced, once the shift is closed for good.
       expect(told('money.sent').slice(-2)).toMatchObject([
-        { fromName: "Kassa 1 (so'm)", toName: 'Seyf' },
+        { fromName: 'Kassa 1 (so‘m)', toName: 'Seyf' },
         { fromName: 'Kassa 1 (dollar)', toKind: 'safe' },
       ])
       const closed = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body

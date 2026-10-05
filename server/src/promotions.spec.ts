@@ -83,7 +83,7 @@ describe('Promotions', () => {
     womenId = (await alpha.post('/api/categories').send({ name: 'Ayollar (aksiya)', parentId: null }).expect(201)).body
       .id
     const dressesId = (
-      await alpha.post('/api/categories').send({ name: "Ko'ylaklar (aksiya)", parentId: womenId }).expect(201)
+      await alpha.post('/api/categories').send({ name: 'Ko‘ylaklar (aksiya)', parentId: womenId }).expect(201)
     ).body.id
     const types = (await alpha.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
     const price = (kind: string, amount: number) => ({
@@ -98,7 +98,7 @@ describe('Promotions', () => {
           .send({ name, axisIds: [], variants: [{ valueIds: [] }], ...body })
           .expect(201)
       ).body as { id: string; variants: { id: string }[] }
-    const made = await product("Ko'ylak", {
+    const made = await product('Ko‘ylak', {
       categoryId: dressesId,
       season: 'aw',
       prices: [price('retail', som(200_000)), price('wholesale', som(170_000))],
@@ -173,7 +173,7 @@ describe('Promotions', () => {
       expect(later.state).toBe('scheduled')
       const past = (
         await add({
-          name: "O'tgan hafta",
+          name: 'O‘tgan hafta',
           kind: 'percent',
           value: 50,
           startsOn: shift(day, -9),
@@ -188,7 +188,7 @@ describe('Promotions', () => {
         )
       expect(await states('running')).toEqual(['Kuzgi aksiya'])
       expect(await states('scheduled')).toEqual(['Keyingi hafta'])
-      expect(await states('ended')).toEqual(["O'tgan hafta"])
+      expect(await states('ended')).toEqual(['O‘tgan hafta'])
       expect((await alpha.get('/api/promotions').expect(200)).body.total).toBe(3)
       expect((await beta.get('/api/promotions').expect(200)).body.total).toBe(0)
     })
@@ -213,7 +213,7 @@ describe('Promotions', () => {
   describe('at the till', () => {
     it('comes off by itself what it covers, a category covering what is under it', async () => {
       // The dress is in a category under the one the promotion names; the scarf is in none.
-      expect((await found("ko'ylak")).promos).toEqual([
+      expect((await found('ko‘ylak')).promos).toEqual([
         { id: autumn.id, name: 'Kuzgi aksiya', kind: 'percent', value: 20, minQty: null, stackable: false },
       ])
       expect((await found('sharf')).promos).toEqual([])
@@ -251,7 +251,7 @@ describe('Promotions', () => {
         await add({ name: 'Sharf haftaligi', kind: 'percent', value: 5, startsOn: day, productIds: [] }).expect(201)
       ).body
       // With nothing named it covers everything: the dress has two promotions now, and the better one stands.
-      expect((await found("ko'ylak")).promos.map((offer) => offer.name)).toEqual(['Kuzgi aksiya', 'Sharf haftaligi'])
+      expect((await found('ko‘ylak')).promos.map((offer) => offer.name)).toEqual(['Kuzgi aksiya', 'Sharf haftaligi'])
       await sell(dress, som(160_000)).expect(201)
       const less = (await sell(scarf, som(45_000), { customerId: regular.id }).expect(201)).body
       expect(less).toMatchObject({ autoDiscount: som(5000), autoReason: 'Doimiy 10%' })
@@ -282,14 +282,14 @@ describe('Promotions', () => {
           code: 'bloger',
         }).expect(201)
       ).body
-      expect(coded).toMatchObject({ code: 'BLOGER', products: [{ id: dressProduct, name: "Ko'ylak" }] })
+      expect(coded).toMatchObject({ code: 'BLOGER', products: [{ id: dressProduct, name: 'Ko‘ylak' }] })
 
       // Unsaid, it is not offered; the till is told what a word opens before the sale.
-      expect((await found("ko'ylak")).promos.map((offer) => offer.name)).not.toContain('Bloger narxi')
+      expect((await found('ko‘ylak')).promos.map((offer) => offer.name)).not.toContain('Bloger narxi')
       const opened = await cashier.get('/api/pos/promo-code').query({ registerId, code: 'Bloger' }).expect(200)
       expect(opened.body).toEqual([{ name: 'Bloger narxi' }])
       expect((await cashier.get('/api/pos/promo-code').query({ registerId, code: 'yoq' }).expect(200)).body).toEqual([])
-      const withCode = await found("ko'ylak", { promoCode: 'bloger' })
+      const withCode = await found('ko‘ylak', { promoCode: 'bloger' })
       expect(withCode.promos.map((offer) => offer.name)).toContain('Bloger narxi')
 
       // 150 000 for the piece is more off than 20%: it is what stands.
@@ -312,8 +312,8 @@ describe('Promotions', () => {
           seasons: ['aw'],
         }).expect(201)
       ).body
-      expect((await found("ko'ylak")).promos.map((offer) => offer.name)).not.toContain(there.name)
-      expect((await found("ko'ylak", {}, otherRegisterId)).promos.map((offer) => offer.name)).toContain(there.name)
+      expect((await found('ko‘ylak')).promos.map((offer) => offer.name)).not.toContain(there.name)
+      expect((await found('ko‘ylak', {}, otherRegisterId)).promos.map((offer) => offer.name)).toContain(there.name)
       await sell(dress, som(140_000), {}, otherRegisterId).expect(201)
 
       // A cart sold at the wholesale price has no promotions at all.
@@ -323,7 +323,7 @@ describe('Promotions', () => {
         .put(`/api/price-types/${wholesale.id}`)
         .send({ ...wholesale, tillAccess: 'all' })
         .expect(200)
-      expect((await found("ko'ylak", { priceTypeId: wholesale.id })).promos).toEqual([])
+      expect((await found('ko‘ylak', { priceTypeId: wholesale.id })).promos).toEqual([])
       const sale = (await sell(dress, som(170_000), { priceTypeId: wholesale.id }).expect(201)).body
       expect(sale).toMatchObject({ autoDiscount: 0, autoReason: null })
     })
@@ -331,7 +331,7 @@ describe('Promotions', () => {
     it('stops when it is stopped, and stays in the books once it has been on a receipt', async () => {
       const stopped = (await alpha.post(`/api/promotions/${autumn.id}/stop`).expect(200)).body
       expect(stopped).toMatchObject({ state: 'stopped', isActive: false })
-      expect((await found("ko'ylak")).promos.map((offer) => offer.name)).not.toContain('Kuzgi aksiya')
+      expect((await found('ko‘ylak')).promos.map((offer) => offer.name)).not.toContain('Kuzgi aksiya')
       // The scarf promotion still covers the dress: 5% off 200 000.
       await sell(dress, som(190_000)).expect(201)
 

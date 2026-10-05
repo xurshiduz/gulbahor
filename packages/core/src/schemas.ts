@@ -18,24 +18,24 @@ export function configureValidationMessages(): void {
     customError: (issue) => {
       switch (issue.code) {
         case 'invalid_type':
-          return issue.input === undefined || issue.input === null ? 'Majburiy maydon' : "Noto'g'ri qiymat"
+          return issue.input === undefined || issue.input === null ? 'Majburiy maydon' : 'Noto‘g‘ri qiymat'
         case 'too_small':
           if (issue.origin === 'string') {
-            return Number(issue.minimum) <= 1 ? 'Majburiy maydon' : `Kamida ${issue.minimum} ta belgi bo'lishi kerak`
+            return Number(issue.minimum) <= 1 ? 'Majburiy maydon' : `Kamida ${issue.minimum} ta belgi bo‘lishi kerak`
           }
           if (issue.origin === 'array' || issue.origin === 'set') {
             return `Kamida ${issue.minimum} ta tanlang`
           }
-          return `${issue.minimum} dan kichik bo'lmasligi kerak`
+          return `${issue.minimum} dan kichik bo‘lmasligi kerak`
         case 'too_big':
           if (issue.origin === 'string') {
-            return `Ko'pi bilan ${issue.maximum} ta belgi bo'lishi mumkin`
+            return `Ko‘pi bilan ${issue.maximum} ta belgi bo‘lishi mumkin`
           }
-          return `${issue.maximum} dan katta bo'lmasligi kerak`
+          return `${issue.maximum} dan katta bo‘lmasligi kerak`
         case 'invalid_format':
-          return "Format noto'g'ri"
+          return 'Format noto‘g‘ri'
         case 'invalid_value':
-          return "Noto'g'ri qiymat"
+          return 'Noto‘g‘ri qiymat'
         default:
           return undefined
       }
@@ -75,7 +75,7 @@ export const optionalText = (max: number) =>
 export const phoneSchema = z
   .string()
   .trim()
-  .refine((value) => parsePhone(value).ok, { message: "Telefon raqam to'liq emas" })
+  .refine((value) => parsePhone(value).ok, { message: 'Telefon raqam to‘liq emas' })
   .transform((value) => {
     const parsed = parsePhone(value)
     return parsed.ok ? parsed.e164 : value
@@ -252,10 +252,10 @@ export const LOCATION_KINDS = ['store', 'warehouse', 'mixed', 'zone'] as const
 export type LocationKind = (typeof LOCATION_KINDS)[number]
 
 export const LOCATION_KIND_LABELS: Record<LocationKind, string> = {
-  store: "Do'kon",
+  store: 'Do‘kon',
   warehouse: 'Sklad',
-  mixed: "Do'kon va sklad",
-  zone: "Do'kon ichidagi joy",
+  mixed: 'Do‘kon va sklad',
+  zone: 'Do‘kon ichidagi joy',
 }
 
 export const locationInputSchema = z
@@ -276,11 +276,11 @@ export const locationInputSchema = z
   })
   .refine((value) => value.kind !== 'zone' || !!value.parentId, {
     path: ['parentId'],
-    message: "Qaysi do'kon ichida ekanini tanlang",
+    message: 'Qaysi do‘kon ichida ekanini tanlang',
   })
   .refine((value) => value.kind === 'zone' || !value.parentId, {
     path: ['parentId'],
-    message: "Faqat do'kon ichidagi joy boshqa joyga biriktiriladi",
+    message: 'Faqat do‘kon ichidagi joy boshqa joyga biriktiriladi',
   })
 export type LocationInput = z.infer<typeof locationInputSchema>
 
@@ -310,7 +310,7 @@ export const setupSchema = z.object({
   useUsd: z.boolean(),
   locations: z
     .array(z.object({ name: requiredText(80), kind: z.enum(['store', 'warehouse', 'mixed']) }))
-    .min(1, { message: "Kamida bitta do'kon yoki sklad kiriting" })
+    .min(1, { message: 'Kamida bitta do‘kon yoki sklad kiriting' })
     .max(50),
   modules: z.array(z.enum(MODULE_KEYS as [string, ...string[]])),
 })
@@ -351,12 +351,12 @@ const locationsChosen = (value: { allLocations: boolean; locationIds: string[] }
 
 export const userCreateSchema = z
   .object({ ...userBase, login: loginNameSchema, password: passwordSchema })
-  .refine(locationsChosen, { path: ['locationIds'], message: "Kamida bitta do'kon yoki sklad tanlang" })
+  .refine(locationsChosen, { path: ['locationIds'], message: 'Kamida bitta do‘kon yoki sklad tanlang' })
 export type UserCreateInput = z.infer<typeof userCreateSchema>
 
 export const userUpdateSchema = z
   .object({ ...userBase, login: loginNameSchema })
-  .refine(locationsChosen, { path: ['locationIds'], message: "Kamida bitta do'kon yoki sklad tanlang" })
+  .refine(locationsChosen, { path: ['locationIds'], message: 'Kamida bitta do‘kon yoki sklad tanlang' })
 export type UserUpdateInput = z.infer<typeof userUpdateSchema>
 
 export const resetPasswordSchema = z.object({ password: passwordSchema })

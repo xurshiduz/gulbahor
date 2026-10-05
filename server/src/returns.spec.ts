@@ -273,7 +273,7 @@ describe('Returns', () => {
         refunds: [cash(som(171_000))],
       })
       expect(both.status).toBe(400)
-      expect(both.body.error.fields['lines.0.qty']).toBe("Ko'pi bilan 1 ta qaytariladi")
+      expect(both.body.error.fields['lines.0.qty']).toBe('Ko‘pi bilan 1 ta qaytariladi')
 
       const before = await balances()
       const made = (

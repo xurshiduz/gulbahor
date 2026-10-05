@@ -140,7 +140,7 @@ export class ReceiptImportService {
       const [first] = rows
       const existing = await this.findProduct(em, first)
       if (existing === 'ambiguous') {
-        problem(rows, "Shu nomli bir nechta tovar bor. Qaysi biri ekanini artikul ustuni bilan ko'rsating")
+        problem(rows, 'Shu nomli bir nechta tovar bor. Qaysi biri ekanini artikul ustuni bilan ko‘rsating')
         continue
       }
 
@@ -155,15 +155,15 @@ export class ReceiptImportService {
         }
         const unreadable = axes.find((attribute) => attribute.kind === 'other')
         if (unreadable) {
-          problem(rows, `«${existing.name}» tovarining «${unreadable.name}» xususiyati faylda yo'q`)
+          problem(rows, `«${existing.name}» tovarining «${unreadable.name}» xususiyati faylda yo‘q`)
           continue
         }
         if (!axes.some((attribute) => attribute.kind === 'color') && rows.some((row) => row.color)) {
-          problem(rows, `«${existing.name}» tovarida rang yo'q, faylda esa rang yozilgan`)
+          problem(rows, `«${existing.name}» tovarida rang yo‘q, faylda esa rang yozilgan`)
           continue
         }
         if (!axes.some((attribute) => attribute.kind === 'size') && rows.some((row) => row.size)) {
-          problem(rows, `«${existing.name}» tovarida o'lcham yo'q, faylda esa o'lcham yozilgan`)
+          problem(rows, `«${existing.name}» tovarida o‘lcham yo‘q, faylda esa o‘lcham yozilgan`)
           continue
         }
       } else {
@@ -190,7 +190,7 @@ export class ReceiptImportService {
         for (const attribute of axes) {
           const name = attribute.kind === 'color' ? row.color : row.size
           if (!name) {
-            problem([row], `${attribute.kind === 'color' ? 'Rang' : "O'lcham"} yozilmagan`)
+            problem([row], `${attribute.kind === 'color' ? 'Rang' : 'O‘lcham'} yozilmagan`)
             complete = false
             continue
           }
@@ -351,7 +351,7 @@ export class ReceiptImportService {
   private async sizeAttribute(em: EntityManager, actor: Actor, lists: Lists, sizes: string[]): Promise<Attribute> {
     const scales = lists.attributes.filter((attribute) => attribute.kind === 'size' && attribute.isActive)
     if (!scales.length) {
-      return this.attribute(em, actor, lists, "O'lcham", 'size')
+      return this.attribute(em, actor, lists, 'O‘lcham', 'size')
     }
     const wanted = new Set(sizes.map(same))
     const known = (scale: Attribute) =>

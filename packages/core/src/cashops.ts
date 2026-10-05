@@ -49,15 +49,15 @@ export const STARTER_MONEY_CATEGORIES: { kind: MoneyOpKind; name: string; inProf
   { kind: 'expense', name: 'Ish haqi', inProfit: true },
   { kind: 'expense', name: 'Oshxona', inProfit: true },
   { kind: 'expense', name: 'Yuk haqi', inProfit: true },
-  { kind: 'expense', name: "Kommunal to'lovlar", inProfit: true },
+  { kind: 'expense', name: 'Kommunal to‘lovlar', inProfit: true },
   { kind: 'expense', name: 'Tozalik', inProfit: true },
   { kind: 'expense', name: 'Reklama', inProfit: true },
-  { kind: 'expense', name: "Soliq va yig'imlar", inProfit: true },
+  { kind: 'expense', name: 'Soliq va yig‘imlar', inProfit: true },
   { kind: 'expense', name: 'Bank komissiyasi', inProfit: true },
   { kind: 'expense', name: 'Boshqa xarajat', inProfit: true },
   { kind: 'expense', name: 'Egasi oldi', inProfit: false },
   { kind: 'income', name: 'Boshqa daromad', inProfit: true },
-  { kind: 'income', name: "Egasi qo'shdi", inProfit: false },
+  { kind: 'income', name: 'Egasi qo‘shdi', inProfit: false },
 ]
 
 // ───────────────────────────── The documents ─────────────────────────────
@@ -66,7 +66,7 @@ export const MONEY_OP_STATUSES = ['posted', 'cancelled'] as const
 export type MoneyOpStatus = (typeof MONEY_OP_STATUSES)[number]
 
 export const MONEY_OP_STATUS_LABELS: Record<MoneyOpStatus, string> = {
-  posted: "O'tkazilgan",
+  posted: 'O‘tkazilgan',
   cancelled: 'Bekor qilingan',
 }
 

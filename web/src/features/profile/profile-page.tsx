@@ -24,7 +24,7 @@ import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/profile')
 
-const LANGUAGE_LABELS: Record<Language, string> = { uz: "O'zbekcha", ru: 'Русский' }
+const LANGUAGE_LABELS: Record<Language, string> = { uz: 'O‘zbekcha', ru: 'Русский' }
 
 export function ProfilePage() {
   const { t } = useTranslation()

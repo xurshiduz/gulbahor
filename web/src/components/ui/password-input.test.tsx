@@ -16,7 +16,7 @@ describe('a password field', () => {
     expect(field.type).toBe('password')
     await userEvent.type(field, 'sirli-so‘z')
 
-    await userEvent.click(screen.getByRole('button', { name: "Parolni ko'rsatish" }))
+    await userEvent.click(screen.getByRole('button', { name: 'Parolni ko‘rsatish' }))
     expect(field.type).toBe('text')
     expect(field.value).toBe('sirli-so‘z')
     // The cursor stays in the field: the eye is pressed in the middle of typing.

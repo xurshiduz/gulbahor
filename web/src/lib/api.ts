@@ -78,7 +78,7 @@ async function request<T>(method: string, path: string, options: RequestOptions 
     if ((error as Error).name === 'AbortError') {
       throw error
     }
-    throw new ApiError(0, 'NETWORK', "Server bilan aloqa yo'q. Internetni tekshiring")
+    throw new ApiError(0, 'NETWORK', 'Server bilan aloqa yo‘q. Internetni tekshiring')
   }
 
   if (!response.ok) {

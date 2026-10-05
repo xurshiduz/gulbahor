@@ -39,15 +39,15 @@ describe('handing cash over', () => {
       return <HandoverFields safes={safes} value={value} onChange={setValue} limits={{ UZS: som(400_000), USD: 0 }} />
     }
     render(<Fields />)
-    const uzs = screen.getByLabelText("Topshiriladigan so'm")
+    const uzs = screen.getByLabelText('Topshiriladigan so‘m')
     expect(screen.getByLabelText('Topshiriladigan dollar')).toBeTruthy()
 
     await userEvent.type(uzs, '350000{Tab}')
     expect((latest as Handings | null)?.UZS).toEqual({ amount: som(350_000), toAccountId: 's1' })
-    expect(screen.queryByText("Sanalgan puldan ko'p topshirib bo'lmaydi")).toBeNull()
+    expect(screen.queryByText('Sanalgan puldan ko‘p topshirib bo‘lmaydi')).toBeNull()
 
     await userEvent.clear(uzs)
     await userEvent.type(uzs, '450000{Tab}')
-    expect(screen.getByText("Sanalgan puldan ko'p topshirib bo'lmaydi")).toBeTruthy()
+    expect(screen.getByText('Sanalgan puldan ko‘p topshirib bo‘lmaydi')).toBeTruthy()
   })
 })

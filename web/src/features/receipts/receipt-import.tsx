@@ -382,7 +382,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                     value={uzsRate}
                     onChange={(value) => (setUzsRate(value), setPreview(null))}
                     decimals={2}
-                    suffix="so'm"
+                    suffix="so‘m"
                   />
                 )}
               </Field>

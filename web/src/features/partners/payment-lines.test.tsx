@@ -32,7 +32,7 @@ const usd = (amount: number) => Math.round(amount * 100)
 const account = (id: string, name: string, currency: CurrencyCode, more: Partial<PaymentAccountDto> = {}) =>
   ({ id, name, currency, kind: 'cash', balance: null, registerId: null, open: true, ...more }) as PaymentAccountDto
 
-const ACCOUNTS = [account('uzs', "Kassa (so'm)", 'UZS'), account('usd', 'Kassa (dollar)', 'USD')]
+const ACCOUNTS = [account('uzs', 'Kassa (so‘m)', 'UZS'), account('usd', 'Kassa (dollar)', 'USD')]
 const RATE = 12_650
 
 /** Thousands are kept apart by a space that does not break: here it is only a space. */
@@ -48,9 +48,9 @@ const row = (accountId: string, amount: number | null = null, rate: number | nul
 describe('the lines a payment opens with', () => {
   const till = [
     account('d1', 'Kassa 1 (dollar)', 'USD', { registerId: 'till-1' }),
-    account('s1', "Kassa 1 (so'm)", 'UZS', { registerId: 'till-1' }),
+    account('s1', 'Kassa 1 (so‘m)', 'UZS', { registerId: 'till-1' }),
     account('d2', 'Kassa 2 (dollar)', 'USD', { registerId: 'till-2' }),
-    account('s2', "Kassa 2 (so'm)", 'UZS', { registerId: 'till-2' }),
+    account('s2', 'Kassa 2 (so‘m)', 'UZS', { registerId: 'till-2' }),
     account('safe', 'Seyf', 'USD', { kind: 'safe' }),
     account('card', 'Humo', 'UZS', { kind: 'card' }),
   ]
@@ -147,7 +147,7 @@ describe('the total, typed', () => {
   })
 
   it('never goes into a drawer whose shift is shut', () => {
-    const shut = [account('uzs', "Kassa (so'm)", 'UZS'), account('usd', 'Kassa (dollar)', 'USD', { open: false })]
+    const shut = [account('uzs', 'Kassa (so‘m)', 'UZS'), account('usd', 'Kassa (dollar)', 'USD', { open: false })]
     const lines = valueLines([row('uzs'), row('usd')], shut, 'USD', RATE)
     expect(spreadTotal(lines, usd(100), 'USD')).toEqual({ accountId: 'uzs', amount: som(1_265_000) })
   })
@@ -219,7 +219,7 @@ const fields = () => screen.getAllByRole('textbox') as HTMLInputElement[]
 describe('the ready lines', () => {
   it('are named by what they hold: the till they belong to is chosen above them', () => {
     const places = [
-      account('uzs', "Gulbahor 2 kassasi (so'm)", 'UZS', { registerId: 'till-2' }),
+      account('uzs', 'Gulbahor 2 kassasi (so‘m)', 'UZS', { registerId: 'till-2' }),
       account('usd', 'Gulbahor 2 kassasi (dollar)', 'USD', { registerId: 'till-2' }),
       account('humo', 'Humo', 'UZS', { kind: 'card', cardNumber: '9860123456789012', last4: '9012' }),
       account('visa', 'Visa', 'USD', { kind: 'card', cardNumber: '4000123412341234', last4: '1234' }),
@@ -229,19 +229,19 @@ describe('the ready lines', () => {
     ]
     const t = i18next.t.bind(i18next)
     expect(places.map((place) => placeName(place, t))).toEqual([
-      "So'm naqd",
+      'So‘m naqd',
       'Dollar naqd',
       // A card is told from another by its whole number; one known only by its last four says so.
-      "So'm karta (9860 1234 5678 9012)",
+      'So‘m karta (9860 1234 5678 9012)',
       'Dollar karta (4000 1234 1234 1234)',
-      "So'm karta (Uzcard *8841)",
+      'So‘m karta (Uzcard *8841)',
       'Dollar naqd (Asosiy seyf)',
-      "So'm bank (Ipak yo‘li)",
+      'So‘m bank (Ipak yo‘li)',
     ])
     render(<Lines start={[row('uzs'), row('usd'), row('humo')]} accounts={places} />)
-    expect(screen.getByText("So'm naqd")).toBeTruthy()
+    expect(screen.getByText('So‘m naqd')).toBeTruthy()
     expect(screen.getByText('Dollar naqd')).toBeTruthy()
-    expect(screen.getByText("So'm karta (9860 1234 5678 9012)")).toBeTruthy()
+    expect(screen.getByText('So‘m karta (9860 1234 5678 9012)')).toBeTruthy()
     expect(screen.queryByText(/Gulbahor 2 kassasi/)).toBeNull()
   })
 
@@ -293,7 +293,7 @@ describe('the ready lines', () => {
     // What the two sums make, and what that costs against the day's rate, is said in words under the line.
     const note = document.querySelector('[data-agreed="usd"]') as HTMLElement
     expect(plain(note.textContent ?? '')).toBe(
-      "Kelishilgan kurs 12 800, kun kursi 12 650 (1,2% farq): 15 000 so'm zararimizga",
+      'Kelishilgan kurs 12 800, kun kursi 12 650 (1,2% farq): 15 000 so‘m zararimizga',
     )
     expect(note.className).toContain('text-warn')
     expect(agreedOf(sent[1])).toBe(som(1_280_000))
@@ -323,7 +323,7 @@ describe('the ready lines', () => {
     await userEvent.type(settled, '1250000{Tab}')
     const note = () => document.querySelector('[data-agreed="usd"]') as HTMLElement
     expect(plain(note().textContent ?? '')).toBe(
-      "Kelishilgan kurs 12 500, kun kursi 12 650 (1,2% farq): 15 000 so'm foydamizga",
+      'Kelishilgan kurs 12 500, kun kursi 12 650 (1,2% farq): 15 000 so‘m foydamizga',
     )
     expect(note().className).toContain('text-ok')
   })
@@ -335,7 +335,7 @@ describe('the ready lines', () => {
     await userEvent.clear(settled)
     await userEvent.type(settled, '1250000{Tab}')
     expect(plain(document.querySelector('[data-agreed="usd"]')?.textContent ?? '')).toBe(
-      "Kelishilgan kurs 12 500, kun kursi 12 650 (1,2% farq): 15 000 so'm zararimizga",
+      'Kelishilgan kurs 12 500, kun kursi 12 650 (1,2% farq): 15 000 so‘m zararimizga',
     )
   })
 
@@ -348,7 +348,7 @@ describe('the ready lines', () => {
     await userEvent.type(settled, '1400000{Tab}')
     const note = document.querySelector('[data-agreed="usd"]') as HTMLElement
     expect(plain(note.textContent ?? '')).toBe(
-      "Kelishilgan kurs 14 000, kun kursi 12 650 (10,7% farq): 135 000 so'm zararimizga — kurs qo'yish ruxsati kerak",
+      'Kelishilgan kurs 14 000, kun kursi 12 650 (10,7% farq): 135 000 so‘m zararimizga — kurs qo‘yish ruxsati kerak',
     )
     expect(note.className).toContain('text-bad')
     expect(settled.getAttribute('aria-invalid')).toBe('true')
@@ -384,7 +384,7 @@ describe('the ready lines', () => {
   })
 
   it('take nothing into a drawer whose shift is shut', () => {
-    const shut = [account('uzs', "Kassa (so'm)", 'UZS', { open: false }), account('usd', 'Kassa (dollar)', 'USD')]
+    const shut = [account('uzs', 'Kassa (so‘m)', 'UZS', { open: false }), account('usd', 'Kassa (dollar)', 'USD')]
     render(<Lines start={[row('uzs'), row('usd')]} accounts={shut} />)
     const [amount, settled, dollars] = fields()
     expect(amount.disabled).toBe(true)
@@ -405,7 +405,7 @@ describe('the ready lines', () => {
     // and is not stopped.
     const note = document.querySelector('[data-agreed="uzs"]') as HTMLElement
     expect(plain(note.textContent ?? '')).toBe(
-      "Kelishilgan kurs 12 000, kun kursi 12 650 (5,4% farq): 65 000 so'm zararimizga",
+      'Kelishilgan kurs 12 000, kun kursi 12 650 (5,4% farq): 65 000 so‘m zararimizga',
     )
     expect(note.className).toContain('text-warn')
 
@@ -448,7 +448,7 @@ function Expense({ start }: { start: PaymentRow[] }) {
         }}
         setsRates={false}
         dayRate={RATE}
-        headings={{ ours: 'Bizdan chiqdi', theirs: "So'mda" }}
+        headings={{ ours: 'Bizdan chiqdi', theirs: 'So‘mda' }}
       />
       <output aria-label="total">{totalOf(lines) / 100}</output>
     </>
@@ -458,7 +458,7 @@ function Expense({ start }: { start: PaymentRow[] }) {
 describe('the ready lines of an expense', () => {
   it("are counted in so'm, dollars at the day's rate, under words of their own", async () => {
     render(<Expense start={[row('uzs'), row('usd')]} />)
-    expect(screen.getByText("So'mda")).toBeTruthy()
+    expect(screen.getByText('So‘mda')).toBeTruthy()
     expect(screen.queryByText('Hamkor hisobiga')).toBeNull()
 
     // So'm have one field; dollars have their worth in so'm beside them.

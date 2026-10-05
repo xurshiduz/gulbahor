@@ -41,7 +41,7 @@ export function sampleSale(shop: { name: string; address: string | null; phone: 
       {
         id: 'l1',
         variantId: 'v1',
-        productName: "Ko'ylak",
+        productName: 'Ko‘ylak',
         label: 'Qora, M',
         sku: '1042-03',
         qty: 1,

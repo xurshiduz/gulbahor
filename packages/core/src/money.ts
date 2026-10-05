@@ -21,13 +21,13 @@ export interface CurrencyInfo {
 }
 
 export const CURRENCIES: Record<AnyCurrency, CurrencyInfo> = {
-  UZS: { code: 'UZS', minorDigits: 2, symbol: "so'm", name: "O'zbek so'mi", alwaysShowMinor: false },
+  UZS: { code: 'UZS', minorDigits: 2, symbol: 'so‘m', name: 'O‘zbek so‘mi', alwaysShowMinor: false },
   USD: { code: 'USD', minorDigits: 2, symbol: '$', name: 'AQSH dollari', alwaysShowMinor: true },
   CNY: { code: 'CNY', minorDigits: 2, symbol: '¥', name: 'Xitoy yuani', alwaysShowMinor: true },
-  KGS: { code: 'KGS', minorDigits: 2, symbol: 'KGS', name: "Qirg'iz somi", alwaysShowMinor: false },
+  KGS: { code: 'KGS', minorDigits: 2, symbol: 'KGS', name: 'Qirg‘iz somi', alwaysShowMinor: false },
   TRY: { code: 'TRY', minorDigits: 2, symbol: '₺', name: 'Turk lirasi', alwaysShowMinor: true },
   RUB: { code: 'RUB', minorDigits: 2, symbol: '₽', name: 'Rossiya rubli', alwaysShowMinor: false },
-  KZT: { code: 'KZT', minorDigits: 2, symbol: '₸', name: "Qozog'iston tengesi", alwaysShowMinor: false },
+  KZT: { code: 'KZT', minorDigits: 2, symbol: '₸', name: 'Qozog‘iston tengesi', alwaysShowMinor: false },
   EUR: { code: 'EUR', minorDigits: 2, symbol: '€', name: 'Yevro', alwaysShowMinor: true },
   AED: { code: 'AED', minorDigits: 2, symbol: 'AED', name: 'BAA dirhami', alwaysShowMinor: true },
 }

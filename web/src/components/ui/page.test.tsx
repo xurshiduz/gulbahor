@@ -55,11 +55,11 @@ describe('Page', () => {
 
   it('gives the buttons no row of their own when the tabs have room for them', () => {
     inApp(
-      <Page title="Ma'lumotnomalar" actions={<button>Yuklash</button>}>
+      <Page title="Ma’lumotnomalar" actions={<button>Yuklash</button>}>
         <Tabs value="brands" onChange={() => undefined} tabs={[{ value: 'brands', label: 'Brendlar' }]}>
           <TabPanel value="brands">
             <PageActions>
-              <button>Brend qo'shish</button>
+              <button>Brend qo‘shish</button>
             </PageActions>
             <DataTable
               columns={[{ id: 'name', header: 'Nomi' }]}
@@ -74,7 +74,7 @@ describe('Page', () => {
     // The screen's button and the tab's button both sit in the row of the tabs.
     const tabsRow = rowOf(screen.getByRole('tab', { name: 'Brendlar' }))
     expect(tabsRow?.contains(screen.getByRole('button', { name: 'Yuklash' }))).toBe(true)
-    expect(tabsRow?.contains(screen.getByRole('button', { name: "Brend qo'shish" }))).toBe(true)
+    expect(tabsRow?.contains(screen.getByRole('button', { name: 'Brend qo‘shish' }))).toBe(true)
     expect(tabsRow?.contains(screen.getByLabelText('Qidiruv'))).toBe(false)
   })
 

@@ -183,7 +183,7 @@ export class UsersService {
       this.assertMayTouch(actor, before)
       if (!active) {
         if (id === actor.userId) {
-          throw AppError.conflict('SELF_BLOCK', "O'zingizni bloklay olmaysiz")
+          throw AppError.conflict('SELF_BLOCK', 'O‘zingizni bloklay olmaysiz')
         }
         if (before.isOwner) {
           await this.assertAnotherOwner(em, id)
@@ -339,7 +339,7 @@ export class UsersService {
             : hasPermission(actor.permissions, permission),
       )
       if (!covered) {
-        throw AppError.forbidden(`«${role.name}» rolida sizda yo'q ruxsatlar bor, uni bera olmaysiz`, 'ESCALATION')
+        throw AppError.forbidden(`«${role.name}» rolida sizda yo‘q ruxsatlar bor, uni bera olmaysiz`, 'ESCALATION')
       }
     }
   }
@@ -351,7 +351,7 @@ export class UsersService {
     const ids = [...new Set(input.locationIds)]
     const found = await em.findBy(Location, { id: In(ids), isActive: true })
     if (found.length !== ids.length) {
-      throw AppError.validation({ locationIds: "Do'kon yoki sklad topilmadi" })
+      throw AppError.validation({ locationIds: 'Do‘kon yoki sklad topilmadi' })
     }
     return ids
   }
@@ -395,7 +395,7 @@ export class UsersService {
 
   private assertMayTouch(actor: Actor, target: UserDto) {
     if (target.isOwner && !actor.isOwner) {
-      throw AppError.forbidden("Egasining ma'lumotlarini faqat egasi o'zgartira oladi")
+      throw AppError.forbidden('Egasining ma’lumotlarini faqat egasi o‘zgartira oladi')
     }
   }
 }

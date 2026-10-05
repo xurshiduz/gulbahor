@@ -346,7 +346,7 @@ export class DevicesService {
   private async cancelWaiting(em: EntityManager, column: 'agent_id' | 'printer_id', id: string) {
     await em.query(
       `UPDATE print_jobs SET status = 'cancelled', done_at = now(), error = $2 WHERE ${column} = $1 AND status = 'queued'`,
-      [id, "Printer yoki agent o'chirildi"],
+      [id, 'Printer yoki agent o‘chirildi'],
     )
   }
 

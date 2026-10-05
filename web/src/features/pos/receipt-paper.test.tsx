@@ -25,14 +25,14 @@ describe('a receipt on paper', () => {
     expect(width).toBe('72mm')
     expect(text).toContain('Gulbahor')
     expect(text).toContain('CH-000128')
-    expect(text).toContain("Ko'ylak, Qora, M")
-    expect(text).toContain("1 × 900 000 so'm − 160 000 so'm")
-    expect(text).toContain("Sodiqlik 10%−117 000 so'm")
+    expect(text).toContain('Ko‘ylak, Qora, M')
+    expect(text).toContain('1 × 900 000 so‘m − 160 000 so‘m')
+    expect(text).toContain('Sodiqlik 10%−117 000 so‘m')
     // What the cashier gave is said apart from what came off by itself.
-    expect(text).toContain("Chegirma−70 000 so'm")
-    expect(text).toContain("Jami983 000 so'm")
-    expect(text).toContain("Kartaga · Humo *3073500 000 so'm")
-    expect(text).toContain("Siz 187 000 so'm tejadingiz")
+    expect(text).toContain('Chegirma−70 000 so‘m')
+    expect(text).toContain('Jami983 000 so‘m')
+    expect(text).toContain('Kartaga · Humo *3073500 000 so‘m')
+    expect(text).toContain('Siz 187 000 so‘m tejadingiz')
     expect(text).toContain('Xaridingiz uchun rahmat!')
     // The article is not printed unless the business asks for it.
     expect(text).not.toContain('1042-03')
@@ -59,12 +59,12 @@ describe('a receipt on paper', () => {
       expect(bare.text).not.toContain(hidden)
     }
     // The line still says how many at what price; what came off it is in the totals alone.
-    expect(bare.text).toContain("1 × 900 000 so'm")
-    expect(bare.text).not.toContain("− 160 000 so'm")
+    expect(bare.text).toContain('1 × 900 000 so‘m')
+    expect(bare.text).not.toContain('− 160 000 so‘m')
     expect(bare.text).toContain('1042-03')
     expect(bare.text).toContain('Instagram: @gulbahorTelegram: @gulbahor_uz')
     // The sums are never a matter of design.
-    expect(bare.text).toContain("Jami983 000 so'm")
+    expect(bare.text).toContain('Jami983 000 so‘m')
   })
 
   it('names what was left owing, and the day it is to be paid by', () => {
@@ -79,11 +79,11 @@ describe('a receipt on paper', () => {
     const { container } = render(<ReceiptPaper sale={lent} template={DEFAULT_RECEIPT_TEMPLATE} orgName="Gulbahor" />)
     const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? null)
     // A debt lies in no drawer: the books' own name for it stays off the paper.
-    expect(text).toContain("Qarzga483 000 so'm")
+    expect(text).toContain('Qarzga483 000 so‘m')
     expect(text).not.toContain('Mijozlar qarzi')
-    expect(text).toContain("To'lash muddati04.11.2026")
+    expect(text).toContain('To‘lash muddati04.11.2026')
     // Nothing owed, no day.
-    expect(printed().text).not.toContain("To'lash muddati")
+    expect(printed().text).not.toContain('To‘lash muddati')
   })
 
   it('carries its number as a barcode, and the logo the business gave it', () => {

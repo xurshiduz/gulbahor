@@ -40,7 +40,7 @@ export function valueLine(
   const worth = settleLine(amount, accountCurrency, targetCurrency, dayRate, agreed)
   if (worth.agreed && limit !== null && straysFromRate(worth, limit, dayRate)) {
     const gap = String(rateGap(worth)).replace('.', ',')
-    return `Kelishilgan summa kun kursidan ${gap}% farq qiladi: ${limit}% dan ortig'iga kurs qo'yish ruxsati kerak`
+    return `Kelishilgan summa kun kursidan ${gap}% farq qiladi: ${limit}% dan ortig‘iga kurs qo‘yish ruxsati kerak`
   }
   return worth
 }

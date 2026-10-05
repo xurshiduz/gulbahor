@@ -59,7 +59,7 @@ export class AgentGateway implements OnGatewayConnection, OnGatewayDisconnect {
       : null
     if (!agent) {
       known(null)
-      socket.emit('refused', { reason: "Kalit noto'g'ri yoki bekor qilingan" })
+      socket.emit('refused', { reason: 'Kalit noto‘g‘ri yoki bekor qilingan' })
       socket.disconnect(true)
       return
     }

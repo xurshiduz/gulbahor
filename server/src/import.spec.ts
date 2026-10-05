@@ -240,7 +240,7 @@ describe('Import', () => {
     const attributes = (await alpha.get('/api/attributes')).body as { id: string; name: string }[]
     const product = (await alpha.get('/api/products').query({ q: 'SH-2' })).body.items[0]
     const detail = (await alpha.get(`/api/products/${product.id}`)).body
-    expect(attributes.find((attribute) => attribute.id === detail.axisIds[1])?.name).toBe("O'lcham (raqamli)")
+    expect(attributes.find((attribute) => attribute.id === detail.axisIds[1])?.name).toBe('O‘lcham (raqamli)')
   })
 
   it('is for those who may both receive goods and add models', async () => {
