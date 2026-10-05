@@ -21,14 +21,15 @@ import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
 import { LedgerService } from './ledger.service'
+import { mayUse } from './places'
 
 const DOCUMENT = 'money_transfer'
 
 /** Money moves between the places it is kept; a terminal's money goes to the bank by itself, and the ledger's own accounts are not places. */
 const MOVABLE = ['cash', 'safe', 'bank', 'card']
 
-const mayWorkAt = (actor: Actor, locationId: string | null) =>
-  !locationId || actor.allLocations || actor.locationIds.includes(locationId)
+/** With no account to ask about (it is gone), nothing stands in the way here. */
+const mayWorkAt = (actor: Actor, account: Account | null | undefined) => !account || mayUse(actor, account)
 
 /** Those who take cash from the tills and bring it to them. */
 const collects = (actor: Actor) => can(actor, 'money.collect') || can(actor, 'money.manage')
@@ -103,7 +104,7 @@ export class MoneyTransfersService {
     }
 
     const fromShift = await this.mayGive(em, actor, from)
-    if (!mayWorkAt(actor, to.locationId)) {
+    if (!mayWorkAt(actor, to)) {
       throw AppError.validation({ toAccountId: 'Hisob topilmadi' })
     }
     // Said without the sum: a cashier is not told what the books hold.
@@ -279,7 +280,7 @@ export class MoneyTransfersService {
    * open shift, whose drawer the money leaves.
    */
   private async mayGive(em: EntityManager, actor: Actor, from: Account): Promise<string | null> {
-    if (!mayWorkAt(actor, from.locationId)) {
+    if (!mayWorkAt(actor, from)) {
       throw AppError.validation({ fromAccountId: 'Hisob topilmadi' })
     }
     if (from.kind !== 'cash') {
@@ -310,7 +311,7 @@ export class MoneyTransfersService {
     if (transfer.sentBy === actor.userId && !can(actor, 'money.manage')) {
       throw AppError.forbidden("O'zingiz yuborgan pulni o'zingiz qabul qila olmaysiz: uni qabul qiluvchi tasdiqlaydi")
     }
-    if (!mayWorkAt(actor, to.locationId)) {
+    if (!mayWorkAt(actor, to)) {
       throw AppError.forbidden()
     }
     if (to.kind !== 'cash') {
@@ -416,7 +417,7 @@ export class MoneyTransfersService {
         mayReceive:
           waiting &&
           (transfer.sentBy !== actor.userId || manages) &&
-          mayWorkAt(actor, to?.locationId ?? null) &&
+          mayWorkAt(actor, to) &&
           (collects(actor) || (atTill && can(actor, 'pos.sell'))),
         mayCancel: waiting && (transfer.sentBy === actor.userId || manages),
       }

@@ -68,6 +68,9 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
 export const PAYMENT_ACCOUNT_KINDS = ['card', 'terminal', 'safe', 'bank'] as const
 export type PaymentAccountKind = (typeof PAYMENT_ACCOUNT_KINDS)[number]
 
+/** The kinds of account that may serve several shops at once. */
+export const SHARED_ACCOUNT_KINDS: readonly PaymentAccountKind[] = ['card', 'bank']
+
 export const accountInputSchema = z
   .object({
     kind: z.enum(PAYMENT_ACCOUNT_KINDS),
@@ -76,6 +79,11 @@ export const accountInputSchema = z
     currency: z.enum(['UZS', 'USD']).default('UZS'),
     /** The shop it belongs to; none for one shared by all. */
     locationId: idSchema.nullish().transform((value) => value ?? null),
+    /**
+     * The shops it serves, when there are several: a card may take money at some of the shops and not at
+     * the others. Left empty, `locationId` says it all.
+     */
+    locationIds: z.array(idSchema).max(200).default([]),
     /** A card's last four digits: what bank messages and receipts call it by. */
     last4: z
       .string()
@@ -89,16 +97,32 @@ export const accountInputSchema = z
     if (account.currency !== 'UZS' && (account.kind === 'card' || account.kind === 'terminal')) {
       context.addIssue({ code: 'custom', path: ['currency'], message: "Karta va terminal faqat so'mda" })
     }
+    // A terminal and a safe stand in one place; a card and a bank account go wherever their owner does.
+    if (new Set(account.locationIds).size > 1 && !SHARED_ACCOUNT_KINDS.includes(account.kind)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['locationIds'],
+        message: "Terminal va seyf bitta do'konda turadi",
+      })
+    }
   })
 export type AccountInput = z.infer<typeof accountInputSchema>
+
+/** The shops an account's form names, whichever of the two fields it used: none means every shop. */
+export const accountShops = (input: Pick<AccountInput, 'locationId' | 'locationIds'>): string[] =>
+  input.locationIds.length ? [...new Set(input.locationIds)] : input.locationId ? [input.locationId] : []
 
 export interface AccountDto {
   id: string
   kind: AccountKind
   name: string
   currency: CurrencyCode
+  /** The one shop it belongs to; null when it serves every shop, or several. */
   locationId: string | null
   locationName: string | null
+  /** The shops it serves; empty for every shop. */
+  locationIds: string[]
+  locationNames: string[]
   registerId: string | null
   last4: string | null
   bank: string | null

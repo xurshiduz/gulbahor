@@ -44,6 +44,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { LedgerService, type Posting } from '../money/ledger.service'
+import { servesShop } from '../money/places'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
 import { allows, ApprovalsService, type Approver } from './approvals.service'
@@ -248,10 +249,7 @@ export class SalesService {
       } else {
         account = accounts.find((item) => item.id === payment.accountId)
         const fits =
-          account &&
-          account.kind === payment.method &&
-          account.isActive &&
-          (!account.locationId || account.locationId === register.locationId)
+          account && account.kind === payment.method && account.isActive && servesShop(account, register.locationId)
         if (!fits) {
           fields[`payments.${index}.accountId`] = payment.method === 'card' ? 'Karta topilmadi' : 'Terminal topilmadi'
           continue

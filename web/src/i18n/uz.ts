@@ -807,6 +807,8 @@ export const uz = {
     noRegistersHint: "Sotish uchun har do'konda kamida bitta kassa bo'lishi kerak.",
     editRegister: 'Kassani tahrirlash',
     kind: 'Turi',
+    shops: "Do'konlar",
+    shopsHint: "Karta qaysi do'konlar kassasida chiqishi. Bo'sh qolsa, hamma do'konda chiqadi.",
     everyShop: "Hamma do'kon",
     balance: 'Qoldiq',
     noAccounts: "Hali hisob yo'q",

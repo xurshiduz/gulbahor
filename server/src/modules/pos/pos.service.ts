@@ -8,6 +8,7 @@ import { Organization, Register, Shift } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
+import { servesShop } from '../money/places'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
 import { ApprovalsService } from './approvals.service'
@@ -36,7 +37,7 @@ export class PosService {
       const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
       const usd = actor.modules.includes('usd')
       const accounts = (await this.money.accountRows(em, false)).filter(
-        (account) => account.isActive && (!account.locationId || account.locationId === register.locationId),
+        (account) => account.isActive && servesShop(account, register.locationId),
       )
       const drawers = (await this.money.accountRows(em, false)).filter((account) => account.registerId === registerId)
       const sellers: { id: string; name: string }[] = await em.query(

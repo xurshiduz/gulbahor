@@ -256,6 +256,7 @@ Qanday ishlaydi (qilingan, 2026-10-05):
 ### Kartalar
 
 - Kartalar cheksiz qo'shiladi (hozir ham). Yangilik: **bitta karta bir nechta do'konga** biriktiriladi.
+  - Qilingan (2026-10-05): "Pul → Hisoblar" da karta (va bank hisobi) formasida "Do'konlar" maydoni — bir nechta do'kon tanlanadi; bo'sh qolsa hamma do'kon. Karta faqat o'sha do'konlar kassasida chiqadi, boshqa do'kon kassasi unga pul ololmaydi (server ham rad etadi). Xarajat va hamkor to'lovida ham xodim faqat o'zi ishlaydigan do'konlarning kartalarini ko'radi. Terminal va seyf bitta do'konda turadi.
 - Kassada "kartaga" qatorida shu do'konning kartalari chiqadi; kassir tanlaydi, ekranda karta raqami katta ko'rinadi (mijozga aytish uchun).
 - To'lov **"kutilmoqda"** holatida yoziladi. Humo bot xabari kelganda (karta, summa, vaqt mos kelsa) to'lov o'zi **"tushdi"** bo'ladi va kassir ekranida yashil belgi chiqadi. Belgilangan vaqtda tushmasa — kassirga va rahbarga xabar.
 - Kartaga hech bir chekka bog'lanmagan pul tushsa yoki chiqim bo'lsa — rahbarning "aniqlanmagan" ro'yxatiga tushadi; u turini belgilaydi (boshqa daromad, xarajat turi, hamkor to'lovi).

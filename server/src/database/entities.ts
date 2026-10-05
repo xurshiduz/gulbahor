@@ -1514,6 +1514,10 @@ export class Account {
   @Column('uuid', { nullable: true })
   locationId: string | null
 
+  /** The shops it serves; empty for every shop. This, not `locationId`, decides who may use it and where. */
+  @Column('uuid', { array: true, default: () => "'{}'" })
+  locationIds: string[]
+
   @Column('uuid', { nullable: true })
   registerId: string | null
 

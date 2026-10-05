@@ -5,6 +5,7 @@ import {
   PAYMENT_ACCOUNT_KINDS,
   rateInputSchema,
   registerInputSchema,
+  SHARED_ACCOUNT_KINDS,
   todayIn,
   toIsoDate,
   type AccountDto,
@@ -405,7 +406,12 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
       {
         id: 'location',
         header: t('money.shop'),
-        cell: ({ row }) => row.original.locationName ?? <span className="text-ink-3">{t('money.everyShop')}</span>,
+        cell: ({ row }) =>
+          row.original.locationNames.length ? (
+            row.original.locationNames.join(', ')
+          ) : (
+            <span className="text-ink-3">{t('money.everyShop')}</span>
+          ),
       },
       {
         id: 'balance',
@@ -477,7 +483,8 @@ interface AccountValues {
   kind: PaymentAccountKind
   name: string
   currency: 'UZS' | 'USD'
-  locationId: string | null
+  /** The shops it serves; none for every shop. A terminal or a safe has at most one. */
+  locationIds: string[]
   last4: string
   bank: string
 }
@@ -491,7 +498,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
       kind: (account?.kind as PaymentAccountKind | undefined) ?? 'card',
       name: account?.name ?? '',
       currency: account?.currency ?? 'UZS',
-      locationId: account?.locationId ?? null,
+      locationIds: account?.locationIds ?? [],
       last4: account?.last4 ?? '',
       bank: account?.bank ?? '',
     },
@@ -500,6 +507,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
   const kind = form.watch('kind')
   const { hasModule } = useSession()
   const holdsDollars = hasModule('usd') && (kind === 'safe' || kind === 'bank')
+  const shared = SHARED_ACCOUNT_KINDS.includes(kind)
 
   const mutation = useMutation({
     mutationFn: (input: AccountInput) =>
@@ -516,6 +524,8 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
       ...values,
       // Only a safe or a bank account holds dollars.
       currency: holdsDollars ? values.currency : 'UZS',
+      // What was a card with several shops and is now a terminal keeps the first of them.
+      locationIds: shared ? values.locationIds : values.locationIds.slice(0, 1),
       last4: values.last4 || null,
     })
     if (input) {
@@ -568,20 +578,37 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
             )}
           </Field>
         </div>
-        <Field label={t('money.shop')} hint={t('money.shopHint')} error={errors.locationId?.message}>
+        <Field
+          label={shared ? t('money.shops') : t('money.shop')}
+          hint={shared ? t('money.shopsHint') : t('money.shopHint')}
+          error={errors.locationIds?.message}
+        >
           {(id) => (
             <Controller
               control={form.control}
-              name="locationId"
-              render={({ field }) => (
-                <Combobox
-                  id={id}
-                  options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder={t('money.everyShop')}
-                />
-              )}
+              name="locationIds"
+              render={({ field }) => {
+                const options = (locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))
+                // A card goes wherever its owner does; a terminal and a safe stand in one place.
+                return shared ? (
+                  <Combobox
+                    id={id}
+                    multiple
+                    options={options}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder={t('money.everyShop')}
+                  />
+                ) : (
+                  <Combobox
+                    id={id}
+                    options={options}
+                    value={field.value[0] ?? null}
+                    onChange={(value) => field.onChange(value ? [value] : [])}
+                    placeholder={t('money.everyShop')}
+                  />
+                )
+              }}
             />
           )}
         </Field>

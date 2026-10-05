@@ -156,6 +156,7 @@ export class LedgerService {
         name: `${register.name} (${currency === 'USD' ? 'dollar' : "so'm"})`,
         currency,
         locationId: register.locationId,
+        locationIds: [register.locationId],
         registerId: register.id,
         balance: 0,
         isActive: true,

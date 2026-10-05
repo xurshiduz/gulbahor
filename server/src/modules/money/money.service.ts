@@ -1,5 +1,6 @@
 import {
   ACCOUNT_KIND_LABELS,
+  accountShops,
   type AccountDto,
   type AccountInput,
   type RateDto,
@@ -8,7 +9,7 @@ import {
   type RegisterInput,
 } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
-import type { EntityManager } from 'typeorm'
+import { In, type EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
@@ -19,6 +20,13 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { LedgerService } from './ledger.service'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
+
+/** An account as it is kept: the shops it serves, and the one shop of an account that has exactly one. */
+function placed(input: AccountInput) {
+  const { locationIds: _asked, ...rest } = input
+  const shops = accountShops(input)
+  return { ...rest, locationIds: shops, locationId: shops.length === 1 ? shops[0] : null }
+}
 
 /**
  * What a business sets up before it can sell: its tills, the cards and
@@ -66,7 +74,7 @@ export class MoneyService {
       }
       await this.assertRegister(em, input, id)
       await em.update(Register, id, input)
-      await em.update(Account, { registerId: id }, { locationId: input.locationId })
+      await em.update(Account, { registerId: id }, { locationId: input.locationId, locationIds: [input.locationId] })
       const after = await this.findRegister(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'register.update',
@@ -111,7 +119,9 @@ export class MoneyService {
   async createAccount(actor: Actor, input: AccountInput): Promise<AccountDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertAccount(em, input)
-      const saved = await em.save(em.create(Account, { orgId: actor.orgId, ...input, balance: 0, isActive: true }))
+      const saved = await em.save(
+        em.create(Account, { orgId: actor.orgId, ...placed(input), balance: 0, isActive: true }),
+      )
       await this.audit.record(em, actor.orgId, actor, {
         action: 'account.create',
         entity: 'account',
@@ -135,14 +145,14 @@ export class MoneyService {
         )
       }
       await this.assertAccount(em, input, id)
-      await em.update(Account, id, input)
+      await em.update(Account, id, placed(input))
       const after = await this.findAccount(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'account.update',
         entity: 'account',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['kind', 'name', 'currency', 'locationId', 'last4', 'bank']),
+        changes: diff(before, after, ['kind', 'name', 'currency', 'locationIds', 'last4', 'bank']),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
       return this.accountRow(em, id, true)
@@ -265,6 +275,9 @@ export class MoneyService {
       .addOrderBy('a.name')
     if (id) qb.andWhere('a.id = :id', { id })
     const { entities, raw } = await qb.getRawAndEntities()
+    const shared = [...new Set(entities.flatMap((account) => account.locationIds))]
+    const places = shared.length ? await em.find(Location, { where: { id: In(shared) }, select: ['id', 'name'] }) : []
+    const nameOf = new Map(places.map((place) => [place.id, place.name]))
     return entities.map((account, index) => ({
       id: account.id,
       kind: account.kind,
@@ -272,6 +285,8 @@ export class MoneyService {
       currency: account.currency,
       locationId: account.locationId,
       locationName: raw[index].location_name,
+      locationIds: account.locationIds,
+      locationNames: account.locationIds.flatMap((id) => nameOf.get(id) ?? []).sort((a, b) => a.localeCompare(b)),
       registerId: account.registerId,
       last4: account.last4,
       bank: account.bank,
@@ -314,10 +329,14 @@ export class MoneyService {
   }
 
   private async assertAccount(em: EntityManager, input: AccountInput, exceptId?: string) {
-    if (input.locationId) {
-      const [place] = await em.query(`SELECT 1 FROM locations WHERE id = $1 AND kind <> 'transit'`, [input.locationId])
-      if (!place) {
-        throw AppError.validation({ locationId: 'Joy topilmadi' })
+    const shops = accountShops(input)
+    if (shops.length) {
+      const [{ found }]: { found: number }[] = await em.query(
+        `SELECT count(*)::int AS found FROM locations WHERE id = ANY($1) AND kind <> 'transit'`,
+        [shops],
+      )
+      if (found !== shops.length) {
+        throw AppError.validation({ [input.locationIds.length ? 'locationIds' : 'locationId']: 'Joy topilmadi' })
       }
     }
     const [taken] = await em.query(

@@ -27,14 +27,12 @@ import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
 import { LedgerService, type Posting } from './ledger.service'
 import { MoneyService } from './money.service'
+import { mayUse } from './places'
 
 const DOCUMENT = 'money_op'
 
 /** Where the business keeps its own money: what an expense is paid out of, and other income is put into. */
 const PLACES = ['cash', 'safe', 'bank', 'card']
-
-const mayWorkAt = (actor: Actor, locationId: string | null) =>
-  !locationId || actor.allLocations || actor.locationIds.includes(locationId)
 
 const CHANGED = ['money-ops', 'money', 'pos', 'shifts']
 
@@ -174,7 +172,7 @@ export class MoneyOpsService {
       const shifts = await em.find(Shift, { where: { status: 'open' }, select: { registerId: true } })
       const open = new Set(shifts.map((shift) => shift.registerId))
       return rows
-        .filter((account) => account.isActive && PLACES.includes(account.kind) && mayWorkAt(actor, account.locationId))
+        .filter((account) => account.isActive && PLACES.includes(account.kind) && mayUse(actor, account))
         .map((account) => ({ ...account, open: account.kind !== 'cash' || open.has(account.registerId as string) }))
     })
   }
@@ -207,7 +205,7 @@ export class MoneyOpsService {
         []
       for (const [index, line] of input.lines.entries()) {
         const account = accountOf.get(line.accountId)
-        if (!account || !account.isActive || !PLACES.includes(account.kind) || !mayWorkAt(actor, account.locationId)) {
+        if (!account || !account.isActive || !PLACES.includes(account.kind) || !mayUse(actor, account)) {
           fields[`lines.${index}.accountId`] = 'Hisob topilmadi'
           continue
         }
