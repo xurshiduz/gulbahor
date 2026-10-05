@@ -36,6 +36,17 @@ const priceOf = (kind: 'retail' | 'min') => `(
 const PRICE = priceOf('retail')
 const FLOOR = priceOf('min')
 
+/** The same, at the price type a cart is being sold at: where that has no price of its own, the retail one stands. */
+const SPECIAL = `(
+  SELECT jsonb_build_object('amount', pr.amount, 'currency', pr.currency)
+  FROM prices pr
+  WHERE pr.price_type_id = :priceTypeId AND pr.product_id = v.product_id
+    AND (pr.variant_id IS NULL OR pr.variant_id = v.id)
+    AND (pr.location_id IS NULL OR pr.location_id = :locationId)
+  ORDER BY (pr.variant_id IS NOT NULL) DESC, (pr.location_id IS NOT NULL) DESC
+  LIMIT 1
+)`
+
 const ON_HAND = `(
   SELECT coalesce(sum(sb.qty), 0)::float8 FROM stock_balances sb
   WHERE sb.variant_id = v.id AND sb.location_id = :locationId
@@ -45,13 +56,15 @@ const ON_HAND = `(
  * What can be sold in a shop, each thing with its price there and how many
  * are on hand: by id, or by what a cashier types. A price kept in dollars is
  * given in so'm at the day's rate; with no rate it has no price, and a floor
- * kept in dollars holds nothing back.
+ * kept in dollars holds nothing back. `priceTypeId` prices them at another
+ * price type than the retail one, for a cart sold that way.
  */
 export async function sellables(
   em: EntityManager,
   what: { ids: string[] } | { search: string; limit: number },
   locationId: string,
   uzsPerUsd: number | null,
+  priceTypeId: string | null = null,
 ): Promise<PosItemDto[]> {
   if ('ids' in what && !what.ids.length) {
     return []
@@ -68,11 +81,14 @@ export async function sellables(
     .addSelect('v.sku', 'sku')
     .addSelect('p.unit', 'unit')
     .addSelect('array_remove(ARRAY[a1.name, a2.name, a3.name], NULL)', 'value_names')
-    .addSelect(PRICE, 'price')
+    .addSelect(priceTypeId ? `coalesce(${SPECIAL}, ${PRICE})` : PRICE, 'price')
     .addSelect(FLOOR, 'floor')
     .addSelect(ON_HAND, 'on_hand')
     .where('v.isActive AND p.isActive')
     .setParameter('locationId', locationId)
+  if (priceTypeId) {
+    qb.setParameter('priceTypeId', priceTypeId)
+  }
 
   if ('ids' in what) {
     qb.andWhere('v.id IN (:...ids)', { ids: what.ids })

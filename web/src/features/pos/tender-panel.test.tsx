@@ -204,6 +204,7 @@ describe('the receipt beside the money', () => {
         totals={totals}
         back={[]}
         backNumber={null}
+        priceType="Oila"
         credit={0}
         toPay={totals.total}
         toRefund={0}
@@ -212,6 +213,7 @@ describe('the receipt beside the money', () => {
     )
     const text = plain(document.body.textContent)
     expect(text).toContain('Gulbahor 1 kassasi')
+    expect(text).toContain('Narx: Oila')
     expect(text).toContain("Ko'ylak, M, qora")
     // Two at 900 000 less 100 000 of their own.
     expect(text).toContain("2 × 900 000 so'm − 100 000 so'm")

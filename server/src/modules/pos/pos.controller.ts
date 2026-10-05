@@ -48,26 +48,26 @@ export class PosController {
   @Get('search')
   search(
     @CurrentActor() actor: Actor,
-    @Query(zod(posSearchSchema)) query: { registerId: string; q: string },
+    @Query(zod(posSearchSchema)) query: { registerId: string; q: string; priceTypeId: string | null },
   ): Promise<PosItemDto[]> {
-    return this.pos.search(actor, query.registerId, query.q)
+    return this.pos.search(actor, query.registerId, query.q, query.priceTypeId)
   }
 
   @Get('lookup')
   lookup(
     @CurrentActor() actor: Actor,
-    @Query(zod(posLookupSchema)) query: { registerId: string; code: string },
+    @Query(zod(posLookupSchema)) query: { registerId: string; code: string; priceTypeId: string | null },
   ): Promise<PosItemDto> {
-    return this.pos.lookup(actor, query.registerId, query.code)
+    return this.pos.lookup(actor, query.registerId, query.code, query.priceTypeId)
   }
 
   @Post('items')
   @HttpCode(200)
   items(
     @CurrentActor() actor: Actor,
-    @Body(zod(posItemsSchema)) input: { registerId: string; variantIds: string[] },
+    @Body(zod(posItemsSchema)) input: { registerId: string; variantIds: string[]; priceTypeId: string | null },
   ): Promise<PosItemDto[]> {
-    return this.pos.items(actor, input.registerId, input.variantIds)
+    return this.pos.items(actor, input.registerId, input.variantIds, input.priceTypeId)
   }
 }
 

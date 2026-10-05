@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 `84e8ac1` dan keyin, tartib bilan: hamkor hisobi va to'lovlar; kassada tez skaner tuzatishi; RFID o'quvchilar; Chainway ko'prigi; xususiyat qiymatlarini birlashtirish; tayyor qatorli to'lov oynasi va Alt+K / Alt+C; alertlar va brauzer bildirishnomalari, `money.sent` / `goods.sent`; kirimdan yetkazib beruvchi qarzi; reja va tahlil hujjatlari.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 05:05 — core 107, agent 17, server 209, web 112; typecheck va lint toza
+Oxirgi to'liq tekshiruv: 2026-10-05 05:30 — core 107, agent 17, server 213, web 113; typecheck va lint toza
 
 ## Ko'z bilan tekshirilmagan (ertalab ko'rib chiqish kerak)
 
@@ -25,6 +25,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
 - Kassa: "Kelishilgan summa" maydoni va yaxlit summa tugmalari (1a).
 - Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b).
 - Kassa: dollar qatori ostidagi "So'mda hisoblanadi" maydoni (1c); Sozlamalar → Biznes dagi "Dollarni kursdan qimmat olish chegarasi".
+- Kassa: "Narx" tanlagichi va narx turi formasidagi "Kassada" sozlamasi (4c) — testlar yashil, ekranda ko'rilmagan.
 - Kirim: har narx turiga maydon va yashirin "qo'shimcha xarajat" (4a, 4b); Sozlamalar → Biznes dagi yoqish tugmasi — testlar yashil, ekranda ko'rilmagan.
 - Menyu (3): yon panelning o'zi alohida sahifada brauzerda ko'rildi (yoyilgan va tor holat, yonidan chiqadigan ro'yxat, o'tish); butun tizim ichida, haqiqiy ruxsatlar bilan ko'rilmagan.
 - Pul → Hisoblar: karta formasidagi "Do'konlar" (bir nechta tanlash) maydoni (2b) — testlar yashil, ekranda ko'rilmagan.
@@ -45,7 +46,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
 4. **Narx turlari** — uch bo'lak:
    - [x] 4a. Kirimda har narx turiga maydon (tizim taklifi bilan), o'tkazilganda tovarga qo'yiladi.
    - [x] 4b. Kirimdagi "qo'shimcha xarajat" maydoni yashirin, sozlamadan yoqiladi.
-   - [ ] 4c. Kassada narx turini tanlash: narx turida "kassada kim tanlaydi", chekda qaysi narx va kim tanlagani.
+   - [x] 4c. Kassada narx turini tanlash: narx turida "kassada kim tanlaydi", chekda qaysi narx va kim tanlagani.
 5. [ ] Mijozlar: baza, guruh va teg, kassadagi eslatma va taqiqlar, sodiqlik pog'onalari.
 6. [ ] Aksiyalar (foiz, belgilangan narx, 1+1), chegirmalar tartibi, promokod.
 7. [ ] Chek va etiketka dizayni.
@@ -55,7 +56,7 @@ Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) �
 
 ## Hozir ishlanayotgan bo'lak
 
-4. Kirimda har narx turiga ustun; qo'shimcha xarajat ustunini yashirish; narx turida kassada kim tanlaydi (2026-10-05 05:05 da boshlandi).
+4c. Kassada narx turini tanlash (2026-10-05 05:30 da boshlandi).
 
 ## Ish daraxti nusxalari
 
@@ -72,3 +73,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `d725b5010953f920fda997a9b912a6a6c2f9cb01` | 2a: xarajat va boshqa kirim, xarajat turlari |
 | `b9e526a513b9e4de5f7cf2326dadba0295efda4b` | 2b: kartani bir nechta do'konga biriktirish |
 | `b08a7b585c7280cea885044745f33a75325ff447` | 3: ikki qavatli menyu |
+| `380ff425678d9d26e9fa3b357c67043618f747f0` | 4a, 4b: kirimda har narx turiga maydon; qo'shimcha xarajat sozlamada |

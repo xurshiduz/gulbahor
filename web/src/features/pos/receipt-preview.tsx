@@ -17,6 +17,8 @@ interface ReceiptPreviewProps {
   /** Goods coming back on this same receipt, and the receipt they were sold on. */
   back: BackLine[]
   backNumber: string | null
+  /** The price type the goods are sold at, when it is not the retail one. */
+  priceType: string | null
   /** What the goods coming back are worth. */
   credit: number
   /** What is left to take from the customer, or to hand back to them. */
@@ -37,6 +39,7 @@ export function ReceiptPreview({
   totals,
   back,
   backNumber,
+  priceType,
   credit,
   toPay,
   toRefund,
@@ -51,6 +54,11 @@ export function ReceiptPreview({
         <div className="text-center">
           <p className="text-sm font-semibold">{shop}</p>
           <p className="text-xs text-ink-3">{register}</p>
+          {priceType ? (
+            <p className="mt-1 text-xs font-medium text-accent-ink">
+              {t('pos.priceType')}: {priceType}
+            </p>
+          ) : null}
         </div>
 
         {cart.lines.length ? (

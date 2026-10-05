@@ -41,6 +41,8 @@ export class PriceTypesService {
           currency: input.currency,
           roundStep: input.roundStep,
           roundEnding: input.roundEnding,
+          tillAccess: input.tillAccess,
+          skipsFloor: input.tillAccess !== 'none' && input.skipsFloor,
           sortOrder: next,
           isActive: true,
         }),
@@ -69,6 +71,9 @@ export class PriceTypesService {
         currency: input.currency,
         roundStep: input.roundStep,
         roundEnding: input.roundEnding,
+        tillAccess: input.tillAccess,
+        // What is not sold at the till has no floor to go under.
+        skipsFloor: input.tillAccess !== 'none' && input.skipsFloor,
       })
       const after = await this.find(em, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -76,9 +81,17 @@ export class PriceTypesService {
         entity: 'price_type',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['name', 'kind', 'currency', 'roundStep', 'roundEnding']),
+        changes: diff(before, after, [
+          'name',
+          'kind',
+          'currency',
+          'roundStep',
+          'roundEnding',
+          'tillAccess',
+          'skipsFloor',
+        ]),
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['price-types', 'products']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['price-types', 'products', 'pos']))
       return toDto(after)
     })
   }
@@ -158,6 +171,8 @@ function toDto(type: PriceType): PriceTypeDto {
     currency: type.currency,
     roundStep: type.roundStep,
     roundEnding: type.roundEnding,
+    tillAccess: type.tillAccess,
+    skipsFloor: type.skipsFloor,
     isActive: type.isActive,
   }
 }

@@ -110,7 +110,7 @@ export class ApprovalsService {
     em: EntityManager,
     locationId: string,
     exceptUserId: string,
-  ): Promise<{ id: string; name: string; discount: boolean; returns: boolean }[]> {
+  ): Promise<{ id: string; name: string; discount: boolean; returns: boolean; prices: boolean }[]> {
     const rows: { id: string; full_name: string; permissions: string[] }[] = await em.query(
       `SELECT u.id, u.full_name, ${PERMISSIONS} AS permissions
        FROM users u
@@ -127,7 +127,8 @@ export class ApprovalsService {
         name: row.full_name,
         discount: hasPermission(row.permissions, 'pos.discount'),
         returns: hasPermission(row.permissions, 'pos.return_any'),
+        prices: hasPermission(row.permissions, 'pos.prices'),
       }))
-      .filter((row) => row.discount || row.returns)
+      .filter((row) => row.discount || row.returns || row.prices)
   }
 }

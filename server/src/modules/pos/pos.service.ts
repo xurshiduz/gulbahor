@@ -4,7 +4,7 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Organization, Register, Shift } from '../../database/entities'
+import { Organization, PriceType, Register, Shift } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
@@ -59,6 +59,7 @@ export class PosService {
         terminals: accounts.filter((account) => account.kind === 'terminal'),
         sellers,
         approvers: await this.approvals.approversAt(em, register.locationId, actor.userId),
+        priceTypes: await this.priceTypes(em, actor),
         drawers: {
           UZS: drawers.find((account) => account.currency === 'UZS')?.id ?? null,
           USD: drawers.find((account) => account.currency === 'USD')?.id ?? null,
@@ -76,24 +77,51 @@ export class PosService {
     })
   }
 
+  /**
+   * The price types this person may sell at beside the retail one. One for
+   * those allowed to is not shown to the others; one that takes a manager's
+   * word is shown to everyone, and the word is asked for with the sale.
+   */
+  private async priceTypes(em: EntityManager, actor: Actor): Promise<PosContextDto['priceTypes']> {
+    const types = await em.find(PriceType, { where: { isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } })
+    const allowed = can(actor, 'pos.prices')
+    return types
+      .filter(
+        (type) =>
+          type.tillAccess === 'all' || type.tillAccess === 'approval' || (type.tillAccess === 'permitted' && allowed),
+      )
+      .map((type) => ({ id: type.id, name: type.name, needsWord: type.tillAccess === 'approval' && !allowed }))
+  }
+
   /** What a cashier finds by typing a name, an article, a colour or a size. */
-  async search(actor: Actor, registerId: string, q: string): Promise<PosItemDto[]> {
+  async search(actor: Actor, registerId: string, q: string, priceTypeId: string | null = null): Promise<PosItemDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
-      return sellables(em, { search: q, limit: 20 }, register.locationId, await this.rateNow(em, actor))
+      return sellables(em, { search: q, limit: 20 }, register.locationId, await this.rateNow(em, actor), priceTypeId)
     })
   }
 
   /** The things in a cart as they are now: today's price, what is on hand. */
-  async items(actor: Actor, registerId: string, variantIds: string[]): Promise<PosItemDto[]> {
+  async items(
+    actor: Actor,
+    registerId: string,
+    variantIds: string[],
+    priceTypeId: string | null = null,
+  ): Promise<PosItemDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
-      return sellables(em, { ids: [...new Set(variantIds)] }, register.locationId, await this.rateNow(em, actor))
+      return sellables(
+        em,
+        { ids: [...new Set(variantIds)] },
+        register.locationId,
+        await this.rateNow(em, actor),
+        priceTypeId,
+      )
     })
   }
 
   /** What a scanned code is: a tagged piece, a barcode, or an article typed in full. */
-  async lookup(actor: Actor, registerId: string, code: string): Promise<PosItemDto> {
+  async lookup(actor: Actor, registerId: string, code: string, priceTypeId: string | null = null): Promise<PosItemDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
       const epc = normalizeEpc(code)
@@ -130,7 +158,7 @@ export class PosService {
         variantId = found?.id ?? null
       }
       const [item] = variantId
-        ? await sellables(em, { ids: [variantId] }, register.locationId, await this.rateNow(em, actor))
+        ? await sellables(em, { ids: [variantId] }, register.locationId, await this.rateNow(em, actor), priceTypeId)
         : []
       if (!item) {
         throw AppError.notFound(epc ? "Bu RFID belgi tizimda yo'q" : 'Bu kod bilan tovar topilmadi')

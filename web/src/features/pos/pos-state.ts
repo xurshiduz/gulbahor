@@ -46,6 +46,8 @@ export interface Cart {
   /** Off the whole sale: "5%" or a sum. */
   discountText: string
   sellerId: string | null
+  /** The price type the cart is sold at, when it is not the retail one; absent in a cart kept from before. */
+  priceTypeId?: string | null
 }
 
 export const EMPTY_CART: Cart = { lines: [], discountText: '', sellerId: null }

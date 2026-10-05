@@ -106,6 +106,15 @@ Qanday ishlaydi (qilingan, 2026-10-05):
 - Minimal narx qo'yilmagan tovarda chegara yo'q. Minimal narx chakana narxdan baland qo'yilgan bo'lsa (narxlashdagi xato), u hech narsani to'smaydi.
 - Kassir tannarxni ko'rmaydi: chegara tayyor narx sifatida keladi, "tannarx + N%" hisobi faqat narxlash bo'limida.
 
+Kassada narx turini tanlash (qilingan, 2026-10-05):
+- Narx turi formasida (Ma'lumotnomalar → Narx turlari) ikki sozlama: **"Kassada"** — tanlanmaydi / hamma kassir tanlaydi / faqat ruxsati bor xodimlar / rahbar tasdig'i bilan; va **"Minimal narxdan past sotilishi mumkin"** ("Oila" kabi tur uchun). Chakana — kassaning o'z narxi, minimal narxda esa sotilmaydi: ularda bu sozlama yo'q.
+- Kassada summa ustida **"Narx"** tanlagichi chiqadi (faqat shu xodim sota oladigan turlar bo'lsa). Tanlansa, savatdagi hamma narx o'sha turga o'tadi; shu turda narxi qo'yilmagan tovar chakana narxda qoladi. Qidiruv va skaner ham o'sha narxni ko'rsatadi. Chek tugagach kassa yana chakanaga qaytadi — maxsus narx keyingi mijozga o'tib ketmaydi.
+- "Rahbar tasdig'i bilan" turi hamma kassirga ko'rinadi, sotishda rahbar PIN'i so'raladi; "ruxsati borlar" turi boshqalarga umuman ko'rinmaydi va PIN bilan ham ochilmaydi.
+- Chekda va cheklar ro'yxatida qaysi narxda sotilgani ("Narx: Oila") va kim tasdiqlagani yoziladi; tarixda ham.
+- Yangi ruxsat: **"Maxsus narx turida sotish (ulgurji, oila)"** — do'kon menejeri va boshqaruvchida bor, kassirda yo'q.
+- Minimal narx va chegirma chegarasi maxsus narxda ham ishlaydi (minimal narx — faqat tur "past sotilishi mumkin" deb belgilanmagan bo'lsa).
+- Hali yo'q: narx turini mijoz guruhiga bog'lash (mijozlar bo'lagida), "Sovg'a" amali, oylik chegara.
+
 **Guruhga bog'lash.** Mijoz guruhida "narx turi" tanlanadi. "Oila" guruhidagi 10 kishidan biri kassada tanlansa — savatdagi hamma narx "Oila" narxiga o'tadi, chekda "Oila narxi" deb yoziladi. Kassir hech narsa tanlamaydi, adashmaydi.
 
 **Guruh va teg farqi.** Guruh — qoida beradi (narx turi, chegirma, taqiqlar, kassadagi eslatma). Teg — shunchaki belgi, filtr va tarqatma uchun; qoida bermaydi.

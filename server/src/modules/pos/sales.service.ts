@@ -31,6 +31,7 @@ import {
   Account,
   Location,
   Organization,
+  PriceType,
   Register,
   Sale,
   SaleItem,
@@ -126,12 +127,37 @@ export class SalesService {
     const usd = actor.modules.includes('usd')
     const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
 
+    // ── The price type the cart is sold at, when it is not the retail one, and whether this person may. ──
+    let priceType: PriceType | null = null
+    if (input.priceTypeId) {
+      priceType = await em.findOneBy(PriceType, { id: input.priceTypeId })
+      if (!priceType || !priceType.isActive || priceType.tillAccess === 'none') {
+        throw AppError.validation({ priceTypeId: 'Bu narx turida kassada sotilmaydi' })
+      }
+    }
+    const mayPrice = can(actor, 'pos.prices')
+    if (priceType?.tillAccess === 'permitted' && !mayPrice) {
+      throw AppError.forbidden(`«${priceType.name}» narxida sotishga ruxsat yo'q`)
+    }
+    // A manager's word, for a price type that takes one.
+    const pricedByWord = priceType?.tillAccess === 'approval' && !mayPrice
+    if (pricedByWord && !allows(approver, 'pos.prices')) {
+      throw AppError.badRequest(
+        'PRICE_TYPE_NEEDS_WORD',
+        approver
+          ? `${approver.name} «${priceType?.name}» narxida sotishni tasdiqlay olmaydi`
+          : `«${priceType?.name}» narxida sotish uchun rahbar tasdig'i kerak`,
+        { priceTypeId: "Rahbar tasdig'i kerak" },
+      )
+    }
+
     // ── The goods: what each is and what it costs here, by the system's prices, not the till's. ──
     const items = await sellables(
       em,
       { ids: [...new Set(input.lines.map((line) => line.variantId))] },
       register.locationId,
       rate,
+      priceType?.id ?? null,
     )
     const itemOf = new Map(items.map((item) => [item.variantId, item]))
     const fields: Record<string, string> = {}
@@ -189,7 +215,8 @@ export class SalesService {
       const item = itemOf.get(line.variantId) as PosItemDto
       return { name: item.name, price: item.price as number, minPrice: item.minPrice, qty: line.qty }
     })
-    const under = belowFloor(priced, totals)
+    // A price type may be meant to go under it: a family price at cost.
+    const under = priceType?.skipsFloor ? [] : belowFloor(priced, totals)
     const alone = can(actor, 'pos.discount')
     const allowed = alone || allows(approver, 'pos.discount')
     if (overLimit && !allowed) {
@@ -278,7 +305,7 @@ export class SalesService {
         { payments: `Kursdan farq ko'pi bilan ${settings.maxRateLossPercent}%` },
       )
     }
-    const vouched = (overLimit || under.length > 0 || overRate) && !alone
+    const vouched = ((overLimit || under.length > 0 || overRate) && !alone) || pricedByWord
 
     // Goods brought back pay first; the customer's money is for what is left.
     const used = Math.min(credit, totals.total)
@@ -344,6 +371,8 @@ export class SalesService {
         paidBy,
         approvedBy: vouched ? (approver?.id ?? null) : null,
         approvedByName: vouched ? (approver?.name ?? null) : null,
+        priceTypeId: priceType?.id ?? null,
+        priceTypeName: priceType?.name ?? null,
         note: input.note ?? null,
         searchKey: searchKey([number, actor.name, seller?.fullName ?? ''].join(' ')),
       }),
@@ -488,9 +517,9 @@ export class SalesService {
       entityId: sale.id,
       summary: `${number}: ${sale.qty} dona, ${formatMoney(totals.total)}${
         totals.discount ? `, chegirma ${formatMoney(totals.discount)}` : ''
-      } (${paidBy})${gained ? `, kurs farqi ${gained > 0 ? '+' : '−'}${formatMoney(Math.abs(gained))}` : ''}${
-        vouched && approver ? `, tasdiqladi: ${approver.name}` : ''
-      }`,
+      } (${paidBy})${priceType ? `, narx: ${priceType.name}` : ''}${
+        gained ? `, kurs farqi ${gained > 0 ? '+' : '−'}${formatMoney(Math.abs(gained))}` : ''
+      }${vouched && approver ? `, tasdiqladi: ${approver.name}` : ''}`,
     })
     return { sale: await em.findOneByOrFail(Sale, { id: sale.id }), credit: used }
   }
@@ -733,5 +762,6 @@ function summary(sale: Sale, locationName: string, registerName: string, seesCos
     total: sale.total,
     costUzs: seesCost ? sale.costUzs : null,
     returnedTotal: sale.returnedTotal,
+    priceTypeName: sale.priceTypeName,
   }
 }

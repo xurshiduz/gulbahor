@@ -16,6 +16,7 @@ import type {
   PartnerPaymentStatus,
   PaymentMethod,
   TenderMethod,
+  TillAccess,
   PriceKind,
   PrinterDpi,
   PrintJobStatus,
@@ -410,6 +411,14 @@ export class PriceType {
 
   @Column('bigint', { transformer: bigintAsNumber })
   roundEnding: number
+
+  /** Who may sell at it at the till; `none` keeps it to the price list. */
+  @Column('text', { default: 'none' })
+  tillAccess: TillAccess
+
+  /** A sale at it may go under the floor. */
+  @Column('boolean', { default: false })
+  skipsFloor: boolean
 
   @Column('int')
   sortOrder: number
@@ -1777,6 +1786,13 @@ export class Sale {
 
   @Column('text', { nullable: true })
   approvedByName: string | null
+
+  /** The price type it was sold at, when that was not the retail one. */
+  @Column('uuid', { nullable: true })
+  priceTypeId: string | null
+
+  @Column('text', { nullable: true })
+  priceTypeName: string | null
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date

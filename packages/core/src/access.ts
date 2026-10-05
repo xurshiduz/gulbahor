@@ -173,6 +173,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.sell', title: 'Sotish, smenani ochish va yopish' },
       { key: 'pos.void', title: 'Chekni bekor qilish' },
       { key: 'pos.discount', title: 'Chegaradan oshiq chegirma berish' },
+      { key: 'pos.prices', title: 'Maxsus narx turida sotish (ulgurji, oila)' },
       { key: 'pos.return', title: 'Qaytarish va almashtirish' },
       { key: 'pos.return_any', title: "Muddati o'tgan tovarni olish, pulni boshqa usulda qaytarish" },
     ],

@@ -5,10 +5,14 @@ import {
   PRICE_KIND_LABELS,
   PRICE_KINDS,
   priceTypeInputSchema,
+  TILL_ACCESS,
+  TILL_ACCESS_LABELS,
+  TILL_PRICE_KINDS,
   type CurrencyCode,
   type PriceKind,
   type PriceTypeDto,
   type PriceTypeInput,
+  type TillAccess,
 } from '@gulbahor/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -18,7 +22,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Menu, Select } from '@/components/ui/controls'
+import { Menu, Select, Switch } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog, useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
@@ -84,6 +88,19 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         header: t('references.currency'),
         meta: { className: 'text-ink-2' },
         cell: ({ row }) => CURRENCIES[row.original.currency].symbol,
+      },
+      {
+        id: 'till',
+        header: t('references.tillAccess'),
+        meta: { className: 'text-ink-2' },
+        cell: ({ row }) =>
+          row.original.kind === 'retail' ? (
+            t('references.tillRetail')
+          ) : row.original.tillAccess === 'none' ? (
+            <span className="text-ink-3">{TILL_ACCESS_LABELS.none}</span>
+          ) : (
+            TILL_ACCESS_LABELS[row.original.tillAccess]
+          ),
       },
       {
         id: 'rounding',
@@ -202,6 +219,8 @@ interface Values {
   currency: CurrencyCode
   roundStep: number | null
   roundEnding: number | null
+  tillAccess: TillAccess
+  skipsFloor: boolean
 }
 
 function PriceTypeDialog({
@@ -226,10 +245,15 @@ function PriceTypeDialog({
       // A new so'm price type rounds to the thousand, as the ready-made ones do.
       roundStep: type ? type.roundStep : 100_000,
       roundEnding: type?.roundEnding ?? 0,
+      tillAccess: type?.tillAccess ?? 'none',
+      skipsFloor: type?.skipsFloor ?? false,
     },
   })
   const errors = form.formState.errors
   const currency = form.watch('currency')
+  // The retail price is the till's own and the floor is never sold at: only the others are offered there.
+  const sellable = TILL_PRICE_KINDS.includes(form.watch('kind'))
+  const tillAccess = form.watch('tillAccess')
 
   // There is one retail and one minimum type; they are offered only to the type that already is one.
   const kinds = PRICE_KINDS.filter(
@@ -271,6 +295,8 @@ function PriceTypeDialog({
               ...values,
               roundStep: values.roundStep ?? 0,
               roundEnding: values.roundEnding ?? 0,
+              tillAccess: sellable ? values.tillAccess : 'none',
+              skipsFloor: sellable && values.tillAccess !== 'none' && values.skipsFloor,
             })
             if (input) {
               mutation.mutate(input)
@@ -299,6 +325,44 @@ function PriceTypeDialog({
             />
           )}
         </Field>
+        {sellable ? (
+          <>
+            <Field
+              label={t('references.tillAccess')}
+              hint={t('references.tillAccessHint')}
+              error={errors.tillAccess?.message}
+            >
+              {(id) => (
+                <Controller
+                  control={form.control}
+                  name="tillAccess"
+                  render={({ field }) => (
+                    <Select
+                      id={id}
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={TILL_ACCESS.map((access) => ({ value: access, label: TILL_ACCESS_LABELS[access] }))}
+                    />
+                  )}
+                />
+              )}
+            </Field>
+            {tillAccess !== 'none' ? (
+              <Controller
+                control={form.control}
+                name="skipsFloor"
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value}
+                    onChange={field.onChange}
+                    label={t('references.skipsFloor')}
+                    hint={t('references.skipsFloorHint')}
+                  />
+                )}
+              />
+            ) : null}
+          </>
+        ) : null}
         {hasModule('usd') || type?.currency === 'USD' ? (
           <Field label={t('references.currency')} hint={t('references.currencyHint')} error={errors.currency?.message}>
             {(id) => (

@@ -151,6 +151,11 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
               </div>
             ) : null}
 
+            {sale.priceTypeName ? (
+              <p className="mt-1 text-xs text-ink-3">
+                {t('pos.priceType')}: {sale.priceTypeName}
+              </p>
+            ) : null}
             {sale.approvedByName ? (
               <p className="mt-1 text-xs text-ink-3">
                 {t('pos.approvedBy')}: {sale.approvedByName}

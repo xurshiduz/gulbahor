@@ -236,6 +236,26 @@ export interface AttributeDto {
 
 // ───────────────────────────── Price types ─────────────────────────────
 
+/**
+ * Who may sell at a price type at the till. The till sells at the retail
+ * price; another price type is offered there only when the business says so.
+ * `none`: it is for the price list alone. `all`: any cashier picks it.
+ * `permitted`: only those allowed to sell at special prices. `approval`: any
+ * cashier, with a manager's PIN.
+ */
+export const TILL_ACCESS = ['none', 'all', 'permitted', 'approval'] as const
+export type TillAccess = (typeof TILL_ACCESS)[number]
+
+export const TILL_ACCESS_LABELS: Record<TillAccess, string> = {
+  none: 'Kassada tanlanmaydi',
+  all: 'Hamma kassir tanlaydi',
+  permitted: 'Faqat ruxsati bor xodimlar',
+  approval: "Rahbar tasdig'i bilan",
+}
+
+/** The kinds of price a sale can be made at beside the retail one: the floor is never sold at. */
+export const TILL_PRICE_KINDS: readonly PriceKind[] = ['wholesale', 'other']
+
 export const priceTypeInputSchema = z
   .object({
     name: requiredText(60),
@@ -245,10 +265,17 @@ export const priceTypeInputSchema = z
     roundStep: z.number().int().min(0).max(1_000_000_000_00).default(0),
     /** What such a price ends with inside a step: 9 000 with a step of 10 000 gives 49 000, 59 000... */
     roundEnding: z.number().int().min(0).max(1_000_000_000_00).default(0),
+    tillAccess: z.enum(TILL_ACCESS).default('none'),
+    /** A sale at this price may go under the floor: a family price at cost is meant to. */
+    skipsFloor: z.boolean().default(false),
   })
   .refine((type) => type.roundEnding === 0 || type.roundEnding < type.roundStep, {
     path: ['roundEnding'],
     message: "Oxiri qadamdan kichik bo'lishi kerak",
+  })
+  .refine((type) => type.tillAccess === 'none' || TILL_PRICE_KINDS.includes(type.kind), {
+    path: ['tillAccess'],
+    message: "Chakana narx — kassaning o'z narxi; minimal narxda esa sotilmaydi",
   })
 export type PriceTypeInput = z.infer<typeof priceTypeInputSchema>
 
@@ -259,6 +286,8 @@ export interface PriceTypeDto {
   currency: CurrencyCode
   roundStep: number
   roundEnding: number
+  tillAccess: TillAccess
+  skipsFloor: boolean
   isActive: boolean
 }
 

@@ -469,6 +469,8 @@ export const saleInputSchema = z
     registerId: idSchema,
     /** Who served the customer, when it was not the cashier. */
     sellerId: idSchema.nullish().transform((value) => value ?? null),
+    /** The price type the whole sale is made at, when it is not the retail one: wholesale, a family price. */
+    priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     lines: z.array(saleLineInputSchema).min(1, "Chekda kamida bitta tovar bo'lishi kerak").max(300),
     /** Off the whole sale, on top of what each line has. */
     discount: amountSchema.default(0),
@@ -521,6 +523,8 @@ export interface SaleListItemDto {
   paidBy: string
   /** What has come back of it since, in so'm. */
   returnedTotal: number
+  /** The price type it was sold at, when that was not the retail one: "Oila". */
+  priceTypeName: string | null
 }
 
 export interface SaleLineDto {
@@ -656,6 +660,8 @@ export type ReturnLineInput = z.infer<typeof returnLineInputSchema>
 export const exchangeInputSchema = z
   .object({
     sellerId: idSchema.nullish().transform((value) => value ?? null),
+    /** The price type the goods are taken at, when it is not the retail one. */
+    priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     lines: z.array(saleLineInputSchema).min(1).max(300),
     discount: amountSchema.default(0),
     /** For the difference, when the new goods are worth more. */
@@ -786,10 +792,25 @@ export interface PosItemDto {
   epc: string | null
 }
 
-export const posSearchSchema = z.object({ registerId: idSchema, q: z.string().trim().min(1).max(100) })
-export const posLookupSchema = z.object({ registerId: idSchema, code: z.string().trim().min(1).max(64) })
+/** The price type the cart is being sold at, when it is not the retail one. */
+const cartPriceType = idSchema.nullish().transform((value) => value ?? null)
+
+export const posSearchSchema = z.object({
+  registerId: idSchema,
+  q: z.string().trim().min(1).max(100),
+  priceTypeId: cartPriceType,
+})
+export const posLookupSchema = z.object({
+  registerId: idSchema,
+  code: z.string().trim().min(1).max(64),
+  priceTypeId: cartPriceType,
+})
 /** The things already in a cart, asked for again: a price or a count may have changed since they were put there. */
-export const posItemsSchema = z.object({ registerId: idSchema, variantIds: z.array(idSchema).min(1).max(300) })
+export const posItemsSchema = z.object({
+  registerId: idSchema,
+  variantIds: z.array(idSchema).min(1).max(300),
+  priceTypeId: cartPriceType,
+})
 
 /** What the till needs to start: its shift, the day's rate, where money can go, how the shop rounds. */
 export interface PosContextDto {
@@ -801,8 +822,15 @@ export interface PosContextDto {
   cards: AccountDto[]
   terminals: AccountDto[]
   sellers: { id: string; name: string }[]
-  /** Who at this shop may allow what the cashier may not, with a PIN to say so: for discounts, for returns. */
-  approvers: { id: string; name: string; discount: boolean; returns: boolean }[]
+  /**
+   * Who at this shop may allow what the cashier may not, with a PIN to say so: for discounts, for returns,
+   * for a sale at a special price.
+   */
+  approvers: { id: string; name: string; discount: boolean; returns: boolean; prices: boolean }[]
+  /**
+   * The price types this person may sell at beside the retail one. `needsWord`: only with a manager's PIN.
+   */
+  priceTypes: { id: string; name: string; needsWord: boolean }[]
   /** The till's own cash accounts by currency; one that has never held money does not exist yet. */
   drawers: Record<CurrencyCode, string | null>
   /** Where cash from this till can be handed over to: the shop's safes, without their balances. */

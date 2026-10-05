@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
+import { Select } from '@/components/ui/controls'
 import { EmptyState, Shortcut, Spinner } from '@/components/ui/feedback'
 import { controlClass, Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
@@ -69,6 +70,8 @@ import { CloseShiftDialog, OpenShift } from './shift-parts'
 const route = getRouteApi('/pos')
 
 const REGISTER_KEY = 'gb.pos.register'
+/** The retail price in the list of price types: it has no id of its own there. */
+const RETAIL = 'retail'
 const cartKey = (registerId: string) => `gb.pos.cart.${registerId}`
 
 const money = (minor: number, currency: CurrencyCode = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
@@ -247,6 +250,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [searching, setSearching] = useState(false)
   const [last, setLast] = useState<LastDocument | null>(null)
   const [viewing, setViewing] = useState<LastDocument | null>(null)
+  // The price type the cart is sold at: one this person may no longer sell at falls back to the retail price.
+  const priceType = context.priceTypes.find((type) => type.id === cart.priceTypeId) ?? null
+  const priceTypeId = priceType?.id ?? null
 
   const rate = context.rate?.uzsPerUsd ?? null
   const mayReturn = can('pos.return')
@@ -267,8 +273,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   }, [search.return, mayReturn, navigate])
 
   const found = useQuery({
-    queryKey: ['pos', 'search', registerId, query],
-    queryFn: ({ signal }) => api.get<PosItemDto[]>('/pos/search', { registerId, q: query }, signal),
+    queryKey: ['pos', 'search', registerId, query, priceTypeId],
+    queryFn: ({ signal }) =>
+      api.get<PosItemDto[]>('/pos/search', { registerId, q: query, priceTypeId: priceTypeId ?? undefined }, signal),
     enabled: query.length >= 2,
     placeholderData: keepPreviousData,
   })
@@ -316,7 +323,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     if (typed) {
       setText('')
     }
-    const answer = api.get<PosItemDto>('/pos/lookup', { registerId, code }).then(
+    const answer = api.get<PosItemDto>('/pos/lookup', { registerId, code, priceTypeId: priceTypeId ?? undefined }).then(
       (item) => ({ item }),
       (error: unknown) => ({ error }),
     )
@@ -336,7 +343,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
 
   /** Asks for the cart's things again: a price or a count may have changed since they were put there. */
   const refresh = useMutation({
-    mutationFn: (variantIds: string[]) => api.post<PosItemDto[]>('/pos/items', { registerId, variantIds }),
+    mutationFn: ({ variantIds, at }: { variantIds: string[]; at: string | null }) =>
+      api.post<PosItemDto[]>('/pos/items', { registerId, variantIds, priceTypeId: at }),
     meta: { silent: true },
     onSuccess: (items) => {
       const fresh = new Map(items.map((item) => [item.variantId, item]))
@@ -349,8 +357,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
       }))
     },
   })
-  const refreshCart = () =>
-    cart.lines.length ? refresh.mutate(cart.lines.map((line) => line.item.variantId)) : undefined
+  const refreshCart = (at: string | null = priceTypeId) =>
+    cart.lines.length ? refresh.mutate({ variantIds: cart.lines.map((line) => line.item.variantId), at }) : undefined
+  /** The cart goes over to another price type: every line is priced again. */
+  const sellAt = (id: string | null) => {
+    setCart((current) => ({ ...current, priceTypeId: id }))
+    refreshCart(id)
+  }
 
   // A window opened over the till (a partner's payment) takes the keys, the scanner and the reader.
   const covered = useCovered()
@@ -427,6 +440,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** The lines under what their thing may go for. Who may discount beyond the limit sells them alone. */
   const under = useMemo(() => underFloor(cart, totals), [cart, totals])
   const underAsk = under.length > 0 && !context.mayOverDiscount
+  /** The cart is sold at a price type that takes a manager's word. */
+  const priceAsk = !!priceType?.needsWord && cart.lines.length > 0
   const back = useMemo(() => backLines(returning), [returning])
   /** What the goods brought back are worth: it pays for the new ones first. */
   const credit = back.reduce((sum, item) => sum + item.total, 0)
@@ -651,10 +666,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
             cap.left,
         ))
     const late = !!returning && returning.found.late && !returning.found.free
-    if (!approval && (overLimit || underAsk || rateAsk || late || beyond)) {
+    if (!approval && (overLimit || underAsk || rateAsk || priceAsk || late || beyond)) {
       const who = context.approvers.filter(
         (approver) =>
-          (!(overLimit || underAsk || rateAsk) || approver.discount) && (!(late || beyond) || approver.returns),
+          (!(overLimit || underAsk || rateAsk) || approver.discount) &&
+          (!priceAsk || approver.prices) &&
+          (!(late || beyond) || approver.returns),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -663,6 +680,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       setAsking({
         who,
         reason: [
+          priceAsk ? t('pos.approvalPrice', { name: priceType?.name }) : null,
           overLimit
             ? t('pos.approvalDiscount', {
                 percent: percent.toFixed(1).replace('.', ','),
@@ -701,6 +719,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     }
     const goods = {
       sellerId: cart.sellerId,
+      priceTypeId,
       lines: cart.lines.map((line, index) => ({
         variantId: line.item.variantId,
         qty: line.qty,
@@ -783,6 +802,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             totals={totals}
             back={back}
             backNumber={returning?.found.sale.number ?? null}
+            priceType={priceType?.name ?? null}
             credit={credit}
             toPay={toPay}
             toRefund={toRefund}
@@ -1045,6 +1065,25 @@ function Till({ context, registers, onSwitch }: TillProps) {
           ) : (
             <>
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
+                {context.priceTypes.length ? (
+                  <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">
+                    <span>{t('pos.priceType')}</span>
+                    <Select
+                      value={priceTypeId ?? RETAIL}
+                      onChange={(value) => sellAt(value === RETAIL ? null : value)}
+                      options={[
+                        { value: RETAIL, label: t('pos.retailPrice') },
+                        ...context.priceTypes.map((type) => ({ value: type.id, label: type.name })),
+                      ]}
+                      className={cn('h-8 w-36', priceType && 'font-medium text-accent-ink')}
+                    />
+                  </div>
+                ) : null}
+                {priceAsk ? (
+                  <p className="-mt-1 mb-2 text-right text-xs text-warn">
+                    {t(context.approvers.some((approver) => approver.prices) ? 'pos.priceAsk' : 'pos.priceStop')}
+                  </p>
+                ) : null}
                 <div className="flex items-baseline justify-between text-[13px] text-ink-3">
                   <span>{t('pos.subtotal')}</span>
                   <span className="tabular">{money(totals.subtotal)}</span>
