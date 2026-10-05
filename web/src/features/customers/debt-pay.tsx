@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { useSession } from '@/features/auth/session'
 import {
   addRow,
+  agreedOf,
   keepAccounts,
   keepTill,
   keptAccounts,
@@ -59,7 +60,7 @@ interface DebtPayDialogProps {
  */
 export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialogProps) {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const queryClient = useQueryClient()
   const [rows, setRows] = useState<PaymentRow[] | null>(null)
   const [added, setAdded] = useState<string | null>(null)
@@ -90,7 +91,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
     setRows(switchTill(shown, places, id))
   }
   // A debt is in so'm: dollars are worth what the rate makes them.
-  const valued = valueLines(shown, places, 'UZS', dayRate)
+  const valued = valueLines(shown, places, 'UZS', dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
 
@@ -167,7 +168,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
       lines: filled.map((line) => ({
         accountId: line.row.accountId,
         amount: line.row.amount,
-        rate: line.changes ? line.row.rate : null,
+        settled: agreedOf(line),
       })),
       total,
       note,
@@ -185,7 +186,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
       toast.error(t(valued.some((line) => line.account.open) ? 'payments.totalTooSmall' : 'payments.pickAccount'))
       return false
     }
-    patch(taken.accountId, { amount: taken.amount })
+    patch(taken.accountId, { amount: taken.amount, settled: null })
     return true
   }
 
@@ -238,6 +239,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
             onRemove={(accountId) => lay(removeRow(shown, accountId))}
             onTotal={typeTotal}
             setsRates={can('money.rates')}
+            dayRate={dayRate}
             problems={problems}
             autoFocus
             focusId={added}

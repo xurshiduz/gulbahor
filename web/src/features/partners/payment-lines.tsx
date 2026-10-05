@@ -1,11 +1,17 @@
 import {
   amountFor,
+  formatCardNumber,
   formatMoney,
+  pairRate,
+  rateGap,
   settledFor,
+  settleLine,
+  straysFromRate,
   type CurrencyCode,
   type PaymentAccountDto,
   type PayTill,
 } from '@gulbahor/core'
+import type { TFunction } from 'i18next'
 import { X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,16 +30,25 @@ import { formatNumber } from '@/lib/format'
  * its line ready: nothing is picked, a sum is typed where it belongs and
  * the rest is left empty. Where a place is in another currency than the one
  * being settled, the line has two fields side by side: what went through
- * it, and what that settles. Typing either works out the other from the
- * rate; typing the total works out the line in the partner's own currency.
+ * it, and what that settles.
+ *
+ * The two are a pair, and the first is the anchor: it is the money that was
+ * handed over, and nothing but the person typing it ever changes it. Typed,
+ * it works the second out from the rate. The second may then be typed over
+ * — "take these 100 dollars for 1 200 000" — and both stand as they were
+ * said; the rate is what they make between them, and what lies between
+ * that and the day's rate is shown under the line as gained or given away.
+ * Typing the total works out the line in the partner's own currency.
  */
 
 export interface PaymentRow {
   accountId: string
-  /** In the account's currency. */
+  /** In the account's currency: what went through it. */
   amount: number | null
-  /** So'm for a dollar, when it is not the day's rate. */
+  /** So'm for a dollar, typed by someone who sets rates; null for the day's. */
   rate: number | null
+  /** What the line settles, typed over what the rate made it; null while it is left to the rate. */
+  settled: number | null
 }
 
 /** More lines than this are not laid out unasked: the rest are a pick away. */
@@ -80,7 +95,7 @@ export const keepTill = (tillId: string) => {
   }
 }
 
-const blank = (accountId: string): PaymentRow => ({ accountId, amount: null, rate: null })
+const blank = (accountId: string): PaymentRow => ({ accountId, amount: null, rate: null, settled: null })
 
 /** The same order, but each till's so'm drawer before its dollar one. */
 function somFirst(accounts: PaymentAccountDto[]): PaymentAccountDto[] {
@@ -143,16 +158,53 @@ export const rateText = (rate: number) => {
   return formatNumber(rate) + (fraction ? `,${fraction}` : '')
 }
 
+/**
+ * A place as a payment names it: by what it holds and how — "So'm naqd",
+ * "Dollar naqd" — since the till it belongs to is chosen above the lines.
+ * A card is told from another by its number; a safe, a bank account and a
+ * terminal by their own names.
+ */
+export function placeName(
+  account: Pick<PaymentAccountDto, 'kind' | 'currency' | 'name' | 'last4' | 'cardNumber'>,
+  t: TFunction,
+): string {
+  const held = t(`places.${account.kind}_${account.currency}`, { defaultValue: account.name })
+  if (account.kind === 'cash') {
+    return held
+  }
+  if (account.kind === 'card') {
+    const which = account.cardNumber
+      ? formatCardNumber(account.cardNumber)
+      : account.last4
+        ? `${account.name} *${account.last4}`
+        : account.name
+    return `${held} (${which})`
+  }
+  return `${held} (${account.name})`
+}
+
 /** A line as it will be valued: the account, the rate in force, and what it settles. */
 export interface ValuedLine {
   row: PaymentRow
   account: PaymentAccountDto
-  /** The line's own rate, or the day's. */
+  /** The rate the line's two sums make: its own when they were agreed, the day's otherwise. */
   rate: number | null
   /** The account is in another currency than the one being settled: the line has both fields. */
   changes: boolean
   /** In the currency being settled; null until it can be worked out. */
   settled: number | null
+  /** The line settles something other than what the day's rate makes of its money: it goes to the server as agreed. */
+  agreed: boolean
+  /**
+   * What the money is worth at the day's rate over what it settles, in so'm:
+   * more than nothing when the money is worth more. Who gains by it depends on
+   * which way the money goes.
+   */
+  fx: number
+  /** How far the two lie apart, in percent of the money's worth. */
+  gap: number
+  /** Further than the business lets anyone agree to: it takes someone who sets rates. */
+  strays: boolean
 }
 
 export function valueLines(
@@ -160,25 +212,46 @@ export function valueLines(
   accounts: PaymentAccountDto[],
   currency: CurrencyCode | null,
   dayRate: number | null,
+  /** How far from the day's rate anyone may agree a sum, in percent. */
+  limit = 0,
 ): ValuedLine[] {
   return rows.flatMap((row) => {
     const account = accounts.find((item) => item.id === row.accountId)
     if (!account) {
       return []
     }
-    const rate = row.rate ?? dayRate
     const changes = !!currency && account.currency !== currency
-    let settled: number | null = null
-    if (currency && row.amount) {
-      if (!changes) {
-        settled = row.amount
-      } else if (rate) {
-        settled = settledFor(row.amount, account.currency, currency, rate).settled
-      }
+    const plain = { row, account, rate: row.rate ?? dayRate, changes, agreed: false, fx: 0, gap: 0, strays: false }
+    if (!currency || !row.amount) {
+      return [{ ...plain, settled: null }]
     }
-    return [{ row, account, rate, changes, settled }]
+    if (!changes) {
+      return [{ ...plain, settled: row.amount }]
+    }
+    // A sum typed over the rate stands; otherwise the line's own rate, or the day's, makes it.
+    const typed = row.settled
+    const made = plain.rate ? settledFor(row.amount, account.currency, currency, plain.rate).settled : null
+    const settled = typed ?? made
+    if (settled === null || !dayRate) {
+      return [{ ...plain, settled }]
+    }
+    const worth = settleLine(row.amount, account.currency, currency, dayRate, settled)
+    return [
+      {
+        ...plain,
+        rate: typed ? pairRate(row.amount, account.currency, typed) : plain.rate,
+        settled,
+        agreed: worth.agreed,
+        fx: worth.fx,
+        gap: worth.agreed ? rateGap(worth) : 0,
+        strays: worth.agreed && straysFromRate(worth, limit, dayRate),
+      },
+    ]
   })
 }
+
+/** What a line asks the server to take as agreed; nothing while it is left to the day's rate. */
+export const agreedOf = (line: ValuedLine): number | null => (line.agreed ? line.settled : null)
 
 export const totalOf = (lines: ValuedLine[]) => lines.reduce((sum, line) => sum + (line.settled ?? 0), 0)
 
@@ -247,6 +320,8 @@ interface PaymentLinesProps {
   onTotal: (total: number) => boolean
   /** The day's rate stands unless someone allowed to sets another. */
   setsRates: boolean
+  /** The day's rate itself: what an agreed sum is measured against. */
+  dayRate?: number | null
   /** What the server would not take, by account. */
   problems?: Record<string, string>
   /** Puts the cursor in the first line that can take money. */
@@ -261,10 +336,11 @@ interface PaymentLinesProps {
 }
 
 /**
- * "Which till?" — asked only of someone who has more than one to pay
- * through. The shop is named beside the till where the tills are in more
- * than one shop; a till whose shift is closed says so, since its drawers
- * will take nothing.
+ * Which till the cash goes through. It always stands there, chosen, even
+ * when there is only one: the lines say "so'm in cash" and "dollars in
+ * cash", and this says whose drawer that is. The shop is named beside the
+ * till where the tills are in more than one shop; a till whose shift is
+ * closed says so, since its drawers will take nothing.
  */
 export function TillField({
   tills,
@@ -276,7 +352,7 @@ export function TillField({
   onChange: (tillId: string) => void
 }) {
   const { t } = useTranslation()
-  if (tills.length < 2) {
+  if (!tills.length) {
     return null
   }
   const shops = new Set(tills.map((till) => till.locationName)).size
@@ -315,12 +391,15 @@ export function PaymentLines({
   onRemove,
   onTotal,
   setsRates,
+  dayRate = null,
   problems = {},
   autoFocus,
   focusId,
   headings,
 }: PaymentLinesProps) {
   const { t } = useTranslation()
+  // Money coming in that is worth more than it settles is the business's gain; going out, the other way round.
+  const gainOf = (line: ValuedLine) => (kind === 'in' ? line.fx : -line.fx)
   // A total the lines could not make up is put back as it was.
   const [refused, setRefused] = useState(0)
   const total = totalOf(lines)
@@ -343,11 +422,18 @@ export function PaymentLines({
       {lines.map((line) => {
         const { row, account, rate, changes, settled } = line
         const fill = owed !== null && currency && !row.amount ? fillFor(line, lines, owed, currency) : undefined
+        // The rate column says the day's rate, always: a rate made by an agreed sum is said in words under the line,
+        // where nobody takes it for the day's. Only a rate typed into the column itself stands in it.
+        const ownRate = row.rate
+        const gain = gainOf(line)
         return (
           <div key={row.accountId} className={`${GRID} items-center`}>
             <div className="flex min-w-0 items-baseline gap-2">
-              <span className={cn('truncate text-[13px] font-medium', !account.open && 'text-ink-3')}>
-                {account.name}
+              <span
+                title={placeName(account, t)}
+                className={cn('truncate text-[13px] font-medium', !account.open && 'text-ink-3')}
+              >
+                {placeName(account, t)}
               </span>
               <span className="tabular ml-auto shrink-0 text-xs text-ink-3">
                 {!account.open
@@ -360,7 +446,8 @@ export function PaymentLines({
             <MoneyInput
               autoFocus={focusId ? focusId === row.accountId : autoFocus && line === first}
               value={row.amount}
-              onChange={(amount) => onPatch(row.accountId, { amount })}
+              // The money is the anchor: typed, it has what it settles worked out afresh.
+              onChange={(amount) => onPatch(row.accountId, { amount, settled: null })}
               currency={account.currency}
               disabled={!account.open}
               invalid={!!problems[row.accountId]}
@@ -373,28 +460,40 @@ export function PaymentLines({
                   // A rate of its own is the exception: Enter passes it by, Tab stops at it.
                   <div data-enter-skip>
                     <NumberInput
-                      value={row.rate}
-                      onChange={(value) => onPatch(row.accountId, { rate: value })}
+                      value={ownRate}
+                      onChange={(value) => onPatch(row.accountId, { rate: value, settled: null })}
                       decimals={2}
                       max={1_000_000}
                       disabled={!account.open}
-                      placeholder={rate ? rateText(rate) : '—'}
-                      className="[&_input]:text-right"
+                      placeholder={dayRate ? rateText(dayRate) : '—'}
+                      className={cn('[&_input]:text-right', line.strays && '[&_input]:text-warn')}
                     />
                   </div>
                 ) : (
-                  <span className="tabular pr-2.5 text-right text-xs text-ink-3">{rate ? rateText(rate) : '—'}</span>
+                  <span className="tabular pr-2.5 text-right text-xs text-ink-3">
+                    {dayRate ? rateText(dayRate) : '—'}
+                  </span>
                 )}
-                {/* The second of the pair: typed, it works the first out from the rate. */}
+                {/*
+                  The second of the pair. Typed while the first holds a sum, it is what the two sides agreed:
+                  the first is left as it is and the rate follows. Typed while the first is empty, it asks
+                  how much money that takes, and the first is worked out from the rate.
+                */}
                 <MoneyInput
                   value={settled}
-                  onChange={(value) =>
-                    onPatch(row.accountId, {
-                      amount: value && currency && rate ? amountFor(value, account.currency, currency, rate) : null,
-                    })
-                  }
+                  onChange={(value) => {
+                    if (value === null) {
+                      onPatch(row.accountId, { settled: null })
+                    } else if (row.amount) {
+                      onPatch(row.accountId, { settled: value, rate: null })
+                    } else {
+                      const amount = currency && rate ? amountFor(value, account.currency, currency, rate) : 0
+                      onPatch(row.accountId, amount ? { amount, settled: value } : { settled: null })
+                    }
+                  }}
                   currency={currency ?? 'UZS'}
-                  disabled={!rate || !account.open}
+                  disabled={!dayRate || !account.open}
+                  invalid={line.strays && !setsRates}
                 />
               </>
             ) : (
@@ -414,6 +513,24 @@ export function PaymentLines({
             >
               <X />
             </Button>
+            {/* What an agreed sum gives or costs against the day's rate: said before it is saved, not found afterwards. */}
+            {line.agreed && line.gap >= 0.1 && dayRate ? (
+              <p
+                data-agreed={row.accountId}
+                className={cn(
+                  'col-span-full -mt-1 text-right text-xs',
+                  line.strays && !setsRates ? 'text-bad' : gain < 0 ? 'text-warn' : 'text-ok',
+                )}
+              >
+                {t(gain < 0 ? 'payments.agreedLoss' : 'payments.agreedGain', {
+                  agreed: rate ? rateText(rate) : '—',
+                  rate: rateText(dayRate),
+                  percent: String(line.gap).replace('.', ','),
+                  amount: money(Math.abs(gain), 'UZS'),
+                })}
+                {line.strays && !setsRates ? ` ${t('payments.agreedTooFar')}` : ''}
+              </p>
+            ) : null}
             {problems[row.accountId] ? (
               <p className="col-span-full -mt-1 text-xs text-bad">{problems[row.accountId]}</p>
             ) : null}
@@ -425,7 +542,7 @@ export function PaymentLines({
           <Combobox
             options={spare.map((account) => ({
               value: account.id,
-              label: account.name,
+              label: placeName(account, t),
               hint: account.balance === null ? account.currency : money(account.balance, account.currency),
             }))}
             value={null}

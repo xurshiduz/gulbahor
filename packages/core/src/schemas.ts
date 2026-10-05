@@ -186,6 +186,12 @@ export interface OrgSettings {
    * every cost out over the whole shipment and never need it, so it is off until someone asks for it.
    */
   receiptLineExtra: boolean
+  /**
+   * A receipt lets one model be from another supplier than the document's: a shipment gathered from
+   * several sellers. Most receipts are one supplier's, and a second field asking the same thing only
+   * confuses, so it is off until someone asks for it.
+   */
+  receiptLineSupplier: boolean
   /** A debt is given for this many days unless the cashier sets another day. */
   debtDays: number
   /** What one customer may owe at most, in so'm tiyin; more needs someone allowed to lend. 0 sets no limit. */
@@ -203,6 +209,7 @@ export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   maxRateLossPercent: 2,
   returnDays: 14,
   receiptLineExtra: false,
+  receiptLineSupplier: false,
   debtDays: 30,
   debtLimit: 0,
 }
@@ -227,6 +234,7 @@ export const orgUpdateSchema = z.object({
     maxRateLossPercent: z.coerce.number().min(0).max(100).optional(),
     returnDays: z.coerce.number().int().min(0).max(3650).optional(),
     receiptLineExtra: z.boolean().optional(),
+    receiptLineSupplier: z.boolean().optional(),
     debtDays: z.coerce.number().int().min(1).max(3650).optional(),
     debtLimit: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   }),

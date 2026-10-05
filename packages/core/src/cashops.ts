@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import type { CurrencyCode } from './money'
-import { rateSchema } from './pos'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
 /**
@@ -79,8 +78,8 @@ export const moneyOpLineSchema = z.object({
   accountId: idSchema,
   /** In that account's currency. */
   amount: positive,
-  /** So'm for a dollar, when it is not the day's rate: only for those allowed to set rates. */
-  rate: rateSchema.nullish().transform((value) => value ?? null),
+  /** What dollars are counted as in so'm, when that was agreed and not left to the day's rate. */
+  settled: positive.nullish().transform((value) => value ?? null),
 })
 export type MoneyOpLineInput = z.infer<typeof moneyOpLineSchema>
 
@@ -116,6 +115,8 @@ export interface MoneyOpLineDto {
   rate: number | null
   /** The line's worth in so'm. */
   base: number
+  /** What the rate gave the business (+) or cost it (−) on this line, in so'm. */
+  fx: number
 }
 
 export interface MoneyOpDto {

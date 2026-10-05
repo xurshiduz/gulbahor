@@ -25,6 +25,7 @@ import {
   ReceiptText,
   ScanBarcode,
   Settings,
+  PiggyBank,
   Shirt,
   ShoppingBag,
   Siren,
@@ -156,6 +157,8 @@ export const NAVIGATION: NavGroup[] = [
     // One screen with a tab for each: the menu opens it at the tab asked for.
     items: [
       { to: '/money', search: { tab: 'registers' }, label: 'nav.moneyRegisters', icon: Store, permission: MONEY },
+      // After the tills: the first line of a screen stands for its address with no tab, and that is the tills.
+      { to: '/money', search: { tab: 'stand' }, label: 'nav.moneyStand', icon: PiggyBank, permission: 'money.view' },
       { to: '/money', search: { tab: 'accounts' }, label: 'nav.moneyAccounts', icon: Landmark, permission: MONEY },
       {
         to: '/money',

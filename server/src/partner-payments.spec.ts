@@ -240,13 +240,17 @@ describe('Partner payments', () => {
       })
     })
 
-    it("is valued at the day's rate, or at another only by those who set rates", async () => {
-      const line = { accountId: drawerId, amount: som(1_270_000), rate: 12_700 }
-      // Someone who does not set rates is given the day's: 1 270 000 at 12 650 is 100,40 $, not 100.
-      const refused = await pay({ partnerId: anvarId, kind: 'in', lines: [line], settled: usd(100) }, dealer)
-      expect(refused.body.error.code).toBe('RATE_CHANGED')
+    it("is valued at the day's rate unless the two sides agreed what it settles", async () => {
+      // Left to the rate, 1 270 000 at 12 650 is 100,40 $: a total that says 100 comes from a screen gone stale.
+      const stale = await pay(
+        { partnerId: anvarId, kind: 'in', lines: [{ accountId: drawerId, amount: som(1_270_000) }], settled: usd(100) },
+        dealer,
+      )
+      expect(stale.body.error.code).toBe('RATE_CHANGED')
+      // Agreed, it settles the hundred dollars it was agreed for; the 5 000 so'm over are the rate's.
+      const line = { accountId: drawerId, amount: som(1_270_000), settled: usd(100) }
       const payment = (await pay({ partnerId: anvarId, kind: 'in', lines: [line], settled: usd(100) }).expect(201)).body
-      expect(payment.lines[0]).toMatchObject({ rate: 12_700, settled: usd(100) })
+      expect(payment.lines[0]).toMatchObject({ rate: 12_700, settled: usd(100), fx: som(5000) })
       expect((await balances()).Anvar).toBe(usd(1850 - 1100 - 79.05 - 100))
     })
 

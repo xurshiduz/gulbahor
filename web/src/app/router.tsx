@@ -364,7 +364,7 @@ const moneyRoute = createRoute({
   component: MoneyPage,
   validateSearch: z.object({
     tab: z
-      .enum(['registers', 'accounts', 'transfers', 'ops', 'categories', 'rates'])
+      .enum(['stand', 'registers', 'accounts', 'transfers', 'ops', 'categories', 'rates'])
       .default('registers')
       .catch('registers'),
     // The list of transfers, or of expenses: whichever tab is open.

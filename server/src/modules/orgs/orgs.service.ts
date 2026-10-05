@@ -82,6 +82,7 @@ export class OrgsService {
             'maxRateLossPercent',
             'returnDays',
             'receiptLineExtra',
+            'receiptLineSupplier',
           ]),
         },
       })

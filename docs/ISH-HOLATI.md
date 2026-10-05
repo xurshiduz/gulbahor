@@ -75,6 +75,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 - Haqiqiy printerda etiketka: shablon o'zgartirilgandagi joylashuv (7b). Ekrandagi ko'rinish printer harflarini emas, joylashuvni ko'rsatadi.
 - PIN kataklari, bloklangan ekran (xato PIN: qizarish, silkinish, bo'shash; to'g'ri PIN: ochilish) va yuqori paneldagi menyu tugmasi vaqtinchalik sahifada, soxta sessiya bilan ko'rildi. Haqiqiy hisob bilan ko'rilmagan: kassadagi rahbar tasdig'i oynasi (4-raqamda o'zi yuboradi), telefonda titrash.
 - Savdo hisoboti va bosh sahifa (10a): haqiqiy qobiq ichida, soxta sessiya va soxta raqamlar bilan ko'rildi — ko'rsatkichlar, grafik (kun, soat, oy; ustunga ko'rsatilganda raqamlar), kesimlar, tovarlar jadvali, bo'sh davr, foydasiz ko'rinish. Haqiqiy bazada ko'rilmagan (egasining bazasida hali sotuv yo'q); Excel faylining o'zi ochib ko'rilmagan.
+- Kirim-chiqim (11): juft maydon hamkor to'lovi oynasida vaqtinchalik sahifada, soxta javoblar bilan ko'rildi (100 $ va 1 200 000 so'm ikkalasi joyida qoldi, izoh va "To'lovdan keyin" to'g'ri). "Pul holati" va menyu akkordeoni ham shunday ko'rildi. Haqiqiy bazada ko'rilmagan: kelishilgan summali to'lovni saqlash, karta raqamini kiritish, dollar kartasi.
 - Chakana qarz (5d): kassadagi "Qarzga" qatori, mijoz yonidagi qarz yozuvi, "Mijozlar → Qarzlar" va "Qarz to'lovlari" ro'yxatlari vaqtinchalik sahifada, soxta ma'lumot bilan ko'rildi (1100 va 1280 kenglikda). Haqiqiy bazada ko'rilmagan: qarzga sotuvni oxirigacha yetkazish, "To'lov olish" oynasi (sessiyaga bog'liq, hamkor to'lovi oynasi bilan bir xil qatorlar), qarzli chekni qaytarish, "Sozlamalar → Biznes"dagi ikki yangi maydon, smena hisobotidagi "Mijozlar qarzidan to'landi".
 
 ## Navbat (KEYINGI-REJA, 14-bo'lim)
@@ -111,7 +112,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 9. [x] Pul oynasida kassani tanlash, do'konning asosiy kassasi (KEYINGI-REJA, 7-bo'lim oxiri).
 
 10. **Hisobotlar** (KEYINGI-REJA, 14a-bo'lim) — bo'laklarga bo'lingan:
-   - [ ] 10a. Savdo hisoboti (davr, do'kon, ko'rsatkichlar, grafik, kesimlar) va bosh sahifada bugungi kun.
+   - [x] 10a. Savdo hisoboti (davr, do'kon, ko'rsatkichlar, grafik, kesimlar) va bosh sahifada bugungi kun.
    - [ ] 10b. Tovarlar bo'yicha sotuv (kesimlar, ABC).
    - [ ] 10c. Tovar harakati va aylanish, turib qolgan tovar, partiyaning sotilishi.
    - [ ] 10d. Foyda va zarar, pul harakati.
@@ -119,11 +120,27 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [ ] 10f. Xodimlar, mijozlar, aksiyalar hisobotlari.
    - [ ] 10g. Rahbar nazorati: Telegram bot, bildirishnomalar sozlamasi — foydalanuvchi bilan.
 
-Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, superadmin) — foydalanuvchi bilan.
+   Hisobotlarning qolgani (10b–10g) foydalanuvchi so'zi bilan **keyinga qoldirilgan** (2026-10-06).
+
+11. **Kirim-chiqimni to'g'rilash** (KEYINGI-REJA, 7-bo'lim oxiri; eski ERP tahlili — `docs/ERP-TAHLIL.md`):
+   - [x] 11a. Juft maydon: pul langar, kelishilgan summa, kurs farqi har qatorda (hamkor to'lovi, xarajat va kirim, mijoz qarzi).
+   - [x] 11b. Pul joylarining nomi ("So'm naqd", "So'm karta (raqami)"), karta raqami, dollar kartasi, kassa maydoni doim.
+   - [x] 11c. "Pul → Pul holati": valyuta → naqd / naqdsiz → har joy; yo'ldagi pul; butun biznes yoki bitta do'kon.
+   - [x] Menyu akkordeoni (bitta bo'lim ochiq).
+
+12. **Dinamik valyuta** (KEYINGI-REJA, 8-bo'lim: "Aniqlashtirish" va "Valyuta ishining bo'laklari") — taklif va reja yozilgan, **foydalanuvchi "boshla" demaguncha boshlanmaydi**:
+   - [ ] V1. Valyutalar ro'yxati va kurslar.
+   - [ ] V2. Pul joylari istalgan valyutada.
+   - [ ] V3. Hamkor istalgan valyutada.
+   - [ ] V4. Ayirboshlash va komissiya.
+   - [ ] V5. Terminal → bank tushumi.
+   - [ ] V6. Kurs farqi hisoboti.
+
+Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-10a. Savdo hisoboti va bosh sahifa.
+—
 
 ## Ish daraxti nusxalari
 
@@ -134,3 +151,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `e508a146dabbd64efa63ae164f6fa133037d949f` | 5d: chakana qarz (kassada "Qarzga", to'lov olish, Qarzlar va Qarz to'lovlari ro'yxati) + UI tuzatishlar (oyna surilishi, `soft` tugma, demo sahifa) |
 | `a9681de59d59c43412fd70e51a0ce544f0286114` | PIN 4 ta katak (bloklash ekrani, tasdiq, profil), menyu tugmasi yuqori panelda, 8c qilinmaydi |
 | `8b9d9a57111518124605318d43e6bd1c119bf083` | PIN'ni o'chirish, parol maydonida ko'z, Alt+L menyuda, hisobotlar rejasi |
+| `ab3af58f2131bed57313c824df8865d61db2e5a0` | 10a: savdo hisoboti (Hisobotlar → Savdo) va bosh sahifada bugungi savdo; Ctrl+L, Ctrl+M |

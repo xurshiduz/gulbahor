@@ -73,19 +73,6 @@ export const EXPENSE_BASIS_LABELS: Record<ExpenseBasis, string> = {
   weight: "Vazn bo'yicha",
 }
 
-/** The expenses a shipment usually carries, with the basis each is normally shared by. */
-export const COMMON_EXPENSES: { name: string; basis: ExpenseBasis }[] = [
-  { name: "Kargo, yo'l", basis: 'weight' },
-  { name: 'Boj', basis: 'value' },
-  { name: 'Import QQS', basis: 'value' },
-  { name: 'Bojxona rasmiylashtiruvi', basis: 'value' },
-  { name: 'Broker', basis: 'value' },
-  { name: 'Sertifikat', basis: 'value' },
-  { name: "Sug'urta", basis: 'value' },
-  { name: 'Yuklash-tushirish', basis: 'quantity' },
-  { name: 'Ichki yetkazish', basis: 'quantity' },
-]
-
 const currencySchema = z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
 
 /** Minor units; the ceiling keeps every sum inside what a double holds exactly. */

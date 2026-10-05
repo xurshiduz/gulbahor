@@ -1773,6 +1773,10 @@ export class Account {
   @Column('text', { nullable: true })
   last4: string | null
 
+  /** A card's whole number: what tells one card from another. */
+  @Column('text', { nullable: true })
+  cardNumber: string | null
+
   @Column('text', { nullable: true })
   bank: string | null
 
@@ -2428,6 +2432,10 @@ export class PartnerPaymentLine {
   @Column('bigint', { transformer: bigintAsNumber })
   settled: number
 
+  /** What the rate gave the business (+) or cost it (−) on this line, in so'm: the money's worth at the day's rate against what it was counted as. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  fx: number
+
   @Column('uuid', { nullable: true })
   shiftId: string | null
 }
@@ -2550,6 +2558,10 @@ export class MoneyOpLine {
   /** The line's worth in so'm. */
   @Column('bigint', { transformer: bigintAsNumber })
   base: number
+
+  /** What the rate gave the business (+) or cost it (−) on this line, in so'm: the money's worth at the day's rate against what it was counted as. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  fx: number
 
   @Column('uuid', { nullable: true })
   shiftId: string | null
@@ -2680,6 +2692,10 @@ export class DebtPaymentLine {
   /** The line's worth in so'm. */
   @Column('bigint', { transformer: bigintAsNumber })
   base: number
+
+  /** What the rate gave the business (+) or cost it (−) on this line, in so'm: the money's worth at the day's rate against what it was counted as. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  fx: number
 
   @Column('uuid', { nullable: true })
   shiftId: string | null

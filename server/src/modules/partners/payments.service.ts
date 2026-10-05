@@ -1,7 +1,6 @@
 import {
   formatMoney,
   searchKey,
-  settledFor,
   toBase,
   type Page,
   type PaymentAccountDto,
@@ -23,6 +22,7 @@ import { Account, Partner, PartnerPayment, PartnerPaymentLine, Shift } from '../
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
+import { rateLimit, valueLine } from '../money/agreed'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { mayUse } from '../money/places'
@@ -70,7 +70,7 @@ export class PartnerPaymentsService {
       const partner = await this.partner(em, input.partnerId)
       const today = await this.ledger.today(em, actor.orgId)
       const dayRate = actor.modules.includes('usd') ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
-      const setsRates = can(actor, 'money.rates')
+      const limit = await rateLimit(em, actor)
       const sign = input.kind === 'in' ? 1 : -1
 
       // The accounts are held: two payments out of one account cannot both spend the same money.
@@ -107,10 +107,9 @@ export class PartnerPaymentsService {
           }
           shiftId = open.id
         }
-        // A rate matters only where one currency is changed into the other; only some may set their own.
+        // Dollars are valued at the day's rate, whatever is agreed: without one there is nothing to value them by.
         const changes = account.currency !== partner.currency
-        const rate = changes || account.currency === 'USD' ? (setsRates && line.rate ? line.rate : dayRate) : null
-        if ((changes || account.currency === 'USD') && !rate) {
+        if ((changes || account.currency === 'USD') && !dayRate) {
           fields[`lines.${index}.amount`] = "Dollar kursi qo'yilmagan"
           continue
         }
@@ -122,12 +121,28 @@ export class PartnerPaymentsService {
             continue
           }
         }
+        // What the two sides agreed the money settles stands as agreed, within what this person may agree to.
+        const worth = valueLine(
+          line.amount,
+          account.currency,
+          partner.currency,
+          dayRate,
+          changes ? line.settled : null,
+          limit,
+        )
+        if (typeof worth === 'string') {
+          fields[`lines.${index}.settled`] = worth
+          continue
+        }
         lines.push({
           account,
           amount: line.amount,
-          rate: changes ? rate : null,
+          rate: worth.rate,
           shiftId,
-          ...settledFor(line.amount, account.currency, partner.currency, rate),
+          settled: worth.settled,
+          cashBase: worth.cashBase,
+          partnerBase: worth.partnerBase,
+          fx: worth.fx,
         })
       }
       const first = Object.values(fields)[0]
@@ -160,6 +175,8 @@ export class PartnerPaymentsService {
           amount: line.amount,
           rate: line.rate,
           settled: line.settled,
+          // Money in that is worth more than it settled is the business's gain; money out, the other way round.
+          fx: sign * line.fx,
           shiftId: line.shiftId,
         })),
       )
@@ -476,6 +493,7 @@ export class PartnerPaymentsService {
         amount: line.amount,
         rate: line.rate,
         settled: line.settled,
+        fx: line.fx,
       })),
     }
   }

@@ -18,7 +18,8 @@ const OPEN_KEY = 'gb.nav.open'
 function storedOpen(): string[] {
   try {
     const raw = localStorage.getItem(OPEN_KEY)
-    return raw ? (JSON.parse(raw) as string[]) : []
+    // One section at a time: a list kept from when several stood open is cut to its first.
+    return raw ? (JSON.parse(raw) as string[]).slice(0, 1) : []
   } catch {
     return []
   }
@@ -68,8 +69,9 @@ export function Sidebar({ name, groups, collapsed }: SidebarProps) {
   const current = groups.find(activeOf)?.key ?? null
 
   const [open, setOpen] = useState<string[]>(storedOpen)
+  // An accordion: unfolding one section folds the one that was open.
   const toggle = (key: string) => {
-    const next = open.includes(key) ? open.filter((item) => item !== key) : [...open, key]
+    const next = open.includes(key) ? [] : [key]
     setOpen(next)
     try {
       localStorage.setItem(OPEN_KEY, JSON.stringify(next))
@@ -77,10 +79,10 @@ export function Sidebar({ name, groups, collapsed }: SidebarProps) {
       // The menu still unfolds for this visit.
     }
   }
-  // Wherever the person went (a key, the search, a link), the section they are in is unfolded.
+  // Wherever the person went (a key, the search, a link), the section they are in is the one unfolded.
   useEffect(() => {
     if (current) {
-      setOpen((now) => (now.includes(current) ? now : [...now, current]))
+      setOpen((now) => (now.length === 1 && now[0] === current ? now : [current]))
     }
   }, [current])
 

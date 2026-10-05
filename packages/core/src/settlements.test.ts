@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
+import { accountInputSchema, formatCardNumber } from './pos'
 import {
   amountFor,
   defaultTill,
+  pairRate,
   partnerPaymentInputSchema,
+  rateGap,
   settledFor,
+  settleLine,
+  straysFromRate,
   tillsOf,
   type PaymentAccountDto,
 } from './settlements'
@@ -89,7 +94,7 @@ describe('a payment', () => {
     expect(partnerPaymentInputSchema.parse(payment).lines[0]).toEqual({
       accountId: ID,
       amount: som(1_000_000),
-      rate: null,
+      settled: null,
     })
     expect(partnerPaymentInputSchema.safeParse({ ...payment, lines: [] }).success).toBe(false)
     expect(partnerPaymentInputSchema.safeParse({ ...payment, lines: [{ accountId: ID, amount: 0 }] }).success).toBe(
@@ -137,5 +142,119 @@ describe('the till a payment opens on', () => {
     expect(defaultTill(nobodys.slice(0, 2), null, null)).toBe('t1')
     expect(defaultTill([{ ...nobodys[1] }], null, null)).toBe('t2')
     expect(defaultTill([], null, 't1')).toBeNull()
+  })
+})
+
+describe('a pair of sums', () => {
+  // The dollar stands at 11 800: a hundred are worth 1 180 000.
+  const RATE = 11_800
+
+  it("is left to the day's rate when nothing was agreed", () => {
+    expect(settleLine(usd(100), 'USD', 'UZS', RATE)).toEqual({
+      settled: som(1_180_000),
+      cashBase: som(1_180_000),
+      partnerBase: som(1_180_000),
+      fx: 0,
+      rate: RATE,
+      agreed: false,
+    })
+    // An agreed sum that is what the rate makes anyway is no agreement.
+    expect(settleLine(usd(100), 'USD', 'UZS', RATE, som(1_180_000)).agreed).toBe(false)
+    // One currency on both sides is a single sum: what is said beside it is not heard.
+    expect(settleLine(usd(100), 'USD', 'USD', RATE, usd(120))).toMatchObject({
+      settled: usd(100),
+      rate: null,
+      agreed: false,
+      fx: 0,
+    })
+    expect(settleLine(som(500_000), 'UZS', 'UZS', null, som(600_000))).toMatchObject({
+      settled: som(500_000),
+      agreed: false,
+    })
+  })
+
+  it('stands as agreed: the money at what it is worth, the account by what was said, the rest to the rate', () => {
+    // "Take these 100 dollars for 1 200 000."
+    expect(settleLine(usd(100), 'USD', 'UZS', RATE, som(1_200_000))).toEqual({
+      settled: som(1_200_000),
+      cashBase: som(1_180_000),
+      partnerBase: som(1_200_000),
+      fx: -som(20_000),
+      rate: 12_000,
+      agreed: true,
+    })
+    // 1 200 000 so'm for a hundred dollars of a dollar account: the so'm are all there, and are worth 20 000 more.
+    expect(settleLine(som(1_200_000), 'UZS', 'USD', RATE, usd(100))).toEqual({
+      settled: usd(100),
+      cashBase: som(1_200_000),
+      partnerBase: som(1_180_000),
+      fx: som(20_000),
+      rate: 12_000,
+      agreed: true,
+    })
+  })
+
+  it('makes a rate between its two sums, to the tiyin', () => {
+    expect(pairRate(usd(100), 'USD', som(1_200_000))).toBe(12_000)
+    expect(pairRate(som(1_200_000), 'UZS', usd(100))).toBe(12_000)
+    expect(pairRate(usd(101), 'USD', som(1_200_000))).toBe(11_881.19)
+    expect(pairRate(0, 'USD', som(1_200_000))).toBeNull()
+  })
+
+  it('may stray from the day’s rate only so far, either way; what a cent cannot split never counts', () => {
+    const agreed = (settled: number) => settleLine(usd(100), 'USD', 'UZS', RATE, settled)
+    expect(rateGap(agreed(som(1_200_000)))).toBe(1.7)
+    expect(straysFromRate(agreed(som(1_200_000)), 2, RATE)).toBe(false)
+    expect(straysFromRate(agreed(som(1_203_600)), 2, RATE)).toBe(false)
+    expect(straysFromRate(agreed(som(1_203_700)), 2, RATE)).toBe(true)
+    // Short-changing the partner is held to the same limit as overpaying them.
+    expect(straysFromRate(agreed(som(1_150_000)), 2, RATE)).toBe(true)
+    expect(rateGap(agreed(som(1_300_000)))).toBe(10.2)
+    // 590 so'm against five cents: 59 000 tiyin by the rate, and a so'm either way is rounding, not agreement.
+    const tiny = settleLine(som(590), 'UZS', 'USD', RATE, 6)
+    expect(tiny.agreed).toBe(true)
+    expect(straysFromRate(tiny, 2, RATE)).toBe(false)
+  })
+
+  it('is asked for as an agreed sum on the line, or left out', () => {
+    const line = (more: object) =>
+      partnerPaymentInputSchema.safeParse({
+        clientKey: KEY,
+        partnerId: ID,
+        kind: 'in',
+        lines: [{ accountId: ID, amount: usd(100), ...more }],
+        settled: som(1_200_000),
+      })
+    expect(line({}).data?.lines[0].settled).toBeNull()
+    expect(line({ settled: som(1_200_000) }).data?.lines[0].settled).toBe(som(1_200_000))
+    expect(line({ settled: 0 }).success).toBe(false)
+    expect(line({ settled: 12.5 }).success).toBe(false)
+  })
+})
+
+describe('a card', () => {
+  const card = (more: object) => accountInputSchema.safeParse({ kind: 'card', name: 'Humo', ...more })
+
+  it('is kept by its whole number, typed as it is printed, and called by its last four digits', () => {
+    expect(card({ cardNumber: '9860 1234 5678 9012' }).data).toMatchObject({
+      cardNumber: '9860123456789012',
+      last4: '9012',
+    })
+    expect(card({ cardNumber: '9860-1234-5678-9012', last4: '0000' }).data?.last4).toBe('9012')
+    // One set up before whole numbers were kept is still known by its last four.
+    expect(card({ last4: '3073' }).data).toMatchObject({ cardNumber: null, last4: '3073' })
+    expect(card({ cardNumber: '' }).data?.cardNumber).toBeNull()
+    expect(card({ cardNumber: '9860 12' }).success).toBe(false)
+    expect(card({ cardNumber: '9860 1234 5678 901x' }).success).toBe(false)
+    expect(formatCardNumber('9860123456789012')).toBe('9860 1234 5678 9012')
+    expect(formatCardNumber('4000123412341234567')).toBe('4000 1234 1234 1234 567')
+  })
+
+  it('may hold dollars; a terminal may not, and nothing but a card has a card’s number', () => {
+    expect(card({ currency: 'USD', cardNumber: '4000123412341234' }).success).toBe(true)
+    expect(accountInputSchema.safeParse({ kind: 'terminal', name: 'POS', currency: 'USD' }).success).toBe(false)
+    expect(
+      accountInputSchema.safeParse({ kind: 'safe', name: 'Seyf', cardNumber: '9860123456789012' }).data?.cardNumber,
+    ).toBeNull()
   })
 })

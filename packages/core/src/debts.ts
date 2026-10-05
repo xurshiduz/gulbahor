@@ -144,8 +144,8 @@ export const debtPaymentInputSchema = z.object({
       z.object({
         accountId: idSchema,
         amount: z.number().int().positive('Summani kiriting').max(Number.MAX_SAFE_INTEGER),
-        /** Another rate than the day's, from someone allowed to set one. */
-        rate: z.number().positive().max(1_000_000).nullish(),
+        /** What dollars are taken for in so'm, when that was agreed and not left to the day's rate. */
+        settled: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullish(),
       }),
     )
     .min(1, "To'lovni kiriting")
@@ -172,7 +172,8 @@ export interface DebtPaymentDto {
   paidBy: string
   createdByName: string | null
   note: string | null
-  lines: { accountName: string; currency: CurrencyCode; amount: number; base: number }[]
+  /** `fx`: what the rate gave the business (+) or cost it (−) on the line, in so'm. */
+  lines: { accountName: string; currency: CurrencyCode; amount: number; base: number; fx: number }[]
   /** The receipts whose debts it paid, and how much of each. */
   parts: { saleNumber: string; amount: number }[]
   cancelledAt: string | null

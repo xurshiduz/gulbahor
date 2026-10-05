@@ -408,6 +408,48 @@ describe('Customer debts', () => {
     })
   })
 
+  it("takes dollars for an agreed sum of so'm, and writes the difference down as the rate's", async () => {
+    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 11_800 }).expect(200)
+    const vault = (
+      await alpha.post('/api/money/accounts').send({ kind: 'safe', name: 'Seyf $', currency: 'USD' }).expect(201)
+    ).body.id
+    const of = async (where: string, params: unknown[] = []) =>
+      Number(
+        (
+          await sql<{ balance: string }[]>(
+            `SELECT a.balance FROM accounts a JOIN organizations o ON o.id = a.org_id
+             WHERE o.name = 'Alpha' AND ${where}`,
+            params,
+          )
+        )[0]?.balance ?? 0,
+      )
+    const customer = (await alpha.post('/api/customers').send({ name: 'Dilshod', phone: '95 000 33 44' })).body.id
+    await onCredit(customer, som(500_000)).expect(201)
+    const before = { receivables: (await books()).receivables, fx: await of(`a.system_key = 'fx'`) }
+
+    // Forty dollars are worth 472 000; they are taken for 480 000 of what she owes.
+    const payment = (
+      await alpha
+        .post('/api/customer-debts/payments')
+        .send({
+          clientKey: randomUUID(),
+          customerId: customer,
+          lines: [{ accountId: vault, amount: 4000, settled: som(480_000) }],
+          total: som(480_000),
+        })
+        .expect(200)
+    ).body
+    expect(payment.total).toBe(som(480_000))
+    expect(payment.lines).toEqual([
+      { accountName: 'Seyf $', currency: 'USD', amount: 4000, base: som(480_000), fx: -som(8000) },
+    ])
+    expect((await owes('9500033')).owed).toBe(som(20_000))
+    expect((await books()).receivables).toBe(before.receivables - som(480_000))
+    expect(await of(`a.id = $1`, [vault])).toBe(4000)
+    // The 8 000 she was let off are written down as let off.
+    expect(await of(`a.system_key = 'fx'`)).toBe(before.fx + som(8000))
+  })
+
   it('always comes to what the books say customers owe', async () => {
     const { summary } = await debts()
     expect((await books()).receivables).toBe(summary.owed)

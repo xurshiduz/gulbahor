@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { CurrencyCode } from './money'
-import { fromBase, rateSchema, toBase, type AccountDto } from './pos'
+import { fromBase, toBase, type AccountDto } from './pos'
 import type { PartnerDto } from './purchasing'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
@@ -11,8 +11,14 @@ import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas
  * Every partner has one account, kept in so'm or in dollars. Money may come
  * in any way and in either currency: each line of a payment says what went
  * into (or out of) one of the business's accounts, in that account's own
- * currency, and the system works out from the rate how much of the
- * partner's account that settles. Nobody types the settled sum.
+ * currency, and how much of the partner's account that settles.
+ *
+ * The two sums are a pair. Left alone, the second follows from the first at
+ * the day's rate. But the two sides may agree otherwise — "take these 100
+ * dollars for 1 200 000" — and then both stand as they were said: the money
+ * is what was handed over, the account moves by what was agreed, and what
+ * lies between them at the day's rate is written down as an exchange
+ * difference instead of being hidden in either.
  */
 
 export interface Settled {
@@ -52,6 +58,80 @@ export function settledFor(
   const settled = fromBase(amount, uzsPerUsd)
   const partnerBase = toBase(settled, 'USD', uzsPerUsd)
   return { settled, cashBase, partnerBase, fx: cashBase - partnerBase }
+}
+
+/** A line of money as it goes into the books. */
+export interface LineWorth extends Settled {
+  /** So'm for a dollar that the two sums make between them; null where no currency is changed. */
+  rate: number | null
+  /** The second sum was agreed, not left to the day's rate. */
+  agreed: boolean
+}
+
+/** The rate two sums of a pair make between them: so'm for a dollar, to the tiyin. Null when it cannot be said. */
+export function pairRate(amount: number, accountCurrency: CurrencyCode, settled: number): number | null {
+  const [som, cents] = accountCurrency === 'UZS' ? [amount, settled] : [settled, amount]
+  return som > 0 && cents > 0 ? Math.round((som / cents) * 100) / 100 : null
+}
+
+/**
+ * A line of money against an account kept in `targetCurrency`, with what it
+ * is to settle either left to the day's rate or agreed.
+ *
+ * The money is always valued at the day's rate: a dollar in the drawer is
+ * worth what the day says, whatever was agreed across the counter. An
+ * agreed sum moves the other account by exactly that sum; the so'm between
+ * the two are the exchange difference (`fx`: more than nothing when the
+ * money was worth more than what it settled).
+ */
+export function settleLine(
+  amount: number,
+  accountCurrency: CurrencyCode,
+  targetCurrency: CurrencyCode,
+  dayRate: number | null,
+  agreed?: number | null,
+): LineWorth {
+  const plain = settledFor(amount, accountCurrency, targetCurrency, dayRate)
+  if (accountCurrency === targetCurrency) {
+    return { ...plain, rate: null, agreed: false }
+  }
+  if (!agreed || agreed === plain.settled) {
+    return { ...plain, rate: dayRate, agreed: false }
+  }
+  const partnerBase = toBase(agreed, targetCurrency, dayRate)
+  return {
+    settled: agreed,
+    cashBase: plain.cashBase,
+    partnerBase,
+    fx: plain.cashBase - partnerBase,
+    rate: pairRate(amount, accountCurrency, agreed),
+    agreed: true,
+  }
+}
+
+/** How far what a line settles lies from what its money is worth at the day's rate, in percent to one decimal. */
+export function rateGap(worth: Pick<Settled, 'cashBase' | 'partnerBase'>): number {
+  return worth.cashBase > 0
+    ? Math.round((Math.abs(worth.cashBase - worth.partnerBase) * 1000) / worth.cashBase) / 10
+    : 0
+}
+
+/**
+ * Whether an agreed sum strays from the day's rate by more than the
+ * business lets anyone agree to: past that it takes someone who may set
+ * rates. Either way counts — a partner short-changed by a slip of the
+ * finger is as wrong as one overpaid. What rounding to a whole cent leaves
+ * is nobody's agreement and never counts.
+ */
+export function straysFromRate(
+  worth: Pick<Settled, 'cashBase' | 'partnerBase'>,
+  limitPercent: number,
+  uzsPerUsd: number | null,
+): boolean {
+  const gap = Math.abs(worth.cashBase - worth.partnerBase)
+  // A cent is worth as many tiyin as a dollar is worth so'm.
+  const cent = Math.ceil(uzsPerUsd ?? 0)
+  return gap > cent && gap * 100 > worth.cashBase * limitPercent
 }
 
 /**
@@ -164,8 +244,11 @@ export const partnerPaymentLineSchema = z.object({
   accountId: idSchema,
   /** In that account's currency. */
   amount: positive,
-  /** So'm for a dollar, when it is not the day's rate: only for those allowed to set rates. */
-  rate: rateSchema.nullish().transform((value) => value ?? null),
+  /**
+   * What the line settles on the partner's account, in the partner's currency, when that was agreed and
+   * not left to the day's rate. Counts only where the account is in another currency than the partner's.
+   */
+  settled: positive.nullish().transform((value) => value ?? null),
 })
 export type PartnerPaymentLineInput = z.infer<typeof partnerPaymentLineSchema>
 
@@ -213,6 +296,8 @@ export interface PartnerPaymentLineDto {
   rate: number | null
   /** What the line settled, in the partner's currency. */
   settled: number
+  /** What the rate gave the business (+) or cost it (−) on this line, in so'm. */
+  fx: number
 }
 
 export interface PartnerPaymentDto {

@@ -47,6 +47,7 @@ import { uuid } from '@/lib/uuid'
 
 import {
   addRow,
+  agreedOf,
   clearRows,
   keepAccounts,
   keptAccounts,
@@ -113,7 +114,7 @@ interface PaymentDialogProps {
  */
 export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in', onClose }: PaymentDialogProps) {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const queryClient = useQueryClient()
   const debtText = useDebtText()
   const [kind, setKind] = useState<'in' | 'out'>(startKind)
@@ -151,7 +152,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
     keepTill(id)
     setRows(switchTill(shown, places, id))
   }
-  const valued = valueLines(shown, places, partner?.currency ?? null, dayRate)
+  const valued = valueLines(shown, places, partner?.currency ?? null, dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
 
@@ -256,7 +257,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
       lines: filled.map((line) => ({
         accountId: line.row.accountId,
         amount: line.row.amount,
-        rate: line.changes ? line.row.rate : null,
+        settled: agreedOf(line),
       })),
       settled: total,
       note,
@@ -277,7 +278,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
       toast.error(t(valued.some((line) => line.account.open) ? 'payments.totalTooSmall' : 'payments.pickAccount'))
       return false
     }
-    patch(taken.accountId, { amount: taken.amount })
+    patch(taken.accountId, { amount: taken.amount, settled: null })
     return true
   }
 
@@ -386,6 +387,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
             onRemove={(accountId) => lay(removeRow(shown, accountId))}
             onTotal={typeTotal}
             setsRates={setsRates}
+            dayRate={dayRate}
             problems={problems}
             autoFocus={!!fixedPartner}
             focusId={added}

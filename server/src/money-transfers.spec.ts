@@ -92,14 +92,16 @@ describe('Money transfers', () => {
   })
 
   describe('accounts', () => {
-    it("hold so'm or dollars; a card or a terminal only so'm", async () => {
+    it("hold so'm or dollars; a terminal only so'm", async () => {
       safeId = (await alpha.post('/api/money/accounts').send({ kind: 'safe', name: 'Seyf' }).expect(201)).body.id
       const dollars = (
         await alpha.post('/api/money/accounts').send({ kind: 'safe', name: 'Seyf $', currency: 'USD' }).expect(201)
       ).body
       expect(dollars).toMatchObject({ kind: 'safe', currency: 'USD', balance: 0 })
       dollarSafeId = dollars.id
-      const refused = await alpha.post('/api/money/accounts').send({ kind: 'card', name: 'Visa', currency: 'USD' })
+      const refused = await alpha
+        .post('/api/money/accounts')
+        .send({ kind: 'terminal', name: 'Terminal $', currency: 'USD' })
       expect(refused.status).toBe(400)
       expect(refused.body.error.fields.currency).toBeDefined()
     })

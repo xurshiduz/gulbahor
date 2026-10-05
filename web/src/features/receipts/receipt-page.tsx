@@ -1,6 +1,5 @@
 import {
   ALL_CURRENCY_CODES,
-  COMMON_EXPENSES,
   CURRENCIES,
   EXPENSE_BASES,
   EXPENSE_BASIS_LABELS,
@@ -239,6 +238,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   const otherTypes = priceTypes.filter((type) => type.isActive && type !== retailType && type !== wholesaleType)
   // A cost known for one model alone: asked for in the settings, or already written on this receipt.
   const lineExtra = me.org.settings.receiptLineExtra || blocks.some((block) => block.extra)
+  // A supplier of its own for one model: the same way — asked for, or already chosen on this receipt.
+  const lineSupplier = me.org.settings.receiptLineSupplier || blocks.some((block) => block.supplierId)
   const canPrice = can('products.prices')
 
   // ── Adding goods ──
@@ -753,7 +754,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     wholesaleType={canPrice ? wholesaleType : undefined}
                     otherTypes={canPrice ? otherTypes : []}
                     lineExtra={lineExtra}
-                    supplierOptions={supplierOptions}
+                    supplierOptions={lineSupplier ? supplierOptions : []}
                     editable={editable}
                     onChange={(patch) => patchBlock(block.key, patch)}
                     onRemove={() => {
@@ -1096,33 +1097,23 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
   const { t } = useTranslation()
   const patch = (key: string, change: Partial<ExpenseDraft>) =>
     onChange(expenses.map((expense) => (expense.key === key ? { ...expense, ...change } : expense)))
+  // Shared out by the piece unless told otherwise: clothes of one shipment cost about the same to bring, each.
   const add = () =>
     onChange([
       ...expenses,
-      { key: nextKey(), name: '', amount: null, currency: 'USD', basis: 'value', isEstimate: false },
+      { key: nextKey(), name: '', amount: null, currency: 'USD', basis: 'quantity', isEstimate: false },
     ])
 
   return (
     <div className="flex flex-col gap-2">
-      <datalist id="common-expenses">
-        {COMMON_EXPENSES.map((expense) => (
-          <option key={expense.name} value={expense.name} />
-        ))}
-      </datalist>
       {expenses.map((expense, index) => (
         <div key={expense.key} className="flex flex-wrap items-center gap-2">
           <Input
             value={expense.name}
-            list="common-expenses"
             placeholder={t('receipts.expenseName')}
             disabled={!editable}
             className="min-w-40 flex-1"
-            onChange={(event) => {
-              const name = event.target.value
-              // A usual expense brings the basis it is usually shared by.
-              const usual = COMMON_EXPENSES.find((item) => item.name === name)
-              patch(expense.key, usual ? { name, basis: usual.basis } : { name })
-            }}
+            onChange={(event) => patch(expense.key, { name: event.target.value })}
           />
           <MoneyInput
             value={expense.amount}

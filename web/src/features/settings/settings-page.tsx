@@ -78,6 +78,7 @@ function BusinessSettings() {
         debtDays: me.org.settings.debtDays as number | null,
         debtLimit: me.org.settings.debtLimit as number | null,
         receiptLineExtra: me.org.settings.receiptLineExtra,
+        receiptLineSupplier: me.org.settings.receiptLineSupplier,
       },
     },
   })
@@ -211,6 +212,18 @@ function BusinessSettings() {
               onChange={field.onChange}
               label={t('settings.receiptLineExtra')}
               hint={t('settings.receiptLineExtraHint')}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="settings.receiptLineSupplier"
+          render={({ field }) => (
+            <Switch
+              checked={field.value}
+              onChange={field.onChange}
+              label={t('settings.receiptLineSupplier')}
+              hint={t('settings.receiptLineSupplierHint')}
             />
           )}
         />

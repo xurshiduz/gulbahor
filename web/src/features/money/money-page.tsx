@@ -1,5 +1,6 @@
 import {
   ACCOUNT_KIND_LABELS,
+  formatCardNumber,
   accountInputSchema,
   formatMoney,
   PAYMENT_ACCOUNT_KINDS,
@@ -11,6 +12,8 @@ import {
   type AccountDto,
   type AccountInput,
   type MoneyCategoryDto,
+  type MoneyTransferDto,
+  type Page as Paged,
   type PaymentAccountKind,
   type RateDto,
   type RegisterDto,
@@ -29,7 +32,7 @@ import { Combobox } from '@/components/ui/combobox'
 import { Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
-import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
+import { Badge, EmptyState, Shortcut, Skeleton } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -43,6 +46,7 @@ import { LIST_DEFAULTS } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
 import { MoneyCategoriesTab, MoneyCategoryDialog, MoneyOpDialog, MoneyOpsTab } from './ops'
+import { MoneyStandView } from './stand-view'
 import { TransferDialog, TransfersTab } from './transfers'
 
 const route = getRouteApi('/money')
@@ -89,6 +93,8 @@ export function MoneyPage() {
   const canManage = can('money.manage')
   const canMove = canManage || can('money.collect')
   const seesAccounts = canMove || can('money.view')
+  // Where the money stands is figures and nothing else: for those who may see balances.
+  const seesStand = can('money.view')
   const [registerForm, setRegisterForm] = useState<RegisterDto | null | undefined>()
   const [accountForm, setAccountForm] = useState<AccountDto | null | undefined>()
   const [moving, setMoving] = useState(false)
@@ -102,7 +108,7 @@ export function MoneyPage() {
   const add = () =>
     tab === 'registers'
       ? setRegisterForm(null)
-      : tab === 'transfers'
+      : tab === 'transfers' || tab === 'stand'
         ? setMoving(true)
         : tab === 'ops'
           ? setSpending(true)
@@ -112,7 +118,7 @@ export function MoneyPage() {
   const addLabel =
     tab === 'registers'
       ? t('money.addRegister')
-      : tab === 'transfers'
+      : tab === 'transfers' || tab === 'stand'
         ? t('money.addTransfer')
         : tab === 'ops'
           ? t('ops.expense')
@@ -120,7 +126,7 @@ export function MoneyPage() {
             ? t('ops.addCategory')
             : t('money.addAccount')
   const adding =
-    tab === 'transfers'
+    tab === 'transfers' || tab === 'stand'
       ? canMove
       : tab === 'ops'
         ? canSpend
@@ -142,8 +148,8 @@ export function MoneyPage() {
   return (
     <Page
       title={t('money.title')}
-      // The day's rate is a form to be read down; the other sheets are lists that fill the window.
-      flow={tab === 'rates'}
+      // The day's rate and where the money stands are read down; the other sheets are lists that fill the window.
+      flow={tab === 'rates' || tab === 'stand'}
       actions={
         adding ? (
           <Button variant="primary" onClick={add}>
@@ -160,6 +166,7 @@ export function MoneyPage() {
         onChange={(value) => void navigate({ search: { ...LIST_DEFAULTS, status: 'all', tab: value as typeof tab } })}
         tabs={[
           { value: 'registers', label: t('money.tabRegisters') },
+          ...(seesStand ? [{ value: 'stand', label: t('stand.tab') }] : []),
           ...(seesAccounts ? [{ value: 'accounts', label: t('money.tabAccounts') }] : []),
           ...(seesAccounts ? [{ value: 'transfers', label: t('money.tabTransfers') }] : []),
           ...(seesOps ? [{ value: 'ops', label: t('ops.title') }] : []),
@@ -170,6 +177,7 @@ export function MoneyPage() {
         <TabPanel value="registers">
           <RegistersTab canManage={canManage} onEdit={setRegisterForm} />
         </TabPanel>
+        <TabPanel value="stand">{seesStand ? <StandTab /> : null}</TabPanel>
         <TabPanel value="accounts">
           <AccountsTab canManage={canManage} onEdit={setAccountForm} />
         </TabPanel>
@@ -199,6 +207,45 @@ export function MoneyPage() {
         <MoneyCategoryDialog category={categoryForm} onClose={() => setCategoryForm(undefined)} />
       ) : null}
     </Page>
+  )
+}
+
+// ───────────────────────────── Where the money stands ─────────────────────────────
+
+/** The stand as the business has it now; every sale, payment and transfer refreshes it. */
+function StandTab() {
+  const { hasModule } = useSession()
+  const [shopId, setShopId] = useState<string | null>(null)
+  const accounts = useAccounts()
+  const registers = useRegisters()
+  const places = useLocations()
+  const waiting = useQuery({
+    queryKey: ['money', 'transfers', 'waiting'],
+    queryFn: ({ signal }) =>
+      api.get<Paged<MoneyTransferDto>>('/money/transfers', { status: 'sent', size: 200 }, signal),
+  })
+  const rates = useQuery({
+    queryKey: ['money', 'rates'],
+    queryFn: ({ signal }) => api.get<Rates>('/money/rates', undefined, signal),
+    enabled: hasModule('usd'),
+  })
+
+  if (!accounts.data || !registers.data || !waiting.data) {
+    return <Skeleton className="h-64" />
+  }
+  // Only a place that has money of its own to show is offered.
+  const holding = new Set(accounts.data.flatMap((account) => account.locationIds))
+  const shops = (places.data ?? []).filter((place) => holding.has(place.id))
+  return (
+    <MoneyStandView
+      accounts={accounts.data}
+      registers={registers.data}
+      waiting={waiting.data.items}
+      rate={rates.data?.current?.uzsPerUsd ?? null}
+      shops={shops}
+      shopId={shops.some((shop) => shop.id === shopId) ? shopId : null}
+      onShop={setShopId}
+    />
   )
 }
 
@@ -410,7 +457,12 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
             {row.original.currency === 'USD' && row.original.kind !== 'cash' ? (
               <span className="text-ink-3"> · $</span>
             ) : null}
-            {row.original.last4 ? <span className="font-code text-xs text-ink-3"> *{row.original.last4}</span> : null}
+            {/* A card is told from another by its number: the whole of it where it is known. */}
+            {row.original.cardNumber ? (
+              <span className="font-code text-xs text-ink-3"> {formatCardNumber(row.original.cardNumber)}</span>
+            ) : row.original.last4 ? (
+              <span className="font-code text-xs text-ink-3"> *{row.original.last4}</span>
+            ) : null}
             {row.original.bank ? <span className="text-ink-3"> · {row.original.bank}</span> : null}
           </span>
         ),
@@ -506,7 +558,7 @@ interface AccountValues {
   currency: 'UZS' | 'USD'
   /** The shops it serves; none for every shop. A terminal or a safe has at most one. */
   locationIds: string[]
-  last4: string
+  cardNumber: string
   bank: string
 }
 
@@ -520,14 +572,15 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
       name: account?.name ?? '',
       currency: account?.currency ?? 'UZS',
       locationIds: account?.locationIds ?? [],
-      last4: account?.last4 ?? '',
+      cardNumber: account?.cardNumber ? formatCardNumber(account.cardNumber) : '',
       bank: account?.bank ?? '',
     },
   })
   const errors = form.formState.errors
   const kind = form.watch('kind')
   const { hasModule } = useSession()
-  const holdsDollars = hasModule('usd') && (kind === 'safe' || kind === 'bank')
+  // Anything but a terminal may hold dollars: a safe, a bank account, a Visa card.
+  const holdsDollars = hasModule('usd') && kind !== 'terminal'
   const shared = SHARED_ACCOUNT_KINDS.includes(kind)
 
   const mutation = useMutation({
@@ -543,11 +596,12 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
   const submit = form.handleSubmit((values) => {
     const input = zodCheck(form, accountInputSchema, {
       ...values,
-      // Only a safe or a bank account holds dollars.
       currency: holdsDollars ? values.currency : 'UZS',
       // What was a card with several shops and is now a terminal keeps the first of them.
       locationIds: shared ? values.locationIds : values.locationIds.slice(0, 1),
-      last4: values.last4 || null,
+      cardNumber: values.cardNumber || null,
+      // A card set up before whole numbers were kept is still known by its last four.
+      last4: account?.last4 ?? null,
     })
     if (input) {
       mutation.mutate(input)
@@ -658,16 +712,24 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
         {kind === 'card' || kind === 'bank' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {kind === 'card' ? (
-              <Field label={t('money.last4')} hint={t('money.last4Hint')} error={errors.last4?.message}>
+              <Field
+                label={t('money.cardNumber')}
+                hint={
+                  account?.last4 && !account.cardNumber
+                    ? t('money.cardNumberOld', { last4: account.last4 })
+                    : t('money.cardNumberHint')
+                }
+                error={errors.cardNumber?.message}
+              >
                 {(id) => (
                   <Input
                     id={id}
                     className="font-code"
                     inputMode="numeric"
-                    maxLength={4}
-                    placeholder="3073"
-                    invalid={!!errors.last4}
-                    {...form.register('last4')}
+                    maxLength={23}
+                    placeholder="9860 1234 5678 9012"
+                    invalid={!!errors.cardNumber}
+                    {...form.register('cardNumber')}
                   />
                 )}
               </Field>

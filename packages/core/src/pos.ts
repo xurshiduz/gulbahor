@@ -24,7 +24,8 @@ export type AccountKind = (typeof ACCOUNT_KINDS)[number]
 
 export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   cash: 'Kassa (naqd)',
-  safe: 'Seyf',
+  // Cash that is in no till's drawer: a safe, or what somebody carries.
+  safe: "Naqd (seyf yoki qo'lda)",
   card: 'Plastik karta',
   terminal: 'Bank terminali',
   bank: 'Bank hisob raqami',
@@ -77,11 +78,14 @@ export type PaymentAccountKind = (typeof PAYMENT_ACCOUNT_KINDS)[number]
 /** The kinds of account that may serve several shops at once. */
 export const SHARED_ACCOUNT_KINDS: readonly PaymentAccountKind[] = ['card', 'bank']
 
+/** A card's number: sixteen digits on most, a few more or fewer on some. */
+const CARD_NUMBER = /^\d{12,19}$/
+
 export const accountInputSchema = z
   .object({
     kind: z.enum(PAYMENT_ACCOUNT_KINDS),
     name: requiredText(60),
-    /** What it holds. A safe or a bank account may hold dollars; cards and terminals are in so'm. */
+    /** What it holds. Anything but a terminal may hold dollars. */
     currency: z.enum(['UZS', 'USD']).default('UZS'),
     /** The shop it belongs to; none for one shared by all. */
     locationId: idSchema.nullish().transform((value) => value ?? null),
@@ -90,18 +94,28 @@ export const accountInputSchema = z
      * the others. Left empty, `locationId` says it all.
      */
     locationIds: z.array(idSchema).max(200).default([]),
-    /** A card's last four digits: what bank messages and receipts call it by. */
+    /** A card's last four digits: what bank messages and receipts call it by. Taken from the whole number when that is given. */
     last4: z
       .string()
       .trim()
       .regex(/^\d{4}$/, 'Oxirgi 4 ta raqam')
       .nullish()
       .transform((value) => value || null),
+    /**
+     * A card's whole number, as it is printed on it: what tells one card from another when there are
+     * several. Spaces are let through and dropped.
+     */
+    cardNumber: z
+      .string()
+      .transform((value) => value.replace(/[\s-]/g, ''))
+      .refine((value) => value === '' || CARD_NUMBER.test(value), { message: 'Karta raqami 16 ta raqam' })
+      .nullish()
+      .transform((value) => value || null),
     bank: optionalText(60),
   })
   .superRefine((account, context) => {
-    if (account.currency !== 'UZS' && (account.kind === 'card' || account.kind === 'terminal')) {
-      context.addIssue({ code: 'custom', path: ['currency'], message: "Karta va terminal faqat so'mda" })
+    if (account.currency !== 'UZS' && account.kind === 'terminal') {
+      context.addIssue({ code: 'custom', path: ['currency'], message: "Terminal faqat so'mda" })
     }
     // A terminal and a safe stand in one place; a card and a bank account go wherever their owner does.
     if (new Set(account.locationIds).size > 1 && !SHARED_ACCOUNT_KINDS.includes(account.kind)) {
@@ -112,7 +126,18 @@ export const accountInputSchema = z
       })
     }
   })
+  // Only a card has a number, and a card that has one is called by its last four digits.
+  .transform((account) => ({
+    ...account,
+    cardNumber: account.kind === 'card' ? account.cardNumber : null,
+    last4: account.kind === 'card' && account.cardNumber ? account.cardNumber.slice(-4) : account.last4,
+  }))
 export type AccountInput = z.infer<typeof accountInputSchema>
+
+/** "9860123456789012" -> "9860 1234 5678 9012" */
+export function formatCardNumber(number: string): string {
+  return number.replace(/(\d{4})(?=\d)/g, '$1 ')
+}
 
 /** The shops an account's form names, whichever of the two fields it used: none means every shop. */
 export const accountShops = (input: Pick<AccountInput, 'locationId' | 'locationIds'>): string[] =>
@@ -131,6 +156,8 @@ export interface AccountDto {
   locationNames: string[]
   registerId: string | null
   last4: string | null
+  /** A card's whole number; null for anything else, and for a card known only by its last four digits. */
+  cardNumber: string | null
   bank: string | null
   /** In the account's own currency; null for a person who may not see balances. */
   balance: number | null

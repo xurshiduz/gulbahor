@@ -398,7 +398,13 @@ export class ReturnsService {
           account = accounts.find((item) => item.id === refund.accountId)
           const paidHere = caps.accounts.some((cap) => cap.accountId === account?.id)
           otherwise ||= !paidHere
-          const fits = account && account.kind === refund.method && account.isActive && (free || paidHere)
+          // A sale is in so'm: what is handed back for it goes to a so'm card, never a dollar one.
+          const fits =
+            account &&
+            account.kind === refund.method &&
+            account.currency === 'UZS' &&
+            account.isActive &&
+            (free || paidHere)
           if (!fits) {
             fields[`refunds.${index}.accountId`] =
               refund.method === 'card' ? "Bu chek shu kartaga to'lanmagan" : "Bu chek shu terminal orqali to'lanmagan"

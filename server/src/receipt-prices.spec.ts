@@ -161,4 +161,17 @@ describe('Prices set by a receipt', () => {
     ).body
     expect(changed.settings).toMatchObject({ receiptLineExtra: true, maxDiscountPercent: 10 })
   })
+
+  it('and the same for a model with a supplier of its own', async () => {
+    const me = (await alpha.get('/api/auth/me').expect(200)).body
+    expect(me.org.settings.receiptLineSupplier).toBe(false)
+    const changed = (
+      await alpha
+        .put('/api/org')
+        .send({ name: me.org.name, settings: { autoLockMinutes: 10, receiptLineSupplier: true } })
+        .expect(200)
+    ).body
+    // What was not sent stays as it was.
+    expect(changed.settings).toMatchObject({ receiptLineSupplier: true, receiptLineExtra: true })
+  })
 })

@@ -27,6 +27,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { SearchInput } from '@/components/ui/page'
+import { placeName } from '@/features/partners/payment-lines'
 import { api } from '@/lib/api'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
@@ -321,9 +322,10 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
   // A terminal's money goes to the bank by itself; everything else can be carried.
   const movable = accounts.filter((account) => account.isActive && account.kind !== 'terminal')
   const from = movable.find((account) => account.id === fromId) ?? null
+  // A card is told from another by its number, a drawer by its till: the till's name is the drawer's own.
   const option = (account: AccountDto) => ({
     value: account.id,
-    label: account.name,
+    label: account.kind === 'cash' ? account.name : placeName(account, t),
     hint: account.balance === null ? account.currency : money(account.balance, account.currency),
   })
 

@@ -173,7 +173,7 @@ export class MoneyService {
         entity: 'account',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['kind', 'name', 'currency', 'locationIds', 'last4', 'bank']),
+        changes: diff(before, after, ['kind', 'name', 'currency', 'locationIds', 'last4', 'cardNumber', 'bank']),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
       return this.accountRow(em, id, true)
@@ -371,6 +371,7 @@ export class MoneyService {
       locationNames: account.locationIds.flatMap((id) => nameOf.get(id) ?? []).sort((a, b) => a.localeCompare(b)),
       registerId: account.registerId,
       last4: account.last4,
+      cardNumber: account.cardNumber,
       bank: account.bank,
       balance: seesBalances ? account.balance : null,
       isActive: account.isActive,
@@ -427,6 +428,16 @@ export class MoneyService {
     )
     if (taken) {
       throw AppError.validation({ name: 'Bunday nomli hisob bor' })
+    }
+    if (input.cardNumber) {
+      // Two accounts with one card's number would each be told the same money came in.
+      const [same]: { name: string }[] = await em.query(
+        `SELECT name FROM accounts WHERE card_number = $1 AND id IS DISTINCT FROM $2`,
+        [input.cardNumber, exceptId ?? null],
+      )
+      if (same) {
+        throw AppError.validation({ cardNumber: `Bu raqamli karta bor: ${same.name}` })
+      }
     }
   }
 }

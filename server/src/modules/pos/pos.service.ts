@@ -56,7 +56,8 @@ export class PosService {
         shift: open ? await this.shifts.load(em, actor, open.id) : null,
         rate: usd ? await this.ledger.rate(em, await this.ledger.today(em, actor.orgId)) : null,
         usd,
-        cards: accounts.filter((account) => account.kind === 'card'),
+        // A sale is in so'm, and so is the card it is paid to; dollar cards are for the payment windows.
+        cards: accounts.filter((account) => account.kind === 'card' && account.currency === 'UZS'),
         terminals: accounts.filter((account) => account.kind === 'terminal'),
         sellers,
         approvers: await this.approvals.approversAt(em, register.locationId, actor.userId),

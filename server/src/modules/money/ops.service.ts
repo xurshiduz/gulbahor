@@ -3,7 +3,6 @@ import {
   MONEY_OP_KIND_LABELS,
   searchKey,
   STARTER_MONEY_CATEGORIES,
-  toBase,
   type MoneyCategoryDto,
   type MoneyCategoryInput,
   type MoneyOpDto,
@@ -25,6 +24,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
+import { rateLimit, valueLine } from './agreed'
 import { LedgerService, type Posting } from './ledger.service'
 import { MoneyService } from './money.service'
 import { mayUse } from './places'
@@ -184,7 +184,7 @@ export class MoneyOpsService {
       }
       const today = await this.ledger.today(em, actor.orgId)
       const dayRate = actor.modules.includes('usd') ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
-      const setsRates = can(actor, 'money.rates')
+      const limit = await rateLimit(em, actor)
       // Money in adds to an account; an expense takes from it.
       const sign = input.kind === 'income' ? 1 : -1
 
@@ -196,8 +196,15 @@ export class MoneyOpsService {
 
       const fields: Record<string, string> = {}
       const spent = new Map<string, number>()
-      const lines: { account: Account; amount: number; rate: number | null; base: number; shiftId: string | null }[] =
-        []
+      const lines: {
+        account: Account
+        amount: number
+        rate: number | null
+        /** What the line counts as in so'm, and what its money is worth at the day's rate. */
+        base: number
+        cashBase: number
+        shiftId: string | null
+      }[] = []
       for (const [index, line] of input.lines.entries()) {
         const account = accountOf.get(line.accountId)
         if (!account || !account.isActive || !PLACES.includes(account.kind) || !mayUse(actor, account)) {
@@ -214,8 +221,7 @@ export class MoneyOpsService {
           }
           shiftId = open.id
         }
-        const rate = account.currency === 'USD' ? (setsRates && line.rate ? line.rate : dayRate) : null
-        if (account.currency === 'USD' && !rate) {
+        if (account.currency === 'USD' && !dayRate) {
           fields[`lines.${index}.amount`] = "Dollar kursi qo'yilmagan"
           continue
         }
@@ -227,7 +233,20 @@ export class MoneyOpsService {
             continue
           }
         }
-        lines.push({ account, amount: line.amount, rate, base: toBase(line.amount, account.currency, rate), shiftId })
+        // Dollars may be counted as an agreed sum of so'm, within what this person may agree to.
+        const worth = valueLine(line.amount, account.currency, 'UZS', dayRate, line.settled, limit)
+        if (typeof worth === 'string') {
+          fields[`lines.${index}.settled`] = worth
+          continue
+        }
+        lines.push({
+          account,
+          amount: line.amount,
+          rate: worth.rate,
+          base: worth.settled,
+          cashBase: worth.cashBase,
+          shiftId,
+        })
       }
       const first = Object.values(fields)[0]
       if (first) {
@@ -270,17 +289,25 @@ export class MoneyOpsService {
           amount: line.amount,
           rate: line.rate,
           base: line.base,
+          fx: sign * (line.cashBase - line.base),
           shiftId: line.shiftId,
         })),
       )
 
       const other = await this.ledger.systemAccount(em, actor.orgId, otherSide(category))
+      // The money moves at what the day's rate makes it; the expense is what it was counted as.
       const postings: Posting[] = lines.map((line) => ({
         accountId: line.account.id,
         amount: sign * line.amount,
-        base: sign * line.base,
+        base: sign * line.cashBase,
       }))
       postings.push({ accountId: other.id, amount: -sign * total, base: -sign * total })
+      // What lies between the two is the rate's, and is written down as such.
+      const fx = lines.reduce((sum, line) => sum + line.cashBase - line.base, 0)
+      if (fx) {
+        const difference = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+        postings.push({ accountId: difference.id, amount: -sign * fx, base: -sign * fx })
+      }
       await this.ledger.post(
         em,
         actor,
@@ -458,6 +485,7 @@ export class MoneyOpsService {
         amount: line.amount,
         rate: line.rate,
         base: line.base,
+        fx: line.fx,
       })),
     }
   }

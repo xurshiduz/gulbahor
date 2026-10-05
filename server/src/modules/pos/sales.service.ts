@@ -314,7 +314,11 @@ export class SalesService {
       } else {
         account = accounts.find((item) => item.id === payment.accountId)
         const fits =
-          account && account.kind === payment.method && account.isActive && servesShop(account, register.locationId)
+          account &&
+          account.kind === payment.method &&
+          account.currency === 'UZS' &&
+          account.isActive &&
+          servesShop(account, register.locationId)
         if (!fits) {
           fields[`payments.${index}.accountId`] = payment.method === 'card' ? 'Karta topilmadi' : 'Terminal topilmadi'
           continue

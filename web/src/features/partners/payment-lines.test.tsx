@@ -1,15 +1,18 @@
 import type { CurrencyCode, PaymentAccountDto } from '@gulbahor/core'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import {
   addRow,
+  agreedOf,
   clearRows,
   fillFor,
   patchRow,
   PaymentLines,
+  placeName,
   rateText,
   READY_ROWS,
   removeRow,
@@ -20,6 +23,7 @@ import {
   totalOf,
   valueLines,
   type PaymentRow,
+  type ValuedLine,
 } from './payment-lines'
 
 const som = (amount: number) => Math.round(amount * 100)
@@ -38,6 +42,7 @@ const row = (accountId: string, amount: number | null = null, rate: number | nul
   accountId,
   amount,
   rate,
+  settled: null,
 })
 
 describe('the lines a payment opens with', () => {
@@ -165,29 +170,45 @@ interface LinesProps {
   start: PaymentRow[]
   accounts?: PaymentAccountDto[]
   owed?: number
+  /** The currency of the account being settled, and which way the money goes. */
+  currency?: CurrencyCode
+  kind?: 'in' | 'out'
+  /** What the lines would send, for whoever wants to look. */
+  onLines?: (lines: ValuedLine[]) => void
 }
 
-function Lines({ setsRates = false, start, accounts = ACCOUNTS, owed }: LinesProps) {
+function Lines({
+  setsRates = false,
+  start,
+  accounts = ACCOUNTS,
+  owed,
+  currency = 'USD',
+  kind = 'in',
+  onLines,
+}: LinesProps) {
   const [rows, setRows] = useState(start)
-  const lines = valueLines(rows, accounts, 'USD', RATE)
+  // Anyone may agree a sum within 2% of the day's rate.
+  const lines = valueLines(rows, accounts, currency, RATE, 2)
+  onLines?.(lines)
   return (
     <PaymentLines
-      kind="in"
+      kind={kind}
       lines={lines}
       spare={accounts.filter((item) => !rows.some((line) => line.accountId === item.id))}
-      currency="USD"
+      currency={currency}
       owed={owed ?? null}
       onPatch={(accountId, change) => setRows((current) => patchRow(current, accountId, change))}
       onAdd={(accountId) => setRows((current) => addRow(current, accountId))}
       onRemove={(accountId) => setRows((current) => removeRow(current, accountId))}
       onTotal={(total) => {
-        const taken = spreadTotal(lines, total, 'USD')
+        const taken = spreadTotal(lines, total, currency)
         if (taken) {
-          setRows((current) => patchRow(current, taken.accountId, { amount: taken.amount }))
+          setRows((current) => patchRow(current, taken.accountId, { amount: taken.amount, settled: null }))
         }
         return !!taken
       }}
       setsRates={setsRates}
+      dayRate={RATE}
     />
   )
 }
@@ -196,7 +217,35 @@ function Lines({ setsRates = false, start, accounts = ACCOUNTS, owed }: LinesPro
 const fields = () => screen.getAllByRole('textbox') as HTMLInputElement[]
 
 describe('the ready lines', () => {
-  it('work a pair out from the rate, whichever of the two is typed', async () => {
+  it('are named by what they hold: the till they belong to is chosen above them', () => {
+    const places = [
+      account('uzs', "Gulbahor 2 kassasi (so'm)", 'UZS', { registerId: 'till-2' }),
+      account('usd', 'Gulbahor 2 kassasi (dollar)', 'USD', { registerId: 'till-2' }),
+      account('humo', 'Humo', 'UZS', { kind: 'card', cardNumber: '9860123456789012', last4: '9012' }),
+      account('visa', 'Visa', 'USD', { kind: 'card', cardNumber: '4000123412341234', last4: '1234' }),
+      account('old', 'Uzcard', 'UZS', { kind: 'card', last4: '8841' }),
+      account('safe', 'Asosiy seyf', 'USD', { kind: 'safe' }),
+      account('bank', 'Ipak yo‘li', 'UZS', { kind: 'bank' }),
+    ]
+    const t = i18next.t.bind(i18next)
+    expect(places.map((place) => placeName(place, t))).toEqual([
+      "So'm naqd",
+      'Dollar naqd',
+      // A card is told from another by its whole number; one known only by its last four says so.
+      "So'm karta (9860 1234 5678 9012)",
+      'Dollar karta (4000 1234 1234 1234)',
+      "So'm karta (Uzcard *8841)",
+      'Dollar naqd (Asosiy seyf)',
+      "So'm bank (Ipak yo‘li)",
+    ])
+    render(<Lines start={[row('uzs'), row('usd'), row('humo')]} accounts={places} />)
+    expect(screen.getByText("So'm naqd")).toBeTruthy()
+    expect(screen.getByText('Dollar naqd')).toBeTruthy()
+    expect(screen.getByText("So'm karta (9860 1234 5678 9012)")).toBeTruthy()
+    expect(screen.queryByText(/Gulbahor 2 kassasi/)).toBeNull()
+  })
+
+  it('work what the money settles out from the rate as the money is typed', async () => {
     render(<Lines start={[row('uzs'), row('usd')]} />)
     // So'm against a dollar account has both fields; dollars have one. No place is picked: every line is ready.
     const [amount, settled, dollars, total] = fields()
@@ -207,15 +256,103 @@ describe('the ready lines', () => {
     await userEvent.type(amount, '1000000{Tab}')
     expect(settled.value).toBe('79,05')
     expect(total.value).toBe('79,05')
+    // Left to the rate, nothing is said about a rate and nothing is sent as agreed.
+    expect(document.querySelector('[data-agreed]')).toBeNull()
 
-    // Typed the other way round: 500 $ is 6 325 000 so'm.
-    await userEvent.clear(settled)
+    await userEvent.type(dollars, '250{Tab}')
+    expect(total.value).toBe('329,05')
+  })
+
+  it('work the money out when what it is to settle is typed into an empty line', async () => {
+    render(<Lines start={[row('uzs'), row('usd')]} />)
+    const [amount, settled] = fields()
+    // "How many so'm are 500 dollars?" — 6 325 000 at the rate.
     await userEvent.type(settled, '500{Tab}')
     expect(plain(amount.value)).toBe('6 325 000')
     expect(settled.value).toBe('500,00')
+    expect(document.querySelector('[data-agreed]')).toBeNull()
+  })
 
-    await userEvent.type(dollars, '250{Tab}')
-    expect(total.value).toBe('750,00')
+  it('leave the money as it is when what it settles is typed over: both stand, the rate follows', async () => {
+    let sent: ValuedLine[] = []
+    // A partner who keeps count in so'm brings dollars.
+    render(<Lines currency="UZS" start={[row('uzs'), row('usd')]} onLines={(lines) => (sent = lines)} />)
+    const [, dollars, settled, total] = fields()
+    await userEvent.type(dollars, '100{Tab}')
+    expect(plain(settled.value)).toBe('1 265 000')
+
+    // "Take these hundred dollars for 1 280 000."
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '1280000{Tab}')
+    // Neither field was rewritten.
+    expect(dollars.value).toBe('100,00')
+    expect(plain(settled.value)).toBe('1 280 000')
+    expect(plain(total.value)).toBe('1 280 000')
+    // The rate column goes on saying the day's rate: nobody is to take 12 800 for today's.
+    expect(plain(screen.getByText(/^12.650$/).textContent ?? '')).toBe('12 650')
+    // What the two sums make, and what that costs against the day's rate, is said in words under the line.
+    const note = document.querySelector('[data-agreed="usd"]') as HTMLElement
+    expect(plain(note.textContent ?? '')).toBe(
+      "Kelishilgan kurs 12 800, kun kursi 12 650 (1,2% farq): 15 000 so'm zararimizga",
+    )
+    expect(note.className).toContain('text-warn')
+    expect(agreedOf(sent[1])).toBe(som(1_280_000))
+    expect(sent[1]).toMatchObject({ agreed: true, strays: false, rate: 12_800 })
+
+    // The money typed again is a new sum: what it settles is worked out afresh, at the day's rate.
+    await userEvent.clear(dollars)
+    await userEvent.type(dollars, '200{Tab}')
+    expect(plain(settled.value)).toBe('2 530 000')
+    expect(document.querySelector('[data-agreed]')).toBeNull()
+    expect(agreedOf(sent[1])).toBeNull()
+
+    // Emptied, the second field goes back to what the rate makes.
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '2600000{Tab}')
+    expect(plain(settled.value)).toBe('2 600 000')
+    await userEvent.clear(settled)
+    await userEvent.tab()
+    expect(plain(settled.value)).toBe('2 530 000')
+  })
+
+  it('say which way an agreed sum cuts: money in worth more than it settles is the business’s gain', async () => {
+    render(<Lines currency="UZS" start={[row('usd')]} />)
+    const [dollars, settled] = fields()
+    await userEvent.type(dollars, '100{Tab}')
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '1250000{Tab}')
+    const note = () => document.querySelector('[data-agreed="usd"]') as HTMLElement
+    expect(plain(note().textContent ?? '')).toBe(
+      "Kelishilgan kurs 12 500, kun kursi 12 650 (1,2% farq): 15 000 so'm foydamizga",
+    )
+    expect(note().className).toContain('text-ok')
+  })
+
+  it('and money going out worth more than it settles is its loss', async () => {
+    render(<Lines kind="out" currency="UZS" start={[row('usd')]} />)
+    const [dollars, settled] = fields()
+    await userEvent.type(dollars, '100{Tab}')
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '1250000{Tab}')
+    expect(plain(document.querySelector('[data-agreed="usd"]')?.textContent ?? '')).toBe(
+      "Kelishilgan kurs 12 500, kun kursi 12 650 (1,2% farq): 15 000 so'm zararimizga",
+    )
+  })
+
+  it('warn, before anything is sent, of a sum further from the rate than anyone may agree to', async () => {
+    let sent: ValuedLine[] = []
+    render(<Lines currency="UZS" start={[row('usd')]} onLines={(lines) => (sent = lines)} />)
+    const [dollars, settled] = fields()
+    await userEvent.type(dollars, '100{Tab}')
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '1400000{Tab}')
+    const note = document.querySelector('[data-agreed="usd"]') as HTMLElement
+    expect(plain(note.textContent ?? '')).toBe(
+      "Kelishilgan kurs 14 000, kun kursi 12 650 (10,7% farq): 135 000 so'm zararimizga — kurs qo'yish ruxsati kerak",
+    )
+    expect(note.className).toContain('text-bad')
+    expect(settled.getAttribute('aria-invalid')).toBe('true')
+    expect(sent[0]).toMatchObject({ agreed: true, strays: true })
   })
 
   it('make the total up in dollars when the total is typed', async () => {
@@ -255,14 +392,35 @@ describe('the ready lines', () => {
     expect(dollars.disabled).toBe(false)
   })
 
-  it('let the one who sets rates give a line its own', async () => {
+  it('let the one who sets rates give a line its own, or read it off an agreed sum', async () => {
     render(<Lines setsRates start={[row('uzs', som(1_200_000))]} />)
     // The line, its rate, what it settles; then the place that has no line yet, and the total.
-    const [, rate, settled] = fields()
+    const [amount, rate, settled] = fields()
     expect(settled.value).toBe('94,86')
     expect(plain(rate.placeholder)).toBe('12 650')
+    expect(rate.value).toBe('')
     await userEvent.type(rate, '12000{Tab}')
     expect(settled.value).toBe('100,00')
+    // 1 200 000 so'm for a hundred dollars that are worth 1 265 000: whoever sets rates is told what it costs,
+    // and is not stopped.
+    const note = document.querySelector('[data-agreed="uzs"]') as HTMLElement
+    expect(plain(note.textContent ?? '')).toBe(
+      "Kelishilgan kurs 12 000, kun kursi 12 650 (5,4% farq): 65 000 so'm zararimizga",
+    )
+    expect(note.className).toContain('text-warn')
+
+    // The sum typed over the rate: the money stands, and the rate field goes back to showing the day's, faintly —
+    // what the two sums now make is said under the line.
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '96{Tab}')
+    expect(plain(amount.value)).toBe('1 200 000')
+    expect(rate.value).toBe('')
+    expect(plain(document.querySelector('[data-agreed="uzs"]')?.textContent ?? '')).toContain('Kelishilgan kurs 12 500')
+    // The money typed again goes back to the day's rate, and the rate field to showing it faintly.
+    await userEvent.clear(amount)
+    await userEvent.type(amount, '1265000{Tab}')
+    expect(settled.value).toBe('100,00')
+    expect(rate.value).toBe('')
   })
 })
 
@@ -284,11 +442,12 @@ function Expense({ start }: { start: PaymentRow[] }) {
         onTotal={(total) => {
           const taken = spreadTotal(lines, total, 'UZS')
           if (taken) {
-            setRows((current) => patchRow(current, taken.accountId, { amount: taken.amount }))
+            setRows((current) => patchRow(current, taken.accountId, { amount: taken.amount, settled: null }))
           }
           return !!taken
         }}
         setsRates={false}
+        dayRate={RATE}
         headings={{ ours: 'Bizdan chiqdi', theirs: "So'mda" }}
       />
       <output aria-label="total">{totalOf(lines) / 100}</output>
@@ -311,8 +470,15 @@ describe('the ready lines of an expense', () => {
     expect(plain(total.value)).toBe('1 000 000')
     expect(screen.getByLabelText('total').textContent).toBe('1000000')
 
-    // The worth typed instead works the dollars out.
+    // The worth typed over leaves the dollars as they are: forty dollars counted as 510 000.
     await userEvent.clear(worth)
+    await userEvent.type(worth, '510000{Tab}')
+    expect(dollars.value).toBe('40,00')
+    expect(plain(worth.value)).toBe('510 000')
+    expect(screen.getByLabelText('total').textContent).toBe('1004000')
+    // Typed into an empty line, it works the dollars out.
+    await userEvent.clear(dollars)
+    await userEvent.tab()
     await userEvent.type(worth, '253000{Tab}')
     expect(dollars.value).toBe('20,00')
   })

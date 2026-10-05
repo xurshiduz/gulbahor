@@ -36,6 +36,7 @@ import { SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import {
   addRow,
+  agreedOf,
   clearRows,
   keepAccounts,
   keptAccounts,
@@ -113,7 +114,7 @@ interface MoneyOpDialogProps {
  */
 export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpDialogProps) {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const queryClient = useQueryClient()
   const [kind, setKind] = useState<MoneyOpKind>(startKind)
   const [categoryId, setCategoryId] = useState<string | null>(() => lastCategory(startKind))
@@ -152,7 +153,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
     setRows(switchTill(shown, places, id))
   }
   // Everything is counted in so'm: dollars are worth what the rate makes them.
-  const valued = valueLines(shown, places, 'UZS', dayRate)
+  const valued = valueLines(shown, places, 'UZS', dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
 
@@ -257,7 +258,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
       lines: filled.map((line) => ({
         accountId: line.row.accountId,
         amount: line.row.amount,
-        rate: line.changes ? line.row.rate : null,
+        settled: agreedOf(line),
       })),
       total,
       note,
@@ -275,7 +276,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
       toast.error(t(valued.some((line) => line.account.open) ? 'payments.totalTooSmall' : 'payments.pickAccount'))
       return false
     }
-    patch(taken.accountId, { amount: taken.amount })
+    patch(taken.accountId, { amount: taken.amount, settled: null })
     return true
   }
 
@@ -369,6 +370,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
             onRemove={(accountId) => lay(removeRow(shown, accountId))}
             onTotal={typeTotal}
             setsRates={setsRates}
+            dayRate={dayRate}
             problems={problems}
             autoFocus={!!category}
             focusId={added}
