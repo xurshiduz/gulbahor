@@ -38,7 +38,7 @@ export function InputsDemoPage() {
   useScanner((code) => setScan({ code, at: new Date().toISOString() }))
 
   return (
-    <Page title={t('demo.title')} width="narrow">
+    <Page title={t('demo.title')} width="narrow" flow>
       <Form onSubmit={() => toast.success(t('common.saved'))} className="gap-4">
         <Card title={t('demo.money')}>
           <div className="grid gap-4 sm:grid-cols-2">

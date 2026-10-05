@@ -1175,7 +1175,7 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
       {!expenses.length && !editable ? <p className="text-xs text-ink-3">{t('receipts.noExpenses')}</p> : null}
       {editable ? (
         <div>
-          <Button size="sm" onClick={add}>
+          <Button variant="soft" size="sm" onClick={add}>
             <Plus />
             {t('receipts.addExpense')}
           </Button>

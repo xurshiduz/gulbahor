@@ -160,6 +160,19 @@
     scrollbar-width: thin;
     scrollbar-color: var(--line-strong) transparent;
   }
+  /*
+   * A select, a checkbox and a switch each keep a native control beside
+   * them, out of sight, placed absolutely "where it stands". Far down a long
+   * form, inside a box that scrolls but is not itself positioned, where it
+   * stands is measured from the page: the page grows a scroll of its own,
+   * and the cursor moving down the form drags the whole window up. Pinned to
+   * the corner of whatever holds them, they add nothing to any scroll.
+   */
+  select[aria-hidden='true'],
+  input[aria-hidden='true'][tabindex='-1'] {
+    top: 0;
+    left: 0;
+  }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 1ms !important;

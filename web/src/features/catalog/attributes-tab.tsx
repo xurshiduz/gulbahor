@@ -97,7 +97,7 @@ export function AttributesTab({ canManage, starter }: { canManage: boolean; star
             <div className="flex flex-wrap justify-center gap-2">
               {starter}
               {canManage ? (
-                <Button size="sm" onClick={() => setEditing({ attribute: null })}>
+                <Button variant="soft" size="sm" onClick={() => setEditing({ attribute: null })}>
                   <Plus />
                   {t('references.addAttribute')}
                 </Button>
@@ -393,7 +393,7 @@ function QuickAdd({ attribute, onAdded }: { attribute: AttributeDto; onAdded: (u
             }
           }}
         />
-        <Button onClick={submit} loading={mutation.isPending} disabled={!text.trim()}>
+        <Button variant="soft" onClick={submit} loading={mutation.isPending} disabled={!text.trim()}>
           <Plus />
           {t('common.add')}
         </Button>

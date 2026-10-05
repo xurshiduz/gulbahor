@@ -136,7 +136,7 @@ export function LoyaltyTab() {
         </div>
         {canManage ? (
           <div className="mt-3 flex items-center gap-2 border-t border-line pt-3">
-            <Button onClick={() => change([...rows, row()])}>
+            <Button variant="soft" onClick={() => change([...rows, row()])}>
               <Plus />
               {t('customers.addTier')}
             </Button>

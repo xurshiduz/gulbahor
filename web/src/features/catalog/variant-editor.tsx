@@ -154,7 +154,7 @@ export function VariantAxes({ state, attributes, onChange, locked, onCreateValue
             <Menu
               align="start"
               trigger={
-                <Button size="sm">
+                <Button variant="soft" size="sm">
                   <Plus />
                   {t('products.addAxis')}
                 </Button>

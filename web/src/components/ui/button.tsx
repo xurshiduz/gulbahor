@@ -3,7 +3,7 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 
 import { cn } from '@/lib/cn'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Variant = 'primary' | 'secondary' | 'soft' | 'ghost' | 'danger'
 type Size = 'sm' | 'md' | 'icon' | 'iconSm'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,6 +15,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-accent text-on-accent hover:bg-accent-hover',
   secondary: 'border border-line-strong bg-surface text-ink hover:bg-sunken',
+  // "Add one more" inside a card or a list: plainly something to press, without the weight of the screen's main button.
+  soft: 'bg-accent-soft text-accent-ink hover:bg-accent/15',
   ghost: 'text-ink-2 hover:bg-sunken hover:text-ink',
   danger: 'bg-bad text-white hover:opacity-90 dark:text-on-accent',
 }

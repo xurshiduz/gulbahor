@@ -239,7 +239,8 @@ export function Shell() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto">
+        {/* Positioned, so that what a screen places absolutely is held and scrolled here, never by the window. */}
+        <main className="relative min-h-0 flex-1 overflow-y-auto">
           <PageChrome.Provider value={chrome}>
             <Outlet />
           </PageChrome.Provider>

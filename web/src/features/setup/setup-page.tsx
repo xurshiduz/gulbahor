@@ -149,7 +149,7 @@ export function SetupPage() {
               <p className="text-xs text-bad">{errors.locations?.root?.message ?? errors.locations?.message}</p>
             ) : null}
             <div>
-              <Button size="sm" onClick={() => places.append({ name: '', kind: 'store' })}>
+              <Button variant="soft" size="sm" onClick={() => places.append({ name: '', kind: 'store' })}>
                 <Plus />
                 {t('setup.addPlace')}
               </Button>
