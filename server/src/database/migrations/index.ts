@@ -18,6 +18,7 @@ import { TillPriceTypes1790000016000 } from './1790000016000-till-price-types'
 import { Customers1790000017000 } from './1790000017000-customers'
 import { CustomerGroups1790000018000 } from './1790000018000-customer-groups'
 import { CustomerDiscounts1790000019000 } from './1790000019000-customer-discounts'
+import { Promotions1790000020000 } from './1790000020000-promotions'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -41,4 +42,5 @@ export const MIGRATIONS = [
   Customers1790000017000,
   CustomerGroups1790000018000,
   CustomerDiscounts1790000019000,
+  Promotions1790000020000,
 ]

@@ -5,6 +5,7 @@ import {
   addToCart,
   agreedOf,
   agreedText,
+  autoReasons,
   backLines,
   badDiscount,
   cartTotals,
@@ -195,6 +196,47 @@ describe("the customer's own discount", () => {
     expect(cartTotals(cartOf('', '=250 000'), 10).total).toBe(som(250_000))
     // A price above what the line is now at is no discount at all.
     expect(badDiscount('=190 000', som(180_000))).toBe(true)
+  })
+})
+
+describe('promotions in the cart', () => {
+  const autumn = { id: 'autumn', name: 'Kuzgi aksiya', kind: 'percent' as const, value: 20, stackable: false }
+  const cartOf = (lineDiscount = ''): Cart => ({
+    ...EMPTY_CART,
+    lines: [
+      { key: 'a', item: { ...item('dress', som(200_000)), promos: [autumn] }, qty: 1, discountText: lineDiscount },
+      { key: 'b', item: item('scarf', som(50_000)), qty: 1, discountText: '' },
+    ],
+  })
+
+  it('come off the lines they cover, and are named', () => {
+    const totals = cartTotals(cartOf())
+    expect(totals).toMatchObject({ subtotal: som(250_000), auto: som(40_000), total: som(210_000) })
+    expect(totals.autos.map((line) => [line.promo?.name ?? null, line.promoOff])).toEqual([
+      ['Kuzgi aksiya', som(40_000)],
+      [null, 0],
+    ])
+    expect(autoReasons(totals.autos, null)).toBe('Kuzgi aksiya')
+  })
+
+  it("stand beside the customer's own discount line by line: the greater of the two on each", () => {
+    // The dress is 20% off by the promotion; the scarf, which it does not cover, 10% off as hers.
+    const totals = cartTotals(cartOf(), 10)
+    expect(totals.autos.map((line) => [line.promoOff, line.ownOff])).toEqual([
+      [som(40_000), 0],
+      [0, som(5000)],
+    ])
+    expect(totals.total).toBe(som(205_000))
+    expect(autoReasons(totals.autos, 'Doimiy 10%')).toBe('Kuzgi aksiya, Doimiy 10%')
+    // Where her own discount took part in nothing, it is not named.
+    expect(autoReasons(cartTotals(cartOf()).autos, 'Doimiy 10%')).toBe('Kuzgi aksiya')
+  })
+
+  it("leave the cashier's discount to be counted from the promotion's price", () => {
+    const totals = cartTotals(cartOf('10%'))
+    // 10% of the 160 000 the dress is at, not of its 200 000.
+    expect(totals.lineDiscounts).toEqual([som(16_000), 0])
+    expect(totals.lines[0].total).toBe(som(144_000))
   })
 })
 

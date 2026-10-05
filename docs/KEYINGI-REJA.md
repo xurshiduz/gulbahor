@@ -226,6 +226,13 @@ Qoidalar:
 
 1. **Aksiyalar.** Birinchi navbatda aka ishlatgan uchtasi: foizli chegirma, belgilangan narx, "1+1" (birini olsa ikkinchisi chegirmada). Keyin: N dona olinsa chegirma, chek summasi yetganda chegirma. Har aksiyada: nomi (kassada ko'rinadi), do'konlar, boshlanish va tugash vaqti (o'zi boshlanadi, o'zi tugaydi), tovarlar (kategoriya, brend, sezon yoki ro'yxat), faqat chakana narxgami, boshqa chegirmalar bilan qo'shiladimi.
 2. **Promokod.** Aksiyaga bog'lanadi: "faqat kod aytilsa ishlaydi". Qaysi kanal (Instagram, bloger) qancha savdo olib kelganini ko'rsatadi.
+   - Qilingan (2026-10-05), 1- va 2-bandlar (foizli chegirma, belgilangan narx, promokod): **"Aksiyalar"** sahifasi (menyuda alohida bo'lim). Aksiyada: nomi, turi (foiz yoki "har dona narxi"), boshlanish va tugash kuni (tugash kuni bo'sh bo'lsa to'xtatilguncha), do'konlar (bo'sh — hammasi), tovarlar doirasi (kategoriya — ichidagilari bilan, brend, sezon; bir nechta shart tanlansa hammasiga mos tovarlar; alohida tovarlar ro'yxati), promokod, "mijoz chegirmasi bilan qo'shiladi" belgisi.
+   - Aksiya belgilangan kunda **o'zi boshlanadi va o'zi tugaydi**; holati ko'rinib turadi (kutilmoqda / ketmoqda / tugagan / to'xtatilgan). To'xtatish va davom ettirish bir tugma. Chekda ishlatilgan aksiya o'chirilmaydi — faqat to'xtatiladi.
+   - **Kassada o'zi qo'llanadi**: tovar savatga tushishi bilan qator ostida aksiya nomi va ayrilgan summa ko'rinadi. Bitta tovarga bir nechta aksiya to'g'ri kelsa — eng foydalisi. Mijoz chegirmasi bilan **qo'shilmaydi**: har qatorga kattasi qo'llanadi (50% aksiya va 20% mijoz chegirmasi → 50%). "Qo'shiladi" belgilangan aksiyada ketma-ket: 1 000 000 → 50% → 500 000 → 20% → 400 000.
+   - **Promokod**: kodli aksiya faqat kod aytilganda ishlaydi. Kassada "Promokod" maydoni shunday aksiya bor kunlardagina chiqadi; kod yozilgach kassa darhol "qabul qilindi: aksiya nomi" yoki "bunday promokod yo'q" deydi. Chekda promokod yoziladi.
+   - Aksiya faqat chakana narxga qo'llanadi (ulgurji yoki "Oila" narxidagi savatga emas). Kassir qo'l chegirmasi aksiyadan keyin qolgan summadan hisoblanadi; minimal narx tekshiruvi yakuniy summa bo'yicha.
+   - Ro'yxatda har aksiya **qancha chegirma bergani va nechta chekda ishlagani** ko'rinadi (samaradorlik hisobotining boshlanishi).
+   - Hali yo'q: "1+1", N dona olinsa chegirma, chek summasi yetganda chegirma; o'tgan davr bilan solishtirish hisoboti.
 3. **Tarqatma.** Guruh, teg yoki filtr bo'yicha, **Telegram** orqali (mijoz boti, bepul). SMS hozircha qurilmaydi (aka: Telegram yetarli).
 4. **Sovg'a kartasi.** Aka ishlatmagan — keyinga.
 5. **Hisobot:** aksiya samaradorligi (aksiya davridagi savdo, o'tgan davr bilan solishtirish).

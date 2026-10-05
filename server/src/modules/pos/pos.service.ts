@@ -11,6 +11,7 @@ import { MoneyService } from '../money/money.service'
 import { servesShop } from '../money/places'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
+import { runningAt } from '../promotions/promotions.service'
 import { ApprovalsService } from './approvals.service'
 import { sellables } from './items'
 
@@ -60,6 +61,7 @@ export class PosService {
         sellers,
         approvers: await this.approvals.approversAt(em, register.locationId, actor.userId),
         priceTypes: await this.priceTypes(em, actor),
+        promoCodes: await this.takesCodes(em, actor, register),
         drawers: {
           UZS: drawers.find((account) => account.currency === 'UZS')?.id ?? null,
           USD: drawers.find((account) => account.currency === 'USD')?.id ?? null,
@@ -93,11 +95,52 @@ export class PosService {
       .map((type) => ({ id: type.id, name: type.name, needsWord: type.tillAccess === 'approval' && !allowed }))
   }
 
-  /** What a cashier finds by typing a name, an article, a colour or a size. */
-  async search(actor: Actor, registerId: string, q: string, priceTypeId: string | null = null): Promise<PosItemDto[]> {
+  /** Whether any promotion running at a till today asks for a code. */
+  private async takesCodes(em: EntityManager, actor: Actor, register: Register): Promise<boolean> {
+    const today = await this.ledger.today(em, actor.orgId)
+    const [row] = await em.query(
+      `SELECT 1 FROM promotions p
+       WHERE p.is_active AND p.code IS NOT NULL AND p.starts_on <= $1 AND (p.ends_on IS NULL OR p.ends_on >= $1)
+         AND (cardinality(p.location_ids) = 0 OR $2 = ANY(p.location_ids))
+       LIMIT 1`,
+      [today, register.locationId],
+    )
+    return !!row
+  }
+
+  /** The promotions in force at a till today, with the code the customer said, if they said one. */
+  private async running(em: EntityManager, actor: Actor, register: Register, code: string | null) {
+    return runningAt(em, register.locationId, await this.ledger.today(em, actor.orgId), code)
+  }
+
+  /** The promotions a code opens at a till today: none when the word means nothing here. */
+  async promoCode(actor: Actor, registerId: string, code: string): Promise<{ name: string }[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
-      return sellables(em, { search: q, limit: 20 }, register.locationId, await this.rateNow(em, actor), priceTypeId)
+      const said = code.trim().toUpperCase()
+      const { promotions } = await this.running(em, actor, register, said)
+      return promotions.filter((promotion) => promotion.code === said).map((promotion) => ({ name: promotion.name }))
+    })
+  }
+
+  /** What a cashier finds by typing a name, an article, a colour or a size. */
+  async search(
+    actor: Actor,
+    registerId: string,
+    q: string,
+    priceTypeId: string | null = null,
+    promoCode: string | null = null,
+  ): Promise<PosItemDto[]> {
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const register = await this.register(em, actor, registerId)
+      return sellables(
+        em,
+        { search: q, limit: 20 },
+        register.locationId,
+        await this.rateNow(em, actor),
+        priceTypeId,
+        await this.running(em, actor, register, promoCode),
+      )
     })
   }
 
@@ -107,6 +150,7 @@ export class PosService {
     registerId: string,
     variantIds: string[],
     priceTypeId: string | null = null,
+    promoCode: string | null = null,
   ): Promise<PosItemDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
@@ -116,12 +160,19 @@ export class PosService {
         register.locationId,
         await this.rateNow(em, actor),
         priceTypeId,
+        await this.running(em, actor, register, promoCode),
       )
     })
   }
 
   /** What a scanned code is: a tagged piece, a barcode, or an article typed in full. */
-  async lookup(actor: Actor, registerId: string, code: string, priceTypeId: string | null = null): Promise<PosItemDto> {
+  async lookup(
+    actor: Actor,
+    registerId: string,
+    code: string,
+    priceTypeId: string | null = null,
+    promoCode: string | null = null,
+  ): Promise<PosItemDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
       const epc = normalizeEpc(code)
@@ -158,7 +209,14 @@ export class PosService {
         variantId = found?.id ?? null
       }
       const [item] = variantId
-        ? await sellables(em, { ids: [variantId] }, register.locationId, await this.rateNow(em, actor), priceTypeId)
+        ? await sellables(
+            em,
+            { ids: [variantId] },
+            register.locationId,
+            await this.rateNow(em, actor),
+            priceTypeId,
+            await this.running(em, actor, register, promoCode),
+          )
         : []
       if (!item) {
         throw AppError.notFound(epc ? "Bu RFID belgi tizimda yo'q" : 'Bu kod bilan tovar topilmadi')

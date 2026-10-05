@@ -17,6 +17,7 @@ import {
   KeyRound,
   Landmark,
   ListTree,
+  Megaphone,
   MonitorSmartphone,
   PackageMinus,
   PackagePlus,
@@ -133,6 +134,12 @@ export const NAVIGATION: NavGroup[] = [
         permission: 'customers.view',
       },
     ],
+  },
+  {
+    key: 'marketing',
+    label: 'nav.promotions',
+    icon: Megaphone,
+    items: [{ to: '/promotions', label: 'nav.promotions', icon: Megaphone, permission: 'promotions.view' }],
   },
   {
     key: 'money',

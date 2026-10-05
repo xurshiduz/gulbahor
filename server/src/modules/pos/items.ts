@@ -3,6 +3,7 @@ import type { EntityManager } from 'typeorm'
 
 import { applySearch } from '../../common/listing'
 import { AttributeValue, Product, ProductVariant } from '../../database/entities'
+import { offersFor, type RunningPromotions } from '../promotions/promotions.service'
 
 interface Row {
   variant_id: string
@@ -14,6 +15,9 @@ interface Row {
   price: Priced | null
   floor: Priced | null
   on_hand: number
+  category_id: string | null
+  brand_id: string | null
+  season: string | null
 }
 
 interface Priced {
@@ -57,7 +61,8 @@ const ON_HAND = `(
  * are on hand: by id, or by what a cashier types. A price kept in dollars is
  * given in so'm at the day's rate; with no rate it has no price, and a floor
  * kept in dollars holds nothing back. `priceTypeId` prices them at another
- * price type than the retail one, for a cart sold that way.
+ * price type than the retail one, for a cart sold that way. `running` are the
+ * promotions in force: each thing is told which of them cover it.
  */
 export async function sellables(
   em: EntityManager,
@@ -65,6 +70,7 @@ export async function sellables(
   locationId: string,
   uzsPerUsd: number | null,
   priceTypeId: string | null = null,
+  running: RunningPromotions | null = null,
 ): Promise<PosItemDto[]> {
   if ('ids' in what && !what.ids.length) {
     return []
@@ -83,6 +89,9 @@ export async function sellables(
     .addSelect('array_remove(ARRAY[a1.name, a2.name, a3.name], NULL)', 'value_names')
     .addSelect(priceTypeId ? `coalesce(${SPECIAL}, ${PRICE})` : PRICE, 'price')
     .addSelect(FLOOR, 'floor')
+    .addSelect('p.categoryId', 'category_id')
+    .addSelect('p.brandId', 'brand_id')
+    .addSelect('p.season', 'season')
     .addSelect(ON_HAND, 'on_hand')
     .where('v.isActive AND p.isActive')
     .setParameter('locationId', locationId)
@@ -118,6 +127,16 @@ export async function sellables(
       sku: row.sku,
       price,
       minPrice: inSom(row.floor),
+      // Promotions are for the retail price: a cart sold at a price of its own has none.
+      promos:
+        running && !priceTypeId
+          ? offersFor(running, {
+              productId: row.product_id,
+              categoryId: row.category_id,
+              brandId: row.brand_id,
+              season: row.season,
+            })
+          : [],
       onHand: row.on_hand,
       decimals: UNIT_INFO[row.unit].decimals,
       epc: null,

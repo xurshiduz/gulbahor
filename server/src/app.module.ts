@@ -16,6 +16,7 @@ import { CustomersModule } from './modules/customers/customers.module'
 import { PartnersModule } from './modules/partners/partners.module'
 import { PosModule } from './modules/pos/pos.module'
 import { PricingModule } from './modules/pricing/pricing.module'
+import { PromotionsModule } from './modules/promotions/promotions.module'
 import { ReceiptsModule } from './modules/receipts/receipts.module'
 import { RealtimeGatewayModule } from './modules/realtime/realtime.gateway'
 import { RealtimeModule } from './modules/realtime/realtime.module'
@@ -44,6 +45,7 @@ import { UsersModule } from './modules/users/users.module'
     CatalogModule,
     PartnersModule,
     CustomersModule,
+    PromotionsModule,
     StockModule,
     ReceiptsModule,
     StockDocsModule,

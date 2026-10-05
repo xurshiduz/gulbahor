@@ -19,8 +19,9 @@ interface ReceiptPreviewProps {
   backNumber: string | null
   /** The price type the goods are sold at, when it is not the retail one. */
   priceType: string | null
-  /** Who is buying, when they are on the books, and why something comes off for them: "Sodiqlik 7%". */
+  /** Who is buying, when they are on the books. */
   customer: string | null
+  /** Why money comes off by itself: "Kuzgi aksiya, Sodiqlik 7%". */
   ownReason: string | null
   /** What the goods coming back are worth. */
   credit: number
@@ -81,6 +82,9 @@ export function ReceiptPreview({
                       <p className="tabular text-xs text-ink-3">
                         {formatNumber(line.qty)} × {money(line.item.price ?? 0)}
                         {sums?.discount ? ` − ${money(sums.discount)}` : ''}
+                        {totals.autos[index]?.promoOff ? (
+                          <span className="text-accent-ink"> · {totals.autos[index].promo?.name}</span>
+                        ) : null}
                       </p>
                     </td>
                     <td className="tabular py-1.5 text-right font-medium whitespace-nowrap">
@@ -127,10 +131,7 @@ export function ReceiptPreview({
               <Line label={t('pos.subtotal')} value={money(totals.subtotal)} />
               {/* What came off by itself and what the cashier gave are said apart: it is known later why. */}
               {totals.auto ? (
-                <Line
-                  label={`${t('pos.customerDiscount')}${ownReason ? ` · ${ownReason}` : ''}`}
-                  value={`−${money(totals.auto)}`}
-                />
+                <Line label={ownReason ?? t('pos.customerDiscount')} value={`−${money(totals.auto)}`} />
               ) : null}
               {totals.discount - totals.auto ? (
                 <Line label={t('pos.discount')} value={`−${money(totals.discount - totals.auto)}`} />

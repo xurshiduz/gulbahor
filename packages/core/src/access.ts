@@ -220,6 +220,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'promotions',
+    title: 'Marketing',
+    permissions: [
+      { key: 'promotions.view', title: "Aksiyalarni ko'rish" },
+      { key: 'promotions.manage', title: "Aksiya qo'shish, o'zgartirish va to'xtatish" },
+    ],
+  },
+  {
     key: 'partners',
     title: 'Yetkazib beruvchilar va hamkorlar',
     permissions: [
@@ -308,6 +316,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'pos.*',
       'sales.*',
       'customers.*',
+      'promotions.*',
       'money.*',
       'partners.*',
       'audit.view',
@@ -327,6 +336,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'counts.view',
       'sales.*',
       'customers.view',
+      'promotions.view',
       'money.view',
       'money.rates',
       'money.ops',
@@ -354,6 +364,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'pos.*',
       'sales.*',
       'customers.*',
+      'promotions.view',
       'money.collect',
       'money.ops',
       'devices.alarms',

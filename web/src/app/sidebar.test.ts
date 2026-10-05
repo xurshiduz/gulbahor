@@ -18,6 +18,7 @@ describe('the menu', () => {
       'catalog',
       'stock',
       'customers',
+      'marketing',
       'money',
       'partners',
       'manage',

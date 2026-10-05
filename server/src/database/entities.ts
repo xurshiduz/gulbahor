@@ -20,6 +20,7 @@ import type {
   TillAccess,
   PriceKind,
   PrinterDpi,
+  PromotionKind,
   PrintJobStatus,
   ReaderKind,
   ReceiptStatus,
@@ -733,6 +734,71 @@ export class CustomerGroup {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
+}
+
+@Entity('promotions')
+export class Promotion {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  @Column('text')
+  kind: PromotionKind
+
+  /** A percentage, or a price for one piece in so'm tiyin. */
+  @Column('numeric', { transformer: numericAsNumber })
+  value: number
+
+  @Column('date')
+  startsOn: string
+
+  @Column('date', { nullable: true })
+  endsOn: string | null
+
+  /** The shops it runs in; empty for every shop. */
+  @Column('uuid', { array: true, default: () => "'{}'" })
+  locationIds: string[]
+
+  @Column('uuid', { array: true, default: () => "'{}'" })
+  productIds: string[]
+
+  @Column('uuid', { array: true, default: () => "'{}'" })
+  categoryIds: string[]
+
+  @Column('uuid', { array: true, default: () => "'{}'" })
+  brandIds: string[]
+
+  @Column('text', { array: true, default: () => "'{}'" })
+  seasons: Season[]
+
+  @Column('boolean')
+  stackable: boolean
+
+  @Column('text', { nullable: true })
+  code: string | null
+
+  @Column('boolean')
+  isActive: boolean
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @Column('text')
+  searchKey: string
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
 }
 
 @Entity('loyalty_tiers')
@@ -1924,6 +1990,10 @@ export class Sale {
   @Column('text', { nullable: true })
   autoReason: string | null
 
+  /** The promotion code the customer said. */
+  @Column('text', { nullable: true })
+  promoCode: string | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
@@ -1954,9 +2024,19 @@ export class SaleLine {
   @Column('bigint', { transformer: bigintAsNumber })
   discount: number
 
-  /** The part of `discount` that came off by itself, as the customer's own. */
+  /** The part of `discount` that came off by itself: a promotion, the customer's own discount, or both. */
   @Column('bigint', { transformer: bigintAsNumber, default: 0 })
   autoDiscount: number
+
+  /** The promotion that took part in it, what it was called then, and how much of it was the promotion's. */
+  @Column('uuid', { nullable: true })
+  promotionId: string | null
+
+  @Column('text', { nullable: true })
+  promotionName: string | null
+
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  promoDiscount: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   total: number
@@ -2592,4 +2672,5 @@ export const ENTITIES = [
   CustomerGroup,
   CustomerGroupMember,
   LoyaltyTierRow,
+  Promotion,
 ]

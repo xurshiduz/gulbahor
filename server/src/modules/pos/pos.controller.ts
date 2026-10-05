@@ -4,6 +4,7 @@ import {
   posCustomerSearchSchema,
   posItemsSchema,
   posLookupSchema,
+  posPromoCodeSchema,
   posSearchSchema,
   returnInputSchema,
   returnListQuerySchema,
@@ -56,17 +57,28 @@ export class PosController {
   @Get('search')
   search(
     @CurrentActor() actor: Actor,
-    @Query(zod(posSearchSchema)) query: { registerId: string; q: string; priceTypeId: string | null },
+    @Query(zod(posSearchSchema))
+    query: { registerId: string; q: string; priceTypeId: string | null; promoCode: string | null },
   ): Promise<PosItemDto[]> {
-    return this.pos.search(actor, query.registerId, query.q, query.priceTypeId)
+    return this.pos.search(actor, query.registerId, query.q, query.priceTypeId, query.promoCode)
   }
 
   @Get('lookup')
   lookup(
     @CurrentActor() actor: Actor,
-    @Query(zod(posLookupSchema)) query: { registerId: string; code: string; priceTypeId: string | null },
+    @Query(zod(posLookupSchema))
+    query: { registerId: string; code: string; priceTypeId: string | null; promoCode: string | null },
   ): Promise<PosItemDto> {
-    return this.pos.lookup(actor, query.registerId, query.code, query.priceTypeId)
+    return this.pos.lookup(actor, query.registerId, query.code, query.priceTypeId, query.promoCode)
+  }
+
+  /** What a word the customer said opens, if anything: the cashier is told before the sale, not by it. */
+  @Get('promo-code')
+  promoCode(
+    @CurrentActor() actor: Actor,
+    @Query(zod(posPromoCodeSchema)) query: { registerId: string; code: string },
+  ): Promise<{ name: string }[]> {
+    return this.pos.promoCode(actor, query.registerId, query.code)
   }
 
   /** Who is at the counter: found by a few digits of their phone, or a few letters of their name. */
@@ -95,9 +107,10 @@ export class PosController {
   @HttpCode(200)
   items(
     @CurrentActor() actor: Actor,
-    @Body(zod(posItemsSchema)) input: { registerId: string; variantIds: string[]; priceTypeId: string | null },
+    @Body(zod(posItemsSchema))
+    input: { registerId: string; variantIds: string[]; priceTypeId: string | null; promoCode: string | null },
   ): Promise<PosItemDto[]> {
-    return this.pos.items(actor, input.registerId, input.variantIds, input.priceTypeId)
+    return this.pos.items(actor, input.registerId, input.variantIds, input.priceTypeId, input.promoCode)
   }
 }
 

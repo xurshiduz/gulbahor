@@ -4,6 +4,7 @@ import {
   MONEY_OP_KINDS,
   MONEY_OP_STATUSES,
   MONEY_TRANSFER_STATUSES,
+  PROMOTION_STATES,
   PARTNER_PAYMENT_KINDS,
   PARTNER_PAYMENT_STATUSES,
   PRINT_JOB_STATUSES,
@@ -27,6 +28,7 @@ import { LocationsPage } from '@/features/locations/locations-page'
 import { MoneyPage } from '@/features/money/money-page'
 import { CustomersPage } from '@/features/customers/customers-page'
 import { PartnersPage } from '@/features/partners/partners-page'
+import { PromotionsPage } from '@/features/promotions/promotions-page'
 import { PaymentsPage } from '@/features/partners/payments'
 import { PosPage } from '@/features/pos/pos-page'
 import { SalesPage } from '@/features/pos/sales-page'
@@ -198,6 +200,20 @@ const customersRoute = createRoute({
     tag: z.string().optional().catch(undefined),
   }),
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active', tab: 'list' })] },
+})
+
+const promotionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/promotions',
+  component: PromotionsPage,
+  validateSearch: z.object({
+    ...listSearch,
+    state: z
+      .enum(['all', ...PROMOTION_STATES])
+      .default('all')
+      .catch('all'),
+  }),
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, state: 'all' })] },
 })
 
 const partnersSearch = z.object({
@@ -457,6 +473,7 @@ const routeTree = rootRoute.addChildren([
   labelsRoute,
   partnersRoute,
   customersRoute,
+  promotionsRoute,
   paymentsRoute,
   locationsRoute,
   moneyRoute,

@@ -36,6 +36,7 @@ const ENTITIES = [
   'customer',
   'customer_group',
   'loyalty',
+  'promotion',
   'partner',
   'partner_payment',
   'money_transfer',

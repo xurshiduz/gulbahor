@@ -43,6 +43,7 @@ import {
   addToCart,
   agreedOf,
   agreedText,
+  autoReasons,
   backLines,
   badDiscount,
   cartTotals,
@@ -64,6 +65,7 @@ import { AgreedSum } from './agreed'
 import { ApprovalDialog } from './approval'
 import { HandoverDialog, WaitingTransfers } from './handover'
 import { ReturnDialog, ReturnPicker } from './return-parts'
+import { PromoCode } from './promo-code'
 import { ReceiptPreview } from './receipt-preview'
 import { SaleDialog } from './sale-dialog'
 import { kindOf, TenderPanel, type TenderKind } from './tender-panel'
@@ -268,6 +270,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const picked = priceTypes.find((type) => type.id === cart.priceTypeId) ?? null
   const priceType = picked && picked.id === theirs?.id ? { ...picked, needsWord: false } : picked
   const priceTypeId = priceType?.id ?? null
+  const promoCode = cart.promoCode ?? null
 
   const rate = context.rate?.uzsPerUsd ?? null
   const mayReturn = can('pos.return')
@@ -288,9 +291,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
   }, [search.return, mayReturn, navigate])
 
   const found = useQuery({
-    queryKey: ['pos', 'search', registerId, query, priceTypeId],
+    queryKey: ['pos', 'search', registerId, query, priceTypeId, promoCode],
     queryFn: ({ signal }) =>
-      api.get<PosItemDto[]>('/pos/search', { registerId, q: query, priceTypeId: priceTypeId ?? undefined }, signal),
+      api.get<PosItemDto[]>(
+        '/pos/search',
+        { registerId, q: query, priceTypeId: priceTypeId ?? undefined, promoCode: promoCode ?? undefined },
+        signal,
+      ),
     enabled: query.length >= 2,
     placeholderData: keepPreviousData,
   })
@@ -338,10 +345,17 @@ function Till({ context, registers, onSwitch }: TillProps) {
     if (typed) {
       setText('')
     }
-    const answer = api.get<PosItemDto>('/pos/lookup', { registerId, code, priceTypeId: priceTypeId ?? undefined }).then(
-      (item) => ({ item }),
-      (error: unknown) => ({ error }),
-    )
+    const answer = api
+      .get<PosItemDto>('/pos/lookup', {
+        registerId,
+        code,
+        priceTypeId: priceTypeId ?? undefined,
+        promoCode: promoCode ?? undefined,
+      })
+      .then(
+        (item) => ({ item }),
+        (error: unknown) => ({ error }),
+      )
     // Asked at once, added in the order they were scanned: the cart reads the way the goods were passed.
     scanned.current = scanned.current.then(async () => {
       const found = await answer
@@ -358,8 +372,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
 
   /** Asks for the cart's things again: a price or a count may have changed since they were put there. */
   const refresh = useMutation({
-    mutationFn: ({ variantIds, at }: { variantIds: string[]; at: string | null }) =>
-      api.post<PosItemDto[]>('/pos/items', { registerId, variantIds, priceTypeId: at }),
+    mutationFn: ({ variantIds, at, code }: { variantIds: string[]; at: string | null; code: string | null }) =>
+      api.post<PosItemDto[]>('/pos/items', { registerId, variantIds, priceTypeId: at, promoCode: code }),
     meta: { silent: true },
     onSuccess: (items) => {
       const fresh = new Map(items.map((item) => [item.variantId, item]))
@@ -372,8 +386,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
       }))
     },
   })
-  const refreshCart = (at: string | null = priceTypeId) =>
-    cart.lines.length ? refresh.mutate({ variantIds: cart.lines.map((line) => line.item.variantId), at }) : undefined
+  const refreshCart = (at: string | null = priceTypeId, code: string | null = promoCode) =>
+    cart.lines.length
+      ? refresh.mutate({ variantIds: cart.lines.map((line) => line.item.variantId), at, code })
+      : undefined
+  /** A promotion code was said, or taken back: the goods are asked about again, with it or without. */
+  const sayCode = (code: string | null) => {
+    setCart((current) => ({ ...current, promoCode: code }))
+    refreshCart(priceTypeId, code)
+    window.setTimeout(focusSearch)
+  }
   /** The cart goes over to another price type: every line is priced again. */
   const sellAt = (id: string | null) => {
     setCart((current) => ({ ...current, priceTypeId: id }))
@@ -444,13 +466,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const totals = useMemo(() => cartTotals(cart, ownPercent), [cart, ownPercent])
   /** What a discount on the whole sale is taken from. */
   const afterLines = useMemo(() => linesTotal(cart, ownPercent), [cart, ownPercent])
+  /** Why money comes off by itself: the promotions that took part, and the customer's own reason. */
+  const autoReason = autoReasons(totals.autos, cart.customer?.discountReason ?? null)
 
   // A sum agreed on was agreed for the goods that were in the cart. When they change it no longer
   // stands: left in place, whatever was added after it would be given away.
   const goods = cart.lines
     .map((line) => [line.item.variantId, line.item.epc, line.qty, line.item.price, line.discountText].join(':'))
-    // What comes off for the customer changes what there is to agree on, as the goods do.
-    .concat(String(ownPercent))
+    // What comes off by itself (a promotion, the customer's own) changes what there is to agree on, as the
+    // goods do.
+    .concat(String(totals.auto))
     .join('|')
   const agreedFor = useRef(goods)
   useEffect(() => {
@@ -765,6 +790,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       sellerId: cart.sellerId,
       customerId: cart.customer?.id ?? null,
       priceTypeId,
+      promoCode,
       lines: cart.lines.map((line, index) => ({
         variantId: line.item.variantId,
         qty: line.qty,
@@ -858,7 +884,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             backNumber={returning?.found.sale.number ?? null}
             priceType={priceType?.name ?? null}
             customer={cart.customer?.name ?? null}
-            ownReason={cart.customer?.discountReason ?? null}
+            ownReason={autoReason || null}
             credit={credit}
             toPay={toPay}
             toRefund={toRefund}
@@ -1006,6 +1032,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
                               {floor !== undefined ? (
                                 <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
                               ) : null}
+                              {totals.autos[index]?.promoOff ? (
+                                <span className="text-accent-ink">
+                                  {totals.autos[index].promo?.name} −{money(totals.autos[index].promoOff)}
+                                </span>
+                              ) : null}
                             </p>
                           </td>
                           <td className="px-2 py-1.5">
@@ -1129,6 +1160,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 onChange={serve}
               />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
+                {/* A code is for a promotion, and promotions are for the retail price. */}
+                {context.promoCodes && !priceTypeId ? (
+                  <PromoCode registerId={registerId} value={promoCode} onChange={sayCode} />
+                ) : null}
                 {priceTypes.length ? (
                   <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">
                     <span>{t('pos.priceType')}</span>
@@ -1172,10 +1207,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 ) : null}
                 {totals.auto ? (
                   <div className="mt-2 flex items-baseline justify-between gap-3 text-[13px] text-accent-ink">
-                    <span className="min-w-0 truncate">
-                      {t('pos.customerDiscount')}
-                      {cart.customer?.discountReason ? ` · ${cart.customer.discountReason}` : ''}
-                    </span>
+                    <span className="min-w-0 truncate">{autoReason || t('pos.customerDiscount')}</span>
                     <span className="tabular shrink-0">−{money(totals.auto)}</span>
                   </div>
                 ) : null}

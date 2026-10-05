@@ -1,15 +1,16 @@
 import {
   belowFloor,
-  customerOff,
   floorOf,
   formatMoney,
   gross,
+  lineAuto,
   parseDiscount,
   percentOf,
   returnShare,
   roundToStep,
   saleTotals,
   type CurrencyCode,
+  type LineAuto,
   type PosContextDto,
   type PosCustomerDto,
   type PosItemDto,
@@ -52,6 +53,8 @@ export interface Cart {
   priceTypeId?: string | null
   /** Who is buying, when they are on the books, with the rules their groups give. */
   customer?: PosCustomerDto | null
+  /** The promotion code the customer said, once the till has been told it means something. */
+  promoCode?: string | null
 }
 
 export const EMPTY_CART: Cart = { lines: [], discountText: '', sellerId: null }
@@ -119,6 +122,18 @@ export interface CartTotals extends SaleTotals {
   lineDiscounts: number[]
   /** The discount on the whole sale, as sent to the server. */
   saleDiscount: number
+  /** What comes off each line by itself, and whose it is: a promotion's, the customer's own, or both. */
+  autos: LineAuto[]
+}
+
+/** What comes off a line by itself: the best promotion in force for it, the customer's own discount, or both. */
+const autoOf = (line: CartLine, ownPercent: number): LineAuto =>
+  lineAuto(line.item.price ?? 0, line.qty, line.item.promos ?? [], ownPercent)
+
+/** Why money came off by itself, in a line: the promotions by name, then the customer's own reason. */
+export function autoReasons(autos: readonly LineAuto[], own: string | null): string {
+  const promotions = [...new Set(autos.flatMap((line) => (line.promoOff && line.promo ? [line.promo.name] : [])))]
+  return [...promotions, ...(own && autos.some((line) => line.ownOff) ? [own] : [])].join(', ')
 }
 
 /**
@@ -127,9 +142,9 @@ export interface CartTotals extends SaleTotals {
  * from what is left.
  */
 export function cartTotals(cart: Cart, ownPercent = 0): CartTotals {
-  const autos = cart.lines.map((line) => customerOff(gross(line.item.price ?? 0, line.qty), ownPercent))
+  const autos = cart.lines.map((line) => autoOf(line, ownPercent))
   const lineDiscounts = cart.lines.map((line, index) =>
-    discountOf(line.discountText, gross(line.item.price ?? 0, line.qty) - autos[index]),
+    discountOf(line.discountText, gross(line.item.price ?? 0, line.qty) - autos[index].auto),
   )
   const afterLines = linesTotal(cart, ownPercent)
   const saleDiscount = discountOf(cart.discountText, afterLines)
@@ -138,11 +153,11 @@ export function cartTotals(cart: Cart, ownPercent = 0): CartTotals {
       price: line.item.price ?? 0,
       qty: line.qty,
       discount: lineDiscounts[index],
-      auto: autos[index],
+      auto: autos[index].auto,
     })),
     saleDiscount,
   )
-  return { ...totals, lineDiscounts, saleDiscount }
+  return { ...totals, lineDiscounts, saleDiscount, autos }
 }
 
 /**
@@ -162,13 +177,12 @@ export function underFloor(cart: Cart, totals: SaleTotals): { index: number; flo
 }
 
 /**
- * What the lines come to after the customer's own discount and their own: what a discount on the whole
- * sale is taken from.
+ * What the lines come to after what comes off by itself and their own discounts: what a discount on the
+ * whole sale is taken from.
  */
 export function linesTotal(cart: Cart, ownPercent = 0): number {
   return cart.lines.reduce((sum, line) => {
-    const whole = gross(line.item.price ?? 0, line.qty)
-    const left = whole - customerOff(whole, ownPercent)
+    const left = gross(line.item.price ?? 0, line.qty) - autoOf(line, ownPercent).auto
     return sum + left - discountOf(line.discountText, left)
   }, 0)
 }

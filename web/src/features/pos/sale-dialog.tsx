@@ -156,6 +156,11 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                 {t('pos.customer')}: {sale.customerName}
               </p>
             ) : null}
+            {sale.promoCode ? (
+              <p className="mt-1 text-xs text-ink-3">
+                {t('pos.promoCode')}: <span className="font-code">{sale.promoCode}</span>
+              </p>
+            ) : null}
             {sale.priceTypeName ? (
               <p className="mt-1 text-xs text-ink-3">
                 {t('pos.priceType')}: {sale.priceTypeName}
@@ -198,10 +203,7 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                 <>
                   <Line label={t('pos.subtotal')} value={money(sale.subtotal)} />
                   {sale.autoDiscount ? (
-                    <Line
-                      label={`${t('pos.customerDiscount')}${sale.autoReason ? ` · ${sale.autoReason}` : ''}`}
-                      value={`−${money(sale.autoDiscount)}`}
-                    />
+                    <Line label={sale.autoReason ?? t('pos.customerDiscount')} value={`−${money(sale.autoDiscount)}`} />
                   ) : null}
                   {sale.discount - sale.autoDiscount ? (
                     <Line label={t('pos.discount')} value={`−${money(sale.discount - sale.autoDiscount)}`} />

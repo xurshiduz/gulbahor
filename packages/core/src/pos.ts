@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { allocateExact, roundToStep, type CurrencyCode } from './money'
+import type { PromoOffer } from './promotions'
 import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
 
 /**
@@ -465,6 +466,14 @@ export type ApprovalInput = z.infer<typeof approvalSchema>
 
 const approvalField = approvalSchema.nullish().transform((value) => value ?? null)
 
+/** The word a customer said to get a promotion that asks for one: read without regard to case. */
+export const promoCodeSchema = z
+  .string()
+  .trim()
+  .max(30)
+  .nullish()
+  .transform((value) => (value ? value.toUpperCase() : null))
+
 /** A tagged piece is one piece, and is on a sale once. */
 function taggedOnce(sale: { lines: SaleLineInput[] }, context: z.RefinementCtx) {
   const tags = new Set<string>()
@@ -493,6 +502,7 @@ export const saleInputSchema = z
     customerId: idSchema.nullish().transform((value) => value ?? null),
     /** The price type the whole sale is made at, when it is not the retail one: wholesale, a family price. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
+    promoCode: promoCodeSchema,
     lines: z.array(saleLineInputSchema).min(1, "Chekda kamida bitta tovar bo'lishi kerak").max(300),
     /** Off the whole sale, on top of what each line has. */
     discount: amountSchema.default(0),
@@ -550,9 +560,11 @@ export interface SaleListItemDto {
   /** Who bought, when they were on the books. */
   customerId: string | null
   customerName: string | null
-  /** What came off by itself, as the customer's own discount, and why: "Sodiqlik 7%". */
+  /** What came off by itself (promotions and the customer's own discount), and why: "Yozgi aksiya, Sodiqlik 7%". */
   autoDiscount: number
   autoReason: string | null
+  /** The promotion code the customer said. */
+  promoCode: string | null
 }
 
 export interface SaleLineDto {
@@ -566,8 +578,11 @@ export interface SaleLineDto {
   price: number
   /** Everything that came off the line. */
   discount: number
-  /** The part of it that came off by itself, as the customer's own discount. */
+  /** The part of it that came off by itself: a promotion, the customer's own discount, or both. */
   autoDiscount: number
+  /** The promotion that took part in it, and how much of it was the promotion's. */
+  promotionName: string | null
+  promoDiscount: number
   total: number
   epc: string | null
   /** How many of them have been brought back, and what those were worth. */
@@ -695,6 +710,7 @@ export const exchangeInputSchema = z
     customerId: idSchema.nullish().transform((value) => value ?? null),
     /** The price type the goods are taken at, when it is not the retail one. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
+    promoCode: promoCodeSchema,
     lines: z.array(saleLineInputSchema).min(1).max(300),
     discount: amountSchema.default(0),
     /** For the difference, when the new goods are worth more. */
@@ -819,6 +835,11 @@ export interface PosItemDto {
   price: number | null
   /** What one unit is not sold under without a manager's word, in so'm tiyin; null when no floor is set. */
   minPrice: number | null
+  /**
+   * The promotions in force for it at this till today, for a cart sold at the retail price. One that takes
+   * a code is here only when the cart was asked about with that code. Absent in a cart kept from before.
+   */
+  promos?: PromoOffer[]
   /** On hand in the till's shop. */
   onHand: number
   /** Pieces sold by weight or length may be fractions. */
@@ -834,17 +855,22 @@ export const posSearchSchema = z.object({
   registerId: idSchema,
   q: z.string().trim().min(1).max(100),
   priceTypeId: cartPriceType,
+  promoCode: promoCodeSchema,
 })
 export const posLookupSchema = z.object({
   registerId: idSchema,
   code: z.string().trim().min(1).max(64),
   priceTypeId: cartPriceType,
+  promoCode: promoCodeSchema,
 })
+/** Whether a word is the code of a promotion running at a till today. */
+export const posPromoCodeSchema = z.object({ registerId: idSchema, code: z.string().trim().min(1).max(30) })
 /** The things already in a cart, asked for again: a price or a count may have changed since they were put there. */
 export const posItemsSchema = z.object({
   registerId: idSchema,
   variantIds: z.array(idSchema).min(1).max(300),
   priceTypeId: cartPriceType,
+  promoCode: promoCodeSchema,
 })
 
 /** What the till needs to start: its shift, the day's rate, where money can go, how the shop rounds. */
@@ -866,6 +892,8 @@ export interface PosContextDto {
    * The price types this person may sell at beside the retail one. `needsWord`: only with a manager's PIN.
    */
   priceTypes: { id: string; name: string; needsWord: boolean }[]
+  /** Some promotion running here today asks for a code: the till has a field for it. */
+  promoCodes: boolean
   /** The till's own cash accounts by currency; one that has never held money does not exist yet. */
   drawers: Record<CurrencyCode, string | null>
   /** Where cash from this till can be handed over to: the shop's safes, without their balances. */

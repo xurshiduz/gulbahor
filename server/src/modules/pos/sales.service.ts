@@ -1,10 +1,9 @@
 import {
   belowFloor,
-  customerOff,
   DEFAULT_ORG_SETTINGS,
   floorOf,
   formatMoney,
-  gross,
+  lineAuto,
   overDiscountLimit,
   overRateLoss,
   PAYMENT_METHOD_LABELS,
@@ -15,6 +14,7 @@ import {
   toBase,
   variantLabel,
   worthOf,
+  type LineAuto,
   type Page,
   type PosItemDto,
   type SaleDto,
@@ -51,6 +51,7 @@ import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { servesShop } from '../money/places'
+import { runningAt } from '../promotions/promotions.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
 import { allows, ApprovalsService, type Approver } from './approvals.service'
@@ -165,6 +166,12 @@ export class SalesService {
       )
     }
 
+    // ── The promotions in force here today, with the code the customer said. ──
+    const running = await runningAt(em, register.locationId, today, input.promoCode)
+    if (input.promoCode && !running.promotions.some((promotion) => promotion.code === input.promoCode)) {
+      throw AppError.validation({ promoCode: "Bunday promokod yo'q, yoki muddati o'tgan" })
+    }
+
     // ── The goods: what each is and what it costs here, by the system's prices, not the till's. ──
     const items = await sellables(
       em,
@@ -172,6 +179,7 @@ export class SalesService {
       register.locationId,
       rate,
       priceType?.id ?? null,
+      running,
     )
     const itemOf = new Map(items.map((item) => [item.variantId, item]))
     const fields: Record<string, string> = {}
@@ -210,11 +218,19 @@ export class SalesService {
     // The customer's own discount comes off by itself, and only off the retail price: a price of their
     // own (wholesale, a family price) is already what they were given.
     const ownPercent = priceType ? 0 : (rules?.discountPercent ?? 0)
+    // Each line with what comes off it by itself: the best promotion that covers it, the customer's own
+    // discount, or both where the promotion stacks. The till works out the same from the same offers.
+    const autos = input.lines.map((line) => {
+      const item = itemOf.get(line.variantId) as PosItemDto
+      return lineAuto(item.price as number, line.qty, item.promos ?? [], ownPercent)
+    })
     const totals = saleTotals(
-      input.lines.map((line) => {
-        const price = itemOf.get(line.variantId)?.price as number
-        return { price, qty: line.qty, discount: line.discount, auto: customerOff(gross(price, line.qty), ownPercent) }
-      }),
+      input.lines.map((line, index) => ({
+        price: itemOf.get(line.variantId)?.price as number,
+        qty: line.qty,
+        discount: line.discount,
+        auto: autos[index].auto,
+      })),
       input.discount,
     )
     if (totals.total !== input.total) {
@@ -393,7 +409,8 @@ export class SalesService {
         customerId: customer?.id ?? null,
         customerName: customer?.name ?? null,
         autoDiscount: totals.auto,
-        autoReason: totals.auto ? (rules?.discountReason ?? null) : null,
+        autoReason: totals.auto ? autoReason(autos, rules?.discountReason ?? null) : null,
+        promoCode: input.promoCode,
         note: input.note ?? null,
         searchKey: searchKey([number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' ')),
       }),
@@ -409,6 +426,10 @@ export class SalesService {
           price: itemOf.get(line.variantId)?.price as number,
           discount: totals.lines[index].discount,
           autoDiscount: totals.lines[index].auto,
+          // A line given away whole by the cashier still says which promotion was on it, and for how much.
+          promotionId: autos[index].promo?.id ?? null,
+          promotionName: autos[index].promo?.name ?? null,
+          promoDiscount: Math.min(autos[index].promoOff, totals.lines[index].auto),
           total: totals.lines[index].total,
           costUsd: 0,
           costUzs: 0,
@@ -693,6 +714,8 @@ export class SalesService {
       price: number
       discount: number
       auto_discount: number
+      promotion_name: string | null
+      promo_discount: number
       total: number
       epc: string | null
       returned_qty: number
@@ -700,6 +723,7 @@ export class SalesService {
     }[] = await em.query(
       `SELECT sl.id, sl.variant_id, p.name, v.sku, array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
               sl.qty::float8 AS qty, sl.price::float8 AS price, sl.discount::float8 AS discount, sl.auto_discount::float8 AS auto_discount,
+              sl.promotion_name, sl.promo_discount::float8 AS promo_discount,
               sl.total::float8 AS total, u.epc, sl.returned_qty::float8 AS returned_qty,
               sl.returned_total::float8 AS returned_total
        FROM sale_lines sl
@@ -748,6 +772,8 @@ export class SalesService {
         price: line.price,
         discount: line.discount,
         autoDiscount: line.auto_discount,
+        promotionName: line.promotion_name,
+        promoDiscount: line.promo_discount,
         total: line.total,
         epc: line.epc,
         returnedQty: line.returned_qty,
@@ -791,5 +817,13 @@ function summary(sale: Sale, locationName: string, registerName: string, seesCos
     customerName: sale.customerName,
     autoDiscount: sale.autoDiscount,
     autoReason: sale.autoReason,
+    promoCode: sale.promoCode,
   }
+}
+
+/** Why money came off by itself, in a line for the receipt: the promotions by name, then the customer's own. */
+function autoReason(autos: LineAuto[], own: string | null): string | null {
+  const promotions = [...new Set(autos.flatMap((line) => (line.promoOff && line.promo ? [line.promo.name] : [])))]
+  const parts = [...promotions, ...(own && autos.some((line) => line.ownOff) ? [own] : [])]
+  return parts.join(', ') || null
 }
