@@ -1724,6 +1724,10 @@ export class Register {
   @Column('boolean')
   isActive: boolean
 
+  /** The shop's main till; one to a shop. */
+  @Column('boolean')
+  isMain: boolean
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 

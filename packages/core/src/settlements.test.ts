@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { amountFor, partnerPaymentInputSchema, settledFor } from './settlements'
+import {
+  amountFor,
+  defaultTill,
+  partnerPaymentInputSchema,
+  settledFor,
+  tillsOf,
+  type PaymentAccountDto,
+} from './settlements'
 
 const som = (amount: number) => Math.round(amount * 100)
 const usd = (amount: number) => Math.round(amount * 100)
@@ -89,5 +96,46 @@ describe('a payment', () => {
       false,
     )
     expect(partnerPaymentInputSchema.safeParse({ ...payment, kind: 'opening' }).success).toBe(false)
+  })
+})
+
+describe('the till a payment opens on', () => {
+  const place = (id: string, registerId: string | null, more: Partial<PaymentAccountDto> = {}) =>
+    ({ id, registerId, locationName: 'Gulbahor 1', open: false, till: null, ...more }) as PaymentAccountDto
+  const places = [
+    place('s1', 't1', { till: { name: 'Kassa 1', main: true, mine: false } }),
+    place('d1', 't1', { till: { name: 'Kassa 1', main: true, mine: false } }),
+    place('s2', 't2', { open: true, till: { name: 'Kassa 2', main: false, mine: false } }),
+    place('safe', null, { open: true }),
+    place('s3', 't3', { locationName: 'Gulbahor 2', open: true, till: { name: 'Kassa 1', main: true, mine: true } }),
+  ]
+  const tills = tillsOf(places)
+
+  it('is found among the places a person may pay through, once each', () => {
+    expect(tills).toEqual([
+      { id: 't1', name: 'Kassa 1', locationName: 'Gulbahor 1', main: true, mine: false, open: false },
+      { id: 't2', name: 'Kassa 2', locationName: 'Gulbahor 1', main: false, mine: false, open: true },
+      { id: 't3', name: 'Kassa 1', locationName: 'Gulbahor 2', main: true, mine: true, open: true },
+    ])
+    expect(tillsOf([place('safe', null)])).toEqual([])
+  })
+
+  it('is the one this computer sells at, before anything else', () => {
+    expect(defaultTill(tills, 't2', 't1')).toBe('t2')
+  })
+
+  it('is the one whose shift the person has open, on a computer that sells at none', () => {
+    expect(defaultTill(tills, null, 't1')).toBe('t3')
+    // A till this computer once sold at and the person may no longer use is not it.
+    expect(defaultTill(tills, 'gone', null)).toBe('t3')
+  })
+
+  it("is the one chosen here last, then a shop's main till — one that is open before one that is not", () => {
+    const nobodys = tills.map((till) => ({ ...till, mine: false }))
+    expect(defaultTill(nobodys, null, 't2')).toBe('t2')
+    expect(defaultTill(nobodys, null, null)).toBe('t3')
+    expect(defaultTill(nobodys.slice(0, 2), null, null)).toBe('t1')
+    expect(defaultTill([{ ...nobodys[1] }], null, null)).toBe('t2')
+    expect(defaultTill([], null, 't1')).toBeNull()
   })
 })

@@ -14,6 +14,8 @@ import {
   type PartnerStatementDto,
   type PaymentAccountDto,
   type RateDto,
+  defaultTill,
+  tillsOf,
 } from '@gulbahor/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
@@ -58,6 +60,11 @@ import {
   totalOf,
   valueLines,
   type PaymentRow,
+  keepTill,
+  lastTill,
+  sparePlaces,
+  switchTill,
+  TillField,
 } from './payment-lines'
 
 const route = getRouteApi('/payments')
@@ -134,7 +141,16 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   const partner = partners.data?.items.find((item) => item.id === partnerId) ?? null
   const places = useMemo(() => accounts.data ?? [], [accounts.data])
 
-  const shown = useMemo(() => rows ?? startRows(places, keptAccounts(), tillHere()), [rows, places])
+  // The till the money goes through: the one picked here, else the one that stands to reason.
+  const tills = useMemo(() => tillsOf(places), [places])
+  const [pickedTill, setPickedTill] = useState<string | null>(null)
+  const tillId = tills.some((till) => till.id === pickedTill) ? pickedTill : defaultTill(tills, tillHere(), lastTill())
+  const shown = useMemo(() => rows ?? startRows(places, keptAccounts(), tillId), [rows, places, tillId])
+  const pickTill = (id: string) => {
+    setPickedTill(id)
+    keepTill(id)
+    setRows(switchTill(shown, places, id))
+  }
   const valued = valueLines(shown, places, partner?.currency ?? null, dayRate)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
@@ -302,7 +318,14 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
       }
     >
       <Form key={round} id="payment-form" onSubmit={submit}>
-        <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)]">
+        <div
+          className={cn(
+            'grid gap-4',
+            tills.length > 1
+              ? 'sm:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_14rem]'
+              : 'sm:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)]',
+          )}
+        >
           <Field label={t('payments.kind')}>
             {(id) => (
               <div data-enter-skip>
@@ -334,6 +357,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
               />
             )}
           </Field>
+          <TillField tills={tills} value={tillId} onChange={pickTill} />
           {/* What stands between them now, and what will once this is saved. */}
           {partner?.balance != null && after !== null ? (
             <div className="flex flex-col justify-end gap-0.5 pb-1 text-[13px] leading-tight">
@@ -351,7 +375,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
           <PaymentLines
             kind={kind}
             lines={valued}
-            spare={places.filter((account) => !shown.some((row) => row.accountId === account.id))}
+            spare={sparePlaces(places, shown)}
             currency={partner?.currency ?? null}
             owed={debt !== null && debt > 0 ? debt : null}
             onPatch={patch}

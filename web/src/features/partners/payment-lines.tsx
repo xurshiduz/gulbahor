@@ -1,10 +1,19 @@
-import { amountFor, formatMoney, settledFor, type CurrencyCode, type PaymentAccountDto } from '@gulbahor/core'
+import {
+  amountFor,
+  formatMoney,
+  settledFor,
+  type CurrencyCode,
+  type PaymentAccountDto,
+  type PayTill,
+} from '@gulbahor/core'
 import { X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
+import { Select } from '@/components/ui/controls'
+import { Field } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { cn } from '@/lib/cn'
@@ -31,6 +40,7 @@ export interface PaymentRow {
 export const READY_ROWS = 6
 
 const KEPT_KEY = 'gb.pay.accounts'
+const PICKED_KEY = 'gb.pay.till'
 /** The till this computer sells at, as the till screen keeps it. */
 const TILL_KEY = 'gb.pos.register'
 
@@ -59,6 +69,17 @@ export const keepAccounts = (rows: PaymentRow[]) => {
 
 export const tillHere = (): string | null => stored<string | null>(TILL_KEY, null)
 
+/** The till this computer paid through last, when it has no till of its own. */
+export const lastTill = (): string | null => stored<string | null>(PICKED_KEY, null)
+
+export const keepTill = (tillId: string) => {
+  try {
+    localStorage.setItem(PICKED_KEY, JSON.stringify(tillId))
+  } catch {
+    // The till still stands for this payment.
+  }
+}
+
 const blank = (accountId: string): PaymentRow => ({ accountId, amount: null, rate: null })
 
 /** The same order, but each till's so'm drawer before its dollar one. */
@@ -76,19 +97,33 @@ function somFirst(accounts: PaymentAccountDto[]): PaymentAccountDto[] {
     .map((item) => item.account)
 }
 
+/** A place that is no till's drawer: a card, a safe, a bank account. */
+const apart = (account: PaymentAccountDto) => !account.registerId
+
 /**
- * The lines a payment opens with: the places this computer paid through
- * before; failing that, the drawers of the till it sells at; failing that,
- * the first few there are. A till's so'm drawer stands before its dollar one.
+ * The lines a payment opens with: the drawers of the till it goes through,
+ * so'm before dollars, and after them the other places this computer paid
+ * through before. The drawers of other tills are never among them: a
+ * business with ten tills would open on twenty lines. With no till and
+ * nothing remembered, the first few places there are.
  */
 export function startRows(accounts: PaymentAccountDto[], kept: string[], tillId: string | null): PaymentRow[] {
-  const known = kept.filter((id) => accounts.some((account) => account.id === id))
-  if (known.length) {
-    return known.map(blank)
-  }
-  const till = accounts.filter((account) => tillId !== null && account.registerId === tillId)
-  return somFirst(till.length ? till : accounts.slice(0, READY_ROWS)).map((account) => blank(account.id))
+  const drawers = somFirst(accounts.filter((account) => tillId !== null && account.registerId === tillId))
+  const others = kept.flatMap((id) => accounts.filter((account) => account.id === id && apart(account)))
+  const rows = [...drawers, ...others]
+  return (rows.length ? rows : accounts.filter(apart).slice(0, READY_ROWS)).map((account) => blank(account.id))
 }
+
+/** The same lines for another till: its drawers in place of the ones that stood there, empty. */
+export function switchTill(rows: PaymentRow[], accounts: PaymentAccountDto[], tillId: string): PaymentRow[] {
+  const kept = rows.filter((row) => accounts.some((account) => account.id === row.accountId && apart(account)))
+  const drawers = somFirst(accounts.filter((account) => account.registerId === tillId))
+  return [...drawers.map((account) => blank(account.id)), ...kept]
+}
+
+/** The places still to be offered under "another account": those with no line, and no till's drawer among them. */
+export const sparePlaces = (accounts: PaymentAccountDto[], rows: PaymentRow[]): PaymentAccountDto[] =>
+  accounts.filter((account) => apart(account) && !rows.some((row) => row.accountId === account.id))
 
 export const patchRow = (rows: PaymentRow[], accountId: string, change: Partial<PaymentRow>): PaymentRow[] =>
   rows.map((row) => (row.accountId === accountId ? { ...row, ...change } : row))
@@ -223,6 +258,48 @@ interface PaymentLinesProps {
    * expense is not "out of the partner's account" but simply worth so much.
    */
   headings?: { ours: string; theirs: string }
+}
+
+/**
+ * "Which till?" — asked only of someone who has more than one to pay
+ * through. The shop is named beside the till where the tills are in more
+ * than one shop; a till whose shift is closed says so, since its drawers
+ * will take nothing.
+ */
+export function TillField({
+  tills,
+  value,
+  onChange,
+}: {
+  tills: PayTill[]
+  value: string | null
+  onChange: (tillId: string) => void
+}) {
+  const { t } = useTranslation()
+  if (tills.length < 2) {
+    return null
+  }
+  const shops = new Set(tills.map((till) => till.locationName)).size
+  return (
+    <Field label={t('payments.till')}>
+      {(id) => (
+        // Rarely changed: Enter walks past it to the money.
+        <div data-enter-skip>
+          <Select
+            id={id}
+            value={value ?? ''}
+            onChange={onChange}
+            options={tills.map((till) => ({
+              value: till.id,
+              label:
+                (shops > 1 && till.locationName ? `${till.locationName} · ${till.name}` : till.name) +
+                (till.open ? '' : ` — ${t('payments.tillClosed')}`),
+            }))}
+          />
+        </div>
+      )}
+    </Field>
+  )
 }
 
 const GRID = 'grid grid-cols-[minmax(0,1fr)_11rem_6.5rem_11rem_1.75rem] gap-2'

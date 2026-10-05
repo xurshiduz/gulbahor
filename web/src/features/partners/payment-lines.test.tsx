@@ -14,7 +14,9 @@ import {
   READY_ROWS,
   removeRow,
   spreadTotal,
+  sparePlaces,
   startRows,
+  switchTill,
   totalOf,
   valueLines,
   type PaymentRow,
@@ -43,22 +45,37 @@ describe('the lines a payment opens with', () => {
     account('d1', 'Kassa 1 (dollar)', 'USD', { registerId: 'till-1' }),
     account('s1', "Kassa 1 (so'm)", 'UZS', { registerId: 'till-1' }),
     account('d2', 'Kassa 2 (dollar)', 'USD', { registerId: 'till-2' }),
+    account('s2', "Kassa 2 (so'm)", 'UZS', { registerId: 'till-2' }),
     account('safe', 'Seyf', 'USD', { kind: 'safe' }),
+    account('card', 'Humo', 'UZS', { kind: 'card' }),
   ]
+  const ids = (rows: PaymentRow[]) => rows.map((line) => line.accountId)
 
-  it('are the places this computer paid through before, in their order', () => {
-    // A place that is no longer there is forgotten.
-    expect(startRows(till, ['safe', 'gone', 's1'], 'till-1').map((line) => line.accountId)).toEqual(['safe', 's1'])
+  it("are the drawers of the till it goes through, so'm first, and no other till's", () => {
+    expect(ids(startRows(till, [], 'till-1'))).toEqual(['s1', 'd1'])
+    expect(ids(startRows(till, [], 'till-2'))).toEqual(['s2', 'd2'])
   })
 
-  it("are the drawers of the till here when nothing is remembered, so'm first", () => {
-    expect(startRows(till, [], 'till-1').map((line) => line.accountId)).toEqual(['s1', 'd1'])
+  it('have after them the other places this computer paid through before', () => {
+    // A place that is no longer there is forgotten; a drawer remembered from before is not laid out twice,
+    // nor is another till's brought in by having been used once.
+    expect(ids(startRows(till, ['safe', 'gone', 's1', 'd2', 'card'], 'till-1'))).toEqual(['s1', 'd1', 'safe', 'card'])
   })
 
-  it('are the first few there are on a computer that has no till', () => {
-    expect(startRows(till, [], null).map((line) => line.accountId)).toEqual(['s1', 'd1', 'd2', 'safe'])
+  it('are the first few places that are no till when there is no till to go through', () => {
+    expect(ids(startRows(till, [], null))).toEqual(['safe', 'card'])
+    expect(ids(startRows(till, ['card'], null))).toEqual(['card'])
     const many = Array.from({ length: READY_ROWS + 4 }, (_, index) => account(`a${index}`, `Hisob ${index}`, 'UZS'))
     expect(startRows(many, [], null)).toHaveLength(READY_ROWS)
+  })
+
+  it("change one till's drawers for another's and keep the rest, with what was typed there", () => {
+    const rows = [row('s1', som(500_000)), row('d1'), row('card', som(200_000))]
+    expect(switchTill(rows, till, 'till-2')).toEqual([row('s2'), row('d2'), row('card', som(200_000))])
+  })
+
+  it("offer under “another account” only what is no till's drawer and has no line yet", () => {
+    expect(sparePlaces(till, [row('s1'), row('safe')]).map((place) => place.id)).toEqual(['card'])
   })
 
   it('gain and lose a place, and are emptied for the next payment', () => {

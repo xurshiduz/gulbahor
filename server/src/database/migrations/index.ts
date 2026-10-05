@@ -21,6 +21,7 @@ import { CustomerDiscounts1790000019000 } from './1790000019000-customer-discoun
 import { Promotions1790000020000 } from './1790000020000-promotions'
 import { CartPromotions1790000021000 } from './1790000021000-cart-promotions'
 import { ProductImages1790000022000 } from './1790000022000-product-images'
+import { MainTill1790000023000 } from './1790000023000-main-till'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -47,4 +48,5 @@ export const MIGRATIONS = [
   Promotions1790000020000,
   CartPromotions1790000021000,
   ProductImages1790000022000,
+  MainTill1790000023000,
 ]

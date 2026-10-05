@@ -19,7 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Archive, ArchiveRestore, Landmark, MoreHorizontal, Pencil, Plus, Store } from 'lucide-react'
+import { Archive, ArchiveRestore, Landmark, MoreHorizontal, Pencil, Plus, Star, Store } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -215,13 +215,23 @@ function RegistersTab({ canManage, onEdit }: { canManage: boolean; onEdit: (regi
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['money'] }),
   })
 
+  const makeMain = useMutation({
+    mutationFn: (id: string) => api.post(`/money/registers/${id}/main`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['money'] }),
+  })
+
   const columns = useMemo<ColumnDef<RegisterDto>[]>(
     () => [
       {
         id: 'name',
         header: t('money.name'),
         meta: { fixed: true },
-        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+        cell: ({ row }) => (
+          <span className="flex items-center gap-2">
+            <span className="font-medium">{row.original.name}</span>
+            {row.original.isMain ? <Badge tone="info">{t('money.mainTill')}</Badge> : null}
+          </span>
+        ),
       },
       { id: 'location', header: t('money.shop'), cell: ({ row }) => row.original.locationName },
       {
@@ -259,6 +269,15 @@ function RegistersTab({ canManage, onEdit }: { canManage: boolean; onEdit: (regi
                 }
                 items={[
                   { label: t('common.edit'), icon: <Pencil />, onSelect: () => onEdit(row.original) },
+                  ...(row.original.isActive && !row.original.isMain
+                    ? [
+                        {
+                          label: t('money.makeMain'),
+                          icon: <Star />,
+                          onSelect: () => makeMain.mutate(row.original.id),
+                        },
+                      ]
+                    : []),
                   row.original.isActive
                     ? {
                         label: t('common.archive'),

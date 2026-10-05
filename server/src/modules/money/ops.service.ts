@@ -168,12 +168,7 @@ export class MoneyOpsService {
   /** The accounts money can leave from or come into, for the form: balances only for those who may see them. */
   async accounts(actor: Actor): Promise<PaymentAccountDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const rows = await this.money.accountRows(em, can(actor, 'money.view'))
-      const shifts = await em.find(Shift, { where: { status: 'open' }, select: { registerId: true } })
-      const open = new Set(shifts.map((shift) => shift.registerId))
-      return rows
-        .filter((account) => account.isActive && PLACES.includes(account.kind) && mayUse(actor, account))
-        .map((account) => ({ ...account, open: account.kind !== 'cash' || open.has(account.registerId as string) }))
+      return this.money.paymentAccounts(em, actor, PLACES)
     })
   }
 

@@ -64,6 +64,14 @@ export class MoneyController {
     return this.money.updateRegister(actor, registerId, input)
   }
 
+  /** Makes it the shop's main till. */
+  @Post('registers/:id/main')
+  @HttpCode(200)
+  @Can('money.manage')
+  mainRegister(@CurrentActor() actor: Actor, @id() registerId: string): Promise<RegisterDto> {
+    return this.money.setMainRegister(actor, registerId)
+  }
+
   @Post('registers/:id/archive')
   @HttpCode(200)
   @Can('money.manage')

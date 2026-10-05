@@ -328,6 +328,19 @@ Qanday ishlaydi (qilingan, 2026-10-05):
 - **Ruxsatlar**: "Xarajat va boshqa kirimni yozish" (do'kon menejeri, hisobchi, boshqaruvchi) va "Xarajat va kirim turlarini boshqarish" (hisobchi, boshqaruvchi). Kassirda yo'q — kerak bo'lsa rolga qo'shiladi.
 - Daftarda: xarajat — pul hisobidan chiqadi, "Xarajatlar" hisobiga tushadi; boshqa kirim — "Boshqa daromad"; egasi bilan — "Egasi bilan hisob". Har yozuv nolga teng.
 
+### Pul oynasida kassani tanlash, asosiy kassa (2026-10-05, foydalanuvchi savoli)
+
+Savol: do'kon va kassa ko'payganda "To'lov olish / berish" va "Xarajat" oynasida har kassa alohida qator bo'lib chiqaveradimi? Kassani (yoki do'konni) tanlaydigan qilsak, asosiy kassa standart turadigan bo'lsa-chi?
+
+Qaror:
+- Oynaning tepasida bitta **"Kassa"** tanlovi (do'koni bilan: "Gulbahor 1 · Kassa 1"). Tanlangan kassaning so'm va dollar tortmasi qator bo'lib turadi; boshqa kassalarning tortmalari ko'rinmaydi. Karta, terminal, seyf, bank avvalgidek "Yana hisob…" bilan qo'shiladi va shu kompyuterda eslab qolinadi.
+- Xodim faqat o'zi ishlaydigan do'konlarning kassalarini ko'radi. Tanlaydigan kassa bitta bo'lsa, tanlov ko'rinmaydi.
+- Standart tanlov, shu tartibda: shu kompyuter sotayotgan kassa → xodimning smenasi ochiq kassa → shu kompyuterda oxirgi tanlangani → do'konning asosiy kassasi (smenasi ochig'i oldin) → birinchisi.
+- **Asosiy kassa** — har do'konda bitta. Do'konning birinchi kassasi o'zi asosiy bo'ladi; "Pul → Kassalar"da boshqasini asosiy qilish mumkin. Asosiy kassa arxivlansa, asosiylik do'konning boshqa faol kassasiga o'tadi.
+- Smenasi yopiq kassaning naqdi avvalgidek o'chiq turadi (pul faqat ochiq smenada yuradi).
+
+Qilingan (2026-10-05): yuqoridagi qarorning hammasi. "To'lov olish / berish" (Alt+K, Alt+C) va "Xarajat" (Alt+X) oynalarida "Kassa" tanlovi (ikki va undan ko'p kassa bo'lsa ko'rinadi; kassalar bir nechta do'konda bo'lsa do'kon nomi bilan; smenasi yopig'i yonida "smena yopiq"). "Pul → Kassalar"da asosiy kassa "Asosiy" belgisi bilan, qator menyusida "Asosiy kassa qilish". Eslatma: kassaning naqd hisoblari birinchi smena ochilganda paydo bo'ladi, shuning uchun hali bir marta ham ochilmagan kassa tanlovda chiqmaydi.
+
 ---
 
 ## 8. Valyuta

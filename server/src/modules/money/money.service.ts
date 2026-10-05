@@ -3,6 +3,7 @@ import {
   accountShops,
   type AccountDto,
   type AccountInput,
+  type PaymentAccountDto,
   type RateDto,
   type RateInput,
   type RegisterDto,
@@ -18,6 +19,7 @@ import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
 import { LedgerService } from './ledger.service'
+import { mayUse } from './places'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
 
@@ -54,7 +56,9 @@ export class MoneyService {
   async createRegister(actor: Actor, input: RegisterInput): Promise<RegisterDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertRegister(em, input)
-      const saved = await em.save(em.create(Register, { orgId: actor.orgId, ...input, isActive: true }))
+      // A shop's first till is its main one.
+      const isMain = !(await em.existsBy(Register, { locationId: input.locationId, isMain: true }))
+      const saved = await em.save(em.create(Register, { orgId: actor.orgId, ...input, isActive: true, isMain }))
       await this.audit.record(em, actor.orgId, actor, {
         action: 'register.create',
         entity: 'register',
@@ -73,7 +77,15 @@ export class MoneyService {
         throw AppError.validation({ locationId: "Smenasi bo'lgan kassani boshqa do'konga o'tkazib bo'lmaydi" })
       }
       await this.assertRegister(em, input, id)
-      await em.update(Register, id, input)
+      if (before.locationId !== input.locationId) {
+        // It leaves one shop and joins another: main in neither by right, and in the new one only if that has none.
+        await em.update(Register, id, { isMain: false })
+        await this.passMainOn(em, before.locationId, id)
+        const isMain = !(await em.existsBy(Register, { locationId: input.locationId, isMain: true }))
+        await em.update(Register, id, { ...input, isMain })
+      } else {
+        await em.update(Register, id, input)
+      }
       await em.update(Account, { registerId: id }, { locationId: input.locationId, locationIds: [input.locationId] })
       const after = await this.findRegister(em, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -96,7 +108,16 @@ export class MoneyService {
         throw AppError.conflict('SHIFT_OPEN', 'Bu kassada smena ochiq. Avval smenani yoping')
       }
       if (register.isActive !== active) {
-        await em.update(Register, id, { isActive: active })
+        if (active) {
+          const isMain = !(await em.existsBy(Register, { locationId: register.locationId, isMain: true }))
+          await em.update(Register, id, { isActive: true, isMain })
+        } else {
+          // A till put away is nobody's main till: another of the shop's takes its place.
+          await em.update(Register, id, { isActive: false, isMain: false })
+          if (register.isMain) {
+            await this.passMainOn(em, register.locationId, id)
+          }
+        }
         await this.audit.record(em, actor.orgId, actor, {
           action: active ? 'register.restore' : 'register.archive',
           entity: 'register',
@@ -224,6 +245,66 @@ export class MoneyService {
     return register
   }
 
+  /** Makes a till its shop's main one; the one that was main stops being it. */
+  async setMainRegister(actor: Actor, id: string): Promise<RegisterDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const register = await this.findRegister(em, id)
+      if (!register.isActive) {
+        throw AppError.conflict('REGISTER_ARCHIVED', "Arxivdagi kassa asosiy bo'la olmaydi")
+      }
+      if (!register.isMain) {
+        await em.update(Register, { locationId: register.locationId, isMain: true }, { isMain: false })
+        await em.update(Register, id, { isMain: true })
+        await this.audit.record(em, actor.orgId, actor, {
+          action: 'register.main',
+          entity: 'register',
+          entityId: id,
+          summary: register.name,
+        })
+        afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+      }
+      return this.registerRow(em, id)
+    })
+  }
+
+  /** A shop whose main till is gone gets another: the oldest of those still in use, if there is one. */
+  private async passMainOn(em: EntityManager, locationId: string, fromId: string): Promise<void> {
+    const [next]: { id: string }[] = await em.query(
+      `SELECT id FROM registers WHERE location_id = $1 AND is_active AND id <> $2 ORDER BY created_at, id LIMIT 1`,
+      [locationId, fromId],
+    )
+    if (next) {
+      await em.update(Register, next.id, { isMain: true })
+    }
+  }
+
+  /**
+   * The places a person may pay through or take money into, for a window
+   * that lays them out: whether each can take money now, and whose drawer a
+   * till's is. Balances only for those who may see them.
+   */
+  async paymentAccounts(em: EntityManager, actor: Actor, kinds: string[]): Promise<PaymentAccountDto[]> {
+    const rows = await this.accountRows(em, can(actor, 'money.view'))
+    const tills = await em.find(Register, { select: { id: true, name: true, isMain: true } })
+    const tillOf = new Map(tills.map((till) => [till.id, till]))
+    const shifts = await em.find(Shift, {
+      where: { status: 'open' },
+      select: { registerId: true, openedBy: true },
+    })
+    const open = new Set(shifts.map((shift) => shift.registerId))
+    const mine = new Set(shifts.filter((shift) => shift.openedBy === actor.userId).map((shift) => shift.registerId))
+    return rows
+      .filter((account) => account.isActive && kinds.includes(account.kind) && mayUse(actor, account))
+      .map((account) => {
+        const till = account.registerId ? tillOf.get(account.registerId) : undefined
+        return {
+          ...account,
+          open: account.kind !== 'cash' || open.has(account.registerId as string),
+          till: till ? { name: till.name, main: till.isMain, mine: mine.has(till.id) } : null,
+        }
+      })
+  }
+
   private async registerRows(em: EntityManager, id?: string): Promise<RegisterDto[]> {
     const qb = em
       .createQueryBuilder(Register, 'r')
@@ -244,6 +325,7 @@ export class MoneyService {
       locationId: register.locationId,
       locationName: raw[index].location_name,
       isActive: register.isActive,
+      isMain: register.isMain,
       shift: raw[index].shift_id
         ? {
             id: raw[index].shift_id,

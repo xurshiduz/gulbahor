@@ -12,6 +12,8 @@ import {
   type Page as PageOf,
   type PaymentAccountDto,
   type RateDto,
+  defaultTill,
+  tillsOf,
 } from '@gulbahor/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
@@ -46,7 +48,13 @@ import {
   totalOf,
   valueLines,
   type PaymentRow,
+  keepTill,
+  lastTill,
+  sparePlaces,
+  switchTill,
+  TillField,
 } from '@/features/partners/payment-lines'
+import { cn } from '@/lib/cn'
 import { api, ApiError } from '@/lib/api'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
@@ -133,7 +141,16 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
   const kinds = (categories.data ?? []).filter((item) => item.kind === kind && item.isActive)
   const category = kinds.find((item) => item.id === categoryId) ?? null
 
-  const shown = useMemo(() => rows ?? startRows(places, keptAccounts(), tillHere()), [rows, places])
+  // The till the money goes through: the one picked here, else the one that stands to reason.
+  const tills = useMemo(() => tillsOf(places), [places])
+  const [pickedTill, setPickedTill] = useState<string | null>(null)
+  const tillId = tills.some((till) => till.id === pickedTill) ? pickedTill : defaultTill(tills, tillHere(), lastTill())
+  const shown = useMemo(() => rows ?? startRows(places, keptAccounts(), tillId), [rows, places, tillId])
+  const pickTill = (id: string) => {
+    setPickedTill(id)
+    keepTill(id)
+    setRows(switchTill(shown, places, id))
+  }
   // Everything is counted in so'm: dollars are worth what the rate makes them.
   const valued = valueLines(shown, places, 'UZS', dayRate)
   const total = totalOf(valued)
@@ -295,7 +312,12 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
       }
     >
       <Form key={round} id="money-op-form" onSubmit={submit}>
-        <div className="grid gap-4 sm:grid-cols-[12rem_minmax(0,1fr)]">
+        <div
+          className={cn(
+            'grid gap-4',
+            tills.length > 1 ? 'sm:grid-cols-[12rem_minmax(0,1fr)_14rem]' : 'sm:grid-cols-[12rem_minmax(0,1fr)]',
+          )}
+        >
           <Field label={t('payments.kind')}>
             {(id) => (
               <div data-enter-skip>
@@ -327,6 +349,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
               />
             )}
           </Field>
+          <TillField tills={tills} value={tillId} onChange={pickTill} />
         </div>
 
         {accounts.data && !places.length ? (
@@ -335,7 +358,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
           <PaymentLines
             kind={kind === 'income' ? 'in' : 'out'}
             lines={valued}
-            spare={places.filter((account) => !shown.some((row) => row.accountId === account.id))}
+            spare={sparePlaces(places, shown)}
             currency="UZS"
             owed={null}
             onPatch={patch}

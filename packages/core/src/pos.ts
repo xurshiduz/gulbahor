@@ -142,6 +142,8 @@ export interface RegisterDto {
   locationId: string
   locationName: string
   isActive: boolean
+  /** The shop's main till: where its money is taken from and put when nobody says which. One to a shop. */
+  isMain: boolean
   /** The shift open on it now. */
   shift: { id: string; number: string; openedAt: string; openedByName: string | null } | null
 }

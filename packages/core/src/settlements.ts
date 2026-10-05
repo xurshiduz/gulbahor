@@ -79,6 +79,61 @@ export function amountFor(
 export interface PaymentAccountDto extends AccountDto {
   /** A till's drawer takes money only while its shift is open; every other place always does. */
   open: boolean
+  /**
+   * The till whose drawer this is: its name, whether it is its shop's main
+   * till, and whether the person asking has its shift open. Null for a place
+   * that is no till's.
+   */
+  till: { name: string; main: boolean; mine: boolean } | null
+}
+
+/** A till a person may pay through, as the window that asks "which till?" needs it. */
+export interface PayTill {
+  id: string
+  name: string
+  locationName: string | null
+  main: boolean
+  mine: boolean
+  open: boolean
+}
+
+/** The tills among the places a person may pay through, in the order the places came. */
+export function tillsOf(accounts: PaymentAccountDto[]): PayTill[] {
+  const tills = new Map<string, PayTill>()
+  for (const account of accounts) {
+    if (account.registerId && account.till && !tills.has(account.registerId)) {
+      tills.set(account.registerId, {
+        id: account.registerId,
+        name: account.till.name,
+        locationName: account.locationName,
+        main: account.till.main,
+        mine: account.till.mine,
+        open: account.open,
+      })
+    }
+  }
+  return [...tills.values()]
+}
+
+/**
+ * The till a payment opens on when nobody has said which: the one this
+ * computer sells at; else the one whose shift this person has open; else the
+ * one chosen here last; else a shop's main till, one with its shift open
+ * before one without; else the first there is.
+ */
+export function defaultTill(tills: PayTill[], here: string | null, last: string | null): string | null {
+  const known = (id: string | null) => tills.find((till) => till.id === id)
+  return (
+    (
+      known(here) ??
+      tills.find((till) => till.mine) ??
+      known(last) ??
+      tills.find((till) => till.main && till.open) ??
+      tills.find((till) => till.main) ??
+      tills[0] ??
+      null
+    )?.id ?? null
+  )
 }
 
 // ───────────────────────────── Payments ─────────────────────────────
