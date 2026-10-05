@@ -854,6 +854,18 @@ export const uz = {
     noRateShort: "kurs yo'q",
     change: 'Qaytim',
     seller: 'Sotuvchi',
+    pay: "To'lash",
+    quickSale: "Naqd so'mda, qaytimsiz sotish",
+    toPay: "To'lanadi",
+    paid: "To'landi",
+    handed: 'Qaytarildi',
+    refundStep: 'Pulni qaytarish',
+    backToCart: 'Chekka qaytish',
+    goodsTotal: 'Tovarlar',
+    enterHint:
+      "Hech narsa yozilmasa — naqd so'mda, qaytimsiz. Enter — keyingi summa; summa to'liq bo'lsa, yana Enter — sotish.",
+    enterHintRefund:
+      "Hech narsa yozilmasa — to'langan usulda qaytariladi. Enter — keyingi summa; summa to'liq bo'lsa, yana Enter — qaytarish.",
     complete: 'Sotish',
     clear: 'Chekni tozalash',
     returnTitle: 'Qaytarish',

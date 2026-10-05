@@ -4,7 +4,6 @@ import {
   settle,
   settleRefund,
   toBase,
-  worthOf,
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
@@ -21,7 +20,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
-import { Select } from '@/components/ui/controls'
 import { EmptyState, Shortcut, Spinner } from '@/components/ui/feedback'
 import { controlClass, Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
@@ -47,11 +45,13 @@ import {
   cartTotals,
   changeText,
   EMPTY_CART,
+  enteredRows,
   linesTotal,
   refundRows,
   splitMultiplier,
   suggestRefunds,
   tenderRows,
+  tendersOf,
   underFloor,
   type Cart,
   type Returning,
@@ -61,8 +61,9 @@ import { AgreedSum } from './agreed'
 import { ApprovalDialog } from './approval'
 import { HandoverDialog, WaitingTransfers } from './handover'
 import { ReturnDialog, ReturnPicker } from './return-parts'
+import { ReceiptPreview } from './receipt-preview'
 import { SaleDialog } from './sale-dialog'
-import { TakenFor } from './taken-for'
+import { kindOf, TenderPanel, type TenderKind } from './tender-panel'
 import { CloseShiftDialog, OpenShift } from './shift-parts'
 
 const route = getRouteApi('/pos')
@@ -71,18 +72,6 @@ const REGISTER_KEY = 'gb.pos.register'
 const cartKey = (registerId: string) => `gb.pos.cart.${registerId}`
 
 const money = (minor: number, currency: CurrencyCode = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
-
-/** The four ways money changes hands at a till; each has its key. */
-type TenderKind = 'cash' | 'usd' | 'card' | 'terminal'
-const kindOf = (row: TenderRow): TenderKind =>
-  row.method === 'cash' ? (row.currency === 'USD' ? 'usd' : 'cash') : row.method
-const KIND_LABELS: Record<TenderKind, string> = {
-  cash: 'pos.payCash',
-  usd: 'pos.payUsd',
-  card: 'pos.payCard',
-  terminal: 'pos.payTerminal',
-}
-const KIND_KEYS: Record<TenderKind, string> = { cash: 'f5', usd: 'f6', card: 'f7', terminal: 'f8' }
 
 function stored<T>(key: string, fallback: T): T {
   try {
@@ -210,10 +199,13 @@ interface LastDocument {
 }
 
 /**
- * The sale screen. One field takes everything: a scanned barcode or tag, an
- * article, a name, and "3*" before any of them for three. Every way of
- * paying has its field; what is still due, or the change, is always on the
- * screen.
+ * The sale screen, in two stages. First the goods: one field takes
+ * everything, a scanned barcode or tag, an article, a name, and "3*" before
+ * any of them for three; beside the cart is what it comes to. Then, on F9,
+ * the money: the receipt as it will be on the left, and on the right a row
+ * for every way of paying, with what is still due or the change under them.
+ * Goods that change while they are being paid for take the till back to the
+ * cart.
  *
  * Goods brought back are picked from their receipt and then sit above the
  * cart. With nothing in the cart that is a return and the fields hand money
@@ -240,6 +232,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [picking, setPicking] = useState<{ code?: string } | null>(null)
   // Every way of paying has its field, always there; what is kept is only what was typed into them.
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
+  /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
+  const [paying, setPaying] = useState(false)
+  /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
+  const wanted = useRef<TenderKind | 'agreed' | null>(null)
   const [changeCurrency, setChangeCurrency] = useState<CurrencyCode>('UZS')
   const [text, setText] = useState('')
   const [query, setQuery] = useState('')
@@ -415,6 +411,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
       return
     }
     agreedFor.current = goods
+    // What was being paid for is no longer what is in the cart: back to it, to be looked at again.
+    setPaying(false)
     if (agreedOf(cart.discountText) !== null) {
       setCart((current) => ({ ...current, discountText: '' }))
       if (cart.lines.length) {
@@ -445,14 +443,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const tenders = useMemo(() => rows.map((row) => ({ ...row, ...paid[row.key] })), [rows, paid])
   // What was typed for paying means nothing for handing back, and the other way round.
   useEffect(() => setPaid({}), [refunding])
-  const entered = tenders.filter((row) => row.amount)
-  const typed = entered.map((row) => ({
-    method: row.method,
-    currency: row.currency,
-    amount: row.amount as number,
-    // Only what is taken in is ever agreed on; what goes back goes back at the rate.
-    value: refunding ? null : row.value,
-  }))
+  const entered = enteredRows(tenders)
+  const typed = tendersOf(entered, refunding)
   /** Dollars taken for more over the rate than the shop lets a cashier give alone. */
   const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent)
   const rateAsk = overRate && !context.mayOverDiscount
@@ -476,23 +468,57 @@ function Till({ context, registers, onSwitch }: TillProps) {
     [refunding, returning, toRefund, toPay, context.changeRoundStep],
   )
 
-  /** What is left for a row to cover once the others have paid theirs, in so'm. */
-  const restFor = (row: TenderRow): number => {
-    const others = typed
-      .filter((_, index) => entered[index].key !== row.key)
-      .reduce((sum, item) => sum + worthOf(item, rate), 0)
-    return Math.max(0, (refunding ? toRefund : toPay) - others)
+  const focusField = (kind: TenderKind) => {
+    const field = document.querySelector<HTMLInputElement>(`[data-kind="${kind}"] input`)
+    field?.focus()
+    field?.select()
   }
-  /** What a row would have to hold to cover the rest: what "=" fills in. */
-  const fillOf = (row: TenderRow): number => {
-    const due = restFor(row)
-    return row.currency === 'USD' && rate ? Math.ceil((due * 100) / Math.round(rate * 100)) : due
+  // Into the payment the cursor goes to the way of paying that was asked for, so'm when none was; back
+  // in the cart, to the search field or to the sum agreed on.
+  useEffect(() => {
+    const want = wanted.current
+    wanted.current = null
+    if (paying) {
+      focusField(want && want !== 'agreed' ? want : 'cash')
+    } else if (want === 'agreed') {
+      agreedRef.current?.focus()
+    } else {
+      focusSearch()
+    }
+  }, [paying])
+
+  /** F9 in the cart: the goods are agreed on, now the money. */
+  const openPay = (kind: TenderKind | null = null) => {
+    if (!cart.lines.length && !returning) {
+      return
+    }
+    if (
+      cart.lines.some((line, index) => badDiscount(line.discountText, totals.lines[index]?.gross)) ||
+      badDiscount(cart.discountText, afterLines)
+    ) {
+      toast.error(t('pos.badDiscount'))
+      return
+    }
+    wanted.current = kind
+    setPaying(true)
+  }
+  /** Back to the cart; what was typed for the money stays. */
+  const backToCart = (to: 'agreed' | null = null) => {
+    if (!paying) {
+      if (to === 'agreed') {
+        agreedRef.current?.focus()
+      } else {
+        focusSearch()
+      }
+      return
+    }
+    wanted.current = to
+    setPaying(false)
   }
 
-  /** F5…F8: the cursor goes to that way of paying. */
+  /** F5…F8: the cursor goes to that way of paying, from the cart as well. */
   const focusTender = (kind: TenderKind) => {
-    const row = tenders.find((item) => kindOf(item) === kind)
-    if (!row) {
+    if (!tenders.some((item) => kindOf(item) === kind)) {
       if (kind === 'card' || kind === 'terminal') {
         toast.error(refunding ? t('pos.notPaidThatWay') : kind === 'card' ? t('pos.noCards') : t('pos.noTerminals'))
       }
@@ -502,30 +528,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
       toast.error(t('pos.noRate'))
       return
     }
-    const field = document.querySelector<HTMLInputElement>(`[data-tender="${row.key}"] input`)
-    field?.focus()
-    field?.select()
+    if (paying) {
+      focusField(kind)
+    } else {
+      openPay(kind)
+    }
   }
   const patchTender = (key: string, patch: Partial<TenderRow>) =>
     setPaid((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
-
-  /** Enter or ↓ in a payment field goes on to the next one, ↑ back to the one before. */
-  const nextTender = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = event.key === 'Enter' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
-    if (!step || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLInputElement)) {
-      return
-    }
-    // Enter walks the sums; what is beside them (an agreed worth, a slip's number) is reached with Tab.
-    const fields = [...event.currentTarget.querySelectorAll<HTMLInputElement>('input:not(:disabled)')].filter(
-      (field) => field === event.target || !field.closest('[data-enter-skip]'),
-    )
-    const next = fields[fields.indexOf(event.target) + step]
-    if (next) {
-      event.preventDefault()
-      next.focus()
-      next.select()
-    }
-  }
 
   // ── Done ──
   const reset = () => {
@@ -533,6 +543,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setCart(EMPTY_CART)
     setPaid({})
     setReturning(null)
+    setPaying(false)
     for (const key of ['pos', 'sales', 'returns', 'stock']) {
       void queryClient.invalidateQueries({ queryKey: [key] })
     }
@@ -724,8 +735,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   }
 
   const group = t('pos.title')
-  useHotkey('f2', focusSearch, { label: t('pos.search'), group, enabled: idle })
-  useHotkey('f3', () => agreedRef.current?.focus(), {
+  useHotkey('f2', () => backToCart(), { label: t('pos.search'), group, enabled: idle })
+  useHotkey('f3', () => backToCart('agreed'), {
     label: t('pos.agreed'),
     group,
     enabled: idle && cart.lines.length > 0,
@@ -735,8 +746,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
   useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
   useHotkey('f7', () => focusTender('card'), { label: t('pos.payCard'), group, enabled: idle })
   useHotkey('f8', () => focusTender('terminal'), { label: t('pos.payTerminal'), group, enabled: idle })
-  useHotkey('f9', () => complete(), { label: t('pos.complete'), group, enabled: idle })
-  useHotkey('mod+enter', () => complete(), { enabled: idle })
+  // F9 takes the till to the money, and from there ends the sale: twice, it is a sale for cash, exactly.
+  useHotkey('f9', () => (paying ? complete() : openPay()), { label: t('pos.pay'), group, enabled: idle })
+  // Cash, exactly, without looking at the money at all.
+  useHotkey('mod+enter', () => complete(), { label: t('pos.quickSale'), group, enabled: idle })
+  useHotkey('escape', () => backToCart(), { enabled: idle && paying })
 
   useEffect(() => {
     focusSearch()
@@ -757,215 +771,235 @@ function Till({ context, registers, onSwitch }: TillProps) {
         .filter(Boolean)
         .join(' · ')}
     >
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
-        {/* ── The cart ── */}
-        <div className="flex min-h-0 min-w-0 flex-col gap-3">
-          <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
-              <input
-                ref={searchRef}
-                value={text}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={t('pos.searchPlaceholder')}
-                onChange={(event) => setText(event.target.value)}
-                onKeyDown={handleSearchKey}
-                onFocus={() => setSearching(true)}
-                onBlur={() => setSearching(false)}
-                className={cn(controlClass, 'h-11 pl-9 text-sm')}
-              />
-              <span className="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2 text-xs text-ink-3">
-                {multiplier ? <span className="tabular font-semibold text-accent">× {multiplier}</span> : null}
-                <Shortcut combo="f2" />
-              </span>
-              {searching && results.length ? (
-                <div className="absolute top-full right-0 left-0 z-20 mt-1 max-h-80 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
-                  {results.map((item, index) => (
-                    <button
-                      key={item.variantId}
-                      type="button"
-                      tabIndex={-1}
-                      data-highlighted={index === highlight}
-                      onMouseMove={() => setHighlight(index)}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => pick(item)}
-                      className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
+      <div
+        className={cn('grid min-h-0 flex-1 gap-4', paying ? 'lg:grid-cols-[1fr_26rem]' : 'lg:grid-cols-[1fr_22rem]')}
+      >
+        {/* ── The cart; while it is being paid, the receipt it makes ── */}
+        {paying ? (
+          <ReceiptPreview
+            shop={context.register.locationName}
+            register={context.register.name}
+            cart={cart}
+            totals={totals}
+            back={back}
+            backNumber={returning?.found.sale.number ?? null}
+            credit={credit}
+            toPay={toPay}
+            toRefund={toRefund}
+            seller={context.sellers.find((seller) => seller.id === cart.sellerId)?.name ?? null}
+          />
+        ) : (
+          <div className="flex min-h-0 min-w-0 flex-col gap-3">
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
+                <input
+                  ref={searchRef}
+                  value={text}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={t('pos.searchPlaceholder')}
+                  onChange={(event) => setText(event.target.value)}
+                  onKeyDown={handleSearchKey}
+                  onFocus={() => setSearching(true)}
+                  onBlur={() => setSearching(false)}
+                  className={cn(controlClass, 'h-11 pl-9 text-sm')}
+                />
+                <span className="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2 text-xs text-ink-3">
+                  {multiplier ? <span className="tabular font-semibold text-accent">× {multiplier}</span> : null}
+                  <Shortcut combo="f2" />
+                </span>
+                {searching && results.length ? (
+                  <div className="absolute top-full right-0 left-0 z-20 mt-1 max-h-80 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
+                    {results.map((item, index) => (
+                      <button
+                        key={item.variantId}
+                        type="button"
+                        tabIndex={-1}
+                        data-highlighted={index === highlight}
+                        onMouseMove={() => setHighlight(index)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => pick(item)}
+                        className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
+                      >
+                        <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{item.sku}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="font-medium">{item.name}</span>
+                          {item.label ? <span className="text-ink-2"> · {item.label}</span> : null}
+                        </span>
+                        <span className={cn('tabular shrink-0 text-xs', item.onHand > 0 ? 'text-ink-3' : 'text-bad')}>
+                          {formatNumber(item.onHand)}
+                        </span>
+                        <span className="tabular w-24 shrink-0 text-right font-medium">
+                          {item.price === null ? '—' : money(item.price)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              {mayReturn ? (
+                <Button className="h-11" onClick={() => setPicking({})}>
+                  <Undo2 />
+                  {t('pos.returnTitle')}
+                  <Shortcut combo="f4" className="ml-0.5" />
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-surface shadow-card">
+              {returning ? (
+                <div className="border-b border-line bg-warn-soft px-3 py-2 text-[13px]">
+                  <div className="flex items-center gap-2">
+                    <Undo2 className="size-4 shrink-0 text-warn" />
+                    <span className="font-medium">
+                      {t('pos.returning')} · {returning.found.sale.number}
+                    </span>
+                    <span className="tabular min-w-0 flex-1 truncate text-xs text-ink-3">
+                      {formatDateTime(returning.found.sale.soldAt)}
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => setPicking({})}>
+                      {t('common.edit')}
+                    </Button>
+                    <Button
+                      size="iconSm"
+                      variant="ghost"
+                      aria-label={t('common.cancel')}
+                      onClick={() => setReturning(null)}
                     >
-                      <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{item.sku}</span>
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="font-medium">{item.name}</span>
-                        {item.label ? <span className="text-ink-2"> · {item.label}</span> : null}
+                      <X />
+                    </Button>
+                  </div>
+                  {back.map((item) => (
+                    <div key={item.line.id} className="flex items-baseline justify-between gap-3 py-0.5 pl-6">
+                      <span className="min-w-0 truncate">
+                        {item.line.productName}
+                        {item.line.label ? <span className="text-ink-2"> · {item.line.label}</span> : null}
+                        <span className="tabular text-xs text-ink-3"> × {formatNumber(item.qty)}</span>
                       </span>
-                      <span className={cn('tabular shrink-0 text-xs', item.onHand > 0 ? 'text-ink-3' : 'text-bad')}>
-                        {formatNumber(item.onHand)}
-                      </span>
-                      <span className="tabular w-24 shrink-0 text-right font-medium">
-                        {item.price === null ? '—' : money(item.price)}
-                      </span>
-                    </button>
+                      <span className="tabular shrink-0 font-medium">−{money(item.total)}</span>
+                    </div>
                   ))}
                 </div>
               ) : null}
+              {cart.lines.length ? (
+                <table className="w-full text-[13px]">
+                  <thead className="sticky top-0 bg-sunken text-left text-[11px] font-semibold tracking-[0.04em] text-ink-3 uppercase">
+                    <tr>
+                      <th className="px-3 py-2">{t('products.name')}</th>
+                      <th className="w-24 px-2 py-2 text-right">{t('receipts.totalQty')}</th>
+                      <th className="w-28 px-2 py-2 text-right">{t('pos.price')}</th>
+                      <th className="w-28 px-2 py-2">{t('pos.discount')}</th>
+                      <th className="w-36 px-3 py-2 text-right">{t('pos.total')}</th>
+                      <th className="w-px" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.lines.map((line, index) => {
+                      const patch = (change: Partial<typeof line>) =>
+                        setCart({
+                          ...cart,
+                          lines: cart.lines.map((item) => (item.key === line.key ? { ...item, ...change } : item)),
+                        })
+                      const short = !line.item.epc && line.qty > line.item.onHand
+                      const whole = totals.lines[index]?.gross ?? 0
+                      const floor = under.find((item) => item.index === index)?.floor
+                      return (
+                        <tr key={line.key} className="border-t border-line align-top first:border-t-0">
+                          <td className="px-3 py-2">
+                            <p className="font-medium">
+                              {line.item.name}
+                              {line.item.label ? (
+                                <span className="font-normal text-ink-2"> · {line.item.label}</span>
+                              ) : null}
+                            </p>
+                            <p className="flex items-center gap-2 text-xs text-ink-3">
+                              <span className="font-code">{line.item.sku}</span>
+                              {line.item.epc ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <ScanLine className="size-3" />#{line.item.epc.slice(-6)}
+                                </span>
+                              ) : null}
+                              {short ? (
+                                <span className="text-bad">
+                                  {t('pos.onHand', { qty: formatNumber(line.item.onHand) })}
+                                </span>
+                              ) : null}
+                              {floor !== undefined ? (
+                                <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
+                              ) : null}
+                            </p>
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <NumberInput
+                              value={line.qty}
+                              // A sum agreed on for the line was for that many: with another count it is asked again.
+                              onChange={(qty) =>
+                                qty
+                                  ? patch({
+                                      qty,
+                                      ...(agreedOf(line.discountText) === null ? {} : { discountText: '' }),
+                                    })
+                                  : undefined
+                              }
+                              decimals={line.item.decimals}
+                              min={line.item.decimals ? 0.001 : 1}
+                              // A tagged piece is that one piece.
+                              disabled={!!line.item.epc}
+                              invalid={short}
+                              className="[&_input]:text-right"
+                            />
+                          </td>
+                          <td className="tabular px-2 py-2.5 text-right">{money(line.item.price ?? 0)}</td>
+                          <td className="px-2 py-1.5">
+                            <Input
+                              value={line.discountText}
+                              placeholder="10% / 5000"
+                              invalid={badDiscount(line.discountText, whole)}
+                              onChange={(event) => patch({ discountText: event.target.value })}
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {/* The price agreed on for the line is typed straight in: what comes off is the rest. */}
+                            <MoneyInput
+                              value={whole - totals.lineDiscounts[index]}
+                              onChange={(agreed) =>
+                                patch({ discountText: agreed === null || agreed === whole ? '' : agreedText(agreed) })
+                              }
+                              invalid={badDiscount(line.discountText, whole) || floor !== undefined}
+                              className="[&_input]:font-semibold"
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <Button
+                              variant="ghost"
+                              size="iconSm"
+                              tabIndex={-1}
+                              aria-label={t('common.delete')}
+                              onClick={() =>
+                                setCart({ ...cart, lines: cart.lines.filter((item) => item.key !== line.key) })
+                              }
+                            >
+                              <X />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <EmptyState
+                  icon={ScanLine}
+                  title={returning ? t('pos.exchangeOrNot') : t('pos.emptyCart')}
+                  hint={returning ? undefined : t('pos.emptyCartHint')}
+                />
+              )}
             </div>
-            {mayReturn ? (
-              <Button className="h-11" onClick={() => setPicking({})}>
-                <Undo2 />
-                {t('pos.returnTitle')}
-                <Shortcut combo="f4" className="ml-0.5" />
-              </Button>
-            ) : null}
           </div>
+        )}
 
-          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-surface shadow-card">
-            {returning ? (
-              <div className="border-b border-line bg-warn-soft px-3 py-2 text-[13px]">
-                <div className="flex items-center gap-2">
-                  <Undo2 className="size-4 shrink-0 text-warn" />
-                  <span className="font-medium">
-                    {t('pos.returning')} · {returning.found.sale.number}
-                  </span>
-                  <span className="tabular min-w-0 flex-1 truncate text-xs text-ink-3">
-                    {formatDateTime(returning.found.sale.soldAt)}
-                  </span>
-                  <Button size="sm" variant="ghost" onClick={() => setPicking({})}>
-                    {t('common.edit')}
-                  </Button>
-                  <Button
-                    size="iconSm"
-                    variant="ghost"
-                    aria-label={t('common.cancel')}
-                    onClick={() => setReturning(null)}
-                  >
-                    <X />
-                  </Button>
-                </div>
-                {back.map((item) => (
-                  <div key={item.line.id} className="flex items-baseline justify-between gap-3 py-0.5 pl-6">
-                    <span className="min-w-0 truncate">
-                      {item.line.productName}
-                      {item.line.label ? <span className="text-ink-2"> · {item.line.label}</span> : null}
-                      <span className="tabular text-xs text-ink-3"> × {formatNumber(item.qty)}</span>
-                    </span>
-                    <span className="tabular shrink-0 font-medium">−{money(item.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {cart.lines.length ? (
-              <table className="w-full text-[13px]">
-                <thead className="sticky top-0 bg-sunken text-left text-[11px] font-semibold tracking-[0.04em] text-ink-3 uppercase">
-                  <tr>
-                    <th className="px-3 py-2">{t('products.name')}</th>
-                    <th className="w-24 px-2 py-2 text-right">{t('receipts.totalQty')}</th>
-                    <th className="w-28 px-2 py-2 text-right">{t('pos.price')}</th>
-                    <th className="w-28 px-2 py-2">{t('pos.discount')}</th>
-                    <th className="w-36 px-3 py-2 text-right">{t('pos.total')}</th>
-                    <th className="w-px" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.lines.map((line, index) => {
-                    const patch = (change: Partial<typeof line>) =>
-                      setCart({
-                        ...cart,
-                        lines: cart.lines.map((item) => (item.key === line.key ? { ...item, ...change } : item)),
-                      })
-                    const short = !line.item.epc && line.qty > line.item.onHand
-                    const whole = totals.lines[index]?.gross ?? 0
-                    const floor = under.find((item) => item.index === index)?.floor
-                    return (
-                      <tr key={line.key} className="border-t border-line align-top first:border-t-0">
-                        <td className="px-3 py-2">
-                          <p className="font-medium">
-                            {line.item.name}
-                            {line.item.label ? (
-                              <span className="font-normal text-ink-2"> · {line.item.label}</span>
-                            ) : null}
-                          </p>
-                          <p className="flex items-center gap-2 text-xs text-ink-3">
-                            <span className="font-code">{line.item.sku}</span>
-                            {line.item.epc ? (
-                              <span className="inline-flex items-center gap-1">
-                                <ScanLine className="size-3" />#{line.item.epc.slice(-6)}
-                              </span>
-                            ) : null}
-                            {short ? (
-                              <span className="text-bad">
-                                {t('pos.onHand', { qty: formatNumber(line.item.onHand) })}
-                              </span>
-                            ) : null}
-                            {floor !== undefined ? (
-                              <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
-                            ) : null}
-                          </p>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <NumberInput
-                            value={line.qty}
-                            // A sum agreed on for the line was for that many: with another count it is asked again.
-                            onChange={(qty) =>
-                              qty
-                                ? patch({ qty, ...(agreedOf(line.discountText) === null ? {} : { discountText: '' }) })
-                                : undefined
-                            }
-                            decimals={line.item.decimals}
-                            min={line.item.decimals ? 0.001 : 1}
-                            // A tagged piece is that one piece.
-                            disabled={!!line.item.epc}
-                            invalid={short}
-                            className="[&_input]:text-right"
-                          />
-                        </td>
-                        <td className="tabular px-2 py-2.5 text-right">{money(line.item.price ?? 0)}</td>
-                        <td className="px-2 py-1.5">
-                          <Input
-                            value={line.discountText}
-                            placeholder="10% / 5000"
-                            invalid={badDiscount(line.discountText, whole)}
-                            onChange={(event) => patch({ discountText: event.target.value })}
-                          />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {/* The price agreed on for the line is typed straight in: what comes off is the rest. */}
-                          <MoneyInput
-                            value={whole - totals.lineDiscounts[index]}
-                            onChange={(agreed) =>
-                              patch({ discountText: agreed === null || agreed === whole ? '' : agreedText(agreed) })
-                            }
-                            invalid={badDiscount(line.discountText, whole) || floor !== undefined}
-                            className="[&_input]:font-semibold"
-                          />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <Button
-                            variant="ghost"
-                            size="iconSm"
-                            tabIndex={-1}
-                            aria-label={t('common.delete')}
-                            onClick={() =>
-                              setCart({ ...cart, lines: cart.lines.filter((item) => item.key !== line.key) })
-                            }
-                          >
-                            <X />
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <EmptyState
-                icon={ScanLine}
-                title={returning ? t('pos.exchangeOrNot') : t('pos.emptyCart')}
-                hint={returning ? undefined : t('pos.emptyCartHint')}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* ── The sum and the money ── */}
+        {/* ── The sum; while it is being paid, the money ── */}
         <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {/* As tall as the search field beside it, so the cart and the sum start on one line. */}
           <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-end gap-2">
@@ -988,256 +1022,132 @@ function Till({ context, registers, onSwitch }: TillProps) {
             </Button>
           </div>
           <WaitingTransfers transfers={context.transfers} />
-          <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
-            <div className="flex items-baseline justify-between text-[13px] text-ink-3">
-              <span>{t('pos.subtotal')}</span>
-              <span className="tabular">{money(totals.subtotal)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">
-              <span>{t('pos.saleDiscount')}</span>
-              <Input
-                value={cart.discountText}
-                placeholder="10% / 5000"
-                invalid={badDiscount(cart.discountText, afterLines) || overLimit}
-                onChange={(event) => setCart({ ...cart, discountText: event.target.value })}
-                className="w-36 text-right"
-              />
-            </div>
-            {cart.lines.length ? (
-              <AgreedSum
-                ref={agreedRef}
-                text={cart.discountText}
-                base={afterLines}
-                onChange={(discountText) => setCart({ ...cart, discountText })}
-              />
-            ) : null}
-            {totals.discount ? (
-              <div
-                className={cn(
-                  'mt-2 flex items-baseline justify-between text-[13px]',
-                  overLimit ? 'text-bad' : 'text-ink-3',
-                )}
-              >
-                <span>
-                  {t('pos.discount')} ({percent.toFixed(1).replace('.', ',')}%)
-                </span>
-                <span className="tabular">−{money(totals.discount)}</span>
-              </div>
-            ) : null}
-            {overLimit ? (
-              <p className="mt-1 text-xs text-bad">
-                {t(context.approvers.some((approver) => approver.discount) ? 'pos.overLimitAsk' : 'pos.overLimit', {
-                  percent: context.maxDiscountPercent,
-                })}
-              </p>
-            ) : null}
-            {underAsk ? (
-              <p className="mt-1 text-xs text-bad">
-                {t(context.approvers.some((approver) => approver.discount) ? 'pos.floorAsk' : 'pos.floorStop')}
-              </p>
-            ) : null}
-            {returning ? (
-              <div className="mt-2 flex items-baseline justify-between text-[13px] text-warn">
-                <span>{t('pos.returnedGoods')}</span>
-                <span className="tabular">−{money(credit)}</span>
-              </div>
-            ) : null}
-            <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
-              <span className="text-sm font-medium">{refunding ? t('pos.toRefund') : t('pos.total')}</span>
-              <span className={cn('tabular text-2xl font-semibold', refunding && 'text-warn')}>
-                {money(refunding ? toRefund : toPay)}
-              </span>
-            </div>
-            {rate && (toPay || toRefund) ? (
-              <p className="tabular text-right text-xs text-ink-3">
-                ≈ {money(Math.ceil(((toPay || toRefund) * 100) / Math.round(rate * 100)), 'USD')}
-              </p>
-            ) : null}
-          </section>
-
-          <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
-            <div className="flex flex-col gap-2" onKeyDown={nextTender}>
-              {tenders.map((row) => {
-                const kind = kindOf(row)
-                const cap = returning?.found.caps.accounts.find((item) => item.accountId === row.accountId)
-                // Paying, a card is one of the shop's; handing back, it is the one the receipt was paid with.
-                const accounts = refunding
-                  ? []
-                  : kind === 'card'
-                    ? context.cards
-                    : kind === 'terminal'
-                      ? context.terminals
-                      : []
-                const account = refunding ? cap : accounts.length === 1 ? accounts[0] : null
-                const noRate = row.currency === 'USD' && !rate
-                // How much may go back this way, for someone who must hand it back the way it was paid.
-                const limit =
-                  refunding && returning && !returning.found.free
-                    ? row.method === 'cash'
-                      ? returning.found.caps.cash
-                      : (cap?.left ?? 0)
-                    : null
-                return (
-                  <div key={row.key} data-tender={row.key} className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-ink-2">
-                        <span className="truncate">
-                          {t(KIND_LABELS[kind])}
-                          {account ? (
-                            <span className="text-ink-3">
-                              {' · '}
-                              {account.name}
-                              {account.last4 ? ` *${account.last4}` : ''}
-                            </span>
-                          ) : null}
-                          {limit !== null && kind !== 'usd' ? (
-                            <span className="tabular text-ink-3">
-                              {' ≤ '}
-                              {formatMoney(limit, 'UZS', { minor: 'auto', symbol: false })}
-                            </span>
-                          ) : null}
-                        </span>
-                        <Shortcut combo={KIND_KEYS[kind]} />
-                      </span>
-                      <MoneyInput
-                        value={row.amount}
-                        // What dollars were agreed to be worth was agreed for that many of them.
-                        onChange={(amount) =>
-                          patchTender(row.key, amount === row.amount ? { amount } : { amount, value: null })
-                        }
-                        currency={row.currency}
-                        fillValue={fillOf(row)}
-                        disabled={noRate}
-                        // Nothing typed anywhere: what shows faintly here is what is meant.
-                        placeholder={
-                          noRate
-                            ? t('pos.noRateShort')
-                            : !entered.length && suggested[row.key]
-                              ? formatMoney(suggested[row.key], row.currency, { minor: 'auto', symbol: false })
-                              : undefined
-                        }
-                        className="w-40"
-                      />
-                    </div>
-                    {accounts.length > 1 || (!refunding && row.method === 'terminal' && row.amount) ? (
-                      <div className="flex items-center justify-end gap-2">
-                        {accounts.length > 1 ? (
-                          <Select
-                            value={row.accountId ?? ''}
-                            onChange={(accountId) => patchTender(row.key, { accountId })}
-                            options={accounts.map((item) => ({
-                              value: item.id,
-                              label: item.last4 ? `${item.name} *${item.last4}` : item.name,
-                            }))}
-                            className="min-w-0 flex-1"
-                          />
-                        ) : null}
-                        {!refunding && row.method === 'terminal' && row.amount ? (
-                          <Input
-                            value={row.reference}
-                            maxLength={12}
-                            placeholder={t('pos.rrn')}
-                            onChange={(event) => patchTender(row.key, { reference: event.target.value })}
-                            className="font-code w-40"
-                          />
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {row.currency === 'USD' && row.amount && rate ? (
-                      refunding ? (
-                        <p className="tabular text-right text-xs text-ink-3">
-                          = {money(toBase(row.amount, 'USD', rate))}
-                        </p>
-                      ) : (
-                        <TakenFor
-                          dollars={row.amount}
-                          value={row.value}
-                          rate={rate}
-                          rest={restFor(row)}
-                          limit={context.maxRateLossPercent}
-                          mayAsk={context.approvers.some((approver) => approver.discount)}
-                          alone={context.mayOverDiscount}
-                          onChange={(value) => patchTender(row.key, { value })}
-                        />
-                      )
-                    ) : null}
+          {paying ? (
+            <TenderPanel
+              context={context}
+              rows={tenders}
+              onPatch={patchTender}
+              returning={returning}
+              refunding={refunding}
+              due={refunding ? toRefund : toPay}
+              suggested={suggested}
+              settlement={settlement}
+              refund={refund}
+              changeCurrency={changeCurrency}
+              onChangeCurrency={setChangeCurrency}
+              action={
+                returning ? (cart.lines.length ? t('pos.exchangeAction') : t('pos.returnAction')) : t('pos.complete')
+              }
+              busy={busy}
+              onComplete={() => complete()}
+              onBack={() => backToCart()}
+            />
+          ) : (
+            <>
+              <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
+                <div className="flex items-baseline justify-between text-[13px] text-ink-3">
+                  <span>{t('pos.subtotal')}</span>
+                  <span className="tabular">{money(totals.subtotal)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">
+                  <span>{t('pos.saleDiscount')}</span>
+                  <Input
+                    value={cart.discountText}
+                    placeholder="10% / 5000"
+                    invalid={badDiscount(cart.discountText, afterLines) || overLimit}
+                    onChange={(event) => setCart({ ...cart, discountText: event.target.value })}
+                    className="w-36 text-right"
+                  />
+                </div>
+                {cart.lines.length ? (
+                  <AgreedSum
+                    ref={agreedRef}
+                    text={cart.discountText}
+                    base={afterLines}
+                    onChange={(discountText) => setCart({ ...cart, discountText })}
+                  />
+                ) : null}
+                {totals.discount ? (
+                  <div
+                    className={cn(
+                      'mt-2 flex items-baseline justify-between text-[13px]',
+                      overLimit ? 'text-bad' : 'text-ink-3',
+                    )}
+                  >
+                    <span>
+                      {t('pos.discount')} ({percent.toFixed(1).replace('.', ',')}%)
+                    </span>
+                    <span className="tabular">−{money(totals.discount)}</span>
                   </div>
-                )
-              })}
-            </div>
-
-            {!entered.length ? null : refunding ? (
-              refund.problem === 'over' ? (
-                <p className="text-[13px] text-bad">{t('pos.refundOver')}</p>
-              ) : refund.due > 0 ? (
-                <p className="text-[13px] text-bad">{t('pos.refundDue', { amount: money(refund.due) })}</p>
-              ) : null
-            ) : settlement.problem === 'non_cash_over' ? (
-              <p className="text-[13px] text-bad">{t('pos.nonCashOver')}</p>
-            ) : settlement.due > 0 ? (
-              <div className="flex items-baseline justify-between text-[13px] text-bad">
-                <span>{t('pos.due')}</span>
-                <span className="tabular font-semibold">
-                  {money(settlement.due)}
-                  {settlement.dueUsd ? ` · ${money(settlement.dueUsd, 'USD')}` : ''}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2 text-[13px]">
-                <span className="text-ink-3">{t('pos.change')}</span>
-                <span className="flex items-center gap-2">
-                  {context.usd && rate ? (
-                    <Select
-                      value={changeCurrency}
-                      onChange={(value) => setChangeCurrency(value as CurrencyCode)}
-                      options={[
-                        { value: 'UZS', label: "so'm" },
-                        { value: 'USD', label: '$' },
-                      ]}
-                      className="h-7 w-20 text-xs"
-                    />
-                  ) : null}
-                  <span className="tabular text-lg font-semibold text-ok">
-                    {changeText(settlement.changeUzs, settlement.changeUsd)}
+                ) : null}
+                {overLimit ? (
+                  <p className="mt-1 text-xs text-bad">
+                    {t(context.approvers.some((approver) => approver.discount) ? 'pos.overLimitAsk' : 'pos.overLimit', {
+                      percent: context.maxDiscountPercent,
+                    })}
+                  </p>
+                ) : null}
+                {underAsk ? (
+                  <p className="mt-1 text-xs text-bad">
+                    {t(context.approvers.some((approver) => approver.discount) ? 'pos.floorAsk' : 'pos.floorStop')}
+                  </p>
+                ) : null}
+                {returning ? (
+                  <div className="mt-2 flex items-baseline justify-between text-[13px] text-warn">
+                    <span>{t('pos.returnedGoods')}</span>
+                    <span className="tabular">−{money(credit)}</span>
+                  </div>
+                ) : null}
+                <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
+                  <span className="text-sm font-medium">{refunding ? t('pos.toRefund') : t('pos.total')}</span>
+                  <span className={cn('tabular text-2xl font-semibold', refunding && 'text-warn')}>
+                    {money(refunding ? toRefund : toPay)}
                   </span>
-                </span>
-              </div>
-            )}
+                </div>
+                {rate && (toPay || toRefund) ? (
+                  <p className="tabular text-right text-xs text-ink-3">
+                    ≈ {money(Math.ceil(((toPay || toRefund) * 100) / Math.round(rate * 100)), 'USD')}
+                  </p>
+                ) : null}
+              </section>
 
-            {context.sellers.length > 1 && cart.lines.length ? (
-              <Combobox
-                options={context.sellers.map((seller) => ({ value: seller.id, label: seller.name }))}
-                value={cart.sellerId}
-                onChange={(sellerId) => setCart({ ...cart, sellerId })}
-                placeholder={t('pos.seller')}
-              />
-            ) : null}
+              <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
+                {context.sellers.length > 1 && cart.lines.length ? (
+                  <Combobox
+                    options={context.sellers.map((seller) => ({ value: seller.id, label: seller.name }))}
+                    value={cart.sellerId}
+                    onChange={(sellerId) => setCart({ ...cart, sellerId })}
+                    placeholder={t('pos.seller')}
+                  />
+                ) : null}
 
-            <Button
-              variant="primary"
-              className="h-11 text-sm"
-              disabled={!cart.lines.length && !returning}
-              loading={busy}
-              onClick={() => complete()}
-            >
-              {returning ? (cart.lines.length ? t('pos.exchangeAction') : t('pos.returnAction')) : t('pos.complete')}
-              <Shortcut combo="f9" className="ml-1 opacity-70" />
-            </Button>
-            {cart.lines.length || returning ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setCart(EMPTY_CART)
-                  setPaid({})
-                  setReturning(null)
-                  focusSearch()
-                }}
-              >
-                {t('pos.clear')}
-              </Button>
-            ) : null}
-          </section>
+                <Button
+                  variant="primary"
+                  className="h-11 text-sm"
+                  disabled={!cart.lines.length && !returning}
+                  loading={busy}
+                  onClick={() => openPay()}
+                >
+                  {refunding ? t('pos.refundStep') : t('pos.pay')}
+                  <Shortcut combo="f9" className="ml-1 opacity-70" />
+                </Button>
+                {cart.lines.length || returning ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCart(EMPTY_CART)
+                      setPaid({})
+                      setReturning(null)
+                      focusSearch()
+                    }}
+                  >
+                    {t('pos.clear')}
+                  </Button>
+                ) : null}
+              </section>
+            </>
+          )}
         </aside>
       </div>
 

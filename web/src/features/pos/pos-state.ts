@@ -14,6 +14,7 @@ import {
   type ReturnableDto,
   type SaleLineDto,
   type SaleTotals,
+  type Tender,
   type TenderMethod,
 } from '@gulbahor/core'
 
@@ -202,12 +203,29 @@ export function tenderRows(context: PosContextDto): TenderRow[] {
     value: null,
     reference: '',
   })
+  // Every card and every terminal of the shop has its own row: none is picked from a list.
   return [
     row('cash', 'cash', 'UZS', null),
     ...(context.usd ? [row('usd', 'cash', 'USD', null)] : []),
-    ...(context.cards.length ? [row('card', 'card', 'UZS', context.cards[0].id)] : []),
-    ...(context.terminals.length ? [row('terminal', 'terminal', 'UZS', context.terminals[0].id)] : []),
+    ...context.cards.map((card) => row(`account:${card.id}`, 'card', 'UZS', card.id)),
+    ...context.terminals.map((terminal) => row(`account:${terminal.id}`, 'terminal', 'UZS', terminal.id)),
   ]
+}
+
+/** The rows something was typed into. */
+export const enteredRows = (rows: readonly TenderRow[]): TenderRow[] => rows.filter((row) => row.amount)
+
+/**
+ * Those rows as the sums know them. Only what is taken in is ever agreed
+ * on; what goes back goes back at the rate.
+ */
+export function tendersOf(entered: readonly TenderRow[], refunding: boolean): Tender[] {
+  return entered.map((row) => ({
+    method: row.method,
+    currency: row.currency,
+    amount: row.amount as number,
+    value: refunding ? null : row.value,
+  }))
 }
 
 // ───────────────────────────── Goods coming back ─────────────────────────────

@@ -226,6 +226,15 @@ Hozir to'lov maydonlari savat ostida turadi. Yangi ko'rinish:
 - Pastda: to'landi, qoldi, qaytim. «=» qolgan summani shu qatorga to'ldiradi.
 - Tez sotuv saqlanadi: hech narsa yozilmasa Enter — naqd so'mda, qaytimsiz.
 
+Qanday ishlaydi (qilingan, 2026-10-05):
+- Kassa ikki bosqichli. **Savat**: chapda qidiruv va savat, o'ngda summa, chegirma, kelishilgan summa, jami va "To'lash" (F9) tugmasi. **To'lov**: chapda chek ko'rinishi (tovarlar, qator chegirmalari, chekka chegirma, qaytarilgan tovar, jami, sotuvchi), o'ngda to'lov qatorlari.
+- To'lov qatorlari tayyor turadi: naqd so'm (F5), naqd dollar (F6, ostida "So'mda hisoblanadi"), do'konning **har kartasi alohida qator** (F7 — birinchisi), **har terminal alohida qator** (F8 — birinchisi, ostida chek raqami). Ro'yxatdan karta tanlash yo'q. Qatorlar orasida ↑ ↓.
+- Klaviatura: **F9** — to'lovga o'tish, to'lovda yana F9 — sotish. **Enter** — hech narsa yozilmagan bo'lsa naqd so'mda qaytimsiz sotadi; summa yozilgan bo'lsa keyingi qatorga o'tadi; summa to'liq bo'lsa qaytimni ko'rsatib turadi va keyingi Enter sotadi. **=** qolgan summani to'ldiradi (shundan keyingi Enter sotadi). **Tab** — summa yonidagi maydonga (dollarning so'mdagi qiymati, terminal chek raqami). **Esc** — savatga qaytish (yozilgan summalar saqlanadi). **Ctrl+Enter** savatning o'zidan — naqd so'mda, to'lov bo'limini ochmasdan.
+- F5–F8 savatdan bosilsa ham to'lov bo'limini ochib, o'sha qatorga tushadi. F2 va F3 to'lovdan savatga qaytaradi (qidiruvga yoki kelishilgan summaga).
+- To'lov paytida tovar o'zgarsa (skaner, RFID o'quvchi, narx yangilanishi) — kassa savatga qaytadi: to'lanayotgan narsa endi boshqa.
+- Qaytarish va almashtirish ham shu bo'limdan o'tadi: qatorlar pul qaytarish uchun, chek ko'rinishida qaytarilgan tovar alohida ko'rinadi.
+- Hali yo'q (keyingi bo'laklarda): "Qarzga" qatori (mijozlar bilan), qator sotuvchisi, promokod, kartada "tushdi" belgisi (Humo bot bilan).
+
 ### Dollar "kelishilgan qiymat" bilan
 
 Misol: chek 1 600 000. Mijoz 500 000 naqd, 500 000 kartaga, qolgan 600 000 o'rniga 50 dollar beradi.
