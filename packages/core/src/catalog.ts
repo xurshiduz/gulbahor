@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { ImageThumb, ProductImageDto } from './images'
 import { CURRENCY_CODES, type CurrencyCode } from './money'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
@@ -448,6 +449,8 @@ export interface ProductListItemDto {
   axes: AxisSummary[]
   /** The model's retail price; null when none is set. */
   retailPrice: { amount: number; currency: CurrencyCode } | null
+  /** The first of its photographs. */
+  image: ImageThumb | null
   isActive: boolean
   createdAt: string
 }
@@ -481,6 +484,8 @@ export interface ProductDto {
   axisIds: string[]
   variants: VariantDto[]
   prices: PriceDto[]
+  /** Its photographs, the first of them its face. */
+  images: ProductImageDto[]
   isActive: boolean
   createdAt: string
 }

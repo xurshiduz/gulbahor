@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { ImageThumb } from './images'
 import { allocateExact, roundToStep, type CurrencyCode } from './money'
 import type { PromoOffer } from './promotions'
 import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
@@ -849,6 +850,8 @@ export interface PosItemDto {
   decimals: number
   /** The tag that was read, when the code was one. */
   epc: string | null
+  /** A photograph of it: of its own colour when there is one. Absent in a cart kept from before. */
+  image?: ImageThumb | null
 }
 
 /** The price type the cart is being sold at, when it is not the retail one. */

@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { CatalogModule } from './modules/catalog/catalog.module'
+import { FilesModule } from './modules/files/files.module'
 import { LabelsModule } from './modules/labels/labels.module'
 import { LocationsModule } from './modules/locations/locations.module'
 import { MoneyModule } from './modules/money/money.module'
@@ -36,6 +37,7 @@ import { UsersModule } from './modules/users/users.module'
     DatabaseModule,
     RealtimeModule,
     AuditModule,
+    FilesModule,
     AuthModule,
     RealtimeGatewayModule,
     OrgsModule,

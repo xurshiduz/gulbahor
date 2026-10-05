@@ -20,6 +20,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
+import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
 import { fetchAll, moneyCell } from '@/lib/excel'
@@ -79,6 +80,7 @@ export function ProductsPage() {
       .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : t('common.nothingFound')))
   })
 
+  const faces = !!list.data?.items.some((product) => product.image)
   const columns = useMemo<ColumnDef<ProductListItemDto>[]>(
     () => [
       {
@@ -96,9 +98,13 @@ export function ProductsPage() {
         header: t('products.name'),
         meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
         cell: ({ row }) => (
-          <span>
-            <span className="font-medium">{row.original.name}</span>
-            {row.original.brandName ? <span className="text-ink-3"> · {row.original.brandName}</span> : null}
+          <span className="flex items-center gap-2.5">
+            {/* A column of empty frames says nothing: photographs show once any model on the page has one. */}
+            {faces ? <Thumb image={row.original.image} className="size-9" /> : null}
+            <span>
+              <span className="font-medium">{row.original.name}</span>
+              {row.original.brandName ? <span className="text-ink-3"> · {row.original.brandName}</span> : null}
+            </span>
           </span>
         ),
       },
@@ -220,7 +226,7 @@ export function ProductsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, canManage],
+    [t, canManage, faces],
   )
 
   const filtered = !!(search.q || search.categoryId || search.brandId)

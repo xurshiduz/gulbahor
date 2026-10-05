@@ -1,4 +1,13 @@
-import { toBase, UNIT_INFO, variantLabel, type CurrencyCode, type PosItemDto, type Unit } from '@gulbahor/core'
+import {
+  imageUrl,
+  toBase,
+  UNIT_INFO,
+  variantLabel,
+  type CurrencyCode,
+  type ImageFormat,
+  type PosItemDto,
+  type Unit,
+} from '@gulbahor/core'
 import type { EntityManager } from 'typeorm'
 
 import { applySearch } from '../../common/listing'
@@ -18,6 +27,7 @@ interface Row {
   category_id: string | null
   brand_id: string | null
   season: string | null
+  image: { org: string; id: string; format: ImageFormat; blur: string } | null
 }
 
 interface Priced {
@@ -54,6 +64,16 @@ const SPECIAL = `(
 const ON_HAND = `(
   SELECT coalesce(sum(sb.qty), 0)::float8 FROM stock_balances sb
   WHERE sb.variant_id = v.id AND sb.location_id = :locationId
+)`
+
+/** A photograph to show it by: of its own colour if there is one, else one of no colour in particular. */
+const IMAGE = `(
+  SELECT jsonb_build_object('org', i.org_id, 'id', i.id, 'format', i.format, 'blur', i.blur)
+  FROM product_images i
+  WHERE i.product_id = v.product_id
+  ORDER BY (i.value_id IN (v.value1_id, v.value2_id, v.value3_id)) DESC NULLS LAST,
+    (i.value_id IS NULL) DESC, i.sort_order
+  LIMIT 1
 )`
 
 /** The thing whose article or barcode is exactly what was typed. */
@@ -98,6 +118,7 @@ export async function sellables(
     .addSelect('p.brandId', 'brand_id')
     .addSelect('p.season', 'season')
     .addSelect(ON_HAND, 'on_hand')
+    .addSelect(IMAGE, 'image')
     .where('v.isActive AND p.isActive')
     .setParameter('locationId', locationId)
   if (priceTypeId) {
@@ -149,6 +170,9 @@ export async function sellables(
             })
           : [],
       onHand: row.on_hand,
+      image: row.image
+        ? { url: imageUrl(row.image.org, row.image.id, 's', row.image.format), blur: row.image.blur }
+        : null,
       decimals: UNIT_INFO[row.unit].decimals,
       epc: null,
     }

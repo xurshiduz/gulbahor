@@ -49,6 +49,7 @@ import {
   useCategoryOptions,
   usePriceTypes,
 } from './catalog'
+import { ProductImages } from './product-images'
 import {
   carryOver,
   emptyState,
@@ -337,6 +338,14 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
 
   // ── Saving ──
   const keys = orderedKeys(variants, attributes)
+  // A photograph may be said to show one of the colours the model is kept in.
+  const imageColors = useMemo(() => {
+    const used = new Set(product?.variants.flatMap((variant) => variant.valueIds))
+    return attributes
+      .filter((attribute) => attribute.kind === 'color')
+      .flatMap((attribute) => attribute.values.filter((value) => used.has(value.id)))
+      .map((value) => ({ id: value.id, name: value.name }))
+  }, [product, attributes])
 
   const mutation = useMutation({
     mutationFn: (input: unknown) =>
@@ -606,6 +615,13 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                 </div>
               </Card>
             </div>
+
+            <ProductImages
+              productId={product?.id ?? null}
+              images={product?.images ?? []}
+              colors={imageColors}
+              canManage={canManage}
+            />
 
             <Card title={t('products.sectionVariants')}>
               <VariantAxes

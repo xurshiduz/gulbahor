@@ -14,6 +14,9 @@ const schema = z.object({
 
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
 
+  /** Where photographs are kept. Left out: `uploads` beside the server. */
+  UPLOADS_DIR: z.string().min(1).optional(),
+
   SEED_OWNER_LOGIN: z.string().default('admin'),
   SEED_OWNER_PASSWORD: z.string().optional(),
 })

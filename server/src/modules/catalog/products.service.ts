@@ -35,6 +35,7 @@ import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
 import { nextNumbers } from './counters'
+import { ProductImagesService } from './product-images.service'
 import { reindexProducts } from './product-index'
 
 const SORTABLE = { name: 'p.name', sku: 'p.sku', category: 'c.name', brand: 'b.name', createdAt: 'p.createdAt' }
@@ -112,6 +113,7 @@ export class ProductsService {
     private readonly db: Db,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly images: ProductImagesService,
   ) {}
 
   async list(actor: Actor, query: ProductListQuery): Promise<Page<ProductListItemDto>> {
@@ -145,6 +147,7 @@ export class ProductsService {
       const ids = entities.map((product) => product.id)
       const axes = await this.axisSummaries(em, ids)
       const retail = await this.retailPrices(em, ids)
+      const faces = await this.images.faces(em, ids)
 
       return {
         items: entities.map((product, index) => ({
@@ -160,6 +163,7 @@ export class ProductsService {
           variantCount: raw[index].variant_count,
           axes: axes.get(product.id) ?? [],
           retailPrice: retail.get(product.id) ?? null,
+          image: faces.get(product.id) ?? null,
           isActive: product.isActive,
           createdAt: product.createdAt.toISOString(),
         })),
@@ -335,6 +339,8 @@ export class ProductsService {
   async remove(actor: Actor, id: string): Promise<void> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const product = await this.find(em, id)
+      // Its photographs go with it: the rows by themselves, the files once the model is gone for good.
+      const imageIds = await this.images.idsOf(em, id)
       await em.delete(Product, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'product.delete',
@@ -342,7 +348,10 @@ export class ProductsService {
         entityId: id,
         summary: `${product.name} (${product.sku})`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['products']))
+      afterCommit(() => {
+        this.realtime.changed(actor.orgId, ['products'])
+        return this.images.discard(actor.orgId, imageIds)
+      })
     })
   }
 
@@ -409,6 +418,7 @@ export class ProductsService {
         prices: prices.filter((price) => price.variantId === variant.id).map(priceDto),
       })),
       prices: prices.filter((price) => !price.variantId).map(priceDto),
+      images: (await this.images.of(em, [id])).get(id) ?? [],
       isActive: product.isActive,
       createdAt: product.createdAt.toISOString(),
     }

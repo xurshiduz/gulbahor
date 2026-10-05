@@ -6,6 +6,7 @@ import type {
   CustomerGender,
   ExpenseBasis,
   Gender,
+  ImageFormat,
   LabelSizeKey,
   LocationKind,
   MarkupBase,
@@ -565,6 +566,47 @@ export class VariantBarcode {
 
   @Column('int')
   sortOrder: number
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+/** One photograph of a model: its files are on disk, under the business and this id. */
+@Entity('product_images')
+export class ProductImage {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  productId: string
+
+  /** The colour it shows; null for all of them. */
+  @Column('uuid', { nullable: true })
+  valueId: string | null
+
+  @Column('int')
+  sortOrder: number
+
+  @Column('text')
+  format: ImageFormat
+
+  @Column('int')
+  width: number
+
+  @Column('int')
+  height: number
+
+  @Column('int')
+  bytes: number
+
+  @Column('text')
+  blur: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
@@ -2631,6 +2673,7 @@ export const ENTITIES = [
   Product,
   ProductVariant,
   VariantBarcode,
+  ProductImage,
   Price,
   Partner,
   Receipt,

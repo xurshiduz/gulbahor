@@ -29,6 +29,7 @@ import { controlClass, Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Page } from '@/components/ui/page'
+import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { useRegisters } from '@/features/money/money-page'
 import { api, ApiError } from '@/lib/api'
@@ -936,6 +937,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                         onClick={() => pick(item)}
                         className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
                       >
+                        {results.some((found) => found.image) ? <Thumb image={item.image} className="size-9" /> : null}
                         <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{item.sku}</span>
                         <span className="min-w-0 flex-1 truncate">
                           <span className="font-medium">{item.name}</span>
@@ -1022,34 +1024,39 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       const floor = under.find((item) => item.index === index)?.floor
                       return (
                         <tr key={line.key} className="border-t border-line align-top first:border-t-0">
-                          <td className="px-3 py-2">
-                            <p className="font-medium">
-                              {line.item.name}
-                              {line.item.label ? (
-                                <span className="font-normal text-ink-2"> · {line.item.label}</span>
-                              ) : null}
-                            </p>
-                            <p className="flex items-center gap-2 text-xs text-ink-3">
-                              <span className="font-code">{line.item.sku}</span>
-                              {line.item.epc ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <ScanLine className="size-3" />#{line.item.epc.slice(-6)}
-                                </span>
-                              ) : null}
-                              {short ? (
-                                <span className="text-bad">
-                                  {t('pos.onHand', { qty: formatNumber(line.item.onHand) })}
-                                </span>
-                              ) : null}
-                              {floor !== undefined ? (
-                                <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
-                              ) : null}
-                              {totals.autos[index]?.promoOff ? (
-                                <span className="text-accent-ink">
-                                  {totals.autos[index].promo?.name} −{money(totals.autos[index].promoOff)}
-                                </span>
-                              ) : null}
-                            </p>
+                          <td className="flex items-start gap-2.5 px-3 py-2">
+                            {cart.lines.some((other) => other.item.image) ? (
+                              <Thumb image={line.item.image} className="size-10" />
+                            ) : null}
+                            <div className="min-w-0">
+                              <p className="font-medium">
+                                {line.item.name}
+                                {line.item.label ? (
+                                  <span className="font-normal text-ink-2"> · {line.item.label}</span>
+                                ) : null}
+                              </p>
+                              <p className="flex items-center gap-2 text-xs text-ink-3">
+                                <span className="font-code">{line.item.sku}</span>
+                                {line.item.epc ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <ScanLine className="size-3" />#{line.item.epc.slice(-6)}
+                                  </span>
+                                ) : null}
+                                {short ? (
+                                  <span className="text-bad">
+                                    {t('pos.onHand', { qty: formatNumber(line.item.onHand) })}
+                                  </span>
+                                ) : null}
+                                {floor !== undefined ? (
+                                  <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
+                                ) : null}
+                                {totals.autos[index]?.promoOff ? (
+                                  <span className="text-accent-ink">
+                                    {totals.autos[index].promo?.name} −{money(totals.autos[index].promoOff)}
+                                  </span>
+                                ) : null}
+                              </p>
+                            </div>
                           </td>
                           <td className="px-2 py-1.5">
                             <NumberInput
