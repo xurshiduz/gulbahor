@@ -53,12 +53,12 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay, o
         allowed ? greet(t('notify.onTitle'), t('notify.onBody')) : toast.warning(t('notify.blocked')),
       )
     const pageCommands = pages.map((page) => ({
-      id: `page:${page.to}`,
+      id: `page:${page.to}:${page.search?.tab ?? ''}`,
       label: t(page.label),
       group: t('command.pages'),
       icon: page.icon,
       shortcut: page.shortcut,
-      run: () => void navigate({ to: page.to }),
+      run: () => void navigate({ to: page.to, search: page.search as never }),
     }))
     const actions: Command[] = [
       ...(onPay

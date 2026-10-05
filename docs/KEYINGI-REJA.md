@@ -397,6 +397,14 @@ Billz'dagidek ikki qavatli: bo'lim va uning ichki menyusi. Yig'ilgan holatda tor
 
 Ruxsati yo'q bo'lim va band ko'rinmaydi. Alt+raqam va Ctrl+K qidiruvi saqlanadi.
 
+Qanday ishlaydi (qilingan, 2026-10-05):
+- Hozir bor ekranlar sakkiz bo'limga joylandi: **Bosh sahifa · Savdo** (Kassa, Cheklar, Smenalar) **· Tovar** (Tovarlar, Narxlar, Etiketkalar, Ma'lumotnomalar) **· Sklad** (Qoldiq, Kirim, Ko'chirish, Inventarizatsiya, Hisobdan chiqarish) **· Pul** (Kassalar, Hisoblar, O'tkazmalar, Xarajat va kirim, Xarajat turlari, Kurslar) **· Hamkorlar** (Hamkorlar, To'lovlar) **· Boshqaruv** (Xodimlar, Rollar, Do'kon va skladlar, Qurilmalar, Darvoza jurnali, Tarix) **· Sozlamalar**. Mijozlar, Marketing va Hisobotlar bo'limlari ular qurilganda qo'shiladi.
+- **Yoyilgan holat**: bo'lim nomi bosilsa ostida bandlari ochiladi; qaysilari ochiq turgani shu kompyuterda eslab qolinadi; qayerga o'tilsa (tugma, qidiruv, havola), o'sha bo'lim o'zi ochiladi.
+- **Tor holat** (belgilar ustuni): bo'lim belgisi bosilsa, bandlari yonidan chiqadi (Billz'dagi kabi); turgan bo'lim belgisi ajralib turadi.
+- "Pul" bandlari bitta sahifaning varaqlari: menyu to'g'ri kerakli varaqni ochadi.
+- Bitta ekranli bo'lim (Bosh sahifa, Sozlamalar) — to'g'ridan-to'g'ri havola.
+- Alt+1…9 birinchi to'qqiz ekranga (bo'lim yopiq bo'lsa ham ishlaydi); Ctrl+K qidiruvida hamma band, shu jumladan "Pul" varaqlari.
+
 ---
 
 ## 12. Bildirishnomalar va rahbar nazorati

@@ -1,6 +1,6 @@
 import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@gulbahor/core'
-import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Search, Sun, UserRound } from 'lucide-react'
+import { Outlet, useNavigate } from '@tanstack/react-router'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, ReceiptText, Search, Sun, UserRound } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,7 +18,8 @@ import { announce, useFocusBeacon } from '@/lib/notify'
 import { useShopEvent } from '@/lib/realtime'
 
 import { CommandPalette } from './command-palette'
-import { NAVIGATION, type NavItem } from './navigation'
+import { NAVIGATION } from './navigation'
+import { Sidebar } from './sidebar'
 import { NotificationPrompt } from './notification-prompt'
 import { ShortcutsHelp } from './shortcuts-help'
 import { toggleTheme } from './theme'
@@ -66,7 +67,7 @@ export function Shell() {
   const groups = useMemo(() => {
     let position = 0
     return NAVIGATION.map((group) => ({
-      label: group.label,
+      ...group,
       items: group.items
         .filter(
           (item) =>
@@ -164,36 +165,7 @@ export function Shell() {
 
   return (
     <div className="flex h-full bg-canvas">
-      <aside
-        className={cn(
-          'flex shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200',
-          collapsed ? 'w-13' : 'w-56',
-        )}
-      >
-        <div className={cn('flex h-12 shrink-0 items-center gap-2.5 border-b border-line', collapsed ? 'justify-center' : 'px-3.5')}>
-          <img src="/favicon.svg" alt="" className="size-6 shrink-0" />
-          {!collapsed ? <span className="truncate text-sm font-semibold">{me.org.name}</span> : null}
-        </div>
-
-        <nav className="min-h-0 flex-1 overflow-y-auto p-2">
-          {groups.map((group) => (
-            <div key={group.label} className="mb-3">
-              {collapsed ? <div className="mx-auto mb-1.5 h-px w-5 bg-line" /> : <p className="eyebrow px-2 pb-1">{t(group.label)}</p>}
-              {group.items.map((item) => (
-                <NavLink key={item.to} item={item} collapsed={collapsed} />
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        <div className={cn('flex shrink-0 border-t border-line p-2', collapsed ? 'justify-center' : 'justify-end')}>
-          <Tooltip content={collapsed ? t('nav.expand') : t('nav.collapse')} side="right">
-            <Button variant="ghost" size="iconSm" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}>
-              {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-            </Button>
-          </Tooltip>
-        </div>
-      </aside>
+      <Sidebar name={me.org.name} groups={groups} collapsed={collapsed} onCollapse={setCollapsed} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
@@ -295,53 +267,6 @@ export function Shell() {
       ) : null}
       <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
-  )
-}
-
-function NavLink({ item, collapsed }: { item: NavItem & { shortcut?: string }; collapsed: boolean }) {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const label = t(item.label)
-
-  useHotkey(item.shortcut ?? '', () => void navigate({ to: item.to }), {
-    label,
-    group: t('shortcuts.groupNav'),
-    enabled: !!item.shortcut,
-  })
-
-  const link = (
-    <Link
-      to={item.to}
-      activeOptions={{ exact: item.to === '/' }}
-      aria-label={collapsed ? label : undefined}
-      className={cn(
-        'group flex h-8.5 items-center gap-2.5 rounded-md text-[13px] text-ink-2 transition-colors hover:bg-sunken hover:text-ink',
-        'data-[status=active]:bg-accent-soft data-[status=active]:font-medium data-[status=active]:text-accent-ink',
-        collapsed ? 'justify-center' : 'px-2',
-      )}
-    >
-      <item.icon className="size-4 shrink-0" />
-      {!collapsed ? <span className="min-w-0 flex-1 truncate">{label}</span> : null}
-      {/* Takes no room until hovered, so long names are not cut short for a hint nobody is looking at. */}
-      {!collapsed && item.shortcut ? <Shortcut combo={item.shortcut} className="hidden group-hover:inline-flex" /> : null}
-    </Link>
-  )
-
-  if (!collapsed) {
-    return link
-  }
-  return (
-    <Tooltip
-      side="right"
-      content={
-        <>
-          {label}
-          {item.shortcut ? <Shortcut combo={item.shortcut} /> : null}
-        </>
-      }
-    >
-      {link}
-    </Tooltip>
   )
 }
 

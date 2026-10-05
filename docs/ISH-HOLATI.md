@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 `84e8ac1` dan keyin, tartib bilan: hamkor hisobi va to'lovlar; kassada tez skaner tuzatishi; RFID o'quvchilar; Chainway ko'prigi; xususiyat qiymatlarini birlashtirish; tayyor qatorli to'lov oynasi va Alt+K / Alt+C; alertlar va brauzer bildirishnomalari, `money.sent` / `goods.sent`; kirimdan yetkazib beruvchi qarzi; reja va tahlil hujjatlari.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 04:25 — core 107, agent 17, server 204, web 109; typecheck va lint toza
+Oxirgi to'liq tekshiruv: 2026-10-05 04:45 — core 107, agent 17, server 209, web 109; typecheck va lint toza
 
 ## Ko'z bilan tekshirilmagan (ertalab ko'rib chiqish kerak)
 
@@ -25,6 +25,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
 - Kassa: "Kelishilgan summa" maydoni va yaxlit summa tugmalari (1a).
 - Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b).
 - Kassa: dollar qatori ostidagi "So'mda hisoblanadi" maydoni (1c); Sozlamalar → Biznes dagi "Dollarni kursdan qimmat olish chegarasi".
+- Menyu (3): yon panelning o'zi alohida sahifada brauzerda ko'rildi (yoyilgan va tor holat, yonidan chiqadigan ro'yxat, o'tish); butun tizim ichida, haqiqiy ruxsatlar bilan ko'rilmagan.
 - Pul → Hisoblar: karta formasidagi "Do'konlar" (bir nechta tanlash) maydoni (2b) — testlar yashil, ekranda ko'rilmagan.
 - Pul: "Xarajat" oynasi (Alt+X), "Xarajat va kirim" ro'yxati va "Xarajat turlari" (2a) — testlar yashil, ekranda ko'rilmagan.
 - Kassa: to'lov bo'limi (1d). To'lov paneli va chek ko'rinishi alohida sahifada brauzerda ko'rildi (1440 kenglikda joylashuvi, Enter / Tab / "=" yurishi), lekin butun kassa sahifasi ichida — savatdan F9 bilan o'tish, Esc bilan qaytish, qaytarish va almashtirish — ko'rilmagan.
@@ -38,7 +39,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
    - [x] 1d. To'lov alohida bo'limda: chapda chek ko'rinishi, o'ngda tayyor to'lov qatorlari.
 2. **Pul** — ikki bo'lak:
    - [x] 2a. Xarajat va boshqa kirim, xarajat turlari, smena hisobotida xarajatlar.
-   - [ ] 2b. Kartani bir nechta do'konga biriktirish.
+   - [x] 2b. Kartani bir nechta do'konga biriktirish.
 3. [ ] Menyu: bo'limlar va ichki menyu.
 4. [ ] Kirimda har narx turiga ustun; "qo'shimcha xarajat" ustunini yashirish; narx turida "kassada kim tanlaydi".
 5. [ ] Mijozlar: baza, guruh va teg, kassadagi eslatma va taqiqlar, sodiqlik pog'onalari.
@@ -50,7 +51,7 @@ Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) �
 
 ## Hozir ishlanayotgan bo'lak
 
-2b. Kartani bir nechta do'konga biriktirish (2026-10-05 04:25 da boshlandi).
+3. Menyu: bo'limlar va ichki menyu (2026-10-05 04:45 da boshlandi).
 
 ## Ish daraxti nusxalari
 
@@ -65,3 +66,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `c6ccc3d7bcb6cf87087952dc7b0294c92ffeb10a` | 1c: dollar kelishilgan qiymatda (kurs farqi hisobi, chegara sozlamada) |
 | `df2ad66ebaf3bd5f7652c6ec8bab65b7e7f691c8` | 1d: to'lov alohida bo'limda (chek ko'rinishi, har karta va terminalga qator) |
 | `d725b5010953f920fda997a9b912a6a6c2f9cb01` | 2a: xarajat va boshqa kirim, xarajat turlari |
+| `b9e526a513b9e4de5f7cf2326dadba0295efda4b` | 2b: kartani bir nechta do'konga biriktirish |
