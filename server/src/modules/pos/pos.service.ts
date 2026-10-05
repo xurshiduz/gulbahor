@@ -69,6 +69,7 @@ export class PosService {
         transfers: await this.transfers.waitingAt(em, actor, registerId),
         changeRoundStep: settings.changeRoundStep,
         maxDiscountPercent: settings.maxDiscountPercent,
+        maxRateLossPercent: settings.maxRateLossPercent,
         mayOverDiscount: can(actor, 'pos.discount'),
       }
     })

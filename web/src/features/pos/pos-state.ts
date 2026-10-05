@@ -35,6 +35,8 @@ export interface TenderRow {
   /** The card or terminal; null for cash. */
   accountId: string | null
   amount: number | null
+  /** Dollars taken for an agreed worth in so'm: "call the 50 dollars 600 000". Null: what the rate makes them. */
+  value: number | null
   reference: string
 }
 
@@ -197,6 +199,7 @@ export function tenderRows(context: PosContextDto): TenderRow[] {
     currency,
     accountId,
     amount: null,
+    value: null,
     reference: '',
   })
   return [
@@ -243,6 +246,7 @@ export function refundRows(context: PosContextDto, found: ReturnableDto): Tender
       currency: 'UZS' as const,
       accountId: cap.accountId,
       amount: null,
+      value: null,
       reference: '',
     })),
   ]

@@ -1889,6 +1889,10 @@ export class SalePayment {
   @Column('bigint', { transformer: bigintAsNumber })
   base: number
 
+  /** Taken for an agreed worth: what that left the shop with (+) or cost it (−) against the rate. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  fx: number
+
   @Column('text', { nullable: true })
   reference: string | null
 }

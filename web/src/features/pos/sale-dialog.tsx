@@ -40,6 +40,8 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
     queryFn: ({ signal }) => api.get<SaleDto>(`/sales/${saleId}`, undefined, signal),
   })
   const sale = query.data
+  /** What dollars taken for an agreed worth left the shop with (+) or cost it (−). */
+  const rateDiff = sale ? sale.payments.reduce((sum, payment) => sum + payment.fx, 0) : 0
 
   const voidSale = useMutation({
     mutationFn: () => api.post<SaleDto>(`/sales/${saleId}/void`, { reason }),
@@ -204,6 +206,12 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
               ))}
               {sale.uzsPerUsd && sale.payments.some((payment) => payment.currency === 'USD') ? (
                 <Line label={t('pos.rate')} value={`1 $ = ${money(Math.round(sale.uzsPerUsd * 100))}`} />
+              ) : null}
+              {/* Between the shop and its books, not the customer's business: it stays off the paper. */}
+              {rateDiff ? (
+                <div className="print:hidden">
+                  <Line label={t('pos.rateDiff')} value={`${rateDiff > 0 ? '+' : '−'}${money(Math.abs(rateDiff))}`} />
+                </div>
               ) : null}
               {sale.changeUzs || sale.changeUsd ? (
                 <Line label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeUsd)} strong />

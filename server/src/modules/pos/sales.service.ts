@@ -3,12 +3,15 @@ import {
   DEFAULT_ORG_SETTINGS,
   floorOf,
   formatMoney,
+  overRateLoss,
   PAYMENT_METHOD_LABELS,
   saleTotals,
   searchKey,
+  rateGain,
   settle,
   toBase,
   variantLabel,
+  worthOf,
   type Page,
   type PosItemDto,
   type SaleDto,
@@ -186,17 +189,18 @@ export class SalesService {
       return { name: item.name, price: item.price as number, minPrice: item.minPrice, qty: line.qty }
     })
     const under = belowFloor(priced, totals)
-    const vouched = (overLimit || under.length > 0) && !can(actor, 'pos.discount')
-    if (vouched && !allows(approver, 'pos.discount')) {
-      if (overLimit) {
-        throw AppError.badRequest(
-          'DISCOUNT_OVER_LIMIT',
-          approver
-            ? `${approver.name} chegaradan oshiq chegirmani tasdiqlay olmaydi`
-            : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
-          { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
-        )
-      }
+    const alone = can(actor, 'pos.discount')
+    const allowed = alone || allows(approver, 'pos.discount')
+    if (overLimit && !allowed) {
+      throw AppError.badRequest(
+        'DISCOUNT_OVER_LIMIT',
+        approver
+          ? `${approver.name} chegaradan oshiq chegirmani tasdiqlay olmaydi`
+          : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
+        { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
+      )
+    }
+    if (under.length && !allowed) {
       throw AppError.badRequest(
         'BELOW_MIN_PRICE',
         approver
@@ -223,7 +227,10 @@ export class SalesService {
       account: Account
       currency: 'UZS' | 'USD'
       amount: number
+      /** What it pays of the sale: what was agreed, or what the rate makes it. */
       base: number
+      /** What the rate makes it, over what it pays. */
+      fx: number
       reference: string | null
     }[] = []
     for (const [index, payment] of input.payments.entries()) {
@@ -255,22 +262,40 @@ export class SalesService {
         account: account as Account,
         currency: payment.currency,
         amount: payment.amount,
-        base: toBase(payment.amount, payment.currency, rate),
+        base: worthOf(payment, rate),
+        fx: rateGain(payment, rate),
         reference: payment.reference ?? null,
       })
     }
     throwIfAny(fields)
+    // Dollars taken for more than the rate makes them are a discount by another name: past the shop's limit
+    // they need the same word.
+    const overRate = overRateLoss(input.payments, rate, settings.maxRateLossPercent)
+    if (overRate && !allowed) {
+      throw AppError.badRequest(
+        'RATE_LOSS_OVER_LIMIT',
+        approver
+          ? `${approver.name} dollarni kursdan qimmat olishni tasdiqlay olmaydi`
+          : `Dollar kun kursidan ${settings.maxRateLossPercent}% dan ko'proq qimmat olinmoqda: rahbar tasdig'i kerak`,
+        { payments: `Kursdan farq ko'pi bilan ${settings.maxRateLossPercent}%` },
+      )
+    }
+    const vouched = (overLimit || under.length > 0 || overRate) && !alone
 
     // Goods brought back pay first; the customer's money is for what is left.
     const used = Math.min(credit, totals.total)
     if (used < credit && payments.length) {
       throw AppError.validation({ payments: "Qaytarilgan tovar summasi yetarli: qo'shimcha to'lov kerak emas" })
     }
-    const settlement = settle(totals.total - used, payments, {
-      uzsPerUsd: rate,
-      changeCurrency: input.changeCurrency === 'USD' && usd && rate ? 'USD' : 'UZS',
-      roundStep: settings.changeRoundStep,
-    })
+    const settlement = settle(
+      totals.total - used,
+      payments.map((payment) => ({ ...payment, value: payment.base })),
+      {
+        uzsPerUsd: rate,
+        changeCurrency: input.changeCurrency === 'USD' && usd && rate ? 'USD' : 'UZS',
+        roundStep: settings.changeRoundStep,
+      },
+    )
     if (settlement.problem === 'non_cash_over') {
       throw AppError.validation({
         payments: 'Karta va terminal summasi chekdan oshmasligi kerak: ulardan qaytim berilmaydi',
@@ -405,6 +430,7 @@ export class SalesService {
       currency: payment.currency,
       amount: payment.amount,
       base: payment.base,
+      fx: payment.fx,
       reference: payment.reference,
     }))
     if (used) {
@@ -422,11 +448,17 @@ export class SalesService {
       SalePayment,
       paid.map((payment, position) => ({ ...payment, orgId: actor.orgId, saleId: sale.id, position })),
     )
+    // The drawer holds the notes at the day's rate, whatever they were taken for.
     const postings: Posting[] = paid.map((payment) => ({
       accountId: payment.accountId as string,
       amount: payment.amount as number,
-      base: payment.base as number,
+      base: (payment.base as number) + (payment.fx ?? 0),
     }))
+    const gained = payments.reduce((sum, payment) => sum + payment.fx, 0)
+    if (gained) {
+      const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+      postings.push({ accountId: fx.id, amount: -gained, base: -gained })
+    }
     if (settlement.changeUzs) {
       const drawer = await this.ledger.cashAccount(em, register, 'UZS')
       postings.push({ accountId: drawer.id, amount: -settlement.changeUzs, base: -settlement.changeUzs })
@@ -458,7 +490,9 @@ export class SalesService {
       entityId: sale.id,
       summary: `${number}: ${sale.qty} dona, ${formatMoney(totals.total)}${
         totals.discount ? `, chegirma ${formatMoney(totals.discount)}` : ''
-      } (${paidBy})${vouched && approver ? `, tasdiqladi: ${approver.name}` : ''}`,
+      } (${paidBy})${gained ? `, kurs farqi ${gained > 0 ? '+' : '−'}${formatMoney(Math.abs(gained))}` : ''}${
+        vouched && approver ? `, tasdiqladi: ${approver.name}` : ''
+      }`,
     })
     return { sale: await em.findOneByOrFail(Sale, { id: sale.id }), credit: used }
   }
@@ -674,6 +708,7 @@ export class SalesService {
         currency: payment.currency,
         amount: payment.amount,
         base: payment.base,
+        fx: payment.fx,
         reference: payment.reference,
       })),
       returns: returns.map((item) => ({

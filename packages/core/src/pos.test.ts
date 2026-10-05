@@ -5,6 +5,8 @@ import {
   floorOf,
   fromBase,
   gross,
+  overRateLoss,
+  rateGain,
   returnInputSchema,
   returnShare,
   saleInputSchema,
@@ -12,6 +14,7 @@ import {
   settle,
   settleRefund,
   toBase,
+  worthOf,
   type Tender,
 } from './pos'
 
@@ -169,6 +172,56 @@ describe('settle', () => {
   })
 })
 
+describe('dollars taken for an agreed worth', () => {
+  const dollars = (amount: number, value?: number): Tender => ({ method: 'cash', currency: 'USD', amount, value })
+  const options = { uzsPerUsd: 12_100, changeCurrency: 'UZS' as const, roundStep: som(1000) }
+
+  it('count for what was agreed, and the rate keeps the difference', () => {
+    // 50 $ are 605 000 at 12 100.
+    expect(worthOf(dollars(usd(50)), 12_100)).toBe(som(605_000))
+    expect(rateGain(dollars(usd(50)), 12_100)).toBe(0)
+    // "Call them 600 000": the shop is left with 5 000 more than the sale took.
+    expect(worthOf(dollars(usd(50), som(600_000)), 12_100)).toBe(som(600_000))
+    expect(rateGain(dollars(usd(50), som(600_000)), 12_100)).toBe(som(5000))
+    // At 11 800 the same 50 $ are 590 000: calling them 600 000 costs the shop 10 000.
+    expect(rateGain(dollars(usd(50), som(600_000)), 11_800)).toBe(-som(10_000))
+    // So'm are so'm.
+    expect(rateGain({ method: 'cash', currency: 'UZS', amount: som(1000) }, null)).toBe(0)
+  })
+
+  it('pay the sale with what was agreed', () => {
+    const tenders: Tender[] = [
+      { method: 'cash', currency: 'UZS', amount: som(500_000) },
+      { method: 'card', currency: 'UZS', amount: som(500_000) },
+      dollars(usd(50), som(600_000)),
+    ]
+    expect(settle(som(1_600_000), tenders, options)).toMatchObject({
+      paid: som(1_600_000),
+      due: 0,
+      changeUzs: 0,
+      rounding: 0,
+      problem: null,
+    })
+    // At the rate alone the same notes would leave 5 000 over.
+    expect(settle(som(1_600_000), [...tenders.slice(0, 2), dollars(usd(50))], options).paid).toBe(som(1_605_000))
+    // Change is counted from what was agreed.
+    expect(settle(som(500_000), [dollars(usd(50), som(600_000))], options).changeUzs).toBe(som(100_000))
+  })
+
+  it('need a word once the loss is past the limit, each tender for itself', () => {
+    // 590 000 at 11 800: 600 000 is 1,7% over, 602 000 is 2,03% over.
+    expect(overRateLoss([dollars(usd(50), som(600_000))], 11_800, 2)).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(601_800))], 11_800, 2)).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(602_000))], 11_800, 2)).toBe(true)
+    // A gain is the shop's and is never over anything.
+    expect(overRateLoss([dollars(usd(50), som(300_000))], 11_800, 2)).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(300_000)), dollars(usd(50), som(650_000))], 11_800, 2)).toBe(true)
+    // With a limit of nothing, any loss needs it.
+    expect(overRateLoss([dollars(usd(50), som(590_001))], 11_800, 0)).toBe(true)
+    expect(overRateLoss([dollars(usd(50))], 11_800, 0)).toBe(false)
+  })
+})
+
 describe('saleInputSchema', () => {
   const base = {
     clientKey: KEY,
@@ -181,6 +234,15 @@ describe('saleInputSchema', () => {
     const result = saleInputSchema.safeParse(input)
     return result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'))
   }
+
+  it('takes an agreed worth for dollars only', () => {
+    const paid = (payment: Record<string, unknown>) => ({ ...base, payments: [payment] })
+    const taken = saleInputSchema.parse(paid({ method: 'cash', currency: 'USD', amount: usd(50), value: som(600_000) }))
+    expect(taken.payments[0].value).toBe(som(600_000))
+    expect(saleInputSchema.parse(base).payments[0].value).toBeNull()
+    expect(refused(paid({ method: 'cash', amount: som(95_000), value: som(90_000) }))).toEqual(['payments.0.value'])
+    expect(refused(paid({ method: 'cash', currency: 'USD', amount: usd(50), value: 0 }))).toEqual(['payments.0.value'])
+  })
 
   it('fills in what a plain cash sale leaves out', () => {
     const sale = saleInputSchema.parse(base)

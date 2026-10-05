@@ -62,6 +62,7 @@ function BusinessSettings() {
         autoLockMinutes: me.org.settings.autoLockMinutes as number | null,
         changeRoundStep: me.org.settings.changeRoundStep as number | null,
         maxDiscountPercent: me.org.settings.maxDiscountPercent as number | null,
+        maxRateLossPercent: me.org.settings.maxRateLossPercent as number | null,
         returnDays: me.org.settings.returnDays as number | null,
       },
     },
@@ -125,6 +126,31 @@ function BusinessSettings() {
             />
           )}
         </Field>
+        {me.org.modules.includes('usd') ? (
+          <Field
+            label={t('settings.maxRateLoss')}
+            hint={t('settings.maxRateLossHint')}
+            error={errors.settings?.maxRateLossPercent?.message}
+          >
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="settings.maxRateLossPercent"
+                render={({ field }) => (
+                  <NumberInput
+                    id={id}
+                    value={field.value}
+                    onChange={field.onChange}
+                    decimals={1}
+                    max={100}
+                    suffix="%"
+                    className="w-40"
+                  />
+                )}
+              />
+            )}
+          </Field>
+        ) : null}
         <Field
           label={t('settings.returnDays')}
           hint={t('settings.returnDaysHint')}

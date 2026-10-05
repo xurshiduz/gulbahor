@@ -163,6 +163,11 @@ export interface OrgSettings {
   changeRoundStep: number
   /** A cashier may take this much off a sale, in percent; more needs someone allowed to go over. */
   maxDiscountPercent: number
+  /**
+   * Dollars may be taken for this much more than the day's rate makes them, in percent: "call the 50 dollars
+   * 600 000". More than that is a discount by another name and needs someone allowed to go over the limit.
+   */
+  maxRateLossPercent: number
   /** Goods are taken back for this many days after the sale; later needs someone allowed to. 0 sets no limit. */
   returnDays: number
 }
@@ -171,6 +176,7 @@ export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   autoLockMinutes: 10,
   changeRoundStep: 100_000,
   maxDiscountPercent: 10,
+  maxRateLossPercent: 2,
   returnDays: 14,
 }
 
@@ -191,6 +197,7 @@ export const orgUpdateSchema = z.object({
     // Left out, each stays as it is.
     changeRoundStep: z.coerce.number().int().min(0).max(100_000_00).optional(),
     maxDiscountPercent: z.coerce.number().min(0).max(100).optional(),
+    maxRateLossPercent: z.coerce.number().min(0).max(100).optional(),
     returnDays: z.coerce.number().int().min(0).max(3650).optional(),
   }),
 })

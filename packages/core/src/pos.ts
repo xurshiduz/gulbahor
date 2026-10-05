@@ -224,6 +224,37 @@ export interface Tender {
   currency: CurrencyCode
   /** In the tender's own currency. */
   amount: number
+  /**
+   * What it is taken for, in so'm, when that was agreed with the customer
+   * and is not what the day's rate makes it: "call the 50 dollars 600 000".
+   */
+  value?: number | null
+}
+
+/** What a tender counts for against the sum, in so'm: what was agreed, or what the day's rate makes it. */
+export function worthOf(tender: Tender, uzsPerUsd: number | null): number {
+  return tender.value ?? toBase(tender.amount, tender.currency, uzsPerUsd)
+}
+
+/**
+ * What taking money for an agreed worth leaves the shop with (+) or costs it
+ * (−) against the day's rate: the drawer holds the notes at the rate, the
+ * sale was paid with what was agreed, and the difference is the rate's.
+ */
+export function rateGain(tender: Tender, uzsPerUsd: number | null): number {
+  return toBase(tender.amount, tender.currency, uzsPerUsd) - worthOf(tender, uzsPerUsd)
+}
+
+/**
+ * Whether money was taken for more than the limit allows over what the rate
+ * makes it. Each tender stands for itself: a gain on one does not pay for a
+ * loss on another.
+ */
+export function overRateLoss(tenders: readonly Tender[], uzsPerUsd: number | null, limitPercent: number): boolean {
+  return tenders.some((tender) => {
+    const loss = -rateGain(tender, uzsPerUsd)
+    return loss > 0 && loss * 100 > toBase(tender.amount, tender.currency, uzsPerUsd) * limitPercent
+  })
 }
 
 /**
@@ -288,7 +319,7 @@ export function settle(total: number, tenders: readonly Tender[], options: Settl
   if (tenders.some((tender) => tender.currency === 'USD') && !uzsPerUsd) {
     return { ...none, problem: 'rate' }
   }
-  const worth = tenders.map((tender) => toBase(tender.amount, tender.currency, uzsPerUsd))
+  const worth = tenders.map((tender) => worthOf(tender, uzsPerUsd))
   const paid = worth.reduce((sum, value) => sum + value, 0)
   const nonCash = tenders.reduce((sum, tender, index) => sum + (tender.method === 'cash' ? 0 : worth[index]), 0)
   const dueUsd = (due: number) => (uzsPerUsd ? Math.ceil((due * 100) / Math.round(uzsPerUsd * 100)) : null)
@@ -350,10 +381,18 @@ export const salePaymentInputSchema = z
     accountId: idSchema.nullish().transform((value) => value ?? null),
     currency: z.enum(['UZS', 'USD']).default('UZS'),
     amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
+    /** Dollars taken for an agreed worth in so'm; left out, they are worth what the day's rate makes them. */
+    value: amountSchema
+      .refine((value) => value > 0, { message: 'Summani kiriting' })
+      .nullish()
+      .transform((value) => value ?? null),
     /** A terminal slip's number (last digits), or a note. */
     reference: optionalText(40),
   })
   .superRefine((payment, context) => {
+    if (payment.value !== null && payment.currency !== 'USD') {
+      context.addIssue({ code: 'custom', path: ['value'], message: 'Kelishilgan qiymat faqat dollar uchun yoziladi' })
+    }
     if (payment.method !== 'cash' && !payment.accountId) {
       context.addIssue({ code: 'custom', path: ['accountId'], message: 'Karta yoki terminalni tanlang' })
     }
@@ -474,8 +513,10 @@ export interface SalePaymentDto {
   accountName: string
   currency: CurrencyCode
   amount: number
-  /** Its worth in so'm at the sale's rate. */
+  /** What it paid of the sale, in so'm: its worth at the sale's rate, or what was agreed. */
   base: number
+  /** Taken for an agreed worth: what that left the shop with (+) or cost it (−) against the rate. */
+  fx: number
   reference: string | null
 }
 
@@ -738,6 +779,8 @@ export interface PosContextDto {
   transfers: MoneyTransferDto[]
   changeRoundStep: number
   maxDiscountPercent: number
+  /** Dollars may be taken for this much over the day's rate without a manager's word, in percent. */
+  maxRateLossPercent: number
   /** This person may go over the discount limit. */
   mayOverDiscount: boolean
 }

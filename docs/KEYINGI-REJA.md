@@ -235,6 +235,15 @@ Misol: chek 1 600 000. Mijoz 500 000 naqd, 500 000 kartaga, qolgan 600 000 o'rni
 - Farq sozlamadagi chegaradan (masalan 2%) oshsa — rahbar PIN'i.
 - Rahbar hisobotda kurs farqidan qancha foyda va zarar bo'lganini kassir va kun bo'yicha ko'radi.
 
+Qanday ishlaydi (qilingan, 2026-10-05):
+- Kassada dollar summasi yozilgach, ostida **"So'mda hisoblanadi"** maydoni chiqadi. Bo'sh tursa — kun kursi bo'yicha (maydonda xira ko'rinadi). Summa yozilsa — dollar shu qiymatda olinadi; `=` tugmasi chekning qolgan qismini to'ldiradi ("qolgan 600 000 o'rniga 50 dollar").
+- Maydon ostida darhol ko'rinadi: "1 $ = 12 000 · kurs farqidan foyda 5 000" yoki "…zarar 10 000".
+- Daftarda: kassaga dollar kun kursidagi qiymatda kiradi, chek kelishilgan qiymatga yopiladi, farq **"Kurs farqi"** hisobiga tushadi — yozuv har doim nolga teng. Chek bekor qilinsa, farq ham qaytadi.
+- **Chegara** — sozlamada: "Dollarni kursdan qimmat olish chegarasi", boshlang'ich qiymati 2%. Faqat zarar tomoni cheklanadi (dollar kursdan qimmat olinsa — bu boshqa nomdagi chegirma). Chegaradan oshsa, "Chegaradan oshiq chegirma berish" huquqi bor xodimning PIN'i so'raladi va chekka kim tasdiqlagani yoziladi. Foyda tomoni cheklanmaydi.
+- Dollar miqdori o'zgartirilsa, kelishilgan qiymat o'chadi: u aynan o'sha miqdor uchun kelishilgan edi.
+- Qaytarishda kelishilgan qiymat yo'q: pul kun kursi bo'yicha qaytadi. Chekning o'zida kurs farqi ko'rinadi, lekin qog'ozga chiqmaydi.
+- Hisobot (kassir va kun bo'yicha kurs farqi) — hisobotlar bosqichida.
+
 ### Kartalar
 
 - Kartalar cheksiz qo'shiladi (hozir ham). Yangilik: **bitta karta bir nechta do'konga** biriktiriladi.
@@ -511,4 +520,4 @@ Birinchi do'konni Billz'dan o'tkazish uchun aka hozir ishlatayotgan narsalar bir
    - **Narx turini yaratish va ustama qoidasi**: `pricing.manage` ruxsati — egasi va boshqaruvchi.
    - **Kassada qaysi narx turida sotish**: har narx turida "kassada kim tanlay oladi" belgisi bo'ladi: *hamma kassir* (chakana), *ruxsati borlar* (ulgurji — yangi `pos.wholesale` ruxsati), *faqat tasdiq bilan* (oila — kassir tanlaydi, rahbar PIN'i bilan tasdiqlaydi). Tasdiq mexanizmi tayyor (chegirmada ishlayapti).
    - Mijoz guruhiga narx turi biriktirilgan bo'lsa ("Oila" guruhi), o'sha mijoz tanlanganda narx o'zi shu turga o'tadi va chekda yoziladi.
-4. **Dollarni kelishilgan qiymat bilan olishda chegara** — hali ochiq: kassir o'zi necha foizgacha farq qila oladi (taklif: 2%, undan oshsa rahbar PIN'i).
+4. **Dollarni kelishilgan qiymat bilan olishda chegara** — sozlamaga chiqarildi, boshlang'ich qiymati 2% (undan oshsa rahbar PIN'i). Odiljon aka boshqa foiz desa, Sozlamalar → Biznes bo'limida o'zgartiriladi.

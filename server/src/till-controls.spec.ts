@@ -366,4 +366,133 @@ describe('Till controls', () => {
       ])
     })
   })
+
+  describe('dollars taken for an agreed worth', () => {
+    const usd = (dollars: number) => Math.round(dollars * 100)
+    const dollars = (amount: number, value?: number) => ({ method: 'cash', currency: 'USD', amount, value })
+    /** What the rate's own account holds: less than nothing is the shop's gain. */
+    const rateAccount = async (): Promise<number> => {
+      const [row] = await sql<{ balance: string }[]>(
+        `SELECT a.balance FROM accounts a JOIN organizations o ON o.id = a.org_id
+         WHERE o.name = 'Alpha' AND a.system_key = 'fx'`,
+      )
+      return Number(row?.balance ?? 0)
+    }
+    const drawerUsd = async (): Promise<number> => {
+      const [row] = await sql<{ balance: string }[]>(
+        `SELECT a.balance FROM accounts a WHERE a.register_id = $1 AND a.currency = 'USD'`,
+        [registerId],
+      )
+      return Number(row?.balance ?? 0)
+    }
+
+    beforeAll(async () => {
+      const [{ day }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
+      await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 12_100 }).expect(200)
+      await cashier
+        .post('/api/shifts')
+        .send({ registerId, cashUzs: som(500_000) })
+        .expect(201)
+    })
+
+    it("pay what was agreed; the drawer keeps the notes at the day's rate and the rate keeps the difference", async () => {
+      expect((await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body.maxRateLossPercent).toBe(2)
+
+      // Two shirts, 200 000: 80 000 in so'm, and 10 $ (121 000 at the rate) called 120 000.
+      const sale = (
+        await sell({
+          lines: [{ variantId: shirt, qty: 2 }],
+          payments: [cash(som(80_000)), dollars(usd(10), som(120_000))],
+          total: som(200_000),
+        }).expect(201)
+      ).body
+      expect(sale).toMatchObject({ total: som(200_000), changeUzs: 0, rounding: 0, approvedByName: null })
+      expect(sale.payments).toEqual([
+        expect.objectContaining({ currency: 'UZS', amount: som(80_000), base: som(80_000), fx: 0 }),
+        expect.objectContaining({ currency: 'USD', amount: usd(10), base: som(120_000), fx: som(1000) }),
+      ])
+      expect(await drawerUsd()).toBe(usd(10))
+      expect(await rateAccount()).toBe(-som(1000))
+      const [books] = await sql<{ base: string }[]>(
+        `SELECT sum(l.base) AS base FROM ledger_lines l JOIN ledger_entries e ON e.id = l.entry_id
+         WHERE e.document_id = $1`,
+        [sale.id],
+      )
+      expect(Number(books.base)).toBe(0)
+      const [entry] = await sql<{ summary: string }[]>(
+        `SELECT summary FROM audit_log WHERE action = 'sale.create' AND entity_id = $1`,
+        [sale.id],
+      )
+      expect(entry.summary).toContain('kurs farqi +')
+
+      // An agreed worth is for dollars: so'm are what they are.
+      const wrong = await sell({
+        lines: [{ variantId: shirt, qty: 1 }],
+        payments: [{ ...cash(som(100_000)), value: som(90_000) }],
+        total: som(100_000),
+      })
+      expect(wrong.status).toBe(400)
+      expect(wrong.body.error.fields['payments.0.value']).toBeDefined()
+    })
+
+    it('need a word when they are taken for more than the limit over the rate', async () => {
+      // 8 $ are 96 800. Called 98 000 they cost the shop 1 200, 1,2%: the cashier's own to give.
+      const within = (
+        await sell({
+          lines: [{ variantId: shirt, qty: 1 }],
+          payments: [dollars(usd(8), som(98_000)), cash(som(2000))],
+          total: som(100_000),
+        }).expect(201)
+      ).body
+      expect(within.payments[0]).toMatchObject({ base: som(98_000), fx: -som(1200) })
+      expect(await rateAccount()).toBe(som(200))
+
+      // Called 100 000 they cost 3 200, 3,3%.
+      const dear = (approval?: { userId: string; pin: string }, agent = cashier) =>
+        sell(
+          {
+            lines: [{ variantId: shirt, qty: 1 }],
+            payments: [dollars(usd(8), som(100_000))],
+            total: som(100_000),
+            approval,
+          },
+          agent,
+        )
+      const alone = await dear()
+      expect(alone.status).toBe(400)
+      expect(alone.body.error.code).toBe('RATE_LOSS_OVER_LIMIT')
+      expect(alone.body.error.fields.payments).toContain('2%')
+      const powerless = await dear({ userId: otherId, pin: PIN })
+      expect(powerless.body.error.code).toBe('RATE_LOSS_OVER_LIMIT')
+      expect(powerless.body.error.message).toContain('Zarina Kassir')
+      expect(await rateAccount()).toBe(som(200))
+
+      const allowed = (await dear({ userId: managerId, pin: PIN }).expect(201)).body
+      expect(allowed.approvedByName).toBe('Anvar Menejer')
+      expect(await rateAccount()).toBe(som(3400))
+
+      // Voided, the rate's account gives back what the sale put there.
+      await alpha.post(`/api/sales/${allowed.id}/void`).send({ reason: 'Xato urilgan' }).expect(200)
+      expect(await rateAccount()).toBe(som(200))
+      expect(await drawerUsd()).toBe(usd(18))
+    })
+
+    it("take their limit from the shop's settings", async () => {
+      await alpha
+        .put('/api/org')
+        .send({ name: 'Alpha', settings: { autoLockMinutes: 10, maxRateLossPercent: 5 } })
+        .expect(200)
+      const sale = (
+        await sell({
+          lines: [{ variantId: shirt, qty: 1 }],
+          payments: [dollars(usd(8), som(100_000))],
+          total: som(100_000),
+        }).expect(201)
+      ).body
+      expect(sale.approvedByName).toBeNull()
+      // The other limits stay as they were.
+      const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
+      expect(context).toMatchObject({ maxRateLossPercent: 5, maxDiscountPercent: 10 })
+    })
+  })
 })

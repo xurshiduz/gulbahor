@@ -900,6 +900,13 @@ export const uz = {
     floor: 'Minimal narx {{amount}}',
     floorAsk: "Minimal narxdan past: sotishda rahbar tasdig'i so'raladi",
     floorStop: "Minimal narxdan past sotib bo'lmaydi",
+    approvalRate: '{{usd}} {{sum}} deb olinmoqda, kun kursida {{book}}',
+    takenFor: "So'mda hisoblanadi",
+    rateGain: '1 $ = {{rate}} · kurs farqidan foyda {{amount}}',
+    rateLoss: '1 $ = {{rate}} · kurs farqidan zarar {{amount}}',
+    rateLossAsk: "Kursdan farq {{percent}}% dan oshdi: sotishda rahbar tasdig'i so'raladi",
+    rateLossStop: "Dollarni kursdan {{percent}}% dan ortiq qimmat olib bo'lmaydi",
+    rateDiff: 'Kurs farqi',
     approvalRefund: "Pul to'langan usuldan boshqacha qaytarilmoqda",
     noApprover: "Buni tasdiqlay oladigan xodim yo'q: rahbar o'ziga PIN kod o'rnatishi kerak",
     overLimitAsk: "Chegara {{percent}}%: sotishda rahbar tasdig'i so'raladi",
@@ -1042,6 +1049,9 @@ export const uz = {
     maxDiscount: 'Kassir chegirmasi chegarasi',
     maxDiscountHint:
       "Kassir chekdan shuncha foizgacha chegirma bera oladi. Undan ko'pi uchun «Chegaradan oshiq chegirma berish» ruxsati kerak.",
+    maxRateLoss: 'Dollarni kursdan qimmat olish chegarasi',
+    maxRateLossHint:
+      "Mijoz «50 dollarni 600 000 deb oling» desa, kassir dollarni kun kursidan shuncha foizgacha qimmat ola oladi. Undan ortig'iga rahbar tasdig'i kerak. Farq «Kurs farqi» hisobiga yoziladi.",
     returnDays: 'Qaytarish muddati',
     returnDaysHint:
       'Sotuvdan keyin shuncha kun ichida tovar qaytarib olinadi; keyinroq faqat ruxsati bor xodim oladi. 0 — muddat cheklanmagan.',
@@ -1247,6 +1257,7 @@ export const uz = {
       autoLockMinutes: 'Ekranni bloklash (daq.)',
       changeRoundStep: 'Qaytimni yaxlitlash (tiyin)',
       maxDiscountPercent: 'Chegirma chegarasi (%)',
+      maxRateLossPercent: 'Dollarni kursdan qimmat olish chegarasi (%)',
       returnDays: 'Qaytarish muddati (kun)',
       uzsPerUsd: 'Dollar kursi',
       last4: 'Kartaning oxirgi 4 raqami',

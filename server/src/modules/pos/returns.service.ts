@@ -657,6 +657,7 @@ export class ReturnsService {
         currency: refund.currency,
         amount: refund.amount,
         base: refund.base,
+        fx: 0,
         reference: refund.reference,
       })),
     }

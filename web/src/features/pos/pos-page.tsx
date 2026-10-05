@@ -1,8 +1,10 @@
 import {
   formatMoney,
+  overRateLoss,
   settle,
   settleRefund,
   toBase,
+  worthOf,
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
@@ -60,6 +62,7 @@ import { ApprovalDialog } from './approval'
 import { HandoverDialog, WaitingTransfers } from './handover'
 import { ReturnDialog, ReturnPicker } from './return-parts'
 import { SaleDialog } from './sale-dialog'
+import { TakenFor } from './taken-for'
 import { CloseShiftDialog, OpenShift } from './shift-parts'
 
 const route = getRouteApi('/pos')
@@ -443,7 +446,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // What was typed for paying means nothing for handing back, and the other way round.
   useEffect(() => setPaid({}), [refunding])
   const entered = tenders.filter((row) => row.amount)
-  const typed = entered.map((row) => ({ method: row.method, currency: row.currency, amount: row.amount as number }))
+  const typed = entered.map((row) => ({
+    method: row.method,
+    currency: row.currency,
+    amount: row.amount as number,
+    // Only what is taken in is ever agreed on; what goes back goes back at the rate.
+    value: refunding ? null : row.value,
+  }))
+  /** Dollars taken for more over the rate than the shop lets a cashier give alone. */
+  const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent)
+  const rateAsk = overRate && !context.mayOverDiscount
   const settlement = settle(toPay, refunding ? [] : typed, {
     uzsPerUsd: rate,
     changeCurrency,
@@ -464,12 +476,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
     [refunding, returning, toRefund, toPay, context.changeRoundStep],
   )
 
+  /** What is left for a row to cover once the others have paid theirs, in so'm. */
+  const restFor = (row: TenderRow): number => {
+    const others = typed
+      .filter((_, index) => entered[index].key !== row.key)
+      .reduce((sum, item) => sum + worthOf(item, rate), 0)
+    return Math.max(0, (refunding ? toRefund : toPay) - others)
+  }
   /** What a row would have to hold to cover the rest: what "=" fills in. */
   const fillOf = (row: TenderRow): number => {
-    const others = entered
-      .filter((item) => item.key !== row.key)
-      .reduce((sum, item) => sum + toBase(item.amount as number, item.currency, rate), 0)
-    const due = Math.max(0, (refunding ? toRefund : toPay) - others)
+    const due = restFor(row)
     return row.currency === 'USD' && rate ? Math.ceil((due * 100) / Math.round(rate * 100)) : due
   }
 
@@ -499,7 +515,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     if (!step || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLInputElement)) {
       return
     }
-    const fields = [...event.currentTarget.querySelectorAll<HTMLInputElement>('input:not(:disabled)')]
+    // Enter walks the sums; what is beside them (an agreed worth, a slip's number) is reached with Tab.
+    const fields = [...event.currentTarget.querySelectorAll<HTMLInputElement>('input:not(:disabled)')].filter(
+      (field) => field === event.target || !field.closest('[data-enter-skip]'),
+    )
     const next = fields[fields.indexOf(event.target) + step]
     if (next) {
       event.preventDefault()
@@ -596,6 +615,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           accountId: row.accountId,
           currency: row.currency,
           amount: row.amount,
+          ...(!refunding && row.currency === 'USD' && row.value ? { value: row.value } : {}),
           reference: row.reference || null,
         }))
       : tenders.flatMap((row) =>
@@ -620,9 +640,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
             cap.left,
         ))
     const late = !!returning && returning.found.late && !returning.found.free
-    if (!approval && (overLimit || underAsk || late || beyond)) {
+    if (!approval && (overLimit || underAsk || rateAsk || late || beyond)) {
       const who = context.approvers.filter(
-        (approver) => (!(overLimit || underAsk) || approver.discount) && (!(late || beyond) || approver.returns),
+        (approver) =>
+          (!(overLimit || underAsk || rateAsk) || approver.discount) && (!(late || beyond) || approver.returns),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -644,6 +665,19 @@ function Till({ context, registers, onSwitch }: TillProps) {
                   sum: money(totals.lines[index].total),
                   floor: money(floor),
                 }),
+              )
+            : []),
+          ...(rateAsk
+            ? typed.flatMap((item) =>
+                item.value && overRateLoss([item], rate, context.maxRateLossPercent)
+                  ? [
+                      t('pos.approvalRate', {
+                        usd: money(item.amount, 'USD'),
+                        sum: money(item.value),
+                        book: money(toBase(item.amount, 'USD', rate)),
+                      }),
+                    ]
+                  : [],
               )
             : []),
           late ? t('pos.returnLate', { days: returning?.found.returnDays }) : null,
@@ -1067,7 +1101,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       </span>
                       <MoneyInput
                         value={row.amount}
-                        onChange={(amount) => patchTender(row.key, { amount })}
+                        // What dollars were agreed to be worth was agreed for that many of them.
+                        onChange={(amount) =>
+                          patchTender(row.key, amount === row.amount ? { amount } : { amount, value: null })
+                        }
                         currency={row.currency}
                         fillValue={fillOf(row)}
                         disabled={noRate}
@@ -1107,9 +1144,22 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       </div>
                     ) : null}
                     {row.currency === 'USD' && row.amount && rate ? (
-                      <p className="tabular text-right text-xs text-ink-3">
-                        = {money(toBase(row.amount, 'USD', rate))}
-                      </p>
+                      refunding ? (
+                        <p className="tabular text-right text-xs text-ink-3">
+                          = {money(toBase(row.amount, 'USD', rate))}
+                        </p>
+                      ) : (
+                        <TakenFor
+                          dollars={row.amount}
+                          value={row.value}
+                          rate={rate}
+                          rest={restFor(row)}
+                          limit={context.maxRateLossPercent}
+                          mayAsk={context.approvers.some((approver) => approver.discount)}
+                          alone={context.mayOverDiscount}
+                          onChange={(value) => patchTender(row.key, { value })}
+                        />
+                      )
                     ) : null}
                   </div>
                 )

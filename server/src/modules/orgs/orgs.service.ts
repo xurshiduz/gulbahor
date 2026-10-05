@@ -68,6 +68,7 @@ export class OrgsService {
             'autoLockMinutes',
             'changeRoundStep',
             'maxDiscountPercent',
+            'maxRateLossPercent',
             'returnDays',
           ]),
         },
