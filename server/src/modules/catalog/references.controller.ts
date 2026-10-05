@@ -1,6 +1,7 @@
 import {
   attributeInputSchema,
   attributeValueInputSchema,
+  attributeValueMergeSchema,
   attributeValuesBulkSchema,
   brandInputSchema,
   categoryInputSchema,
@@ -10,6 +11,7 @@ import {
   type AttributeDto,
   type AttributeInput,
   type AttributeValueInput,
+  type AttributeValueMergeInput,
   type AttributeValuesBulkInput,
   type BrandDto,
   type BrandInput,
@@ -149,6 +151,17 @@ export class AttributesController {
     @Body(zod(attributeValueInputSchema)) input: AttributeValueInput,
   ): Promise<AttributeDto> {
     return this.attributes.updateValue(actor, valueId, input)
+  }
+
+  @Post('values/:id/merge')
+  @HttpCode(200)
+  @Can('products.references')
+  mergeValue(
+    @CurrentActor() actor: Actor,
+    @id() valueId: string,
+    @Body(zod(attributeValueMergeSchema)) input: AttributeValueMergeInput,
+  ): Promise<AttributeDto> {
+    return this.attributes.mergeValue(actor, valueId, input)
   }
 
   @Post('values/:id/archive')

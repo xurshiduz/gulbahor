@@ -19,6 +19,8 @@ export const partnerInputSchema = z
     phone: optionalPhoneSchema,
     isSupplier: z.boolean().default(false),
     isBuyer: z.boolean().default(false),
+    /** The currency their account is kept in: what they owe, or are owed, is always said in it. */
+    currency: z.enum(['UZS', 'USD']).default('UZS'),
     note: optionalText(500),
   })
   .refine((partner) => partner.isSupplier || partner.isBuyer, {
@@ -30,6 +32,8 @@ export type PartnerInput = z.infer<typeof partnerInputSchema>
 export const partnerListQuerySchema = listQuerySchema.extend({
   status: z.enum(['active', 'archived', 'all']).default('active'),
   role: z.enum(['supplier', 'buyer']).optional(),
+  /** `owes`: partners who owe the business; `owed`: those the business owes. */
+  debt: z.enum(['owes', 'owed']).optional(),
 })
 export type PartnerListQuery = z.infer<typeof partnerListQuerySchema>
 
@@ -39,6 +43,9 @@ export interface PartnerDto {
   phone: string | null
   isSupplier: boolean
   isBuyer: boolean
+  currency: CurrencyCode
+  /** What they owe the business, in their currency; negative when the business owes them. Null for a person who may not see debts. */
+  balance: number | null
   note: string | null
   isActive: boolean
   createdAt: string

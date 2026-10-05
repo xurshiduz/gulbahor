@@ -21,7 +21,6 @@ import { Archive, ArchiveRestore, Landmark, MoreHorizontal, Pencil, Plus, Store 
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -39,6 +38,7 @@ import { api } from '@/lib/api'
 import { formatDay } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { LIST_DEFAULTS } from '@/lib/list-search'
+import { toast } from '@/lib/toast'
 
 import { TransferDialog, TransfersTab } from './transfers'
 

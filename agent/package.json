@@ -1,8 +1,8 @@
 {
   "name": "@gulbahor/agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Do'kon agenti: do'kon tarmog'idagi printerlarga server nomidan ish yetkazadi",
+  "description": "Do'kon agenti: do'kon tarmog'idagi printerlarga ish yetkazadi, RFID o'quvchilar va darvozani eshitadi",
   "main": "dist/agent.js",
   "types": "dist/agent.d.ts",
   "bin": {

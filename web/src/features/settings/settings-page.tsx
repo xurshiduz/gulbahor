@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Switch, TabPanel, Tabs } from '@/components/ui/controls'
@@ -16,6 +15,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/settings')
 

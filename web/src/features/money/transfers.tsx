@@ -15,7 +15,6 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { ArrowRight, ArrowRightLeft, Check, Undo2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { FilterDates, FilterSelect } from '@/components/ui/column-filters'
@@ -31,6 +30,7 @@ import { SearchInput } from '@/components/ui/page'
 import { api } from '@/lib/api'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
+import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
 const route = getRouteApi('/money')

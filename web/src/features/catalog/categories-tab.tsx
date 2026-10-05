@@ -5,7 +5,6 @@ import { Archive, ArchiveRestore, FolderPlus, FolderTree, MoreHorizontal, Pencil
 import { useMemo, useState, type ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -19,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { PageActions } from '@/components/ui/page'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 import { categoryAxisIds, categoryTree, useAttributes, useCategories, type CategoryNode } from './catalog'
 

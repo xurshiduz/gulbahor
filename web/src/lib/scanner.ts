@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 
+import { useCovered } from './hotkeys'
+
 /**
  * Barcode and RFID readers type like a keyboard, only much faster, and end
  * with Enter. This hook tells a scan from a person typing by the gaps
@@ -26,7 +28,10 @@ interface Burst {
 }
 
 export function useScanner(onScan: (code: string) => void, options: ScannerOptions = {}) {
-  const { enabled = true, minLength = 4, maxGapMs = 35 } = options
+  const { minLength = 4, maxGapMs = 35 } = options
+  // A window open over the screen takes what is scanned as typing; the screen under it does not act on it.
+  const covered = useCovered()
+  const enabled = (options.enabled ?? true) && !covered
   const onScanRef = useRef(onScan)
   onScanRef.current = onScan
 

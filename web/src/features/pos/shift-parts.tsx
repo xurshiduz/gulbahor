@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LockOpen } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -15,6 +14,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { toast } from '@/lib/toast'
 
 import { emptyHandings, HandoverFields, handoversOf } from './handover'
 
@@ -284,15 +284,33 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             <Row label={t('pos.opening')} value={money(shift.openingUzs)} />
             {totals.inUzs ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUzs)}`} /> : null}
             {totals.outUzs ? <Row label={t('pos.handedOut')} value={`−${money(totals.outUzs)}`} /> : null}
+            {totals.partnersInUzs ? (
+              <Row label={t('pos.partnersIn')} value={`+${money(totals.partnersInUzs)}`} />
+            ) : null}
+            {totals.partnersOutUzs ? (
+              <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUzs)}`} />
+            ) : null}
             {shift.countedUzs !== null ? <Row label={t('pos.counted')} value={money(shift.countedUzs)} strong /> : null}
             {shift.expectedUzs !== null ? <Row label={t('pos.expected')} value={money(shift.expectedUzs)} /> : null}
             {diff(shift.diffUzs, 'UZS')}
           </div>
-          {shift.openingUsd || shift.countedUsd || shift.expectedUsd || totals.inUsd || totals.outUsd ? (
+          {shift.openingUsd ||
+          shift.countedUsd ||
+          shift.expectedUsd ||
+          totals.inUsd ||
+          totals.outUsd ||
+          totals.partnersInUsd ||
+          totals.partnersOutUsd ? (
             <div>
               <Row label={t('pos.opening')} value={money(shift.openingUsd, 'USD')} />
               {totals.inUsd ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUsd, 'USD')}`} /> : null}
               {totals.outUsd ? <Row label={t('pos.handedOut')} value={`−${money(totals.outUsd, 'USD')}`} /> : null}
+              {totals.partnersInUsd ? (
+                <Row label={t('pos.partnersIn')} value={`+${money(totals.partnersInUsd, 'USD')}`} />
+              ) : null}
+              {totals.partnersOutUsd ? (
+                <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUsd, 'USD')}`} />
+              ) : null}
               {shift.countedUsd !== null ? (
                 <Row label={t('pos.counted')} value={money(shift.countedUsd, 'USD')} strong />
               ) : null}

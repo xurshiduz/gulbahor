@@ -206,6 +206,10 @@ export const attributeValueInputSchema = z.object({
 })
 export type AttributeValueInput = z.infer<typeof attributeValueInputSchema>
 
+/** The value that takes the place of another: one colour entered twice under two spellings becomes one. */
+export const attributeValueMergeSchema = z.object({ intoId: idSchema })
+export type AttributeValueMergeInput = z.infer<typeof attributeValueMergeSchema>
+
 /** Several values at once: "S, M, L, XL" typed into one field. */
 export const attributeValuesBulkSchema = z.object({
   values: z.array(attributeValueInputSchema).min(1).max(100),

@@ -10,7 +10,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Printer, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -25,6 +24,7 @@ import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 import type { Returning } from './pos-state'
 

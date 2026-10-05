@@ -2,12 +2,12 @@ import { hasPermission, type MeDto } from '@gulbahor/core'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Spinner } from '@/components/ui/feedback'
 import { setLanguage } from '@/i18n'
 import { api, ApiError, setSignedOutHandler } from '@/lib/api'
 import { useRealtime } from '@/lib/realtime'
+import { toast } from '@/lib/toast'
 
 import { ChangePasswordPage } from './change-password-page'
 import { LoginPage } from './login-page'
@@ -140,7 +140,7 @@ function NotSetUp() {
   const { t } = useTranslation()
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-3 p-6 text-center">
-      <p className="max-w-sm text-sm text-ink-2">Biznes hali sozlanmagan. Boshlang'ich sozlashni egasi bajaradi.</p>
+      <p className="max-w-sm text-sm text-ink-2">{t('setup.notReady')}</p>
       <button type="button" className="text-sm font-medium text-accent-ink hover:underline" onClick={() => void logout()}>
         {t('auth.signOut')}
       </button>

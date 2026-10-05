@@ -11,7 +11,6 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Plus, Shirt, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { FilterCombo, FilterSelect } from '@/components/ui/column-filters'
@@ -27,6 +26,7 @@ import { fetchAll, moneyCell } from '@/lib/excel'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 import { useBrands, useCategories, useCategoryOptions } from './catalog'
 

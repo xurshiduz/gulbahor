@@ -1,7 +1,6 @@
 import { formatMoney, type CurrencyCode } from '@gulbahor/core'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Combobox, type ComboOption } from '@/components/ui/combobox'
 import { DateInput } from '@/components/ui/date-input'
@@ -13,6 +12,7 @@ import { Card, Page } from '@/components/ui/page'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { formatDateTime } from '@/lib/format'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 const PEOPLE: ComboOption[] = [
   { value: '1', label: "Anvar G'ofurov", hint: '+998 90 123 45 67' },

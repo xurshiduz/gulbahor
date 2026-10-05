@@ -3,6 +3,7 @@ import {
   searchKey,
   toBase,
   type CurrencyCode,
+  type MoneySentEvent,
   type MoneyTransferDto,
   type MoneyTransferInput,
   type MoneyTransferListQuery,
@@ -55,9 +56,29 @@ export class MoneyTransfersService {
         return (await this.rows(em, actor, [again]))[0]
       }
       const sent = await this.sendIn(em, actor, input)
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts']))
+      const notice = await this.sentNotice(em, sent)
+      afterCommit(() => {
+        this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts'])
+        this.realtime.event(actor.orgId, 'money.sent', notice)
+      })
       return (await this.rows(em, actor, [sent]))[0]
     })
+  }
+
+  /** What the screens are told when money is sent: where from and where to, never how much. */
+  async sentNotice(em: EntityManager, transfer: MoneyTransfer): Promise<MoneySentEvent> {
+    const from = await em.findOneByOrFail(Account, { id: transfer.fromAccountId })
+    const to = await em.findOneByOrFail(Account, { id: transfer.toAccountId })
+    return {
+      id: transfer.id,
+      number: transfer.number,
+      fromName: from.name,
+      toName: to.name,
+      toKind: to.kind,
+      toLocationId: to.locationId,
+      toRegisterId: to.registerId,
+      sentBy: transfer.sentBy,
+    }
   }
 
   /** Sends money inside a transaction that is already open: the end of a shift hands its cash over this way. */

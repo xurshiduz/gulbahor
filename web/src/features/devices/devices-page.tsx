@@ -29,7 +29,6 @@ import {
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -45,6 +44,9 @@ import { Page } from '@/components/ui/page'
 import { api } from '@/lib/api'
 import { formatRecent } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
+
+import { ReadersTab } from './readers'
 
 const route = getRouteApi('/devices')
 
@@ -128,7 +130,8 @@ export function DevicesPage() {
   useHotkey('n', add, {
     label: tab === 'agents' ? t('devices.addAgent') : t('devices.addPrinter'),
     group: t('shortcuts.groupList'),
-    enabled: !formOpen,
+    // The readers' tab has its own button and its own key.
+    enabled: !formOpen && tab !== 'readers',
   })
 
   const printerColumns = useMemo<ColumnDef<PrinterDto>[]>(
@@ -301,11 +304,13 @@ export function DevicesPage() {
     <Page
       title={t('devices.title')}
       actions={
-        <Button variant="primary" onClick={add}>
-          <Plus />
-          {tab === 'agents' ? t('devices.addAgent') : t('devices.addPrinter')}
-          <Shortcut combo="n" className="ml-1 opacity-70" />
-        </Button>
+        tab === 'readers' ? null : (
+          <Button variant="primary" onClick={add}>
+            <Plus />
+            {tab === 'agents' ? t('devices.addAgent') : t('devices.addPrinter')}
+            <Shortcut combo="n" className="ml-1 opacity-70" />
+          </Button>
+        )
       }
     >
       <Tabs
@@ -313,6 +318,7 @@ export function DevicesPage() {
         onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}
         tabs={[
           { value: 'printers', label: t('devices.printers') },
+          { value: 'readers', label: t('devices.readers') },
           { value: 'agents', label: t('devices.agents') },
         ]}
       >
@@ -327,6 +333,9 @@ export function DevicesPage() {
               <EmptyState icon={Printer} title={t('devices.emptyPrinters')} hint={t('devices.emptyPrintersHint')} />
             }
           />
+        </TabPanel>
+        <TabPanel value="readers">
+          <ReadersTab agents={agents.data ?? []} active={tab === 'readers'} />
         </TabPanel>
         <TabPanel value="agents">
           <DataTable

@@ -1,3 +1,4 @@
+import { RealtimeService } from './modules/realtime/realtime.service'
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 
 interface StockRow {
@@ -17,6 +18,8 @@ describe('Stock documents', () => {
   let harness: Harness
   let alpha: Agent
   let beta: Agent
+
+  let events: jest.SpyInstance
 
   let shopId: string
   let depotId: string
@@ -69,6 +72,7 @@ describe('Stock documents', () => {
   beforeAll(async () => {
     harness = await startApp()
     ;({ alpha, beta } = harness)
+    events = jest.spyOn(harness.app.get(RealtimeService), 'event')
     shopId = (await alpha.get('/api/locations')).body.items[0].id
     depotId = (await alpha.post('/api/locations').send({ name: 'Depot', kind: 'warehouse' }).expect(201)).body.id
 
@@ -126,6 +130,17 @@ describe('Stock documents', () => {
       const sent = await alpha.post(`/api/stock-documents/${transferId}/send`).expect(201)
       // Ten at 3 dollars and two at 5.
       expect(sent.body).toMatchObject({ status: 'sent', costUzs: usd(40) * 12_000 })
+      // The depot hears that goods are on their way to it.
+      expect(events.mock.calls.filter((call) => call[1] === 'goods.sent').map((call) => call[2])).toEqual([
+        {
+          id: transferId,
+          number: sent.body.number,
+          fromName: sent.body.locationName,
+          toName: 'Depot',
+          toLocationId: depotId,
+          sentBy: expect.any(String),
+        },
+      ])
 
       const places = (await alpha.get('/api/stock/locations')).body as { id: string; isTransit: boolean }[]
       transitId = places.find((place) => place.isTransit)!.id

@@ -1,6 +1,6 @@
 import { matchScore, queryKeys, searchKey } from '@gulbahor/core'
 import { useNavigate } from '@tanstack/react-router'
-import { Keyboard, Lock, LogOut, Search, SunMoon, type LucideIcon } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, BellRing, Keyboard, Lock, LogOut, Search, SunMoon, type LucideIcon } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 import { Kbd, Shortcut } from '@/components/ui/feedback'
 import { useSession } from '@/features/auth/session'
 import { cn } from '@/lib/cn'
+import { allowNotifications, greet } from '@/lib/notify'
+import { toast } from '@/lib/toast'
 
 import type { NavItem } from './navigation'
 import { toggleTheme } from './theme'
@@ -26,13 +28,15 @@ interface Props {
   onClose: () => void
   pages: (NavItem & { shortcut?: string })[]
   onShowShortcuts: () => void
+  /** Opens a payment with a partner; absent for those who may not make one. */
+  onPay?: (kind: 'in' | 'out') => void
 }
 
 /**
  * Ctrl+K: go to any screen or run any action by typing a few letters of its
  * name, in either script and either keyboard layout.
  */
-export function CommandPalette({ open, onClose, pages, onShowShortcuts }: Props) {
+export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { me, lock, logout } = useSession()
@@ -41,6 +45,11 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts }: Props)
   const [highlight, setHighlight] = useState(0)
 
   const commands = useMemo<Command[]>(() => {
+    // The browser asks once; refused, it can only be allowed again from the address bar.
+    const turnOnNotifications = () =>
+      void allowNotifications().then((allowed) =>
+        allowed ? greet(t('notify.onTitle'), t('notify.onBody')) : toast.warning(t('notify.blocked')),
+      )
     const pageCommands = pages.map((page) => ({
       id: `page:${page.to}`,
       label: t(page.label),
@@ -50,7 +59,16 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts }: Props)
       run: () => void navigate({ to: page.to }),
     }))
     const actions: Command[] = [
+      ...(onPay
+        ? [
+            { id: 'pay-in', label: t('payments.takeIn'), group: t('command.actions'), icon: ArrowDownLeft, shortcut: 'alt+k', run: () => onPay('in') },
+            { id: 'pay-out', label: t('payments.payOut'), group: t('command.actions'), icon: ArrowUpRight, shortcut: 'alt+c', run: () => onPay('out') },
+          ]
+        : []),
       { id: 'theme', label: t('command.toggleTheme'), group: t('command.actions'), icon: SunMoon, run: toggleTheme },
+      ...(typeof Notification !== 'undefined' && Notification.permission !== 'granted'
+        ? [{ id: 'notify', label: t('notify.turnOn'), group: t('command.actions'), icon: BellRing, run: turnOnNotifications }]
+        : []),
       { id: 'shortcuts', label: t('command.shortcuts'), group: t('command.actions'), icon: Keyboard, shortcut: 'f1', run: onShowShortcuts },
       ...(me.user.hasPin
         ? [{ id: 'lock', label: t('command.lock'), group: t('command.actions'), icon: Lock, shortcut: 'alt+l', run: lock }]
@@ -58,7 +76,7 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts }: Props)
       { id: 'logout', label: t('command.logout'), group: t('command.actions'), icon: LogOut, run: () => void logout() },
     ]
     return [...pageCommands, ...actions]
-  }, [pages, t, navigate, me.user.hasPin, lock, logout, onShowShortcuts])
+  }, [pages, t, navigate, me.user.hasPin, lock, logout, onShowShortcuts, onPay])
 
   const shown = useMemo(() => {
     if (!query.trim()) {

@@ -15,13 +15,13 @@ import {
 import { Popover } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { cn } from '@/lib/cn'
 import { MAX_EXPORT_ROWS, saveExcel, type ExportCell, type ExportColumn, type ExportValue } from '@/lib/excel'
 import { formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { usePreference } from '@/lib/preferences'
+import { toast } from '@/lib/toast'
 
 import { Button } from './button'
 import { Checkbox, Select } from './controls'

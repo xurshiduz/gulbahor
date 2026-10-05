@@ -203,7 +203,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     key: 'devices',
     title: 'Qurilmalar',
-    permissions: [{ key: 'devices.manage', title: "Printer va do'kon agentlarini sozlash" }],
+    permissions: [
+      { key: 'devices.manage', title: "Printer, o'quvchi va do'kon agentlarini sozlash" },
+      { key: 'devices.alarms', title: "Darvoza signallarini ko'rish" },
+    ],
   },
   {
     key: 'partners',
@@ -211,6 +214,9 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: 'partners.view', title: "Ko'rish" },
       { key: 'partners.manage', title: "Qo'shish va tahrirlash" },
+      { key: 'partners.debts', title: "Qarz va hisob-kitobni ko'rish" },
+      { key: 'partners.pay', title: "To'lovlarni kiritish va bekor qilish" },
+      { key: 'partners.adjust', title: "Boshlang'ich qoldiqni kiritish" },
     ],
   },
   {
@@ -311,6 +317,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'money.view',
       'money.rates',
       'partners.view',
+      'partners.debts',
       'audit.view',
     ],
   },
@@ -332,19 +339,20 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'pos.*',
       'sales.*',
       'money.collect',
+      'devices.alarms',
     ],
   },
   {
     key: 'cashier',
     name: 'Kassir',
     description: 'Sotadi, qaytaradi, smenani ochadi va yopadi.',
-    permissions: ['products.view', 'stock.view', 'pos.sell', 'pos.return'],
+    permissions: ['products.view', 'stock.view', 'pos.sell', 'pos.return', 'devices.alarms'],
   },
   {
     key: 'seller',
     name: 'Sotuvchi',
     description: 'Zalda mijozga tovar topadi; chekda uning nomi turadi.',
-    permissions: ['products.view', 'stock.view'],
+    permissions: ['products.view', 'stock.view', 'devices.alarms'],
   },
   {
     key: 'warehouse',

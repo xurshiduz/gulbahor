@@ -26,12 +26,8 @@ createRoot(document.getElementById('root') as HTMLElement).render(
             <RouterProvider router={router} />
           </SessionGate>
         </ConfirmProvider>
-        <Toaster
-          position="bottom-right"
-          toastOptions={{
-            style: { background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--line)', fontFamily: 'var(--font-sans)', fontSize: '13px' },
-          }}
-        />
+        {/* Messages come up in the top right corner, under the top bar; what they look like is in lib/toast.tsx. */}
+        <Toaster position="top-right" expand visibleToasts={5} gap={8} offset={{ top: 56, right: 16 }} />
       </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,

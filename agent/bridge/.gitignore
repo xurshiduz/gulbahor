@@ -1,0 +1,7 @@
+# Chainway SDK fayllari: ishlab chiqaruvchiniki, git'ga tushmaydi (README.md da qayerdan olinishi yozilgan)
+lib/
+vendor/
+
+# Yig'ilgan fayllar
+out/
+gulbahor-bridge.jar

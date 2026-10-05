@@ -2,7 +2,7 @@ import { SYSTEM_ACCOUNT_LABELS, type CurrencyCode, type RateDto, type SystemAcco
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
-import { Account, ExchangeRate, LedgerEntry, type Register } from '../../database/entities'
+import { Account, ExchangeRate, LedgerEntry, type Partner, type Register } from '../../database/entities'
 
 /** One side of a movement: so much into an account (or, negative, out of it), and its worth in so'm. */
 export interface Posting {
@@ -118,6 +118,25 @@ export class LedgerService {
         systemKey: key,
         name: SYSTEM_ACCOUNT_LABELS[key],
         currency: 'UZS',
+        balance: 0,
+        isActive: true,
+      }),
+    )
+  }
+
+  /** A partner's account, in the currency it is kept in; made the first time something is owed either way. */
+  async partnerAccount(em: EntityManager, partner: Partner): Promise<Account> {
+    const existing = await em.findOneBy(Account, { partnerId: partner.id })
+    if (existing) {
+      return existing
+    }
+    return em.save(
+      em.create(Account, {
+        orgId: partner.orgId,
+        kind: 'partner',
+        name: partner.name,
+        currency: partner.currency,
+        partnerId: partner.id,
         balance: 0,
         isActive: true,
       }),

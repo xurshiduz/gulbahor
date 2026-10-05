@@ -1,5 +1,6 @@
+import type { GateAlarmEvent, GoodsSentEvent, MoneySentEvent } from '@gulbahor/core'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, UserRound } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, UserRound } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,11 +9,16 @@ import { Menu } from '@/components/ui/controls'
 import { Shortcut, Tooltip } from '@/components/ui/feedback'
 import { PageChrome } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
+import { tillHere } from '@/features/partners/payment-lines'
+import { PaymentDialog } from '@/features/partners/payments'
 import { cn } from '@/lib/cn'
-import { useHotkey } from '@/lib/hotkeys'
+import { HotkeyScope, useHotkey } from '@/lib/hotkeys'
+import { announce, useFocusBeacon } from '@/lib/notify'
+import { useShopEvent } from '@/lib/realtime'
 
 import { CommandPalette } from './command-palette'
 import { NAVIGATION, type NavItem } from './navigation'
+import { NotificationPrompt } from './notification-prompt'
 import { ShortcutsHelp } from './shortcuts-help'
 import { toggleTheme } from './theme'
 
@@ -45,6 +51,9 @@ export function Shell() {
   const [collapsed, setCollapsed] = useCollapsed()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // Money taken from or paid to a partner, from whatever screen is in view.
+  const [paying, setPaying] = useState<'in' | 'out' | null>(null)
+  const canPay = can('partners.pay')
   // The screen in view puts its name into the top bar.
   const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null)
   const chrome = useMemo(() => ({ title: titleSlot }), [titleSlot])
@@ -70,8 +79,82 @@ export function Shell() {
   const openHelp = useCallback(() => setHelpOpen(true), [])
 
   useHotkey('mod+k', () => setPaletteOpen((open) => !open), { label: t('command.open'), group: t('shortcuts.groupGlobal') })
-  useHotkey('f1', openHelp, { label: t('shortcuts.help'), group: t('shortcuts.groupGlobal') })
-  useHotkey('alt+l', lock, { label: t('command.lock'), group: t('shortcuts.groupGlobal'), enabled: me.user.hasPin })
+  useHotkey('f1', openHelp, { label: t('shortcuts.help'), group: t('shortcuts.groupGlobal'), everywhere: true })
+  useHotkey('alt+l', lock, { label: t('command.lock'), group: t('shortcuts.groupGlobal'), enabled: me.user.hasPin, everywhere: true })
+  // Not over a window that is already open: one thing is finished before the next is begun.
+  const pay = (kind: 'in' | 'out') => (document.querySelector('[role="dialog"]') ? false : setPaying(kind))
+  useHotkey('alt+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+  useHotkey('alt+c', () => pay('out'), { label: t('payments.payOut'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+
+  // What needs this person, wherever they are: on the screen while they work in the system, on the desktop when they do not.
+  useFocusBeacon()
+  const worksAt = (locationId: string | null) => !locationId || me.user.allLocations || me.user.locationIds.includes(locationId)
+  const hearsGate = can('devices.alarms') && hasModule('rfid')
+  const collects = can('money.collect') || can('money.manage')
+  const hearsMoney = collects || can('pos.sell')
+  const hearsGoods = can('transfers.manage')
+
+  // A gate went off: those who work in that shop are told at once, whatever screen they are on.
+  useShopEvent<GateAlarmEvent>(
+    'gate.alarm',
+    (alarm) => {
+      if (!worksAt(alarm.locationId)) {
+        return
+      }
+      announce({
+        tone: 'bad',
+        title: t('gate.alarm'),
+        body: [alarm.title, alarm.locationName ?? alarm.readerName].join(' · '),
+        tag: alarm.id,
+        duration: 60_000,
+        open: { label: t('gate.open'), go: () => void navigate({ to: '/gate' }) },
+      })
+    },
+    hearsGate,
+  )
+
+  // Money is on its way: to a till, the till it is going to is told; to a safe or a bank account, those who collect.
+  useShopEvent<MoneySentEvent>(
+    'money.sent',
+    (sent) => {
+      const toTill = sent.toKind === 'cash'
+      if (sent.sentBy === me.user.id || !worksAt(sent.toLocationId)) {
+        return
+      }
+      if (toTill ? !can('pos.sell') || tillHere() !== sent.toRegisterId : !collects) {
+        return
+      }
+      announce({
+        title: t('notify.moneySent', { number: sent.number }),
+        body: t('notify.route', { from: sent.fromName, to: sent.toName }),
+        tag: sent.id,
+        duration: 30_000,
+        open: {
+          label: t('notify.open'),
+          go: () => void (toTill ? navigate({ to: '/pos' }) : navigate({ to: '/money', search: { tab: 'transfers' } })),
+        },
+      })
+    },
+    hearsMoney,
+  )
+
+  // Goods have left for a shop: those who take transfers in there are told.
+  useShopEvent<GoodsSentEvent>(
+    'goods.sent',
+    (sent) => {
+      if (sent.sentBy === me.user.id || !worksAt(sent.toLocationId)) {
+        return
+      }
+      announce({
+        title: t('notify.goodsSent', { number: sent.number }),
+        body: t('notify.route', { from: sent.fromName, to: sent.toName }),
+        tag: sent.id,
+        duration: 30_000,
+        open: { label: t('notify.open'), go: () => void navigate({ to: '/transfers/$docId', params: { docId: sent.id } }) },
+      })
+    },
+    hearsGoods,
+  )
 
   return (
     <div className="flex h-full bg-canvas">
@@ -124,6 +207,20 @@ export function Shell() {
           </button>
 
           <div className="flex shrink-0 items-center gap-1">
+            {canPay ? (
+              <Menu
+                trigger={
+                  <Button variant="ghost" aria-label={t('payments.desk')}>
+                    <ArrowLeftRight />
+                    <span className="hidden xl:inline">{t('payments.desk')}</span>
+                  </Button>
+                }
+                items={[
+                  { label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'alt+k', onSelect: () => setPaying('in') },
+                  { label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') },
+                ]}
+              />
+            ) : null}
             <Tooltip content={connected ? t('common.online') : t('common.offline')}>
               <span className="flex size-8 items-center justify-center" role="status" aria-label={connected ? t('common.online') : t('common.offline')}>
                 <span className={cn('size-2 rounded-full', connected ? 'bg-ok' : 'animate-pulse bg-warn')} />
@@ -161,7 +258,19 @@ export function Shell() {
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} pages={pages} onShowShortcuts={openHelp} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        pages={pages}
+        onShowShortcuts={openHelp}
+        onPay={canPay ? setPaying : undefined}
+      />
+      {hearsGate || hearsMoney || hearsGoods ? <NotificationPrompt /> : null}
+      {paying ? (
+        <HotkeyScope>
+          <PaymentDialog kind={paying} onClose={() => setPaying(null)} />
+        </HotkeyScope>
+      ) : null}
       <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )

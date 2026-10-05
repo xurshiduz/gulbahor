@@ -21,7 +21,6 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { CircleCheck, Download, FileSpreadsheet, TriangleAlert, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -35,6 +34,7 @@ import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
+import { toast } from '@/lib/toast'
 
 import { DEFAULTS_KEY, NO_DEFAULTS, type ReceiptDefaults } from './receipt-state'
 

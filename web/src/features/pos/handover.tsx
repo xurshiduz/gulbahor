@@ -9,7 +9,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/controls'
@@ -20,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { TransferButtons } from '@/features/money/transfers'
 import { api } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
 const money = (minor: number, currency: CurrencyCode) => formatMoney(minor, currency, { minor: 'auto' })

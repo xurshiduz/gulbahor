@@ -4,7 +4,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { Ban, Printer, Undo2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -16,6 +15,7 @@ import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
+import { toast } from '@/lib/toast'
 
 import { changeText } from './pos-state'
 

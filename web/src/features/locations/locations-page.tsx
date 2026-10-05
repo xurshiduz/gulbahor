@@ -5,7 +5,6 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, Building2, MoreHorizontal, Pencil, Plus } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { FilterSelect } from '@/components/ui/column-filters'
@@ -19,6 +18,7 @@ import { api } from '@/lib/api'
 import { formatPhone } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
+import { toast } from '@/lib/toast'
 
 import { LocationFormDialog } from './location-form'
 

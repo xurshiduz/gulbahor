@@ -305,6 +305,80 @@ describe('Catalogue', () => {
         .expect(200)
       expect(reordered.body.values[0].name).toBe('7XL')
     })
+
+    it('makes one colour of two spellings, and refuses when a model has both', async () => {
+      const added = (
+        await alpha
+          .post(`/api/attributes/${color.id}/values`)
+          .send({ values: [{ name: 'Chorniy' }, { name: 'Siyah' }] })
+          .expect(201)
+      ).body as AttributeRow
+      const black = valueId(added, 'Qora')
+      const dress = (
+        await alpha
+          .post('/api/products')
+          .send({
+            name: 'Koylak uzun',
+            categoryId: shirtsId,
+            axisIds: [color.id, size.id],
+            variants: [
+              { valueIds: [valueId(added, 'Chorniy'), valueId(size, 'S')] },
+              { valueIds: [valueId(added, 'Siyah'), valueId(size, 'S')] },
+              { valueIds: [valueId(added, 'Chorniy'), valueId(size, 'M')] },
+            ],
+          })
+          .expect(201)
+      ).body
+
+      // Both spellings on one size of one model: merged, it would have that size twice.
+      const both = await alpha
+        .post(`/api/attributes/values/${valueId(added, 'Siyah')}/merge`)
+        .send({ intoId: valueId(added, 'Chorniy') })
+        .expect(409)
+      expect(both.body.error.code).toBe('VALUES_OVERLAP')
+      expect(both.body.error.message).toContain('Koylak uzun')
+      // Nor is a value merged into itself, or into a size.
+      await alpha.post(`/api/attributes/values/${black}/merge`).send({ intoId: black }).expect(400)
+      await alpha
+        .post(`/api/attributes/values/${black}/merge`)
+        .send({ intoId: valueId(size, 'S') })
+        .expect(400)
+
+      const kept = dress.variants as VariantRow[]
+      await alpha
+        .put(`/api/products/${dress.id}`)
+        .send({ ...dress, variants: kept.filter((variant) => variant.valueIds[0] !== valueId(added, 'Siyah')) })
+        .expect(200)
+      const merged = (
+        await alpha
+          .post(`/api/attributes/values/${valueId(added, 'Chorniy')}/merge`)
+          .send({ intoId: black })
+          .expect(200)
+      ).body as AttributeRow
+      expect(merged.values.some((value) => value.name === 'Chorniy')).toBe(false)
+
+      // The model's variants are the same ones, now of the colour that stayed, and found by its name.
+      const after = (await alpha.get(`/api/products/${dress.id}`).expect(200)).body.variants as VariantRow[]
+      expect(after.map((variant) => variant.id).sort()).toEqual(
+        kept
+          .filter((variant) => variant.valueIds[0] !== valueId(added, 'Siyah'))
+          .map((variant) => variant.id)
+          .sort(),
+      )
+      expect(after.every((variant) => variant.valueIds[0] === black)).toBe(true)
+      expect((await alpha.get('/api/products').query({ q: 'koylak qora' })).body.total).toBe(1)
+      expect((await alpha.get('/api/products').query({ q: 'koylak chorniy' })).body.total).toBe(0)
+
+      // An unused spelling goes the same way; another business cannot reach in.
+      await beta
+        .post(`/api/attributes/values/${valueId(added, 'Siyah')}/merge`)
+        .send({ intoId: black })
+        .expect(404)
+      await alpha
+        .post(`/api/attributes/values/${valueId(added, 'Siyah')}/merge`)
+        .send({ intoId: black })
+        .expect(200)
+    })
   })
 
   describe('rights', () => {

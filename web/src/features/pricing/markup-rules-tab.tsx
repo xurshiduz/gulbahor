@@ -13,7 +13,6 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { MoreHorizontal, Pencil, Percent, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -28,6 +27,7 @@ import { PageActions } from '@/components/ui/page'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
 import { api, ApiError } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 export const usePriceRules = () =>
   useQuery({

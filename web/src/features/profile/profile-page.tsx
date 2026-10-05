@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { setTheme, useTheme, type ThemeChoice } from '@/app/theme'
 import { Button } from '@/components/ui/button'
@@ -18,6 +17,7 @@ import { useSession } from '@/features/auth/session'
 import { SessionList } from '@/features/users/user-form'
 import { api } from '@/lib/api'
 import { formatPhone } from '@/lib/format'
+import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/profile')
 

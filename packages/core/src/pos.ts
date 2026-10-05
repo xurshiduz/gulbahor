@@ -16,7 +16,7 @@ import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from
 // ───────────────────────────── Accounts ─────────────────────────────
 
 /** `system` accounts are the other side of money that came from or went to no place: sales, rounding, a count that came out short. */
-export const ACCOUNT_KINDS = ['cash', 'safe', 'card', 'terminal', 'bank', 'system'] as const
+export const ACCOUNT_KINDS = ['cash', 'safe', 'card', 'terminal', 'bank', 'system', 'partner'] as const
 export type AccountKind = (typeof ACCOUNT_KINDS)[number]
 
 export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
@@ -26,6 +26,8 @@ export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   terminal: 'Bank terminali',
   bank: 'Bank hisob raqami',
   system: 'Ichki hisob',
+  // What a partner owes the business; negative when the business owes them.
+  partner: 'Hamkor hisobi',
 }
 
 export const SYSTEM_ACCOUNTS = ['sales', 'rounding', 'fx', 'cash_diff', 'opening', 'exchange', 'transit'] as const
@@ -101,7 +103,7 @@ export interface RegisterDto {
 
 // ───────────────────────────── Rates ─────────────────────────────
 
-const rateSchema = z
+export const rateSchema = z
   .number()
   .positive()
   .max(1_000_000)
@@ -753,6 +755,11 @@ export interface ShiftTotals {
   outUsd: number
   inUzs: number
   inUsd: number
+  /** Partners' payments taken into the drawer during the shift, and paid out of it, by currency. */
+  partnersInUzs: number
+  partnersInUsd: number
+  partnersOutUzs: number
+  partnersOutUsd: number
   /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
   returns: number
   returned: number

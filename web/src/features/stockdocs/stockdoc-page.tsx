@@ -25,7 +25,6 @@ import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Ban, CheckCheck, MoreHorizontal, PackageCheck, Send, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { ColorDot, Combobox } from '@/components/ui/combobox'
@@ -47,6 +46,7 @@ import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 import { DOC_ROUTES, DOC_STATUS_TONES } from './stockdocs-page'
 

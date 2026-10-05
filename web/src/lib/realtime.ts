@@ -1,8 +1,16 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 
 import { renewSession } from './api'
+
+/**
+ * Things that happen in the shop and are over at once: a gate went off, a piece was laid on a till's
+ * reader, money or goods set off for someone. There is nothing to refetch, so whoever cares is simply
+ * told (`useShopEvent`).
+ */
+const SHOP_EVENTS = ['reader.tag', 'gate.alarm', 'money.sent', 'goods.sent'] as const
+export type ShopEventName = (typeof SHOP_EVENTS)[number]
 
 /** Writes land together; one refetch a moment later covers all of them. */
 const REFETCH_DELAY_MS = 300
@@ -36,6 +44,10 @@ export function useRealtime(queryClient: QueryClient, enabled: boolean, onSessio
       }, REFETCH_DELAY_MS)
     })
 
+    for (const name of SHOP_EVENTS) {
+      socket.on(name, (detail: unknown) => window.dispatchEvent(new CustomEvent(`shop:${name}`, { detail })))
+    }
+
     socket.on('session.ended', onSessionEnded)
 
     // The access cookie is short-lived; renew it over HTTP and come back.
@@ -58,4 +70,19 @@ export function useRealtime(queryClient: QueryClient, enabled: boolean, onSessio
   }, [queryClient, enabled, onSessionEnded])
 
   return connected
+}
+
+/** Hears what happened in the shop just now, for as long as the screen that asked is open. */
+export function useShopEvent<T>(name: ShopEventName, handler: (payload: T) => void, enabled = true) {
+  const latest = useRef(handler)
+  latest.current = handler
+
+  useEffect(() => {
+    if (!enabled) {
+      return
+    }
+    const listen = (event: Event) => latest.current((event as CustomEvent<T>).detail)
+    window.addEventListener(`shop:${name}`, listen)
+    return () => window.removeEventListener(`shop:${name}`, listen)
+  }, [name, enabled])
 }

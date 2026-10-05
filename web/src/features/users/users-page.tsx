@@ -5,7 +5,6 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Ban, KeyRound, MonitorSmartphone, MoreHorizontal, Pencil, Plus, ShieldCheck, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { FilterSelect } from '@/components/ui/column-filters'
@@ -19,6 +18,7 @@ import { api } from '@/lib/api'
 import { formatPhone, formatRecent } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
+import { toast } from '@/lib/toast'
 
 import { ResetPasswordDialog, UserFormDialog, UserSessionsDialog, useUserFormOptions } from './user-form'
 

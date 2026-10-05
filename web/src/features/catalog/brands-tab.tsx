@@ -5,7 +5,6 @@ import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Plus, Tag, Trash2 } fr
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Menu } from '@/components/ui/controls'
@@ -18,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { PageActions, SearchInput } from '@/components/ui/page'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 import { useBrands } from './catalog'
 

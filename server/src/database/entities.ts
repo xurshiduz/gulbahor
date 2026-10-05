@@ -10,11 +10,14 @@ import type {
   MarkupBase,
   OrgSettings,
   MoneyTransferStatus,
+  PartnerPaymentKind,
+  PartnerPaymentStatus,
   PaymentMethod,
   TenderMethod,
   PriceKind,
   PrinterDpi,
   PrintJobStatus,
+  ReaderKind,
   ReceiptStatus,
   SaleStatus,
   Season,
@@ -613,6 +616,10 @@ export class Partner {
   @Column('boolean')
   isBuyer: boolean
 
+  /** The currency their account is kept in. */
+  @Column('text')
+  currency: CurrencyCode
+
   @Column('text', { nullable: true })
   note: string | null
 
@@ -1181,6 +1188,86 @@ export class Printer {
   updatedAt: Date
 }
 
+/** An RFID reader that stays in one place: on a till's counter, or at a shop's door. */
+@Entity('readers')
+export class Reader {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  @Column('text')
+  kind: ReaderKind
+
+  @Column('uuid')
+  agentId: string
+
+  @Column('uuid', { nullable: true })
+  registerId: string | null
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('text')
+  host: string
+
+  @Column('int')
+  port: number
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+/** A piece that went through a gate without having been sold. */
+@Entity('gate_events')
+export class GateEvent {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid', { nullable: true })
+  readerId: string | null
+
+  @Column('text')
+  readerName: string
+
+  @Column('uuid', { nullable: true })
+  locationId: string | null
+
+  @Column('text')
+  epc: string
+
+  @Column('uuid', { nullable: true })
+  unitId: string | null
+
+  @Column('uuid', { nullable: true })
+  variantId: string | null
+
+  @Column('text')
+  title: string
+
+  @Column('text', { nullable: true })
+  sku: string | null
+
+  @Column('text')
+  searchKey: string
+
+  @Column('timestamptz')
+  readAt: Date
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
 @Entity('print_jobs')
 export class PrintJob {
   @PrimaryGeneratedColumn('uuid')
@@ -1427,6 +1514,10 @@ export class Account {
 
   @Column('uuid', { nullable: true })
   registerId: string | null
+
+  /** The partner whose account this is: its balance is what they owe. */
+  @Column('uuid', { nullable: true })
+  partnerId: string | null
 
   @Column('text', { nullable: true })
   last4: string | null
@@ -1948,6 +2039,104 @@ export class SaleReturnPayment {
   reference: string | null
 }
 
+@Entity('partner_payments')
+export class PartnerPayment {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('text')
+  kind: PartnerPaymentKind
+
+  @Column('text')
+  status: PartnerPaymentStatus
+
+  @Column('uuid')
+  partnerId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  /** How the partner's debt changed, in the currency of their account. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  change: number
+
+  @Column('timestamptz')
+  paidAt: Date
+
+  @Column('date')
+  paidOn: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @Column('text')
+  paidBy: string
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('timestamptz', { nullable: true })
+  cancelledAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  cancelledBy: string | null
+
+  @Column('text', { nullable: true })
+  cancelledByName: string | null
+
+  @Column('text', { nullable: true })
+  cancelReason: string | null
+
+  @Column('text')
+  searchKey: string
+}
+
+@Entity('partner_payment_lines')
+export class PartnerPaymentLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  paymentId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  rate: number | null
+
+  /** What the line settled on the partner's account, in the partner's currency. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  settled: number
+
+  @Column('uuid', { nullable: true })
+  shiftId: string | null
+}
+
 @Entity('shift_terminal_counts')
 export class ShiftTerminalCount {
   @PrimaryGeneratedColumn('uuid')
@@ -2085,6 +2274,8 @@ export const ENTITIES = [
   RfidUnit,
   StoreAgent,
   Printer,
+  Reader,
+  GateEvent,
   PrintJob,
   PriceRule,
   PriceRuleMarkup,
@@ -2105,4 +2296,6 @@ export const ENTITIES = [
   SaleReturnPayment,
   MoneyTransfer,
   ShiftTerminalCount,
+  PartnerPayment,
+  PartnerPaymentLine,
 ]

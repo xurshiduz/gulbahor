@@ -186,6 +186,26 @@
   font-feature-settings: 'zero' 1;
 }
 
+/* A message put away (lib/toast.tsx): it shrinks to nothing where it stands, rather than sliding off. */
+/* A window open over the page takes the pointer from everything under it; a message must still answer a click. */
+[data-sonner-toast] {
+  pointer-events: auto;
+}
+[data-sonner-toast] .gb-alert {
+  transform-origin: center;
+  transition:
+    transform 200ms ease-in,
+    opacity 200ms ease-in;
+}
+[data-sonner-toast][data-removed='true'] .gb-alert {
+  transform: scale(0);
+  opacity: 0;
+}
+[data-sonner-toaster] [data-sonner-toast][data-removed='true'][data-swipe-out='false'] {
+  --y: translateY(calc(var(--lift) * var(--offset))) !important;
+  opacity: 1 !important;
+}
+
 /* Printing one piece of the screen (lib/print.ts): only its copy reaches the paper, black on white, at receipt width. */
 @media print {
   html.printing body > *:not(#print-root) {

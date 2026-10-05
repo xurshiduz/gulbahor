@@ -2,6 +2,8 @@ import {
   GENDERS,
   LOCATION_KINDS,
   MONEY_TRANSFER_STATUSES,
+  PARTNER_PAYMENT_KINDS,
+  PARTNER_PAYMENT_STATUSES,
   PRINT_JOB_STATUSES,
   SALE_STATUSES,
   SEASONS,
@@ -17,10 +19,12 @@ import { ReferencesPage } from '@/features/catalog/references-page'
 import { HomePage } from '@/features/dashboard/home-page'
 import { InputsDemoPage } from '@/features/dev/inputs-demo-page'
 import { DevicesPage } from '@/features/devices/devices-page'
+import { GatePage } from '@/features/devices/readers'
 import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
 import { MoneyPage } from '@/features/money/money-page'
 import { PartnersPage } from '@/features/partners/partners-page'
+import { PaymentsPage } from '@/features/partners/payments'
 import { PosPage } from '@/features/pos/pos-page'
 import { SalesPage } from '@/features/pos/sales-page'
 import { ShiftsPage } from '@/features/pos/shifts-page'
@@ -182,6 +186,7 @@ const partnersSearch = z.object({
   ...listSearch,
   status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
   role: z.enum(['supplier', 'buyer']).optional().catch(undefined),
+  debt: z.enum(['owes', 'owed']).optional().catch(undefined),
 })
 const partnersRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -189,6 +194,30 @@ const partnersRoute = createRoute({
   component: PartnersPage,
   validateSearch: partnersSearch,
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
+})
+
+const paymentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/payments',
+  component: PaymentsPage,
+  validateSearch: z.object({
+    page: listSearch.page,
+    size: listSearch.size,
+    q: listSearch.q,
+    status: z
+      .enum(['all', ...PARTNER_PAYMENT_STATUSES])
+      .default('all')
+      .catch('all'),
+    kind: z.enum(PARTNER_PAYMENT_KINDS).optional().catch(undefined),
+    partnerId: z.string().optional().catch(undefined),
+    from: z.string().optional().catch(undefined),
+    to: z.string().optional().catch(undefined),
+    /** The payment that is open over the list. */
+    open: z.string().optional().catch(undefined),
+  }),
+  search: {
+    middlewares: [stripSearchParams({ page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size, status: 'all' })],
+  },
 })
 
 const pricesSearch = z.object({
@@ -300,8 +329,25 @@ const devicesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/devices',
   component: DevicesPage,
-  validateSearch: z.object({ tab: z.enum(['printers', 'agents']).default('printers').catch('printers') }),
+  validateSearch: z.object({
+    tab: z.enum(['printers', 'readers', 'agents']).default('printers').catch('printers'),
+  }),
   search: { middlewares: [stripSearchParams({ tab: 'printers' })] },
+})
+
+const gateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/gate',
+  component: GatePage,
+  validateSearch: z.object({
+    page: listSearch.page,
+    size: listSearch.size,
+    q: listSearch.q,
+    locationId: z.string().optional().catch(undefined),
+    from: z.string().optional().catch(undefined),
+    to: z.string().optional().catch(undefined),
+  }),
+  search: { middlewares: [stripSearchParams({ page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size })] },
 })
 
 const usersSearch = z.object({
@@ -387,9 +433,11 @@ const routeTree = rootRoute.addChildren([
   countRoute,
   labelsRoute,
   partnersRoute,
+  paymentsRoute,
   locationsRoute,
   moneyRoute,
   devicesRoute,
+  gateRoute,
   usersRoute,
   rolesRoute,
   auditRoute,

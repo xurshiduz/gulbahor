@@ -16,7 +16,6 @@ import { Archive, ArchiveRestore, Banknote, MoreHorizontal, Pencil, Plus, Trash2
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Menu, Select } from '@/components/ui/controls'
@@ -31,6 +30,7 @@ import { PageActions } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 import { usePriceTypes } from './catalog'
 

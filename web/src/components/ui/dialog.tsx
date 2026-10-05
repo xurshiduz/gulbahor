@@ -22,6 +22,13 @@ interface DialogProps {
 
 const SIZES = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-5xl' }
 
+/** A message in the corner is put away by a click; that click is not one outside the window, and does not close it. */
+const keepOpenForMessages = (event: Event) => {
+  if ((event.target as Element | null)?.closest?.('[data-sonner-toaster]')) {
+    event.preventDefault()
+  }
+}
+
 export function Dialog({ open, onClose, title, description, size = 'md', dirty, children, footer }: DialogProps) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -43,6 +50,13 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
             'rounded-xl border border-line bg-surface shadow-float outline-none data-[state=open]:animate-pop-in',
             SIZES[size],
           )}
+          onInteractOutside={keepOpenForMessages}
+          // Another dialog has taken this one's place and put the cursor in its field: it stays there.
+          onCloseAutoFocus={(event) => {
+            if (document.activeElement?.closest('[role="dialog"]')) {
+              event.preventDefault()
+            }
+          }}
           onKeyDown={(event) => {
             // Ctrl+Enter saves from anywhere in the dialog; inside the form, the form has already taken it.
             if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.defaultPrevented) {
@@ -126,6 +140,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <Primitive.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-fade-in" />
           <Primitive.Content
             className="fixed top-[22vh] left-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-line bg-surface p-5 shadow-float outline-none data-[state=open]:animate-pop-in"
+            onInteractOutside={keepOpenForMessages}
             onOpenAutoFocus={(event) => {
               // Enter should confirm, so the confirm button takes the focus.
               event.preventDefault()

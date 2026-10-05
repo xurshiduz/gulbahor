@@ -5,6 +5,7 @@ import {
   STOCK_DOC_PERMISSION,
   STOCK_DOC_STATUS_LABELS,
   WRITEOFF_REASON_LABELS,
+  type GoodsSentEvent,
   type Page,
   type ReceiptProductDto,
   type StockDocDto,
@@ -201,8 +202,20 @@ export class StockDocsService {
         entityId: id,
         summary: `${doc.number}: ${doc.totalQty} dona`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock']))
-      return this.load(em, actor, await this.find(em, actor, id))
+      const sent = await this.load(em, actor, await this.find(em, actor, id))
+      afterCommit(() => {
+        this.realtime.changed(actor.orgId, ['stockdocs', 'stock'])
+        // The shop the goods are going to hears that they are on the way.
+        this.realtime.event<GoodsSentEvent>(actor.orgId, 'goods.sent', {
+          id,
+          number: sent.number,
+          fromName: sent.locationName,
+          toName: sent.toLocationName ?? '',
+          toLocationId: doc.toLocationId as string,
+          sentBy: actor.userId,
+        })
+      })
+      return sent
     })
   }
 

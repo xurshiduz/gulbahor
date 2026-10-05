@@ -4,6 +4,7 @@ import {
   formatMoney,
   toBase,
   type CurrencyCode,
+  type MoneySentEvent,
   type Page,
   type PaymentMethod,
   type ShiftCloseInput,
@@ -119,6 +120,7 @@ export class ShiftsService {
       // it reaches the safe when whoever keeps it says so.
       const drawers = await em.findBy(Account, { registerId: register.id })
       const handed: Record<CurrencyCode, number> = { UZS: 0, USD: 0 }
+      const handedOver: MoneySentEvent[] = []
       for (const [index, handover] of input.handovers.entries()) {
         const to = await em.findOneBy(Account, { id: handover.toAccountId })
         const from = drawers.find((drawer) => drawer.currency === to?.currency)
@@ -129,13 +131,14 @@ export class ShiftsService {
         if (handed[from.currency] > (from.currency === 'USD' ? input.cashUsd : input.cashUzs)) {
           throw AppError.validation({ [`handovers.${index}.amount`]: "Sanalgan puldan ko'p topshirib bo'lmaydi" })
         }
-        await this.transfers.sendIn(em, actor, {
+        const sent = await this.transfers.sendIn(em, actor, {
           clientKey: randomUUID(),
           fromAccountId: from.id,
           toAccountId: to.id,
           amount: handover.amount,
           note: `${shift.number} yopildi`,
         })
+        handedOver.push(await this.transfers.sentNotice(em, sent))
       }
       // What each terminal's own slip says it took, against what was rung up on it in this shift.
       const rung = await this.terminalTotals(em, id)
@@ -184,7 +187,13 @@ export class ShiftsService {
             : ', farqsiz'
         }`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['shifts', 'money', 'pos']))
+      afterCommit(() => {
+        this.realtime.changed(actor.orgId, ['shifts', 'money', 'pos'])
+        // Whoever keeps the safe hears that the till's cash is on its way.
+        for (const notice of handedOver) {
+          this.realtime.event(actor.orgId, 'money.sent', notice)
+        }
+      })
       return this.load(em, actor, id)
     })
   }
@@ -333,6 +342,14 @@ export class ShiftsService {
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
+    const partners: { kind: 'in' | 'out'; currency: CurrencyCode; amount: number }[] = await em.query(
+      `SELECT p.kind, l.currency, sum(l.amount)::float8 AS amount
+       FROM partner_payment_lines l JOIN partner_payments p ON p.id = l.payment_id
+       WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY p.kind, l.currency`,
+      [shiftId],
+    )
+    const withPartners = (kind: 'in' | 'out', currency: CurrencyCode) =>
+      partners.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -368,6 +385,10 @@ export class ShiftsService {
       outUsd: moved.out.USD,
       inUzs: moved.in.UZS,
       inUsd: moved.in.USD,
+      partnersInUzs: withPartners('in', 'UZS'),
+      partnersInUsd: withPartners('in', 'USD'),
+      partnersOutUzs: withPartners('out', 'UZS'),
+      partnersOutUsd: withPartners('out', 'USD'),
       returns: returns.returns,
       returned: returns.returned,
       refunds: refunds.map((row) => ({

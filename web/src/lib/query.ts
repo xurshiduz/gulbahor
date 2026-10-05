@@ -1,7 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 
 import { ApiError } from './api'
+import { toast } from './toast'
 
 /**
  * Failures surface as a toast unless the caller handles them. Field errors

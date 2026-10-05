@@ -33,7 +33,6 @@ import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Ban, CheckCheck, Copy, MoreHorizontal, Plus, Tags, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { ColorDot, Combobox } from '@/components/ui/combobox'
@@ -58,6 +57,7 @@ import { formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { usePreference } from '@/lib/preferences'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 import {
   blocksOf,

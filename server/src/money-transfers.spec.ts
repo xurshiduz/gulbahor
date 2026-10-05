@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { RealtimeService } from './modules/realtime/realtime.service'
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 
 const som = (amount: number) => amount * 100
@@ -25,6 +26,10 @@ describe('Money transfers', () => {
   let cashier: Agent
   let manager: Agent
   let seller: Agent
+  let events: jest.SpyInstance
+
+  /** What every screen of the business was told under this name. */
+  const told = (name: string) => events.mock.calls.filter((call) => call[1] === name).map((call) => call[2])
 
   let shopId: string
   let registerId: string
@@ -55,6 +60,7 @@ describe('Money transfers', () => {
   beforeAll(async () => {
     harness = await startApp()
     ;({ alpha, beta } = harness)
+    events = jest.spyOn(harness.app.get(RealtimeService), 'event')
     shopId = (await alpha.get('/api/locations')).body.items[0].id
     registerId = (await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201))
       .body.id
@@ -145,9 +151,23 @@ describe('Money transfers', () => {
       })
       transferId = sent.id
       expect(await balances()).toMatchObject({ cash_UZS: som(200_000), transit: som(300_000), safe_UZS: 0 })
+      // Whoever keeps the safe is told at once that money is on its way, but not how much.
+      expect(told('money.sent')).toEqual([
+        {
+          id: transferId,
+          number: 'PO-000001',
+          fromName: "Kassa 1 (so'm)",
+          toName: 'Seyf',
+          toKind: 'safe',
+          toLocationId: null,
+          toRegisterId: null,
+          sentBy: expect.any(String),
+        },
+      ])
       // Sent again by a screen that did not hear back: it is the same transfer.
       expect((await cashier.post('/api/money/transfers').send(body).expect(201)).body.id).toBe(transferId)
       expect((await balances()).cash_UZS).toBe(som(200_000))
+      expect(told('money.sent')).toHaveLength(1)
 
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context.transfers.map((item: { id: string }) => item.id)).toEqual([transferId])
@@ -254,6 +274,11 @@ describe('Money transfers', () => {
           ],
         })
         .expect(200)
+      // Both handovers are announced, once the shift is closed for good.
+      expect(told('money.sent').slice(-2)).toMatchObject([
+        { fromName: "Kassa 1 (so'm)", toName: 'Seyf' },
+        { fromName: 'Kassa 1 (dollar)', toKind: 'safe' },
+      ])
       const closed = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       expect(closed).toMatchObject({
         status: 'closed',

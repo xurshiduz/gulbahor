@@ -2,7 +2,6 @@ import { LOCATION_KIND_LABELS, LOCATION_KINDS, locationInputSchema, type Locatio
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -13,6 +12,7 @@ import { applyServerErrors, Form, useDraft, zodSubmit } from '@/components/ui/fo
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { api } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 interface Values {
   name: string

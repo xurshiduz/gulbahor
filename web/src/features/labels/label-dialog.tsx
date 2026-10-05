@@ -19,7 +19,6 @@ import { Link } from '@tanstack/react-router'
 import { Download, Printer as PrinterIcon, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -38,6 +37,7 @@ import { api, ApiError } from '@/lib/api'
 import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 const FORM_ID = 'label-form'
 /** Stands for "no printer: give me the file" in the printer list. */

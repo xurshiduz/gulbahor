@@ -2,6 +2,7 @@ import type {
   AttributeDto,
   AttributeInput,
   AttributeValueInput,
+  AttributeValueMergeInput,
   AttributeValuesBulkInput,
   OrderInput,
 } from '@gulbahor/core'
@@ -248,6 +249,61 @@ export class AttributesService {
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['attributes']))
       return this.load(em, value.attributeId)
+    })
+  }
+
+  /**
+   * Makes two values one. Every variant built from `valueId` is built from the other instead, and
+   * `valueId` is gone: the same colour entered twice under two spellings ("Chorniy", "Qora").
+   * A model that has both would end with two variants of one combination, so it is refused and named.
+   */
+  async mergeValue(actor: Actor, valueId: string, input: AttributeValueMergeInput): Promise<AttributeDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const from = await this.findValue(em, valueId)
+      const into = await em.findOneBy(AttributeValue, { id: input.intoId })
+      if (!into || into.id === from.id || into.attributeId !== from.attributeId) {
+        throw AppError.validation({ intoId: "Shu ro'yxatdagi boshqa qiymatni tanlang" })
+      }
+      const attribute = await this.find(em, from.attributeId)
+      const moved = (column: string) => `CASE WHEN a.${column} = $1::uuid THEN $2::uuid ELSE a.${column} END`
+      const [clash]: { name: string }[] = await em.query(
+        `SELECT p.name FROM product_variants a
+         JOIN product_variants b ON b.product_id = a.product_id AND b.id <> a.id
+         JOIN products p ON p.id = a.product_id
+         WHERE $1::uuid IN (a.value1_id, a.value2_id, a.value3_id)
+           AND ${moved('value1_id')} IS NOT DISTINCT FROM b.value1_id
+           AND ${moved('value2_id')} IS NOT DISTINCT FROM b.value2_id
+           AND ${moved('value3_id')} IS NOT DISTINCT FROM b.value3_id
+         LIMIT 1`,
+        [from.id, into.id],
+      )
+      if (clash) {
+        throw AppError.conflict(
+          'VALUES_OVERLAP',
+          `«${clash.name}» modelida ikkalasi ham bor: «${from.name}» va «${into.name}». Avval modeldagi variantlarni birlashtiring`,
+        )
+      }
+      const [, variants]: [unknown, number] = await em.query(
+        `UPDATE product_variants a SET
+           value1_id = ${moved('value1_id')}, value2_id = ${moved('value2_id')}, value3_id = ${moved('value3_id')}
+         WHERE $1::uuid IN (a.value1_id, a.value2_id, a.value3_id)`,
+        [from.id, into.id],
+      )
+      await em.delete(AttributeValue, from.id)
+      // Variants are found by the names of their values.
+      await reindexProductsWhere(
+        em,
+        `EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND ${USES_VALUE})`,
+        [into.id],
+      )
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'attribute.value_merge',
+        entity: 'attribute',
+        entityId: from.attributeId,
+        summary: `${attribute.name}: ${from.name} → ${into.name} (${variants} ta variant)`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['attributes', 'products', 'stock', 'pos']))
+      return this.load(em, from.attributeId)
     })
   }
 

@@ -2,7 +2,6 @@ import { approvalSchema, type ApprovalInput } from '@gulbahor/core'
 import { ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/controls'
@@ -10,6 +9,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { toast } from '@/lib/toast'
 
 interface ApprovalDialogProps {
   /** Those who may allow this, and have a PIN. */

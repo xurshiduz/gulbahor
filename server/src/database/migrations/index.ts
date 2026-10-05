@@ -8,6 +8,8 @@ import { Pos1790000006000 } from './1790000006000-pos'
 import { Returns1790000007000 } from './1790000007000-returns'
 import { MoneyTransfers1790000008000 } from './1790000008000-money-transfers'
 import { TillControls1790000009000 } from './1790000009000-till-controls'
+import { PartnerAccounts1790000010000 } from './1790000010000-partner-accounts'
+import { Readers1790000011000 } from './1790000011000-readers'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -21,4 +23,6 @@ export const MIGRATIONS = [
   Returns1790000007000,
   MoneyTransfers1790000008000,
   TillControls1790000009000,
+  PartnerAccounts1790000010000,
+  Readers1790000011000,
 ]

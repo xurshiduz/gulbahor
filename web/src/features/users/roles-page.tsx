@@ -6,7 +6,6 @@ import { KeyRound, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox, Menu } from '@/components/ui/controls'
@@ -20,6 +19,7 @@ import { Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/roles')
 

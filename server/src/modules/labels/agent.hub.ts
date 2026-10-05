@@ -2,6 +2,8 @@ import type { AgentPrintAnswer, AgentPrintOrder } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import type { Socket } from 'socket.io'
 
+import type { KnownAgent } from './devices.service'
+
 /** How long an agent has to hand a job to its printer and say so. */
 const ANSWER_TIMEOUT_MS = 30_000
 
@@ -18,8 +20,14 @@ export class AgentHub {
     return !!agentId && this.sockets.has(agentId)
   }
 
+  /** The agent on the line under this id, if it is. */
+  agent(agentId: string): KnownAgent | null {
+    return (this.sockets.get(agentId)?.data.agent as KnownAgent | undefined) ?? null
+  }
+
   /** A key in use on two computers: the newer connection wins. */
-  join(agentId: string, socket: Socket) {
+  join(agent: KnownAgent, socket: Socket) {
+    const agentId = agent.id
     const previous = this.sockets.get(agentId)
     this.sockets.set(agentId, socket)
     if (previous && previous.id !== socket.id) {
@@ -41,6 +49,20 @@ export class AgentHub {
     const socket = this.sockets.get(agentId)
     this.sockets.delete(agentId)
     socket?.disconnect(true)
+  }
+
+  /** Something for one agent to hear; lost if it is not on the line, which it makes up for when it comes back. */
+  emit(agentId: string, event: string, payload: unknown) {
+    this.sockets.get(agentId)?.emit(event, payload)
+  }
+
+  /** The same for every agent of a business that is on the line. */
+  broadcast(orgId: string, event: string, payload: unknown) {
+    for (const socket of this.sockets.values()) {
+      if ((socket.data.agent as KnownAgent | undefined)?.orgId === orgId) {
+        socket.emit(event, payload)
+      }
+    }
   }
 
   /** Never throws: an agent that is gone or silent is an answer too. */

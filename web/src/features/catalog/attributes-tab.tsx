@@ -24,7 +24,6 @@ import {
 import { useRef, useState, type ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { ColorDot } from '@/components/ui/combobox'
@@ -37,6 +36,7 @@ import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 import { useAttributes } from './catalog'
 

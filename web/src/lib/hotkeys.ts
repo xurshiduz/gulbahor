@@ -1,4 +1,13 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 
 /**
  * Keyboard shortcuts. Each screen registers what it answers to; the registry
@@ -17,6 +26,8 @@ export interface HotkeyOptions {
   enabled?: boolean
   /** Fire even while typing in a field. Combos with Ctrl/Alt/F-keys always do. */
   inInputs?: boolean
+  /** Fire even under a window opened over the screen (`HotkeyScope`): locking the screen. */
+  everywhere?: boolean
 }
 
 type Handler = (event: KeyboardEvent) => void | boolean
@@ -26,6 +37,8 @@ interface Registration {
   combo: string
   handler: Handler
   options: HotkeyOptions
+  /** The scope it was registered in: 0 for the screen itself. */
+  scope: number
 }
 
 const registrations: Registration[] = []
@@ -65,6 +78,50 @@ function isTyping(target: EventTarget | null): boolean {
   return element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)
 }
 
+// ───────────────────────────── Scopes ─────────────────────────────
+
+const ScopeContext = createContext(0)
+/** The scopes open now, the innermost last. */
+let scopes: number[] = []
+const scopeListeners = new Set<() => void>()
+let nextScope = 1
+
+const topScope = () => scopes.at(-1) ?? 0
+
+function setScopes(next: number[]) {
+  scopes = next
+  scopeListeners.forEach((listener) => listener())
+  publish()
+}
+
+/**
+ * A window that can open over any screen (a payment taken from anywhere).
+ * While it is open only the shortcuts registered inside it answer: the
+ * screen under it must not sell, print or open something at a key meant
+ * for the window.
+ */
+export function HotkeyScope({ children }: { children: ReactNode }) {
+  const [id] = useState(() => nextScope++)
+  useEffect(() => {
+    setScopes([...scopes, id])
+    return () => setScopes(scopes.filter((scope) => scope !== id))
+  }, [id])
+  return createElement(ScopeContext.Provider, { value: id }, children)
+}
+
+/** Whether such a window is open over whoever asks: scanners and readers hold their codes back too. */
+export function useCovered(): boolean {
+  const scope = useContext(ScopeContext)
+  const top = useSyncExternalStore(
+    (listener) => {
+      scopeListeners.add(listener)
+      return () => scopeListeners.delete(listener)
+    },
+    topScope,
+  )
+  return top !== scope
+}
+
 let suspended = false
 
 /** Turns every shortcut off, for the locked screen. */
@@ -102,6 +159,9 @@ function onKeyDown(event: KeyboardEvent) {
     if (wanted !== combo || options.enabled === false) {
       continue
     }
+    if (registrations[i].scope !== topScope() && !options.everywhere) {
+      continue
+    }
     if (plain && !options.inInputs && isTyping(event.target)) {
       continue
     }
@@ -125,7 +185,8 @@ function attach() {
 export function useHotkey(combo: string, handler: Handler, options: HotkeyOptions = {}) {
   const handlerRef = useRef(handler)
   handlerRef.current = handler
-  const { label, group, enabled = true, inInputs } = options
+  const { label, group, enabled = true, inInputs, everywhere } = options
+  const scope = useContext(ScopeContext)
 
   useEffect(() => {
     attach()
@@ -133,7 +194,8 @@ export function useHotkey(combo: string, handler: Handler, options: HotkeyOption
       id: nextId++,
       combo: combo.toLowerCase(),
       handler: (event) => handlerRef.current(event),
-      options: { label, group, enabled, inInputs },
+      options: { label, group, enabled, inInputs, everywhere },
+      scope,
     }
     registrations.push(registration)
     publish()
@@ -141,7 +203,7 @@ export function useHotkey(combo: string, handler: Handler, options: HotkeyOption
       registrations.splice(registrations.indexOf(registration), 1)
       publish()
     }
-  }, [combo, label, group, enabled, inInputs])
+  }, [combo, label, group, enabled, inInputs, everywhere, scope])
 }
 
 /** Every labelled shortcut active right now, for the help sheet. */
@@ -156,8 +218,11 @@ export function useRegisteredHotkeys(): { combo: string; label: string; group: s
   const seen = new Set<string>()
   const result: { combo: string; label: string; group: string }[] = []
   for (let i = current.length - 1; i >= 0; i--) {
-    const { combo, options } = current[i]
+    const { combo, options, scope } = current[i]
     if (!options.label || options.enabled === false || seen.has(combo)) {
+      continue
+    }
+    if (scope !== topScope() && !options.everywhere) {
       continue
     }
     seen.add(combo)

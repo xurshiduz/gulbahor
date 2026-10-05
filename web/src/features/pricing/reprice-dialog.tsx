@@ -15,7 +15,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Calculator, Check, TriangleAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox, Select } from '@/components/ui/controls'
@@ -29,6 +28,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
+import { toast } from '@/lib/toast'
 
 import { percentText } from './markup-rules-tab'
 

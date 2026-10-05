@@ -13,7 +13,6 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { MonitorSmartphone } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -27,6 +26,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { formatRecent } from '@/lib/format'
+import { toast } from '@/lib/toast'
 
 interface Values {
   fullName: string

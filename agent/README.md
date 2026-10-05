@@ -39,6 +39,26 @@ Aloqa doim do'kon tomondan ochiladi. Shuning uchun do'konga doimiy (statik) IP h
 
 Kompyuter yonganda agent o'zi ishga tushishi uchun uni Windows'da Task Scheduler ("At log on") yoki Linux'da systemd xizmati sifatida qo'shing.
 
+## RFID o'quvchilar
+
+Agent kassa stolidagi o'quvchini (Chainway R3) va eshikdagi darvozani (Chainway UR4) ham eshitadi. Ular tizimda **Qurilmalar → RFID o'quvchilar** da qo'shiladi: turi, agent, kassa yoki do'kon, manzil va port. Agent ro'yxatni serverdan o'zi oladi, `agent.json` ga hech narsa yozilmaydi.
+
+- **Kassa o'quvchisi.** Unga qo'yilgan dona o'sha kassaning ekranidagi chekka o'zi tushadi. Dona o'quvchida yotgan paytda ko'p marta o'qiladi, lekin bir marta aytiladi; ko'tarib, 3 soniyadan keyin qayta qo'yilsa, yana aytiladi.
+- **Darvoza.** Agent sotilmagan donalar ro'yxatini xotirasida saqlaydi va har sotuvdan keyin yangilaydi. To'lanmagan dona o'tsa, serverni kutmasdan signalni o'zi chaladi, keyin serverga xabar beradi (tizimdagi **Darvoza jurnali**). Internet uzilsa ham darvoza oxirgi ro'yxat bilan ishlayveradi; shu paytdagi signallar aloqa tiklanganda yuboriladi. Ro'yxat hali kelmagan bo'lsa, darvoza jim turadi.
+
+### O'quvchi agentga qanday gapiradi
+
+Agent o'quvchiga TCP orqali ulanadi va **har qatorda bitta kod** kutadi:
+
+```
+47554C000000000000000001
+47554C000000000000000002,1,-52
+```
+
+Kod — 24 ta o'n oltilik raqam (96 bitli EPC); vergul, nuqta-vergul yoki bo'shliqdan keyingi narsa (antenna, signal kuchi) e'tiborga olinmaydi. Darvozani chaldirish uchun agent shu aloqaga `ALARM` va yangi qator yozadi.
+
+Chainway R3 va UR4 o'z SDK'si orqali ishlaydi. Shuning uchun ular bilan agent orasida kichik ko'prik dastur turadi: u SDK bilan o'quvchini o'qiydi, kodlarni shu ko'rinishda portga chiqaradi va `ALARM` kelganda darvozaning rele chiqishini yoqadi. Ko'prik `bridge/` papkasida (`bridge/README.md`): Java'da, Chainway'ning o'z kutubxonasi bilan yozilgan. U yig'iladi, lekin haqiqiy uskunada hali sinalmagan; tizimning qolgan qismi soxta o'quvchi bilan sinalgan.
+
 ## Xavfsizlik
 
 - Agent faqat lokal tarmoq manzillariga (10.x, 172.16–31.x, 192.168.x, `printer.local` kabi) yuboradi. Server nima desa ham, internetdagi manzilga hech narsa jo'natmaydi.
@@ -51,4 +71,5 @@ Kompyuter yonganda agent o'zi ishga tushishi uchun uni Windows'da Task Scheduler
 | --- | --- |
 | `Server rad etdi: Kalit noto'g'ri…` | `agent.json` dagi kalit eskirgan. Yangi kalit oling. |
 | `Ulanib bo'lmadi: …` | Internet yo'q yoki `url` noto'g'ri. Agent o'zi qayta urinadi. |
+| `O'quvchi … uzildi` | O'quvchi o'chiq yoki ko'prik dastur ishlamayapti. Agent har 3 soniyada qayta ulanib ko'radi; tizimda o'quvchi "javob bermayapti" bo'lib ko'rinadi. |
 | `Printerga yuborilmadi (…): ECONNREFUSED` | Printer o'chiq, IP manzili o'zgargan yoki porti 9100 emas. Tizimda bu ish "Xato" bo'lib ko'rinadi va qayta yuboriladi. |

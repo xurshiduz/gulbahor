@@ -22,7 +22,6 @@ import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Controller, useForm, useWatch, type Path } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -39,6 +38,7 @@ import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { useHotkey } from '@/lib/hotkeys'
+import { toast } from '@/lib/toast'
 
 import {
   categoryAxisIds,

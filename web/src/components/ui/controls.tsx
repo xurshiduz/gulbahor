@@ -10,6 +10,7 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/cn'
 
+import { Shortcut } from './feedback'
 import { controlClass } from './input'
 import { usePageBarSlot } from './page'
 
@@ -212,6 +213,8 @@ export interface MenuItem {
   onSelect: () => void
   tone?: 'default' | 'danger'
   disabled?: boolean
+  /** The key that does the same, shown beside it. */
+  shortcut?: string
 }
 
 export function Menu({
@@ -231,6 +234,12 @@ export function Menu({
           align={align}
           sideOffset={4}
           className="z-50 min-w-44 rounded-lg border border-line bg-surface p-1 shadow-float data-[state=open]:animate-pop-in"
+          // A dialog opened from the menu has already put the cursor in its first field: the closing menu must not take it back.
+          onCloseAutoFocus={(event) => {
+            if (document.activeElement?.closest('[role="dialog"]')) {
+              event.preventDefault()
+            }
+          }}
         >
           {items.map((item, index) =>
             item === 'separator' ? (
@@ -239,7 +248,8 @@ export function Menu({
               <DropdownMenu.Item
                 key={index}
                 disabled={item.disabled}
-                onSelect={item.onSelect}
+                // The open menu holds the focus. What was chosen runs once it has let go, so a dialog it opens keeps the cursor in its field.
+                onSelect={() => window.setTimeout(item.onSelect)}
                 className={cn(
                   'flex h-8 items-center gap-2 rounded-md px-2 text-[13px] outline-none select-none data-highlighted:bg-sunken',
                   'data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:text-ink-3',
@@ -248,6 +258,7 @@ export function Menu({
               >
                 {item.icon}
                 {item.label}
+                {item.shortcut ? <Shortcut combo={item.shortcut} className="ml-auto pl-3" /> : null}
               </DropdownMenu.Item>
             ),
           )}

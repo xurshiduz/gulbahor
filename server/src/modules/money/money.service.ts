@@ -258,7 +258,8 @@ export class MoneyService {
       .createQueryBuilder(Account, 'a')
       .leftJoin(Location, 'l', 'l.id = a.locationId')
       .addSelect('l.name', 'location_name')
-      .where(`a.kind <> 'system'`)
+      // The ledger's own accounts and partners' accounts are not places money is kept.
+      .where(`a.kind NOT IN ('system', 'partner')`)
       .orderBy(`array_position(ARRAY['cash', 'safe', 'card', 'terminal', 'bank'], a.kind)`)
       .addOrderBy('l.name', 'ASC', 'NULLS FIRST')
       .addOrderBy('a.name')
@@ -287,7 +288,7 @@ export class MoneyService {
   /** A card, a terminal, a safe: one of the accounts a person keeps. A till's drawer is the till's. */
   private async findAccount(em: EntityManager, id: string): Promise<Account> {
     const account = await em.findOneBy(Account, { id })
-    if (!account || account.kind === 'system' || account.kind === 'cash') {
+    if (!account || account.kind === 'system' || account.kind === 'partner' || account.kind === 'cash') {
       throw AppError.notFound('Hisob topilmadi')
     }
     return account

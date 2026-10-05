@@ -7,6 +7,7 @@ import {
   type CurrencyCode,
   type PosContextDto,
   type PosItemDto,
+  type ReaderTagEvent,
   type ReturnDto,
   type SaleDto,
 } from '@gulbahor/core'
@@ -15,7 +16,6 @@ import { getRouteApi, Link } from '@tanstack/react-router'
 import { HandCoins, Lock, Receipt, ScanLine, Search, Store, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -30,8 +30,10 @@ import { useRegisters } from '@/features/money/money-page'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
-import { useHotkey } from '@/lib/hotkeys'
+import { useCovered, useHotkey } from '@/lib/hotkeys'
+import { useShopEvent } from '@/lib/realtime'
 import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
 import {
@@ -269,26 +271,62 @@ function Till({ context, registers, onSwitch }: TillProps) {
 
   const focusSearch = () => searchRef.current?.focus()
 
-  const add = (item: PosItemDto, qty = 1) => {
+  // Scans come faster than their answers. Each is added to the cart as it stands when the answer arrives,
+  // not as it stood when the code was sent: otherwise the second of two would undo the first.
+  const cartRef = useRef(cart)
+  cartRef.current = cart
+  const scanned = useRef(Promise.resolve())
+  /** Pieces the till's reader has reported and that are being looked up right now. */
+  const laid = useRef(new Set<string>())
+
+  const add = (item: PosItemDto, qty = 1): boolean => {
     if (item.price === null) {
       toast.error(t('pos.noPrice', { name: item.name }))
-      return
+      return false
     }
-    const next = addToCart(cart, item, qty)
+    const next = addToCart(cartRef.current, item, qty)
     if (!next.added) {
       toast.info(t('pos.alreadyInCart'))
-      return
+      return false
     }
+    cartRef.current = next.cart
     setCart(next.cart)
-    setText('')
-    focusSearch()
+    return true
   }
 
-  const lookup = (code: string, qty: number) => {
-    api
-      .get<PosItemDto>('/pos/lookup', { registerId, code })
-      .then((item) => add(item, qty))
-      .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
+  /** Something chosen from the list under the search field. */
+  const pick = (item: PosItemDto) => {
+    if (add(item, multiplier ?? 1)) {
+      setText('')
+      focusSearch()
+    }
+  }
+
+  /**
+   * A code, scanned or typed in full. The field is free for the next one at
+   * once; the answer comes later and touches neither the field nor the
+   * cursor, which by then may be in the middle of the next code or of a sum.
+   */
+  const lookup = (code: string, qty: number, typed = true): Promise<void> => {
+    if (typed) {
+      setText('')
+    }
+    const answer = api.get<PosItemDto>('/pos/lookup', { registerId, code }).then(
+      (item) => ({ item }),
+      (error: unknown) => ({ error }),
+    )
+    // Asked at once, added in the order they were scanned: the cart reads the way the goods were passed.
+    scanned.current = scanned.current.then(async () => {
+      const found = await answer
+      if ('item' in found) {
+        add(found.item, qty)
+      } else {
+        toast.error(found.error instanceof ApiError ? found.error.message : String(found.error), {
+          description: code,
+        })
+      }
+    })
+    return scanned.current
   }
 
   /** Asks for the cart's things again: a price or a count may have changed since they were put there. */
@@ -309,9 +347,25 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const refreshCart = () =>
     cart.lines.length ? refresh.mutate(cart.lines.map((line) => line.item.variantId)) : undefined
 
-  const idle = !closing && !viewing && !picking && !handing && !asking
+  // A window opened over the till (a partner's payment) takes the keys, the scanner and the reader.
+  const covered = useCovered()
+  const idle = !closing && !viewing && !picking && !handing && !asking && !covered
   // A scan lands in the cart wherever the cursor is; a count typed before it applies to it.
   useScanner((code) => lookup(code, multiplier ?? 1), { enabled: idle })
+  // A piece laid on this till's reader goes into the receipt as if it had been scanned. Nobody typed
+  // anything, so the search field is left alone. A reader says the same thing more than once: a piece
+  // already in the receipt, or on its way there, is not asked about again and nobody is told so.
+  useShopEvent<ReaderTagEvent>(
+    'reader.tag',
+    ({ registerId: till, epc }) => {
+      if (till !== registerId || laid.current.has(epc) || cartRef.current.lines.some((line) => line.item.epc === epc)) {
+        return
+      }
+      laid.current.add(epc)
+      void lookup(epc, 1, false).finally(() => laid.current.delete(epc))
+    },
+    idle,
+  )
 
   const handleSearchKey = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -321,7 +375,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     } else if (event.key === 'Enter' && !(event.ctrlKey || event.metaKey)) {
       event.preventDefault()
       if (results[highlight]) {
-        add(results[highlight], multiplier ?? 1)
+        pick(results[highlight])
       } else if (rest) {
         // Typed in full and nothing listed yet: take it as a code.
         lookup(rest, multiplier ?? 1)
@@ -652,7 +706,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       data-highlighted={index === highlight}
                       onMouseMove={() => setHighlight(index)}
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => add(item, multiplier ?? 1)}
+                      onClick={() => pick(item)}
                       className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
                     >
                       <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{item.sku}</span>
