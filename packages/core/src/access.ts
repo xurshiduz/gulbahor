@@ -241,6 +241,12 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'reports',
+    title: 'Hisobotlar',
+    // What goods cost, and so what was made on them, is seen with "Tannarxni ko'rish": a report shows no more than the stock does.
+    permissions: [{ key: 'reports.sales', title: 'Savdo hisobotlari va bosh sahifadagi kunlik savdo' }],
+  },
+  {
     key: 'users',
     title: 'Xodimlar',
     permissions: [
@@ -321,6 +327,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'promotions.*',
       'money.*',
       'partners.*',
+      'reports.*',
       'audit.view',
     ],
   },
@@ -346,6 +353,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'money.categories',
       'partners.view',
       'partners.debts',
+      'reports.*',
       'audit.view',
     ],
   },
@@ -370,6 +378,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'promotions.view',
       'money.collect',
       'money.ops',
+      'reports.sales',
       'devices.alarms',
     ],
   },

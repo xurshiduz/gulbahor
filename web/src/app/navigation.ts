@@ -2,6 +2,7 @@ import type { LinkProps } from '@tanstack/react-router'
 import {
   ArrowRightLeft,
   BadgePercent,
+  BarChart3,
   BookMarked,
   Boxes,
   Building2,
@@ -195,6 +196,12 @@ export const NAVIGATION: NavGroup[] = [
       { to: '/partners', label: 'nav.partners', icon: Handshake, permission: 'partners.view' },
       { to: '/payments', label: 'nav.payments', icon: HandCoins, permission: ['partners.pay', 'partners.debts'] },
     ],
+  },
+  {
+    key: 'reports',
+    label: 'nav.reports',
+    icon: BarChart3,
+    items: [{ to: '/reports/sales', label: 'nav.reportSales', icon: BarChart3, permission: 'reports.sales' }],
   },
   {
     key: 'manage',

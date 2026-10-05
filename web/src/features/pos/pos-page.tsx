@@ -901,15 +901,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
     enabled: idle && cart.lines.length > 0,
   })
   useHotkey('f4', () => setPicking({}), { label: t('pos.returnTitle'), group, enabled: idle && mayReturn })
-  useHotkey(
-    'alt+m',
-    () => {
-      backToCart()
-      // The field is there once the cart is back on the screen.
-      window.setTimeout(() => customerRef.current?.focus())
-    },
-    { label: t('pos.customer'), group, enabled: idle },
-  )
+  const toCustomer = () => {
+    backToCart()
+    // The field is there once the cart is back on the screen.
+    window.setTimeout(() => customerRef.current?.focus())
+  }
+  useHotkey('mod+m', toCustomer, { label: t('pos.customer'), group, enabled: idle })
+  // The key it had before: hands that learnt it still find it.
+  useHotkey('alt+m', toCustomer, { enabled: idle })
   useHotkey('f5', () => focusTender('cash'), { label: t('pos.payCash'), group, enabled: idle })
   useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
   useHotkey('f7', () => focusTender('card'), { label: t('pos.payCard'), group, enabled: idle })

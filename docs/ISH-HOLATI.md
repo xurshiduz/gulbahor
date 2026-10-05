@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b, 9, UI tuzatishlar, 5d va PIN kataklari ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 (PIN kataklari va menyu tugmasidan keyin) — core 163, agent 17, server 275, web 147; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-05 (10a dan keyin) — core 171, agent 17, server 283, web 159; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -62,7 +62,7 @@ Egasiga aytiladigan (ma'lumotga oid, kod emas):
 
 - 2026-10-05: PIN kod aynan 4 ta raqam, har raqamga alohida katak (`PinInput`): bloklangan ekranda 4-raqam terilishi bilan o'zi tekshiriladi, xato bo'lsa kataklar qizarib silkinadi (telefonda titraydi); kassadagi rahbar tasdig'i va profildagi "Yangi PIN" ham shu kataklarda. **Eski PIN 4 raqamdan uzun bo'lsa, endi terib bo'lmaydi** — parol bilan kirib, Profil → Xavfsizlikda yangisini o'rnatish kerak.
 - 2026-10-05: menyuni yig'ish-ochish tugmasi menyuning pastidan yuqori panelning chap boshiga ko'chirildi.
-- 2026-10-05: PIN kodni o'chirib qo'yish (Profil → Xavfsizlik, joriy parol bilan; `POST /auth/pin/remove`); parol maydonlarida "ko'z" tugmasi (`PasswordInput`: kirish, parolni almashtirish, PIN kartasi); profil menyusida "Ekranni bloklash" yonida Alt+L ko'rinadi (tugma avvaldan bor edi).
+- 2026-10-05: PIN kodni o'chirib qo'yish (Profil → Xavfsizlik, joriy parol bilan; `POST /auth/pin/remove`); parol maydonlarida "ko'z" tugmasi (`PasswordInput`: kirish, parolni almashtirish, PIN kartasi); ekranni bloklash — **Ctrl+L**, kassada mijoz maydoni — **Ctrl+M** (eski Alt+L va Alt+M ham ishlaydi). Qolgan Alt tugmalari o'zgarmadi: Ctrl+K qidiruvga, Ctrl+C va Ctrl+X nusxa olish va qirqishga, Ctrl+raqam brauzer tablariga band.
 
 ## Hali ekranda ko'rilmagan
 
@@ -74,6 +74,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 - Rasmli tovar haqiqiy bazada: ro'yxat va kassadagi kichik rasmlar, telefondan (kameradan) rasm qo'shish, sudrab tartiblash (8). Egasining bazasiga sinov rasmi qo'yilmadi.
 - Haqiqiy printerda etiketka: shablon o'zgartirilgandagi joylashuv (7b). Ekrandagi ko'rinish printer harflarini emas, joylashuvni ko'rsatadi.
 - PIN kataklari, bloklangan ekran (xato PIN: qizarish, silkinish, bo'shash; to'g'ri PIN: ochilish) va yuqori paneldagi menyu tugmasi vaqtinchalik sahifada, soxta sessiya bilan ko'rildi. Haqiqiy hisob bilan ko'rilmagan: kassadagi rahbar tasdig'i oynasi (4-raqamda o'zi yuboradi), telefonda titrash.
+- Savdo hisoboti va bosh sahifa (10a): haqiqiy qobiq ichida, soxta sessiya va soxta raqamlar bilan ko'rildi — ko'rsatkichlar, grafik (kun, soat, oy; ustunga ko'rsatilganda raqamlar), kesimlar, tovarlar jadvali, bo'sh davr, foydasiz ko'rinish. Haqiqiy bazada ko'rilmagan (egasining bazasida hali sotuv yo'q); Excel faylining o'zi ochib ko'rilmagan.
 - Chakana qarz (5d): kassadagi "Qarzga" qatori, mijoz yonidagi qarz yozuvi, "Mijozlar → Qarzlar" va "Qarz to'lovlari" ro'yxatlari vaqtinchalik sahifada, soxta ma'lumot bilan ko'rildi (1100 va 1280 kenglikda). Haqiqiy bazada ko'rilmagan: qarzga sotuvni oxirigacha yetkazish, "To'lov olish" oynasi (sessiyaga bog'liq, hamkor to'lovi oynasi bilan bir xil qatorlar), qarzli chekni qaytarish, "Sozlamalar → Biznes"dagi ikki yangi maydon, smena hisobotidagi "Mijozlar qarzidan to'landi".
 
 ## Navbat (KEYINGI-REJA, 14-bo'lim)
@@ -132,3 +133,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | --- | --- |
 | `e508a146dabbd64efa63ae164f6fa133037d949f` | 5d: chakana qarz (kassada "Qarzga", to'lov olish, Qarzlar va Qarz to'lovlari ro'yxati) + UI tuzatishlar (oyna surilishi, `soft` tugma, demo sahifa) |
 | `a9681de59d59c43412fd70e51a0ce544f0286114` | PIN 4 ta katak (bloklash ekrani, tasdiq, profil), menyu tugmasi yuqori panelda, 8c qilinmaydi |
+| `8b9d9a57111518124605318d43e6bd1c119bf083` | PIN'ni o'chirish, parol maydonida ko'z, Alt+L menyuda, hisobotlar rejasi |

@@ -181,7 +181,7 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
         className={cn(controlClass, 'pr-14 pl-8')}
       />
       <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
-        <Shortcut combo="alt+m" />
+        <Shortcut combo="mod+m" />
       </span>
       {open && text.trim().length >= 2 ? (
         <div className="absolute top-full right-0 left-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">

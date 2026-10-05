@@ -639,6 +639,16 @@ Bo'laklar:
 | 10f | **Xodimlar, mijozlar, aksiyalar** | Kassir va sotuvchilar (tushum, o'rtacha chek, chegirma, qaytarish, kurs farqi); yangi va qaytgan mijozlar, eng yaxshi mijozlar; aksiya samaradorligi; maxsus narxda sotilganlar. |
 | 10g | **Rahbar nazorati** | Telegram bot va bildirishnomalar sozlamasi (12-bo'lim) — bot kaliti kerak, foydalanuvchi bilan. |
 
+**Qilingan (2026-10-05), 10a — savdo hisoboti va bosh sahifa:**
+
+- Menyuda **"Hisobotlar"** bo'limi, ichida "Savdo". Tepada davr tugmalari (Bugun, Kecha, Hafta, Oy, O'tgan oy, Yil) va ikki sana (istalgan oraliq); bir nechta do'kon bo'lsa — do'kon tanlovi; Excel tugmasi (kunlar jadvali). Davr va do'kon manzilda turadi: sahifani saqlab qo'ysa, "shu oy" ertaga ham shu oy bo'lib ochiladi.
+- **Olti ko'rsatkich**, har birida o'tgan shunday davrga nisbatan o'sish yoki tushish (yashil yoki qizil): sof tushum, foyda (ustamasi bilan), cheklar soni, o'rtacha chek, chegirma (narxning necha foizi), qaytarish. Chegirma va qaytarish ko'paysa — qizil.
+- **Grafik**: bir kun tanlansa soatlar bo'yicha (biznes vaqt mintaqasida, 9:00–21:00 doim ko'rinadi), uch oygacha kunlar bo'yicha, undan uzog'i oylar bo'yicha. Ustunning och qismi — tushum, to'q qismi — foyda. Ustunga sichqoncha olib borilsa (telefonda bosilsa), o'sha kunning raqamlari grafik ustida chiqadi. Savdo bo'lmagan kun ham bo'sh ustun bo'lib turadi; qaytarish sotuvdan ko'p bo'lgan kun qizil chiziq bilan belgilanadi.
+- **Kesimlar**: do'konlar (ulushi, cheklar soni, foydasi), to'lov turlari (naqd so'm, naqd dollar, karta, terminal, qarzga — qaytim va qaytarilgan pul ayirilgan holda, ya'ni kassada qolgani), kassirlar, eng ko'p sotilgan 10 ta tovar (rasmi, soni, tushumi, foydasi) va kategoriyalar.
+- **Bosh sahifa**: bugungi savdo, foyda, cheklar va o'rtacha chek (kechagiga nisbatan), ostida so'nggi 14 kun grafigi va hisobotga o'tish. Har sotuv va qaytarishdan keyin raqamlar o'zi yangilanadi.
+- Ruxsat: "Hisobotlar → Savdo hisobotlari" — boshqaruvchi, hisobchi va do'kon menejerida standart yoqilgan. Do'kon menejeri faqat o'z do'konini ko'radi va foydani ko'rmaydi (unda "Tannarxni ko'rish" ruxsati yo'q).
+- Hali yo'q: hisobotni chop etish; do'konga maqsad (tarqet) qo'yish; ikki davrni yonma-yon solishtirish.
+
 ## 15. Savollar va javoblar
 
 1. **Humo bot xabarlari namunasi** — javob (2026-10-05): cargo tizimida tayyor, o'sha yerdan olinadi (`cargo-server/src/card-feed/card-message.parser.ts` va uning testlari). Xabar ko'rinishi: sarlavha ("To'ldirish", "To'lov", "Naqd pul yechish"), ➕ yoki ➖ bilan summa ("375.000,00 UZS"), kimdan yoki qayerga, karta ("HUMOCARD *3073" — oxirgi 4 raqam), vaqt, kartadagi qoldiq. Yo'nalish belgidan (➕/➖) aniqlanadi.

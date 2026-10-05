@@ -8,6 +8,7 @@ import {
   PARTNER_PAYMENT_KINDS,
   PARTNER_PAYMENT_STATUSES,
   PRINT_JOB_STATUSES,
+  REPORT_PERIODS,
   SALE_STATUSES,
   SEASONS,
   SHIFT_STATUSES,
@@ -29,6 +30,7 @@ import { MoneyPage } from '@/features/money/money-page'
 import { CustomersPage } from '@/features/customers/customers-page'
 import { PartnersPage } from '@/features/partners/partners-page'
 import { PromotionsPage } from '@/features/promotions/promotions-page'
+import { SalesReportPage } from '@/features/reports/sales-report-page'
 import { PaymentsPage } from '@/features/partners/payments'
 import { PosPage } from '@/features/pos/pos-page'
 import { SalesPage } from '@/features/pos/sales-page'
@@ -203,6 +205,20 @@ const customersRoute = createRoute({
   search: {
     middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active', tab: 'list', debtState: 'owed' })],
   },
+})
+
+// The days are a named stretch (it stays "this month" tomorrow) or two dates picked by hand.
+const salesReportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reports/sales',
+  component: SalesReportPage,
+  validateSearch: z.object({
+    period: z.enum(REPORT_PERIODS).default('today').catch('today'),
+    from: z.iso.date().optional().catch(undefined),
+    to: z.iso.date().optional().catch(undefined),
+    shop: z.string().optional().catch(undefined),
+  }),
+  search: { middlewares: [stripSearchParams({ period: 'today' })] },
 })
 
 const promotionsRoute = createRoute({
@@ -479,6 +495,7 @@ const routeTree = rootRoute.addChildren([
   partnersRoute,
   customersRoute,
   promotionsRoute,
+  salesReportRoute,
   paymentsRoute,
   locationsRoute,
   moneyRoute,

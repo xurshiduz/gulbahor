@@ -85,7 +85,10 @@ export function Shell() {
 
   useHotkey('mod+k', () => setPaletteOpen((open) => !open), { label: t('command.open'), group: t('shortcuts.groupGlobal') })
   useHotkey('f1', openHelp, { label: t('shortcuts.help'), group: t('shortcuts.groupGlobal'), everywhere: true })
-  useHotkey('alt+l', lock, { label: t('command.lock'), group: t('shortcuts.groupGlobal'), enabled: me.user.hasPin, everywhere: true })
+  // As Windows locks with Win+L. Ctrl is the key here: the browser's own use of it (the address bar) gives way inside the app.
+  useHotkey('mod+l', lock, { label: t('command.lock'), group: t('shortcuts.groupGlobal'), enabled: me.user.hasPin, everywhere: true })
+  // The key it had before: hands that learnt it still find it.
+  useHotkey('alt+l', lock, { enabled: me.user.hasPin, everywhere: true })
   // Not over a window that is already open: one thing is finished before the next is begun.
   const pay = (kind: 'in' | 'out') => (document.querySelector('[role="dialog"]') ? false : setPaying(kind))
   useHotkey('alt+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canPay })
@@ -237,7 +240,7 @@ export function Shell() {
               }
               items={[
                 { label: t('nav.profile'), icon: <UserRound />, onSelect: () => void navigate({ to: '/profile' }) },
-                ...(me.user.hasPin ? [{ label: t('command.lock'), icon: <Lock />, shortcut: 'alt+l', onSelect: lock }] : []),
+                ...(me.user.hasPin ? [{ label: t('command.lock'), icon: <Lock />, shortcut: 'mod+l', onSelect: lock }] : []),
                 'separator' as const,
                 { label: t('auth.signOut'), icon: <LogOut />, onSelect: () => void logout() },
               ]}

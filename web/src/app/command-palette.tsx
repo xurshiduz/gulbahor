@@ -79,7 +79,7 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay, o
         : []),
       { id: 'shortcuts', label: t('command.shortcuts'), group: t('command.actions'), icon: Keyboard, shortcut: 'f1', run: onShowShortcuts },
       ...(me.user.hasPin
-        ? [{ id: 'lock', label: t('command.lock'), group: t('command.actions'), icon: Lock, shortcut: 'alt+l', run: lock }]
+        ? [{ id: 'lock', label: t('command.lock'), group: t('command.actions'), icon: Lock, shortcut: 'mod+l', run: lock }]
         : []),
       { id: 'logout', label: t('command.logout'), group: t('command.actions'), icon: LogOut, run: () => void logout() },
     ]

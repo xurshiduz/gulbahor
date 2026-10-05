@@ -8,6 +8,7 @@ import { Badge, Skeleton } from '@/components/ui/feedback'
 import { Card, Page } from '@/components/ui/page'
 import { useAuditText } from '@/features/audit/audit-text'
 import { useSession } from '@/features/auth/session'
+import { SalesToday } from '@/features/reports/sales-today'
 import { api } from '@/lib/api'
 import { formatRecent } from '@/lib/format'
 
@@ -38,6 +39,8 @@ export function HomePage() {
   return (
     <Page title={t('home.greeting', { name: me.user.fullName.split(' ')[0] })} flow>
       <div className="flex flex-col gap-4">
+        {/* What the day has sold comes first, for whoever may read it. */}
+        {can('reports.sales') ? <SalesToday /> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {can('locations.view') ? <Stat to="/locations" icon={Building2} label={t('home.places')} value={locations.data?.total} /> : null}
           {can('users.view') ? <Stat to="/users" icon={Users} label={t('home.people')} value={users.data?.total} /> : null}
