@@ -29,6 +29,7 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Account,
+  Customer,
   Location,
   Organization,
   PriceType,
@@ -126,6 +127,12 @@ export class SalesService {
     const today = await this.ledger.today(em, actor.orgId)
     const usd = actor.modules.includes('usd')
     const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+
+    // ── Who is buying, when they are on the books. ──
+    const customer = input.customerId ? await em.findOneBy(Customer, { id: input.customerId, isActive: true }) : null
+    if (input.customerId && !customer) {
+      throw AppError.validation({ customerId: 'Mijoz topilmadi' })
+    }
 
     // ── The price type the cart is sold at, when it is not the retail one, and whether this person may. ──
     let priceType: PriceType | null = null
@@ -373,8 +380,10 @@ export class SalesService {
         approvedByName: vouched ? (approver?.name ?? null) : null,
         priceTypeId: priceType?.id ?? null,
         priceTypeName: priceType?.name ?? null,
+        customerId: customer?.id ?? null,
+        customerName: customer?.name ?? null,
         note: input.note ?? null,
-        searchKey: searchKey([number, actor.name, seller?.fullName ?? ''].join(' ')),
+        searchKey: searchKey([number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' ')),
       }),
     )
     const lines = await em.save(
@@ -763,5 +772,7 @@ function summary(sale: Sale, locationName: string, registerName: string, seesCos
     costUzs: seesCost ? sale.costUzs : null,
     returnedTotal: sale.returnedTotal,
     priceTypeName: sale.priceTypeName,
+    customerId: sale.customerId,
+    customerName: sale.customerName,
   }
 }

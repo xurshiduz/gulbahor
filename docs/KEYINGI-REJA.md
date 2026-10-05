@@ -198,6 +198,10 @@ Qoidalar:
 ## 5. Mijozlar
 
 1. **Mijozlar bazasi.** Telefon (shu bilan taniladi), ism, tug'ilgan kun, jins, ro'yxatdan o'tgan do'kon, xaridlar summasi, oxirgi xarid, qarzi. Ro'yxat ustida ko'rsatkichlar: jami, shu hafta qo'shilgani, qaytmay qo'yganlar, yaqin kunlarda tug'ilgan kuni borlar. Billz'dagi mijozlar Excel orqali ko'chiriladi.
+   - Qilingan (2026-10-05): **"Mijozlar" sahifasi** (menyuda alohida bo'lim). Mijoz telefon raqami bilan taniladi — bitta biznesda bitta raqam bitta mijoz. Maydonlar: telefon, ism, tug'ilgan kun, jins, izoh; qaysi do'konda qo'shilgani o'zi yoziladi. Ro'yxatda xaridlar summasi (qaytarilgani ayirilgan), cheklar soni, oxirgi xarid — cheklardan hisoblanadi, qo'lda yozilmaydi. Ustida to'rt ko'rsatkich: jami, shu hafta qo'shilgani, qaytmay qo'yganlar (90 kun), 7 kun ichida tug'ilgan kuni borlar (bosilsa ro'yxat shularga torayadi). Qidiruv ism yoki raqamning bir qismi bilan; Excel'ga chiqarish; arxivlash.
+   - **Kassada**: summa ustida "Mijoz" maydoni (**Alt+M**): telefonning bir necha raqami yoki ism yoziladi, topilgani Enter bilan tanlanadi. Topilmasa — "Yangi mijoz qo'shish": yozilgan raqam tayyor turadi, faqat ism so'raladi. Chekda mijoz yoziladi ("Mijoz: …"), cheklar mijoz nomi bilan ham qidiriladi. Chek tugagach mijoz keyingi chekka o'tmaydi.
+   - Ruxsatlar: "Mijozlar bazasini ko'rish" va "Qo'shish, tahrirlash va arxivlash" — do'kon menejeri va boshqaruvchida; hisobchi ko'radi. Kassir bazani ko'rmaydi, lekin kassada mijozni topadi va qo'shadi.
+   - Hali yo'q: Billz'dan Excel orqali ko'chirish, mijoz kartasida cheklar tarixi, qarz.
 2. **Guruh va teglar.** Mijoz bir nechta guruh va tegda bo'ladi. Guruhga: chegirma foizi, biriktirilgan narx turi (masalan "Oila").
 3. **Kassadagi eslatma — Billz'dan yaxshiroq.** Guruhda ikki narsa bo'ladi:
    - **Eslatma matni** — mijoz tanlanganda kassada sariq yozuv bo'lib chiqadi ("Chek berish kerak").

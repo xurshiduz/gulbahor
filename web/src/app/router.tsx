@@ -25,6 +25,7 @@ import { GatePage } from '@/features/devices/readers'
 import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
 import { MoneyPage } from '@/features/money/money-page'
+import { CustomersPage } from '@/features/customers/customers-page'
 import { PartnersPage } from '@/features/partners/partners-page'
 import { PaymentsPage } from '@/features/partners/payments'
 import { PosPage } from '@/features/pos/pos-page'
@@ -183,6 +184,18 @@ const countsRoute = createRoute({
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
 })
 const countRoute = createRoute({ getParentRoute: () => rootRoute, path: '/counts/$docId', component: CountPage })
+
+const customersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/customers',
+  component: CustomersPage,
+  validateSearch: z.object({
+    ...listSearch,
+    status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
+    birthdayIn: z.number().int().min(0).max(366).optional().catch(undefined),
+  }),
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
+})
 
 const partnersSearch = z.object({
   ...listSearch,
@@ -440,6 +453,7 @@ const routeTree = rootRoute.addChildren([
   countRoute,
   labelsRoute,
   partnersRoute,
+  customersRoute,
   paymentsRoute,
   locationsRoute,
   moneyRoute,

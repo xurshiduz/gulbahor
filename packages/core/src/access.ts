@@ -212,6 +212,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'customers',
+    title: 'Mijozlar',
+    permissions: [
+      { key: 'customers.view', title: "Mijozlar bazasini ko'rish" },
+      { key: 'customers.manage', title: "Qo'shish, tahrirlash va arxivlash" },
+    ],
+  },
+  {
     key: 'partners',
     title: 'Yetkazib beruvchilar va hamkorlar',
     permissions: [
@@ -299,6 +307,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'devices.*',
       'pos.*',
       'sales.*',
+      'customers.*',
       'money.*',
       'partners.*',
       'audit.view',
@@ -317,6 +326,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'writeoffs.view',
       'counts.view',
       'sales.*',
+      'customers.view',
       'money.view',
       'money.rates',
       'money.ops',
@@ -343,6 +353,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'labels.print',
       'pos.*',
       'sales.*',
+      'customers.*',
       'money.collect',
       'money.ops',
       'devices.alarms',

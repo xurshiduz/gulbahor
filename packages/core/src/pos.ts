@@ -469,6 +469,8 @@ export const saleInputSchema = z
     registerId: idSchema,
     /** Who served the customer, when it was not the cashier. */
     sellerId: idSchema.nullish().transform((value) => value ?? null),
+    /** Who is buying, when they are on the books. */
+    customerId: idSchema.nullish().transform((value) => value ?? null),
     /** The price type the whole sale is made at, when it is not the retail one: wholesale, a family price. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     lines: z.array(saleLineInputSchema).min(1, "Chekda kamida bitta tovar bo'lishi kerak").max(300),
@@ -525,6 +527,9 @@ export interface SaleListItemDto {
   returnedTotal: number
   /** The price type it was sold at, when that was not the retail one: "Oila". */
   priceTypeName: string | null
+  /** Who bought, when they were on the books. */
+  customerId: string | null
+  customerName: string | null
 }
 
 export interface SaleLineDto {
@@ -660,6 +665,8 @@ export type ReturnLineInput = z.infer<typeof returnLineInputSchema>
 export const exchangeInputSchema = z
   .object({
     sellerId: idSchema.nullish().transform((value) => value ?? null),
+    /** Who is taking them, when they are on the books: the one who brought the others back, as a rule. */
+    customerId: idSchema.nullish().transform((value) => value ?? null),
     /** The price type the goods are taken at, when it is not the retail one. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     lines: z.array(saleLineInputSchema).min(1).max(300),

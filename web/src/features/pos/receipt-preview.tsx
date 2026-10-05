@@ -19,6 +19,8 @@ interface ReceiptPreviewProps {
   backNumber: string | null
   /** The price type the goods are sold at, when it is not the retail one. */
   priceType: string | null
+  /** Who is buying, when they are on the books. */
+  customer: string | null
   /** What the goods coming back are worth. */
   credit: number
   /** What is left to take from the customer, or to hand back to them. */
@@ -40,6 +42,7 @@ export function ReceiptPreview({
   back,
   backNumber,
   priceType,
+  customer,
   credit,
   toPay,
   toRefund,
@@ -139,6 +142,11 @@ export function ReceiptPreview({
           />
         </div>
 
+        {customer ? (
+          <p className="text-xs text-ink-3">
+            {t('pos.customer')}: {customer}
+          </p>
+        ) : null}
         {seller ? (
           <p className="text-xs text-ink-3">
             {t('pos.seller')}: {seller}

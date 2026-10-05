@@ -1,5 +1,7 @@
 import {
   idSchema,
+  posCustomerInputSchema,
+  posCustomerSearchSchema,
   posItemsSchema,
   posLookupSchema,
   posSearchSchema,
@@ -9,6 +11,8 @@ import {
   saleInputSchema,
   saleListQuerySchema,
   saleVoidSchema,
+  type CustomerBrief,
+  type CustomerInput,
   type Page,
   type PosContextDto,
   type PosItemDto,
@@ -28,6 +32,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/com
 import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, can, CurrentActor } from '../auth/actor'
+import { CustomersService } from '../customers/customers.service'
 import { PosService } from './pos.service'
 import { ReturnsService } from './returns.service'
 import { SalesService } from './sales.service'
@@ -38,7 +43,10 @@ const id = () => Param('id', zod(idSchema))
 @Controller('pos')
 @Can('pos.sell')
 export class PosController {
-  constructor(private readonly pos: PosService) {}
+  constructor(
+    private readonly pos: PosService,
+    private readonly customers: CustomersService,
+  ) {}
 
   @Get('context/:id')
   context(@CurrentActor() actor: Actor, @id() registerId: string): Promise<PosContextDto> {
@@ -59,6 +67,27 @@ export class PosController {
     @Query(zod(posLookupSchema)) query: { registerId: string; code: string; priceTypeId: string | null },
   ): Promise<PosItemDto> {
     return this.pos.lookup(actor, query.registerId, query.code, query.priceTypeId)
+  }
+
+  /** Who is at the counter: found by a few digits of their phone, or a few letters of their name. */
+  @Get('customers')
+  findCustomers(
+    @CurrentActor() actor: Actor,
+    @Query(zod(posCustomerSearchSchema)) query: { q: string },
+  ): Promise<CustomerBrief[]> {
+    return this.customers.search(actor, query.q)
+  }
+
+  /** A customer who is not on the books yet is written down where they stand, by whoever is serving them. */
+  @Post('customers')
+  async addCustomer(
+    @CurrentActor() actor: Actor,
+    @Body(zod(posCustomerInputSchema)) input: { registerId: string } & CustomerInput,
+  ): Promise<CustomerBrief> {
+    const { registerId, ...customer } = input
+    const { locationId } = await this.pos.registerOf(actor, registerId)
+    const saved = await this.customers.create(actor, customer, locationId)
+    return { id: saved.id, name: saved.name, phone: saved.phone }
   }
 
   @Post('items')

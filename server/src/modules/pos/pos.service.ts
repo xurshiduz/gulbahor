@@ -174,6 +174,11 @@ export class PosService {
     return (await this.ledger.rate(em, await this.ledger.today(em, actor.orgId)))?.uzsPerUsd ?? null
   }
 
+  /** The till a person is working at, when they may work there. */
+  async registerOf(actor: Actor, id: string): Promise<Register> {
+    return this.db.tenant(actor.orgId, async ({ em }) => this.register(em, actor, id))
+  }
+
   private async register(em: EntityManager, actor: Actor, id: string): Promise<Register> {
     const register = await em.findOneBy(Register, { id })
     if (!register || !register.isActive || !mayWorkAt(actor, register.locationId)) {

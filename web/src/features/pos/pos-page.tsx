@@ -65,6 +65,7 @@ import { ReturnDialog, ReturnPicker } from './return-parts'
 import { ReceiptPreview } from './receipt-preview'
 import { SaleDialog } from './sale-dialog'
 import { kindOf, TenderPanel, type TenderKind } from './tender-panel'
+import { CustomerPicker, type CustomerPickerHandle } from './customer-picker'
 import { CloseShiftDialog, OpenShift } from './shift-parts'
 
 const route = getRouteApi('/pos')
@@ -223,6 +224,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const navigate = route.useNavigate()
   const registerId = context.register.id
   const searchRef = useRef<HTMLInputElement>(null)
+  const customerRef = useRef<CustomerPickerHandle>(null)
   const agreedRef = useRef<HTMLInputElement>(null)
   // One sale, one key: sent twice, it is still made once.
   const clientKey = useRef(uuid())
@@ -719,6 +721,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     }
     const goods = {
       sellerId: cart.sellerId,
+      customerId: cart.customer?.id ?? null,
       priceTypeId,
       lines: cart.lines.map((line, index) => ({
         variantId: line.item.variantId,
@@ -761,6 +764,15 @@ function Till({ context, registers, onSwitch }: TillProps) {
     enabled: idle && cart.lines.length > 0,
   })
   useHotkey('f4', () => setPicking({}), { label: t('pos.returnTitle'), group, enabled: idle && mayReturn })
+  useHotkey(
+    'alt+m',
+    () => {
+      backToCart()
+      // The field is there once the cart is back on the screen.
+      window.setTimeout(() => customerRef.current?.focus())
+    },
+    { label: t('pos.customer'), group, enabled: idle },
+  )
   useHotkey('f5', () => focusTender('cash'), { label: t('pos.payCash'), group, enabled: idle })
   useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
   useHotkey('f7', () => focusTender('card'), { label: t('pos.payCard'), group, enabled: idle })
@@ -803,6 +815,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             back={back}
             backNumber={returning?.found.sale.number ?? null}
             priceType={priceType?.name ?? null}
+            customer={cart.customer?.name ?? null}
             credit={credit}
             toPay={toPay}
             toRefund={toRefund}
@@ -1064,6 +1077,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
             />
           ) : (
             <>
+              <CustomerPicker
+                ref={customerRef}
+                registerId={registerId}
+                value={cart.customer ?? null}
+                onChange={(customer) => {
+                  setCart((current) => ({ ...current, customer }))
+                  // Found, the cursor goes back to the goods.
+                  window.setTimeout(focusSearch)
+                }}
+              />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
                 {context.priceTypes.length ? (
                   <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">

@@ -3,6 +3,7 @@ import type {
   AnyCurrency,
   AttributeKind,
   CurrencyCode,
+  CustomerGender,
   ExpenseBasis,
   Gender,
   LabelSizeKey,
@@ -633,6 +634,47 @@ export class Partner {
 
   @Column('text', { nullable: true })
   note: string | null
+
+  @Column('boolean')
+  isActive: boolean
+
+  @Column('text')
+  searchKey: string
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+@Entity('customers')
+export class Customer {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  /** In full, with the country code: what they are known by. */
+  @Column('text')
+  phone: string
+
+  @Column('date', { nullable: true })
+  birthday: string | null
+
+  @Column('text', { nullable: true })
+  gender: CustomerGender | null
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  /** The shop where they were first written down. */
+  @Column('uuid', { nullable: true })
+  locationId: string | null
 
   @Column('boolean')
   isActive: boolean
@@ -1794,6 +1836,13 @@ export class Sale {
   @Column('text', { nullable: true })
   priceTypeName: string | null
 
+  /** Who bought, when they were on the books, and what they were called then. */
+  @Column('uuid', { nullable: true })
+  customerId: string | null
+
+  @Column('text', { nullable: true })
+  customerName: string | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
@@ -2454,4 +2503,5 @@ export const ENTITIES = [
   MoneyCategory,
   MoneyOp,
   MoneyOpLine,
+  Customer,
 ]

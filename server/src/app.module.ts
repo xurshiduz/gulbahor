@@ -12,6 +12,7 @@ import { LabelsModule } from './modules/labels/labels.module'
 import { LocationsModule } from './modules/locations/locations.module'
 import { MoneyModule } from './modules/money/money.module'
 import { OrgsModule } from './modules/orgs/orgs.module'
+import { CustomersModule } from './modules/customers/customers.module'
 import { PartnersModule } from './modules/partners/partners.module'
 import { PosModule } from './modules/pos/pos.module'
 import { PricingModule } from './modules/pricing/pricing.module'
@@ -42,6 +43,7 @@ import { UsersModule } from './modules/users/users.module'
     UsersModule,
     CatalogModule,
     PartnersModule,
+    CustomersModule,
     StockModule,
     ReceiptsModule,
     StockDocsModule,

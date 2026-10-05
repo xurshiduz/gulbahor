@@ -30,6 +30,7 @@ import {
   Tags,
   Truck,
   Users,
+  UsersRound,
   Wallet,
   Warehouse,
   type LucideIcon,
@@ -103,6 +104,12 @@ export const NAVIGATION: NavGroup[] = [
       { to: '/counts', label: 'nav.counts', icon: ClipboardCheck, permission: 'counts.view' },
       { to: '/writeoffs', label: 'nav.writeoffs', icon: PackageMinus, permission: 'writeoffs.view' },
     ],
+  },
+  {
+    key: 'customers',
+    label: 'nav.customers',
+    icon: UsersRound,
+    items: [{ to: '/customers', label: 'nav.customers', icon: UsersRound, permission: 'customers.view' }],
   },
   {
     key: 'money',

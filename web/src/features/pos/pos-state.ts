@@ -9,6 +9,7 @@ import {
   roundToStep,
   saleTotals,
   type CurrencyCode,
+  type CustomerBrief,
   type PosContextDto,
   type PosItemDto,
   type ReturnableDto,
@@ -48,6 +49,8 @@ export interface Cart {
   sellerId: string | null
   /** The price type the cart is sold at, when it is not the retail one; absent in a cart kept from before. */
   priceTypeId?: string | null
+  /** Who is buying, when they are on the books. */
+  customer?: CustomerBrief | null
 }
 
 export const EMPTY_CART: Cart = { lines: [], discountText: '', sellerId: null }
