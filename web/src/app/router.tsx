@@ -430,7 +430,7 @@ const settingsRoute = createRoute({
   path: '/settings',
   component: SettingsPage,
   validateSearch: z.object({
-    tab: z.enum(['business', 'receipt', 'modules']).default('business').catch('business'),
+    tab: z.enum(['business', 'receipt', 'label', 'modules']).default('business').catch('business'),
   }),
   search: { middlewares: [stripSearchParams({ tab: 'business' })] },
 })

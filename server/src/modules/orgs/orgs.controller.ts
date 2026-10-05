@@ -1,8 +1,10 @@
 import {
+  labelTemplateSchema,
   modulesSchema,
   orgUpdateSchema,
   receiptTemplateSchema,
   setupSchema,
+  type LabelTemplate,
   type ModulesInput,
   type OrgDto,
   type OrgUpdateInput,
@@ -35,6 +37,13 @@ export class OrgsController {
   @Can('settings.manage')
   setReceipt(@CurrentActor() actor: Actor, @Body(zod(receiptTemplateSchema)) input: ReceiptTemplate): Promise<OrgDto> {
     return this.orgs.setReceipt(actor, input)
+  }
+
+  /** What goes on the labels. */
+  @Put('label')
+  @Can('settings.manage')
+  setLabel(@CurrentActor() actor: Actor, @Body(zod(labelTemplateSchema)) input: LabelTemplate): Promise<OrgDto> {
+    return this.orgs.setLabel(actor, input)
   }
 
   @Put('modules')

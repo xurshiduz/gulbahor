@@ -144,6 +144,44 @@ describe('Labels', () => {
       const result = await print({ items: [{ variantId: shirt, count: 1 }], withPrice: false }).expect(200)
       expect(result.body.file.zpl).not.toContain("so'm")
     })
+
+    it('is laid out the way the business set its labels', async () => {
+      const usual: string = (await print({ items: [{ variantId: shirt, count: 1 }] }).expect(200)).body.file.zpl
+      expect(usual).toContain('^A0N,24,24^FB368,2,0,L,0^FDFutbolka^FS')
+      const org = (
+        await alpha
+          .put('/api/org/label')
+          .send({ nameLines: 1, showSku: false, showTag: false, text: 'large' })
+          .expect(200)
+      ).body
+      // What was not sent is as every business starts with it.
+      expect(org.settings.label).toEqual({
+        showName: true,
+        nameLines: 1,
+        showDetails: true,
+        showBarcode: true,
+        showSku: false,
+        showTag: false,
+        text: 'large',
+        bigPrice: false,
+      })
+      const set: string = (await print({ items: [{ variantId: shirt, count: 1 }] }).expect(200)).body.file.zpl
+      expect(set).toContain('^A0N,29,29^FB368,1,0,L,0^FDFutbolka^FS')
+      expect(set).toContain("^A0N,36,36^FD95 000 so'm^FS")
+      // Nothing in the corner: the article was the only thing set to the right.
+      expect(usual).toContain(',R,0^FD')
+      expect(set).not.toContain(',R,0^FD')
+
+      // A label with nothing to know the goods by is no label.
+      const refused = await alpha.put('/api/org/label').send({ showName: false, showBarcode: false, showSku: false })
+      expect(refused.status).toBe(400)
+      // Back as it was, for what follows.
+      expect((await alpha.put('/api/org/label').send({}).expect(200)).body.settings.label).toMatchObject({
+        nameLines: 2,
+        showSku: true,
+        text: 'normal',
+      })
+    })
   })
 
   describe('a tagged label', () => {

@@ -420,6 +420,8 @@ describe('Till', () => {
       // What was not sent is as the starting template has it.
       expect(org.settings.receipt).toEqual({
         width: 58,
+        logo: null,
+        logoWidth: 50,
         title: 'Alpha Style',
         showShop: true,
         showAddress: true,
@@ -431,7 +433,24 @@ describe('Till', () => {
         showSavings: true,
         footer: 'Rahmat!\n14 kun ichida qaytariladi',
         socials: null,
+        showBarcode: true,
       })
+      // A logo is the picture itself, kept with the template; the history says only that there is one.
+      const logo = `data:image/png;base64,${'iVBORw0KGgo'.repeat(200)}=`
+      const pictured = (
+        await alpha
+          .put('/api/org/receipt')
+          .send({ ...org.settings.receipt, logo })
+          .expect(200)
+      ).body
+      expect(pictured.settings.receipt).toMatchObject({ logo, width: 58, title: 'Alpha Style' })
+      const [entry] = (await alpha.get('/api/audit').query({ action: 'org.receipt' }).expect(200)).body.items
+      expect(entry.changes.logo).toEqual([null, 'rasm, 3 KB'])
+      expect((await alpha.put('/api/org/receipt').send({ logo: 'https://example.com/logo.png' })).status).toBe(400)
+      await alpha
+        .put('/api/org/receipt')
+        .send({ ...org.settings.receipt, logo: null })
+        .expect(200)
       // The other settings are left as they were.
       expect(org.settings).toMatchObject({ maxDiscountPercent: 10, changeRoundStep: som(1000) })
       expect((await alpha.put('/api/org/receipt').send({ width: 70 })).status).toBe(400)

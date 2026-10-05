@@ -1,4 +1,12 @@
-import { formatMoney, PAYMENT_METHOD_LABELS, receiptColumnMm, type ReceiptTemplate, type SaleDto } from '@gulbahor/core'
+import {
+  barRuns,
+  code128,
+  formatMoney,
+  PAYMENT_METHOD_LABELS,
+  receiptColumnMm,
+  type ReceiptTemplate,
+  type SaleDto,
+} from '@gulbahor/core'
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +45,9 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
       className="bg-white font-sans text-[11px] leading-snug text-black"
     >
       <div className="text-center">
+        {template.logo ? (
+          <img src={template.logo} alt="" style={{ width: `${template.logoWidth}%` }} className="mx-auto mb-1 block" />
+        ) : null}
         <p className="text-[13px] font-semibold">{template.title || orgName}</p>
         {template.showShop ? <p>{sale.locationName}</p> : null}
         {template.showAddress && sale.locationAddress ? <p>{sale.locationAddress}</p> : null}
@@ -128,9 +139,37 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
           ))}
         </div>
       ) : null}
+
+      {template.showBarcode ? <NumberBars number={sale.number} /> : null}
     </div>
   )
 })
+
+/** A bar two dots wide on the printers shops use: thin enough for narrow paper, wide enough to be read. */
+const MODULE_MM = 0.25
+
+/** The receipt's number as a barcode: scanned at the till, it brings the receipt up to be returned. */
+function NumberBars({ number }: { number: string }) {
+  const modules = code128(number)
+  if (!modules) {
+    return null
+  }
+  return (
+    <svg
+      data-receipt-barcode
+      viewBox={`0 0 ${modules.length} 1`}
+      preserveAspectRatio="none"
+      shapeRendering="crispEdges"
+      style={{ width: `${modules.length * MODULE_MM}mm`, height: '9mm' }}
+      className="mx-auto mt-2 block"
+      fill="black"
+    >
+      {barRuns(modules).map((bar) => (
+        <rect key={bar.at} x={bar.at} y={0} width={bar.width} height={1} />
+      ))}
+    </svg>
+  )
+}
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (

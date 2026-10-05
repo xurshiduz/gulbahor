@@ -1,10 +1,12 @@
 import {
+  DEFAULT_LABEL_TEMPLATE,
   DEFAULT_RECEIPT_TEMPLATE,
   LOCATION_KIND_LABELS,
   MODULES,
   ROLE_TEMPLATES,
   OWNER_ROLE_KEY,
   searchKey,
+  type LabelTemplate,
   type ModulesInput,
   type OrgDto,
   type OrgUpdateInput,
@@ -26,6 +28,12 @@ import { LocationsService } from '../locations/locations.service'
 import { createMoneyCategories } from '../money/ops.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { toOrgDto } from './org.mapper'
+
+/** A picture has no place in the history: that there is one, and how large, is enough to tell a change by. */
+const pictured = (template: ReceiptTemplate) => ({
+  ...template,
+  logo: template.logo ? `rasm, ${Math.ceil(template.logo.length / 1024)} KB` : null,
+})
 
 /** Only what was sent: a setting left out of a request stays as it is. */
 const given = <T extends object>(values: T): Partial<T> =>
@@ -93,9 +101,30 @@ export class OrgsService {
         entityId: actor.orgId,
         summary: 'Chek shabloni',
         changes: diff(
+          pictured(was) as unknown as Record<string, unknown>,
+          pictured(input) as unknown as Record<string, unknown>,
+          Object.keys(DEFAULT_RECEIPT_TEMPLATE),
+        ),
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
+      return toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId }))
+    })
+  }
+
+  async setLabel(actor: Actor, input: LabelTemplate): Promise<OrgDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const before = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      await em.update(Organization, actor.orgId, { settings: { ...before.settings, label: input } })
+      const was = { ...DEFAULT_LABEL_TEMPLATE, ...before.settings.label }
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'org.label',
+        entity: 'org',
+        entityId: actor.orgId,
+        summary: 'Etiketka shabloni',
+        changes: diff(
           was as unknown as Record<string, unknown>,
           input as unknown as Record<string, unknown>,
-          Object.keys(DEFAULT_RECEIPT_TEMPLATE),
+          Object.keys(DEFAULT_LABEL_TEMPLATE),
         ),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['me']))

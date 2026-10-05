@@ -1,5 +1,6 @@
 import {
   buildLabelZpl,
+  DEFAULT_LABEL_TEMPLATE,
   formatMoney,
   variantLabel,
   type CurrencyCode,
@@ -13,7 +14,7 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Receipt } from '../../database/entities'
+import { Organization, Receipt } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -121,7 +122,10 @@ export class LabelsService {
       }
 
       const format = { size: input.size, dpi: printer?.dpi ?? input.dpi }
-      const zpl = labels.map((label) => buildLabelZpl(label, format)).join('\n')
+      // Laid out the way the business set its labels.
+      const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      const template = { ...DEFAULT_LABEL_TEMPLATE, ...org.settings.label }
+      const zpl = labels.map((label) => buildLabelZpl(label, format, template)).join('\n')
       const what = `${count} ta ${input.rfid ? 'RFID ' : ''}etiketka`
       const title = receipt ? `${receipt.number}: ${what}` : what
 

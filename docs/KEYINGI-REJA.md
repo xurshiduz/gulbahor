@@ -413,6 +413,13 @@ Qilingan (2026-10-05), chek shabloni: **"Sozlamalar → Chek"**. Chapda chek qog
 Hali yo'q: logotip (fayl saqlash bilan birga, rasmlar bo'lagida), chek shtrix-kodi, har kassaga o'z shabloni, yuk xati, etiketka dizayni.
 - **Etiketka shabloni**: o'lchami, qaysi maydonlar (nom, o'lcham, rang, narx, artikul, kod, shtrix-kod), narxli yoki narxsiz, shrift kattaligi. Jonli ko'rinish bilan. Hozirgi ikki tayyor shablon standart bo'lib qoladi.
 
+Qilingan (2026-10-05), etiketka shabloni va chekning qolgani:
+- **"Sozlamalar → Etiketka"**. Chapda etiketka printerda qanday chiqishi ko'rinadi (printerga yuboriladigan joylashuvning o'zidan chiziladi), o'ngda: tovar nomi (bir qator yoki ikki qator), rang va o'lcham, shtrix-kod, artikul, RFID kodining oxiri, yozuv kattaligi (mayda / o'rta / yirik), "narx yirik". Olib tashlangan qatorning joyi shtrix-kodga beriladi. Hech narsa o'zgartirilmasa, etiketka avvalgidek chiqadi. Etiketka o'lchami (printerdagi rulon) va narxli-narxsiz chiqishi avvalgidek chop etish oynasida tanlanadi; sozlamalarda ular faqat ko'rish uchun almashtiriladi.
+- Tor etiketkada narx bilan artikul bir-birining ustiga chiqib ketardi (40 mm) — endi sig'masa artikul narxning tepasiga o'tadi.
+- **Chekda logotip**: "Sozlamalar → Chek"da rasm tanlanadi (PNG, JPG), o'zi 384 nuqta kenglikka kichraytiriladi va shablon bilan birga saqlanadi; kengligi qog'ozning 30 / 50 / 70 / 100 foizi.
+- **Chekda shtrix-kod**: chek raqami (Code 128) chekning pastida. Kassada shu shtrix-kod skanerlansa (yoki raqam qidiruvga yozilsa), o'sha chekning qaytarish oynasi ochiladi. O'chirib qo'yish mumkin.
+Hali yo'q: har kassaga o'z shabloni, yuk xati; etiketkada do'kon nomi yoki logotip; haqiqiy printerda sinov.
+
 ---
 
 ## 11. Menyu

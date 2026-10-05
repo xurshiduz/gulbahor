@@ -2,6 +2,7 @@ import {
   formatMoney,
   overDiscountLimit,
   overRateLoss,
+  saleNumberOf,
   settle,
   settleRefund,
   toBase,
@@ -419,8 +420,17 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // A window opened over the till (a partner's payment) takes the keys, the scanner and the reader.
   const covered = useCovered()
   const idle = !closing && !viewing && !picking && !handing && !asking && !covered
+  /** A receipt's own barcode is no goods: it brings that receipt up, to take things back against it. */
+  const receiptScanned = (code: string): boolean => {
+    const number = mayReturn ? saleNumberOf(code) : null
+    if (number) {
+      setText('')
+      setPicking({ code: number })
+    }
+    return !!number
+  }
   // A scan lands in the cart wherever the cursor is; a count typed before it applies to it.
-  useScanner((code) => lookup(code, multiplier ?? 1), { enabled: idle })
+  useScanner((code) => (receiptScanned(code) ? undefined : lookup(code, multiplier ?? 1)), { enabled: idle })
   // A piece laid on this till's reader goes into the receipt as if it had been scanned. Nobody typed
   // anything, so the search field is left alone. A reader says the same thing more than once: a piece
   // already in the receipt, or on its way there, is not asked about again and nobody is told so.
@@ -443,7 +453,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
       setHighlight((current) => (results.length ? (current + delta + results.length) % results.length : 0))
     } else if (event.key === 'Enter' && !(event.ctrlKey || event.metaKey)) {
       event.preventDefault()
-      if (results[highlight]) {
+      if (rest && receiptScanned(rest)) {
+        // A receipt's number is that receipt, whatever goods happen to have its digits in them.
+      } else if (results[highlight]) {
         pick(results[highlight])
       } else if (rest) {
         // Typed in full and nothing listed yet: take it as a code.

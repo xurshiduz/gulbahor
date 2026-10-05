@@ -66,4 +66,25 @@ describe('a receipt on paper', () => {
     // The sums are never a matter of design.
     expect(bare.text).toContain("Jami983 000 so'm")
   })
+
+  it('carries its number as a barcode, and the logo the business gave it', () => {
+    const paper = (template: Partial<ReceiptTemplate> = {}) =>
+      render(<ReceiptPaper sale={sale} template={{ ...DEFAULT_RECEIPT_TEMPLATE, ...template }} orgName="Gulbahor" />)
+        .container
+
+    const usual = paper()
+    const bars = usual.querySelector('[data-receipt-barcode]') as SVGElement
+    // "CH-000128": nine characters, eleven modules each and thirty-five around them, a quarter of a millimetre a module.
+    expect(bars.getAttribute('viewBox')).toBe('0 0 134 1')
+    expect(bars.style.width).toBe('33.5mm')
+    expect(bars.querySelectorAll('rect').length).toBeGreaterThan(30)
+    expect(usual.querySelector('img')).toBeNull()
+
+    expect(paper({ showBarcode: false }).querySelector('[data-receipt-barcode]')).toBeNull()
+
+    const logo = 'data:image/png;base64,iVBORw0KGgo='
+    const image = paper({ logo, logoWidth: 70 }).querySelector('img') as HTMLImageElement
+    expect(image.getAttribute('src')).toBe(logo)
+    expect(image.style.width).toBe('70%')
+  })
 })

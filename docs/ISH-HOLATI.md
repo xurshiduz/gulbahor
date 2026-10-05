@@ -14,9 +14,9 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 ## Commit holati
 
-2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
+2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 (ekran ko'rigidan keyin) — core 126, agent 17, server 248, web 122; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-05 (7b dan keyin) — core 143, agent 17, server 249, web 126; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -30,6 +30,7 @@ Brauzerda, egasining hisobi bilan, haqiqiy ma'lumotda ko'rildi (hech narsa saqla
 - Ma'lumotnomalar → Narx turlari va formasidagi "Kassada".
 - Kirim: o'tkazilgan K-000001 va yangi kirim formasi (har narx turiga maydon: Chakana, Ulgurji, Minimal; "qo'shimcha xarajat" yashirin).
 - Kassa: savat (qidiruv, qator, "Mijoz" maydoni, kelishilgan summa va yaxlit takliflar), F9 bilan to'lov bo'limi (chek ko'rinishi, to'lov qatorlari), Esc bilan qaytish, "Qaytarish" oynasi (F4).
+- 7b: "Sozlamalar → Etiketka" (jonli ko'rinish tugmalarga javob beradi), "Sozlamalar → Chek"dagi logotip (sinov rasmi kichrayib chekda chiqdi, saqlanmadi) va chek ostidagi shtrix-kod; kassada chek raqami yozilganda qaytarish oynasi ochilishi.
 - Qolgan hamma sahifa (cheklar, smenalar, tovarlar, narxlar, etiketkalar, qoldiq, ko'chirish, inventarizatsiya, hisobdan chiqarish, hamkorlar, xodimlar, rollar, joylar, qurilmalar, tarix, profil) ochilib, fokus hoshiyasi kesilmasligi o'lchab chiqildi.
 
 Shu ko'rikda topilib tuzatilgani:
@@ -53,7 +54,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 
 - Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b); dollar qatori ostidagi "So'mda hisoblanadi" (1c, bugun kurs yo'q); "Narx" tanlagichi (4c, hozir hech bir narx turi kassaga ochilmagan); mijoz chegirmasi va guruh eslatmasi (5b, 5c); aksiya yozuvi va "Promokod" (6a, 6b).
 - Sotuvni oxirigacha yetkazish, chek oynasi, qaytarish va almashtirish; smena hisobotidagi xarajat qatorlari.
-- Haqiqiy printerda chek chop etish (7a).
+- Haqiqiy printerda chek chop etish (7a), logotip va shtrix-kod qog'ozda qanday chiqishi, shtrix-kodni skaner o'qishi (7b).
+- Haqiqiy printerda etiketka: shablon o'zgartirilgandagi joylashuv (7b). Ekrandagi ko'rinish printer harflarini emas, joylashuvni ko'rsatadi.
 
 ## Navbat (KEYINGI-REJA, 14-bo'lim)
 
@@ -80,14 +82,14 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] 6b. "1+1" (birini olsa ikkinchisi chegirmada), N dona olinsa chegirma.
 7. **Chek va etiketka dizayni** — ikki bo'lak:
    - [x] 7a. Chek shabloni: "Sozlamalar → Chek" (jonli ko'rinish, kenglik, qaysi qismlar, pastki matn); chop etish shu shablon bo'yicha.
-   - [ ] 7b. Etiketka shabloni (o'lcham, maydonlar, narxli yoki narxsiz); chekda logotip va shtrix-kod.
+   - [x] 7b. Etiketka shabloni (o'lcham, maydonlar, narxli yoki narxsiz); chekda logotip va shtrix-kod.
 8. [ ] Tovar rasmlari.
 
 Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-— (7a tugadi; navbatda 7b etiketka shabloni, 8 tovar rasmlari; 5d foydalanuvchi bilan)
+—
 
 ## Ish daraxti nusxalari
 

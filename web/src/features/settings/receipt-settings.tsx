@@ -1,12 +1,13 @@
 import {
   DEFAULT_RECEIPT_TEMPLATE,
+  RECEIPT_LOGO_MAX,
   RECEIPT_WIDTHS,
   receiptTemplateSchema,
   type OrgDto,
   type ReceiptTemplate,
 } from '@gulbahor/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,12 @@ import { useSession } from '@/features/auth/session'
 import { ReceiptPaper } from '@/features/pos/receipt-paper'
 import { sampleSale } from '@/features/pos/receipt-sample'
 import { api } from '@/lib/api'
+import { pictureForPaper } from '@/lib/image'
 import { toast } from '@/lib/toast'
+
+/** A receipt prints 576 dots across at its widest; a logo takes part of that. */
+const LOGO_MAX_WIDTH = 384
+const LOGO_WIDTHS = [30, 50, 70, 100] as const
 
 const SWITCHES = [
   'showShop',
@@ -28,6 +34,7 @@ const SWITCHES = [
   'showSku',
   'showLineDiscount',
   'showSavings',
+  'showBarcode',
 ] as const
 
 /**
@@ -55,6 +62,21 @@ export function ReceiptSettings() {
       toast.success(t('common.saved'))
     },
   })
+  const fileRef = useRef<HTMLInputElement>(null)
+  const pickLogo = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    // The same picture may be chosen again after it was taken off.
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+    try {
+      set('logo', await pictureForPaper(file, LOGO_MAX_WIDTH, RECEIPT_LOGO_MAX))
+    } catch {
+      toast.error(t('receipt.logoBad'))
+    }
+  }
+
   const submit = () => {
     const parsed = receiptTemplateSchema.safeParse(template)
     if (!parsed.success) {
@@ -102,6 +124,38 @@ export function ReceiptSettings() {
                 maxLength={60}
                 placeholder={me.org.name}
                 onChange={(event) => set('title', event.target.value || null)}
+              />
+            )}
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('receipt.logo')} hint={t('receipt.logoHint')}>
+            {() => (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) => void pickLogo(event)}
+                />
+                <Button onClick={() => fileRef.current?.click()}>
+                  {template.logo ? t('receipt.logoChange') : t('receipt.logoPick')}
+                </Button>
+                {template.logo ? <Button onClick={() => set('logo', null)}>{t('receipt.logoRemove')}</Button> : null}
+              </div>
+            )}
+          </Field>
+          <Field label={t('receipt.logoWidth')}>
+            {(id) => (
+              <Select
+                id={id}
+                value={String(template.logoWidth)}
+                disabled={!template.logo}
+                onChange={(value) => set('logoWidth', Number(value))}
+                options={[...new Set([...LOGO_WIDTHS, template.logoWidth])]
+                  .sort((a, b) => a - b)
+                  .map((width) => ({ value: String(width), label: t('receipt.logoWidthPercent', { width }) }))}
               />
             )}
           </Field>

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { code128Width } from './barcode'
 import { isValidEan13 } from './catalog'
 import { idSchema, listQuerySchema, requiredText } from './schemas'
 
@@ -114,6 +115,81 @@ export interface LabelData {
   copies?: number
 }
 
+// ───────────────────────────── The label's template ─────────────────────────────
+
+export const LABEL_TEXT_SIZES = ['small', 'normal', 'large'] as const
+export type LabelTextSize = (typeof LABEL_TEXT_SIZES)[number]
+
+const TEXT_SCALE: Record<LabelTextSize, number> = { small: 0.85, normal: 1, large: 1.2 }
+
+/**
+ * What a business puts on its labels. The size is not here: that is the roll
+ * in the printer. Nor is the price: with it or without is chosen when
+ * printing.
+ */
+export const labelTemplateSchema = z
+  .object({
+    showName: z.boolean().default(true),
+    /** A long name runs onto a second line, or is cut at the first. */
+    nameLines: z.union([z.literal(1), z.literal(2)]).default(2),
+    /** The colour and the size. */
+    showDetails: z.boolean().default(true),
+    showBarcode: z.boolean().default(true),
+    /** The article, small, in the corner. */
+    showSku: z.boolean().default(true),
+    /** The end of the chip's code beside it, to tell two pieces apart by eye. */
+    showTag: z.boolean().default(true),
+    text: z.enum(LABEL_TEXT_SIZES).default('normal'),
+    /** The price set larger than the rest. */
+    bigPrice: z.boolean().default(false),
+  })
+  .refine((template) => template.showName || template.showBarcode || template.showSku, {
+    path: ['showName'],
+    message: "Etiketkada nom, shtrix-kod yoki artikuldan biri bo'lishi kerak",
+  })
+export type LabelTemplate = z.infer<typeof labelTemplateSchema>
+
+export const DEFAULT_LABEL_TEMPLATE: LabelTemplate = {
+  showName: true,
+  nameLines: 2,
+  showDetails: true,
+  showBarcode: true,
+  showSku: true,
+  showTag: true,
+  text: 'normal',
+  bigPrice: false,
+}
+
+// ───────────────────────────── The layout ─────────────────────────────
+
+/** Some text, its top left corner in dots. In a box it is wrapped and set to one side; without one it runs on. */
+export interface LabelText {
+  kind: 'text'
+  x: number
+  y: number
+  /** The height of a line, in dots. */
+  font: number
+  text: string
+  box: { width: number; lines: number; align: 'L' | 'R' } | null
+}
+
+export interface LabelBars {
+  kind: 'bars'
+  x: number
+  y: number
+  /** How many dots wide the thinnest bar is. */
+  module: number
+  height: number
+  code: string
+  ean: boolean
+}
+
+export interface LabelLayout {
+  width: number
+  height: number
+  items: (LabelText | LabelBars)[]
+}
+
 /** `^` and `~` start a command and `\` an escape; none may come from a product's name. */
 const clean = (value: string | null | undefined) =>
   String(value ?? '')
@@ -121,22 +197,33 @@ const clean = (value: string | null | undefined) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-/** How many bars wide a Code 128 symbol is: digits in pairs when there is an even number of them. */
-const code128Modules = (code: string) =>
-  (/^\d+$/.test(code) && code.length % 2 === 0 ? code.length / 2 : code.length) * 11 + 35
-
 /** EAN-13 with its quiet zones. */
 const EAN13_MODULES = 113
 
 /**
- * The commands for one label: the model's name, colour and size, a barcode,
- * the price, and the instruction to write the chip. Sizes are laid out for a
- * 203 dpi head and scaled for a 300 dpi one.
+ * About how wide the printer's own font sets a text, in dots: half the
+ * height a character, a space half of that. Enough to tell whether two
+ * things fit on one row, and for the screen to show a line as long as it
+ * will print.
  */
-export function buildLabelZpl(label: LabelData, format: LabelFormat): string {
+export const labelTextWidth = (text: string, font: number): number =>
+  Math.ceil((text.length - (text.split(' ').length - 1) * 0.5) * font * 0.5)
+
+/**
+ * Where everything on a label goes: the model's name, colour and size, a
+ * barcode, the price, the article. Sizes are laid out for a 203 dpi head and
+ * scaled for a 300 dpi one. What the template leaves out gives its room to
+ * the barcode.
+ */
+export function layoutLabel(
+  label: LabelData,
+  format: LabelFormat,
+  template: LabelTemplate = DEFAULT_LABEL_TEMPLATE,
+): LabelLayout {
   const size = LABEL_SIZES[format.size]
   const dotsPerMm = format.dpi === 300 ? 12 : 8
   const px = (dots: number) => Math.round((dots * dotsPerMm) / 8)
+  const font = (dots: number) => px(dots * TEXT_SCALE[template.text])
 
   const width = size.width * dotsPerMm
   const height = size.height * dotsPerMm
@@ -144,50 +231,94 @@ export function buildLabelZpl(label: LabelData, format: LabelFormat): string {
   const inner = width - margin * 2
   const small = size.height <= 30
 
-  const nameFont = px(small ? 24 : 30)
-  const textFont = px(small ? 20 : 24)
-  const priceFont = px(small ? 30 : 40)
-  const footFont = px(18)
-  const barHeight = px(small ? 44 : 80)
+  const nameFont = font(small ? 24 : 30)
+  const textFont = font(small ? 20 : 24)
+  const priceFont = font((small ? 30 : 40) * (template.bigPrice ? 1.4 : 1))
+  const footFont = font(18)
 
-  const lines = ['^XA', '^CI28', `^PW${width}`, `^LL${height}`, '^LH0,0']
+  const items: LabelLayout['items'] = []
+  const text = (x: number, y: number, size: number, value: string, box: LabelText['box'] = null) =>
+    items.push({ kind: 'text', x, y, font: size, text: value, box })
+
+  const top = px(12)
+  let y = top
+  if (template.showName) {
+    text(margin, y, nameFont, clean(label.name), { width: inner, lines: template.nameLines, align: 'L' })
+    y += nameFont * template.nameLines + px(4)
+  }
+  if (template.showDetails) {
+    const details = clean(label.details)
+    if (details) {
+      text(margin, y, textFont, details, { width: inner, lines: 1, align: 'L' })
+    }
+    y += textFont + px(6)
+  }
+  // Where the barcode would start with a name of two lines and the details under it.
+  const usual = top + nameFont * 2 + px(4) + textFont + px(6)
+
+  // The bottom row: the price on the left; the article, and the end of the chip's code, on the right.
+  // Where the two would run into each other, the article goes above the price.
+  const price = clean(label.price)
+  const foot = [
+    template.showSku ? clean(label.sku) : '',
+    template.showTag && label.epc ? `#${label.epc.slice(-6)}` : '',
+  ]
+    .filter(Boolean)
+    .join('  ')
+  const bottom = height - margin
+  const abreast = !price || !foot || labelTextWidth(price, priceFont) + px(8) + labelTextWidth(foot, footFont) <= inner
+  const footTop = abreast ? bottom - footFont : bottom - priceFont - px(4) - footFont
+  const rowTop = Math.min(price ? bottom - priceFont : bottom, foot ? footTop : bottom)
+
+  const code = clean(label.barcode) || clean(label.sku)
+  const ean = isValidEan13(code)
+  const modules = ean ? EAN13_MODULES : code128Width(code)
+  // The widest bars that still fit; a code too long for the label is left to the text below.
+  const module = [px(2), 1].find((candidate) => modules * candidate <= inner)
+  if (template.showBarcode && code && module && /^[\x20-\x7e]+$/.test(code)) {
+    // As tall as always, and taller by what the template left out above; never into the row below,
+    // with room kept under the bars for the digits the printer writes there.
+    const room = rowTop - y - px(26)
+    const tall = px(small ? 44 : 80) + (usual - y) + (price || foot ? 0 : priceFont)
+    items.push({ kind: 'bars', x: margin, y, module, height: Math.max(px(20), Math.min(tall, room)), code, ean })
+  }
+
+  if (price) {
+    text(margin, bottom - priceFont, priceFont, price)
+  }
+  if (foot) {
+    text(margin, footTop, footFont, foot, { width: inner, lines: 1, align: 'R' })
+  }
+  return { width, height, items }
+}
+
+/**
+ * The commands for one label: what `layoutLabel` laid out, and the
+ * instruction to write the chip.
+ */
+export function buildLabelZpl(
+  label: LabelData,
+  format: LabelFormat,
+  template: LabelTemplate = DEFAULT_LABEL_TEMPLATE,
+): string {
+  const layout = layoutLabel(label, format, template)
+  const lines = ['^XA', '^CI28', `^PW${layout.width}`, `^LL${layout.height}`, '^LH0,0']
 
   if (label.epc) {
     // Gen2 tag; a label whose chip would not take the code is voided and the next one tried, twice at most.
     lines.push('^RS8,,,2', `^RFW,H^FD${label.epc}^FS`)
   }
 
-  let y = px(12)
-  lines.push(`^FO${margin},${y}^A0N,${nameFont},${nameFont}^FB${inner},2,0,L,0^FD${clean(label.name)}^FS`)
-  y += nameFont * 2 + px(4)
-
-  const details = clean(label.details)
-  if (details) {
-    lines.push(`^FO${margin},${y}^A0N,${textFont},${textFont}^FB${inner},1,0,L,0^FD${details}^FS`)
-  }
-  y += textFont + px(6)
-
-  const code = clean(label.barcode) || clean(label.sku)
-  const ean = isValidEan13(code)
-  const modules = ean ? EAN13_MODULES : code128Modules(code)
-  // The widest bars that still fit; a code too long for the label is left to the text below.
-  const module = [px(2), 1].find((candidate) => modules * candidate <= inner)
-  if (code && module && /^[\x20-\x7e]+$/.test(code)) {
-    lines.push(
-      ean
-        ? `^FO${margin},${y}^BY${module}^BEN,${barHeight},Y,N^FD${code.slice(0, 12)}^FS`
-        : `^FO${margin},${y}^BY${module}^BCN,${barHeight},Y,N,N^FD${code}^FS`,
-    )
-  }
-
-  // The bottom row: the price on the left; the article, and the end of the chip's code, on the right.
-  const price = clean(label.price)
-  if (price) {
-    lines.push(`^FO${margin},${height - margin - priceFont}^A0N,${priceFont},${priceFont}^FD${price}^FS`)
-  }
-  const foot = [clean(label.sku), label.epc ? `#${label.epc.slice(-6)}` : ''].filter(Boolean).join('  ')
-  if (foot) {
-    lines.push(`^FO${margin},${height - margin - footFont}^A0N,${footFont},${footFont}^FB${inner},1,0,R,0^FD${foot}^FS`)
+  for (const item of layout.items) {
+    const at = `^FO${item.x},${item.y}`
+    if (item.kind === 'text') {
+      const box = item.box ? `^FB${item.box.width},${item.box.lines},0,${item.box.align},0` : ''
+      lines.push(`${at}^A0N,${item.font},${item.font}${box}^FD${item.text}^FS`)
+    } else if (item.ean) {
+      lines.push(`${at}^BY${item.module}^BEN,${item.height},Y,N^FD${item.code.slice(0, 12)}^FS`)
+    } else {
+      lines.push(`${at}^BY${item.module}^BCN,${item.height},Y,N,N^FD${item.code}^FS`)
+    }
   }
 
   lines.push(`^PQ${label.epc ? 1 : Math.max(1, Math.floor(label.copies ?? 1))}`, '^XZ')

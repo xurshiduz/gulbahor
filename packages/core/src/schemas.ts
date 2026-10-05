@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { MODULE_KEYS } from './access'
+import type { LabelTemplate } from './labels'
 import type { CurrencyCode } from './money'
 import { parsePhone } from './phone'
 import type { ReceiptTemplate } from './receipt-template'
@@ -178,6 +179,8 @@ export interface OrgSettings {
   receiptLineExtra: boolean
   /** How the receipts look on paper; what is not set here is as `DEFAULT_RECEIPT_TEMPLATE` has it. */
   receipt?: Partial<ReceiptTemplate>
+  /** What goes on the labels; what is not set here is as `DEFAULT_LABEL_TEMPLATE` has it. */
+  label?: Partial<LabelTemplate>
 }
 
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {
