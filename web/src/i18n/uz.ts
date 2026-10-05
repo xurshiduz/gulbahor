@@ -1377,7 +1377,7 @@ export const uz = {
     changePassword: "Parolni o'zgartirish",
     pinTitle: 'PIN kod',
     pinHint:
-      "4–6 raqam. Ekran bloklanganda parol o'rniga shu so'raladi. 5 marta noto'g'ri kiritilsa, parol bilan qayta kirish kerak bo'ladi.",
+      "4 ta raqam. Ekran bloklanganda parol o'rniga shu so'raladi. 5 marta noto'g'ri kiritilsa, parol bilan qayta kirish kerak bo'ladi.",
     pinSet: "PIN kod o'rnatilgan",
     pinNotSet: "PIN kod o'rnatilmagan",
     setPin: "PIN o'rnatish",

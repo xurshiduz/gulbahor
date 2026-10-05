@@ -12,6 +12,7 @@ import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Card, Page } from '@/components/ui/page'
+import { PinInput } from '@/components/ui/pin-input'
 import { ChangePasswordForm } from '@/features/auth/change-password-page'
 import { useSession } from '@/features/auth/session'
 import { SessionList } from '@/features/users/user-form'
@@ -161,15 +162,10 @@ function PinCard() {
           </Field>
           <Field label={t('profile.newPin')} error={errors.pin?.message} required>
             {(id) => (
-              <Input
-                id={id}
-                type="password"
-                inputMode="numeric"
-                maxLength={6}
-                autoComplete="off"
-                className="tabular tracking-[0.3em]"
-                invalid={!!errors.pin}
-                {...form.register('pin')}
+              <Controller
+                control={form.control}
+                name="pin"
+                render={({ field }) => <PinInput id={id} value={field.value} onChange={field.onChange} invalid={!!errors.pin} />}
               />
             )}
           </Field>

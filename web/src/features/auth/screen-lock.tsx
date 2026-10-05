@@ -1,8 +1,10 @@
+import { PIN_LENGTH } from '@gulbahor/core'
 import { Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { PinInput } from '@/components/ui/pin-input'
 import { api, ApiError } from '@/lib/api'
 import { suspendHotkeys } from '@/lib/hotkeys'
 
@@ -112,20 +114,24 @@ export function ScreenLock({ onUnlocked }: { onUnlocked: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [refused, setRefused] = useState(0)
   const [busy, setBusy] = useState(false)
+  // The last digit and Enter may both ask: one PIN is tried once.
+  const checking = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (pin.length < 4 || busy) {
+  /** Asked as soon as the last digit is in: right, the screen opens; wrong, the boxes shake and empty. */
+  const check = async (code: string) => {
+    if (code.length < PIN_LENGTH || checking.current) {
       return
     }
+    checking.current = true
     setBusy(true)
     try {
-      await api.post('/auth/unlock', { pin })
+      await api.post('/auth/unlock', { pin: code })
       onUnlocked()
     } catch (failure) {
       if (failure instanceof ApiError && failure.isAuth) {
@@ -136,10 +142,17 @@ export function ScreenLock({ onUnlocked }: { onUnlocked: () => void }) {
       }
       setError(failure instanceof ApiError ? (failure.fields?.pin ?? failure.message) : String(failure))
       setPin('')
+      setRefused((count) => count + 1)
       inputRef.current?.focus()
     } finally {
+      checking.current = false
       setBusy(false)
     }
+  }
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    void check(pin)
   }
 
   return (
@@ -152,30 +165,38 @@ export function ScreenLock({ onUnlocked }: { onUnlocked: () => void }) {
           <p className="text-base font-semibold">{me.user.fullName}</p>
           <p className="mt-1 text-xs text-ink-3">{t('auth.lockHint')}</p>
         </div>
-        <input
-          ref={inputRef}
-          type="password"
-          inputMode="numeric"
-          autoComplete="off"
-          maxLength={6}
-          aria-label={t('auth.pin')}
-          aria-invalid={!!error || undefined}
-          value={pin}
-          onChange={(event) => {
-            setError(null)
-            setPin(event.target.value.replace(/\D/g, ''))
-          }}
-          className="h-11 w-40 rounded-md border border-line-strong bg-surface text-center text-xl tracking-[0.4em] outline-none focus:border-accent focus:outline-2 focus:outline-accent/25 aria-invalid:border-bad"
-        />
-        {error ? (
-          <p role="alert" className="text-xs text-bad">
-            {error}
-          </p>
-        ) : null}
-        <Button type="submit" variant="primary" className="w-40" loading={busy} disabled={pin.length < 4}>
-          {t('auth.unlock')}
-        </Button>
-        <button type="button" className="text-xs text-ink-3 hover:text-ink hover:underline" onClick={() => void logout().finally(onUnlocked)}>
+        {/* The button is as wide as the boxes are. */}
+        <div className="flex flex-col items-stretch gap-4">
+          <PinInput
+            ref={inputRef}
+            size="lg"
+            aria-label={t('auth.pin')}
+            value={pin}
+            invalid={!!error}
+            refused={refused}
+            onChange={(next) => {
+              // What is typed while one PIN is being asked about is not the start of another.
+              if (!checking.current) {
+                setError(null)
+                setPin(next)
+              }
+            }}
+            onComplete={(code) => void check(code)}
+          />
+          {error ? (
+            <p role="alert" className="max-w-56 self-center text-xs text-bad">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" variant="primary" loading={busy} disabled={pin.length < PIN_LENGTH}>
+            {t('auth.unlock')}
+          </Button>
+        </div>
+        <button
+          type="button"
+          className="text-xs text-ink-3 hover:text-ink hover:underline"
+          onClick={() => void logout().finally(onUnlocked)}
+        >
           {t('auth.otherUser')}
         </button>
       </form>

@@ -98,7 +98,12 @@ export const loginNameSchema = z
 
 export const passwordSchema = z.string().min(8).max(100)
 
-export const pinSchema = z.string().regex(/^\d{4,6}$/, { message: 'PIN 4–6 ta raqamdan iborat' })
+/** Short enough to type at a till without looking: the screen gives each digit a box of its own. */
+export const PIN_LENGTH = 4
+
+export const pinSchema = z
+  .string()
+  .regex(new RegExp(`^\\d{${PIN_LENGTH}}$`), { message: `PIN ${PIN_LENGTH} ta raqamdan iborat` })
 
 export const loginSchema = z.object({
   login: z.string().trim().toLowerCase().min(1).max(40),

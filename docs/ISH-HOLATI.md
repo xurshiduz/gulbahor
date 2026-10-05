@@ -14,9 +14,9 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 ## Commit holati
 
-2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b va 9 ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
+2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b, 9, UI tuzatishlar, 5d va PIN kataklari ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 (5d dan keyin) — core 163, agent 17, server 275, web 139; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-05 (PIN kataklari va menyu tugmasidan keyin) — core 163, agent 17, server 275, web 147; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -58,6 +58,11 @@ Egasiga aytiladigan (ma'lumotga oid, kod emas):
 - Bugungi dollar kursi kiritilmagan: kassada dollar qatori "kurs yo'q" deb turadi.
 - Sodiqlik pog'onalari hali kiritilmagan (jadval bo'sh).
 
+## Kichik o'zgarishlar (navbatdan tashqari, foydalanuvchi so'rovi bilan)
+
+- 2026-10-05: PIN kod aynan 4 ta raqam, har raqamga alohida katak (`PinInput`): bloklangan ekranda 4-raqam terilishi bilan o'zi tekshiriladi, xato bo'lsa kataklar qizarib silkinadi (telefonda titraydi); kassadagi rahbar tasdig'i va profildagi "Yangi PIN" ham shu kataklarda. **Eski PIN 4 raqamdan uzun bo'lsa, endi terib bo'lmaydi** — parol bilan kirib, Profil → Xavfsizlikda yangisini o'rnatish kerak.
+- 2026-10-05: menyuni yig'ish-ochish tugmasi menyuning pastidan yuqori panelning chap boshiga ko'chirildi.
+
 ## Hali ekranda ko'rilmagan
 
 Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining bazasini ifloslamaslik uchun qilinmadi, testlar bilan tekshirilgan:
@@ -67,6 +72,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 - Haqiqiy printerda chek chop etish (7a), logotip va shtrix-kod qog'ozda qanday chiqishi, shtrix-kodni skaner o'qishi (7b).
 - Rasmli tovar haqiqiy bazada: ro'yxat va kassadagi kichik rasmlar, telefondan (kameradan) rasm qo'shish, sudrab tartiblash (8). Egasining bazasiga sinov rasmi qo'yilmadi.
 - Haqiqiy printerda etiketka: shablon o'zgartirilgandagi joylashuv (7b). Ekrandagi ko'rinish printer harflarini emas, joylashuvni ko'rsatadi.
+- PIN kataklari, bloklangan ekran (xato PIN: qizarish, silkinish, bo'shash; to'g'ri PIN: ochilish) va yuqori paneldagi menyu tugmasi vaqtinchalik sahifada, soxta sessiya bilan ko'rildi. Haqiqiy hisob bilan ko'rilmagan: kassadagi rahbar tasdig'i oynasi (4-raqamda o'zi yuboradi), telefonda titrash.
 - Chakana qarz (5d): kassadagi "Qarzga" qatori, mijoz yonidagi qarz yozuvi, "Mijozlar → Qarzlar" va "Qarz to'lovlari" ro'yxatlari vaqtinchalik sahifada, soxta ma'lumot bilan ko'rildi (1100 va 1280 kenglikda). Haqiqiy bazada ko'rilmagan: qarzga sotuvni oxirigacha yetkazish, "To'lov olish" oynasi (sessiyaga bog'liq, hamkor to'lovi oynasi bilan bir xil qatorlar), qarzli chekni qaytarish, "Sozlamalar → Biznes"dagi ikki yangi maydon, smena hisobotidagi "Mijozlar qarzidan to'landi".
 
 ## Navbat (KEYINGI-REJA, 14-bo'lim)
@@ -88,7 +94,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] 5a. Mijozlar bazasi, "Mijozlar" sahifasi, kassada mijozni topish va qo'shish, chekda mijoz.
    - [x] 5b. Guruh va teglar: guruhning narx turi, kassadagi eslatma va taqiqlar.
    - [x] 5c. Mijoz chegirmasi: guruh foizi va sodiqlik pog'onalari (xaridlar summasidan) — avtomatik chegirma, qo'l chegirmasidan alohida.
-   - [ ] 5d. Chakana qarz ("Qarzga" to'lov qatori, muddat, qisman to'lash) — daftarga tegadi, foydalanuvchi bilan.
+   - [x] 5d. Chakana qarz ("Qarzga" to'lov qatori, muddat, qisman to'lash) — daftarga tegadi, foydalanuvchi bilan.
 6. **Aksiyalar** — bo'laklarga bo'lingan:
    - [x] 6a. Foizli chegirma va belgilangan narx; muddat, do'konlar, tovar doirasi; mijoz chegirmasi bilan "eng foydalisi"; promokod.
    - [x] 6b. "1+1" (birini olsa ikkinchisi chegirmada), N dona olinsa chegirma.
@@ -98,7 +104,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 8. **Tovar rasmlari** — ikki bo'lak:
    - [x] 8a. Rasm saqlash (server diskida), tovar kartasida galereya (qo'shish, tartib, rang), ro'yxat va kassada kichik rasm.
    - [x] 8b. Qoldiq ro'yxatida, kirim bloklarida va tovar tanlash oynasida rasm.
-   - [ ] 8c. Billz'dagi rasmlarni ko'chirish — foydalanuvchidan rasm havolalari bor namunaviy eksport kerak (Billz'ga kirilmaydi).
+   - [—] 8c. Billz'dagi rasmlarni ko'chirish — **qilinmaydi** (foydalanuvchi qarori, 2026-10-05: imkon yo'q va kerak emas; kerak bo'lsa o'zi aytadi).
 
 9. [x] Pul oynasida kassani tanlash, do'konning asosiy kassasi (KEYINGI-REJA, 7-bo'lim oxiri).
 
@@ -114,3 +120,5 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 
 | Nusxa | Nimadan keyin |
 | --- | --- |
+| `e508a146dabbd64efa63ae164f6fa133037d949f` | 5d: chakana qarz (kassada "Qarzga", to'lov olish, Qarzlar va Qarz to'lovlari ro'yxati) + UI tuzatishlar (oyna surilishi, `soft` tugma, demo sahifa) |
+| `a9681de59d59c43412fd70e51a0ce544f0286114` | PIN 4 ta katak (bloklash ekrani, tasdiq, profil), menyu tugmasi yuqori panelda, 8c qilinmaydi |

@@ -198,6 +198,10 @@ describe('API', () => {
 
     it('locks the session after too many wrong PINs', async () => {
       const agent = await signIn('alpha')
+      // A PIN is four digits, no fewer and no more: the screen has a box for each.
+      for (const pin of ['432', '43210', '432100', '43a1']) {
+        await agent.post('/api/auth/pin').send({ password: PASSWORD, pin }).expect(400)
+      }
       await agent.post('/api/auth/pin').send({ password: PASSWORD, pin: '4321' }).expect(204)
       await agent.post('/api/auth/unlock').send({ pin: '4321' }).expect(204)
       for (let attempt = 1; attempt <= 4; attempt++) {

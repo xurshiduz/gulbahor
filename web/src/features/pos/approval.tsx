@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { PinInput } from '@/components/ui/pin-input'
 import { toast } from '@/lib/toast'
 
 interface ApprovalDialogProps {
@@ -30,8 +30,8 @@ export function ApprovalDialog({ approvers, reason, onApprove, onClose }: Approv
   const [userId, setUserId] = useState(approvers[0]?.id ?? '')
   const [pin, setPin] = useState('')
 
-  const submit = () => {
-    const parsed = approvalSchema.safeParse({ userId, pin })
+  const submit = (code = pin) => {
+    const parsed = approvalSchema.safeParse({ userId, pin: code })
     if (!parsed.success) {
       toast.error(t('pos.pinNeeded'))
       return
@@ -56,7 +56,7 @@ export function ApprovalDialog({ approvers, reason, onApprove, onClose }: Approv
         </>
       }
     >
-      <Form id="approval-form" onSubmit={submit}>
+      <Form id="approval-form" onSubmit={() => submit()}>
         <Field label={t('pos.approver')}>
           {(id) =>
             approvers.length > 1 ? (
@@ -72,18 +72,8 @@ export function ApprovalDialog({ approvers, reason, onApprove, onClose }: Approv
           }
         </Field>
         <Field label={t('pos.pin')} required>
-          {(id) => (
-            <Input
-              id={id}
-              autoFocus
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              value={pin}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
-              className="font-code w-32 tracking-[0.3em]"
-            />
-          )}
+          {/* The last digit is the manager's word: nothing more is pressed. */}
+          {(id) => <PinInput id={id} autoFocus value={pin} onChange={setPin} onComplete={submit} />}
         </Field>
       </Form>
     </Dialog>

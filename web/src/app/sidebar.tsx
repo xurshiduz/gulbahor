@@ -1,10 +1,9 @@
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { Shortcut, Tooltip } from '@/components/ui/feedback'
 import { cn } from '@/lib/cn'
 import { useHotkey } from '@/lib/hotkeys'
@@ -52,7 +51,6 @@ interface SidebarProps {
   name: string
   groups: ShownGroup[]
   collapsed: boolean
-  onCollapse: (collapsed: boolean) => void
 }
 
 /**
@@ -61,7 +59,7 @@ interface SidebarProps {
  * rail of icons, a section's screens come out beside it when it is pressed.
  * A section with one screen is that screen.
  */
-export function Sidebar({ name, groups, collapsed, onCollapse }: SidebarProps) {
+export function Sidebar({ name, groups, collapsed }: SidebarProps) {
   const { t } = useTranslation()
   const location = useRouterState({ select: (state) => state.location })
   const search = location.search as Record<string, unknown>
@@ -140,19 +138,6 @@ export function Sidebar({ name, groups, collapsed, onCollapse }: SidebarProps) {
       </nav>
       {/* The keys work whether or not the section they belong to is unfolded. */}
       {all.map((item) => (item.shortcut ? <NavHotkey key={item.shortcut} item={item} /> : null))}
-
-      <div className={cn('flex shrink-0 border-t border-line p-2', collapsed ? 'justify-center' : 'justify-end')}>
-        <Tooltip content={collapsed ? t('nav.expand') : t('nav.collapse')} side="right">
-          <Button
-            variant="ghost"
-            size="iconSm"
-            onClick={() => onCollapse(!collapsed)}
-            aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
-          >
-            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-          </Button>
-        </Tooltip>
-      </div>
     </aside>
   )
 }

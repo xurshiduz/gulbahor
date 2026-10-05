@@ -1,6 +1,6 @@
 import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@gulbahor/core'
 import { Outlet, useNavigate } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, ReceiptText, Search, Sun, UserRound } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Search, Sun, UserRound } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -165,10 +165,16 @@ export function Shell() {
 
   return (
     <div className="flex h-full bg-canvas">
-      <Sidebar name={me.org.name} groups={groups} collapsed={collapsed} onCollapse={setCollapsed} />
+      <Sidebar name={me.org.name} groups={groups} collapsed={collapsed} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
+          {/* Folds the menu to a rail of icons and back: at the head of the bar, beside what it folds. */}
+          <Tooltip content={collapsed ? t('nav.expand') : t('nav.collapse')}>
+            <Button variant="ghost" size="icon" className="-ml-2 shrink-0" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}>
+              {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+            </Button>
+          </Tooltip>
           {/* The name of the screen in view. */}
           <div ref={setTitleSlot} className="flex min-w-0 flex-1 items-baseline gap-2" />
 

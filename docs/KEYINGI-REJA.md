@@ -536,7 +536,7 @@ Qilingan (2026-10-05):
 - Saqlash: serverning o'z diskida, `UPLOADS_DIR` (yozilmasa `server/uploads`) ichida `biznes/rasm/s|m|l.webp`; bazada faqat tartib, rang, o'lcham va xira nusxa. Manzil: `/api/files/<biznes>/<rasm>/<o'lcham>` — topib bo'lmaydigan ikki id, kirishsiz ochiladi (`<img>` shunday so'raydi), fayl hech qachon o'zgarmaydi, brauzer uni doimiy eslab qoladi. **Zaxira nusxaga shu papka ham kirishi kerak.**
 - Ko'rinadi: tovarlar ro'yxati (sahifada kamida bitta tovarning rasmi bo'lsa), kassa qidiruvi va savati (o'z rangidagi rasm bilan). Rasm yuklanguncha o'rnida xira nusxasi turadi; rasmlar ekranga yaqinlashganda yuklanadi.
 - Keyin qo'shildi: qoldiq ro'yxatida, kirimning tovar bloklarida va tovar tanlash oynasida (kirim, ko'chirish, etiketka — hamma hujjatda) tovarning asosiy rasmi.
-Hali yo'q: telefonda narx tekshirish; Billz'dagi rasmlarni ko'chirish — buning uchun Billz eksportida rasm havolalari bor-yo'qligini ko'rish kerak (Billz'ga kirilmaydi, namunaviy fayl foydalanuvchidan); havola orqali import bo'lsa, serverda qayta ishlash kerak bo'ladi.
+Hali yo'q: telefonda narx tekshirish. Billz'dagi rasmlarni ko'chirish **qilinmaydi** (foydalanuvchi qarori, 2026-10-05): rasmlar tovar kartasida qo'lda qo'shiladi.
 
 ---
 

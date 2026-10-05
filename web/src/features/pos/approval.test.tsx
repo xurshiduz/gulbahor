@@ -25,12 +25,18 @@ describe('ApprovalDialog', () => {
     expect(screen.getByText('Anvar Menejer')).toBeTruthy()
 
     const pin = screen.getByLabelText(/PIN kod/) as HTMLInputElement
-    // The PIN is not shown, and holds digits only.
-    expect(pin.type).toBe('password')
-    await userEvent.type(pin, '48a2 1')
-    expect(pin.value).toBe('4821')
-    await userEvent.keyboard('{Enter}')
+    // The PIN holds digits only, and the cursor is in it from the start.
+    expect(document.activeElement).toBe(pin)
+    await userEvent.type(pin, '48a2 ')
+    expect(pin.value).toBe('482')
+    expect(onApprove).not.toHaveBeenCalled()
+    // It is not shown: the boxes only say how far it has got.
+    expect(document.querySelectorAll('[data-pin-box="filled"]').length).toBe(3)
+    expect(document.querySelector('[data-pin]')?.textContent).toBe('')
+    // The last digit is the manager's word: nothing more is pressed.
+    await userEvent.keyboard('1')
     await vi.waitFor(() => expect(onApprove).toHaveBeenCalledWith({ userId: MANAGER, pin: '4821' }))
+    expect(onApprove).toHaveBeenCalledTimes(1)
   })
 
   it('does not go on without a whole PIN', async () => {
