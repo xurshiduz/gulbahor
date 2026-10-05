@@ -197,7 +197,15 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
               {sale.discount ? (
                 <>
                   <Line label={t('pos.subtotal')} value={money(sale.subtotal)} />
-                  <Line label={t('pos.discount')} value={`−${money(sale.discount)}`} />
+                  {sale.autoDiscount ? (
+                    <Line
+                      label={`${t('pos.customerDiscount')}${sale.autoReason ? ` · ${sale.autoReason}` : ''}`}
+                      value={`−${money(sale.autoDiscount)}`}
+                    />
+                  ) : null}
+                  {sale.discount - sale.autoDiscount ? (
+                    <Line label={t('pos.discount')} value={`−${money(sale.discount - sale.autoDiscount)}`} />
+                  ) : null}
                 </>
               ) : null}
               <Line label={t('pos.total')} value={money(sale.total)} strong />

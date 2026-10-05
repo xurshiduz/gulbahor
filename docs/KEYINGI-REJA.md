@@ -212,6 +212,12 @@ Qoidalar:
    - Bir nechta guruhda bo'lsa: eslatmalarning hammasi chiqadi, narx — birinchi guruhniki, taqiq — birortasida bo'lsa ham amal qiladi. Arxivlangan guruh qoida bermaydi.
    - Hali yo'q: guruh chegirmasi foizi (5c da, sodiqlik pog'onalari bilan birga — ikkalasi bitta "mijoz chegirmasi" mexanizmi).
 4. **Sodiqlik dasturi.** Ikki tur, biznes birini tanlaydi: pog'onali chegirma (akaning hozirgisi) yoki keshbek (ball). Pog'onalar Billz'dagidek ko'chiriladi.
+   - Qilingan (2026-10-05), pog'onali chegirma: **"Mijozlar → Sodiqlik dasturi"** — pog'onalar jadvali ("xaridlari shu summadan" → foiz), istalgancha qator. Mijozning xaridlari cheklardan o'zi hisoblanadi (qaytarilgani ayirilgan); yetgan pog'onasi **kassada o'zi qo'llanadi**. Guruhda ham **chegirma foizi** bor ("Xodimlar 15%"). Ikkalasi qo'shilmaydi — kattasi olinadi, chekda sababi yoziladi ("Mijoz chegirmasi · Sodiqlik 7%").
+   - Kassada: mijoz tanlanishi bilan har qatordan uning foizi ayriladi va summa ostida alohida qator bo'lib ko'rinadi. Kassirning qo'l chegirmasi **undan keyin qolgan summadan** hisoblanadi va chegirma chegarasi (10%) faqat qo'l chegirmasiga qo'llanadi — mijoz chegirmasi kassir chegarasini yemaydi. Minimal narx yakuniy summa bo'yicha tekshirilaveradi.
+   - Mijoz chegirmasi faqat chakana narxga qo'llanadi: savat maxsus narxda (ulgurji, "Oila") sotilsa, ustiga yana chegirma tushmaydi.
+   - Server chegirmani o'zi hisoblaydi — kassa uni "unutib" yoki o'zgartirib yubora olmaydi (summa mos kelmasa chek rad etiladi).
+   - **Akaning pog'onalarini kiritish kerak** (Billz'dagi kabi): 10 mln → 5%, 15 mln → 6%, 20 mln → 7%, 25 mln → 8%, 40 mln → 10%. Hozir jadval bo'sh — "Mijozlar → Sodiqlik dasturi" da besh qator.
+   - Hali yo'q: keshbek (ball) turi; aksiyalar bilan "eng foydalisi" solishtiruvi (aksiyalar bo'lagida).
 5. **Chakana qarz.** Qarzga sotish, muddat, qisman to'lash, muddati o'tganlar ro'yxati. Bu hamkor hisobining soddaroq ko'rinishi — asosi tayyor.
 
 ---

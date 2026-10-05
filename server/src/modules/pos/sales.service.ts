@@ -1,8 +1,11 @@
 import {
   belowFloor,
+  customerOff,
   DEFAULT_ORG_SETTINGS,
   floorOf,
   formatMoney,
+  gross,
+  overDiscountLimit,
   overRateLoss,
   PAYMENT_METHOD_LABELS,
   saleTotals,
@@ -204,23 +207,26 @@ export class SalesService {
     throwIfAny(fields)
 
     // ── The sum. ──
+    // The customer's own discount comes off by itself, and only off the retail price: a price of their
+    // own (wholesale, a family price) is already what they were given.
+    const ownPercent = priceType ? 0 : (rules?.discountPercent ?? 0)
     const totals = saleTotals(
-      input.lines.map((line) => ({
-        price: itemOf.get(line.variantId)?.price as number,
-        qty: line.qty,
-        discount: line.discount,
-      })),
+      input.lines.map((line) => {
+        const price = itemOf.get(line.variantId)?.price as number
+        return { price, qty: line.qty, discount: line.discount, auto: customerOff(gross(price, line.qty), ownPercent) }
+      }),
       input.discount,
     )
     if (totals.total !== input.total) {
       throw AppError.conflict('PRICE_CHANGED', "Narxlar o'zgargan. Chekni yangilab, summani qayta tekshiring")
     }
     const offered = input.discount + input.lines.reduce((sum, line) => sum + line.discount, 0)
-    if (offered > totals.subtotal) {
+    if (offered > totals.subtotal - totals.auto) {
       throw AppError.validation({ discount: 'Chegirma tovar summasidan katta' })
     }
     // Over the limit a cashier needs someone's word: their own right, or a manager's PIN given with the sale.
-    const overLimit = totals.discount * 100 > totals.subtotal * settings.maxDiscountPercent
+    // What came off by itself is not the cashier's giving and is not held against their limit.
+    const overLimit = overDiscountLimit(totals, settings.maxDiscountPercent)
     // The same word is needed under a thing's floor, however small the discount that took it there.
     const priced = input.lines.map((line) => {
       const item = itemOf.get(line.variantId) as PosItemDto
@@ -386,6 +392,8 @@ export class SalesService {
         priceTypeName: priceType?.name ?? null,
         customerId: customer?.id ?? null,
         customerName: customer?.name ?? null,
+        autoDiscount: totals.auto,
+        autoReason: totals.auto ? (rules?.discountReason ?? null) : null,
         note: input.note ?? null,
         searchKey: searchKey([number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' ')),
       }),
@@ -400,6 +408,7 @@ export class SalesService {
           qty: line.qty,
           price: itemOf.get(line.variantId)?.price as number,
           discount: totals.lines[index].discount,
+          autoDiscount: totals.lines[index].auto,
           total: totals.lines[index].total,
           costUsd: 0,
           costUzs: 0,
@@ -683,13 +692,14 @@ export class SalesService {
       qty: number
       price: number
       discount: number
+      auto_discount: number
       total: number
       epc: string | null
       returned_qty: number
       returned_total: number
     }[] = await em.query(
       `SELECT sl.id, sl.variant_id, p.name, v.sku, array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
-              sl.qty::float8 AS qty, sl.price::float8 AS price, sl.discount::float8 AS discount,
+              sl.qty::float8 AS qty, sl.price::float8 AS price, sl.discount::float8 AS discount, sl.auto_discount::float8 AS auto_discount,
               sl.total::float8 AS total, u.epc, sl.returned_qty::float8 AS returned_qty,
               sl.returned_total::float8 AS returned_total
        FROM sale_lines sl
@@ -737,6 +747,7 @@ export class SalesService {
         qty: line.qty,
         price: line.price,
         discount: line.discount,
+        autoDiscount: line.auto_discount,
         total: line.total,
         epc: line.epc,
         returnedQty: line.returned_qty,
@@ -778,5 +789,7 @@ function summary(sale: Sale, locationName: string, registerName: string, seesCos
     priceTypeName: sale.priceTypeName,
     customerId: sale.customerId,
     customerName: sale.customerName,
+    autoDiscount: sale.autoDiscount,
+    autoReason: sale.autoReason,
   }
 }

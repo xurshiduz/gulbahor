@@ -1,4 +1,4 @@
-import { settle, settleRefund, type AccountDto, type PosContextDto, type PosItemDto } from '@gulbahor/core'
+import { formatMoney, settle, settleRefund, type AccountDto, type PosContextDto, type PosItemDto } from '@gulbahor/core'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -206,6 +206,7 @@ describe('the receipt beside the money', () => {
         backNumber={null}
         priceType="Oila"
         customer="Nodira Karimova"
+        ownReason={null}
         credit={0}
         toPay={totals.total}
         toRefund={0}
@@ -217,11 +218,12 @@ describe('the receipt beside the money', () => {
     expect(text).toContain('Narx: Oila')
     expect(text).toContain('Mijoz: Nodira Karimova')
     expect(text).toContain("Ko'ylak, M, qora")
-    // Two at 900 000 less 100 000 of their own.
-    expect(text).toContain("2 × 900 000 so'm − 100 000 so'm")
-    expect(text).toContain("1 700 000 so'm")
-    // 1 770 000 after the lines' own discounts, brought down to the 1 600 000 agreed on.
-    expect(plain(screen.getByText('Chekka chegirma').parentElement?.textContent)).toContain("−170 000 so'm")
+    // Everything that came off a line is said on the line: the 1 600 000 agreed on is 170 000 less than the
+    // lines came to, and the dresses bear their share of it beside the 100 000 of their own.
+    const [dresses, scarf] = totals.lines
+    expect(dresses.total + scarf.total).toBe(160_000_000)
+    expect(text).toContain(`2 × 900 000 so'm − ${plain(formatMoney(dresses.discount, 'UZS', { minor: 'auto' }))}`)
+    expect(text).toContain(plain(formatMoney(dresses.total, 'UZS', { minor: 'auto' })))
     expect(plain(screen.getByText('Chegirma').parentElement?.textContent)).toContain("−270 000 so'm")
     expect(plain(screen.getByText('Jami').parentElement?.textContent)).toContain("1 600 000 so'm")
     expect(text).toContain('Sotuvchi: Dilnoza')

@@ -1,5 +1,6 @@
 import {
   belowFloor,
+  customerOff,
   floorOf,
   formatMoney,
   gross,
@@ -120,13 +121,25 @@ export interface CartTotals extends SaleTotals {
   saleDiscount: number
 }
 
-/** What the cart comes to. The server works the same sum out again from its own prices. */
-export function cartTotals(cart: Cart): CartTotals {
-  const lineDiscounts = cart.lines.map((line) => discountOf(line.discountText, gross(line.item.price ?? 0, line.qty)))
-  const afterLines = linesTotal(cart)
+/**
+ * What the cart comes to. The server works the same sum out again from its own prices. `ownPercent` is the
+ * customer's own discount: it comes off each line first, by itself, and what the cashier gives is counted
+ * from what is left.
+ */
+export function cartTotals(cart: Cart, ownPercent = 0): CartTotals {
+  const autos = cart.lines.map((line) => customerOff(gross(line.item.price ?? 0, line.qty), ownPercent))
+  const lineDiscounts = cart.lines.map((line, index) =>
+    discountOf(line.discountText, gross(line.item.price ?? 0, line.qty) - autos[index]),
+  )
+  const afterLines = linesTotal(cart, ownPercent)
   const saleDiscount = discountOf(cart.discountText, afterLines)
   const totals = saleTotals(
-    cart.lines.map((line, index) => ({ price: line.item.price ?? 0, qty: line.qty, discount: lineDiscounts[index] })),
+    cart.lines.map((line, index) => ({
+      price: line.item.price ?? 0,
+      qty: line.qty,
+      discount: lineDiscounts[index],
+      auto: autos[index],
+    })),
     saleDiscount,
   )
   return { ...totals, lineDiscounts, saleDiscount }
@@ -148,11 +161,15 @@ export function underFloor(cart: Cart, totals: SaleTotals): { index: number; flo
   }))
 }
 
-/** What the lines come to after their own discounts: what a discount on the whole sale is taken from. */
-export function linesTotal(cart: Cart): number {
+/**
+ * What the lines come to after the customer's own discount and their own: what a discount on the whole
+ * sale is taken from.
+ */
+export function linesTotal(cart: Cart, ownPercent = 0): number {
   return cart.lines.reduce((sum, line) => {
     const whole = gross(line.item.price ?? 0, line.qty)
-    return sum + whole - discountOf(line.discountText, whole)
+    const left = whole - customerOff(whole, ownPercent)
+    return sum + left - discountOf(line.discountText, left)
   }, 0)
 }
 

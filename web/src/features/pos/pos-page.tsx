@@ -1,5 +1,6 @@
 import {
   formatMoney,
+  overDiscountLimit,
   overRateLoss,
   settle,
   settleRefund,
@@ -437,14 +438,19 @@ function Till({ context, registers, onSwitch }: TillProps) {
   }
 
   // ── The sum ──
-  const totals = useMemo(() => cartTotals(cart), [cart])
+  // The customer's own discount comes off by itself, and only off the retail price: a price of their own
+  // is already what they were given.
+  const ownPercent = priceTypeId ? 0 : (cart.customer?.discountPercent ?? 0)
+  const totals = useMemo(() => cartTotals(cart, ownPercent), [cart, ownPercent])
   /** What a discount on the whole sale is taken from. */
-  const afterLines = useMemo(() => linesTotal(cart), [cart])
+  const afterLines = useMemo(() => linesTotal(cart, ownPercent), [cart, ownPercent])
 
   // A sum agreed on was agreed for the goods that were in the cart. When they change it no longer
   // stands: left in place, whatever was added after it would be given away.
   const goods = cart.lines
     .map((line) => [line.item.variantId, line.item.epc, line.qty, line.item.price, line.discountText].join(':'))
+    // What comes off for the customer changes what there is to agree on, as the goods do.
+    .concat(String(ownPercent))
     .join('|')
   const agreedFor = useRef(goods)
   useEffect(() => {
@@ -463,8 +469,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
     // Only a change of the goods matters here; the discount is read as it stands at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goods])
-  const percent = totals.subtotal ? (totals.discount * 100) / totals.subtotal : 0
-  const overLimit = percent > context.maxDiscountPercent && !context.mayOverDiscount
+  // What the cashier gave of their own accord, as a share of what was left to give it from: the customer's
+  // own discount is neither counted in it nor held against the limit.
+  const given = totals.discount - totals.auto
+  const percent = totals.subtotal - totals.auto ? (given * 100) / (totals.subtotal - totals.auto) : 0
+  const overLimit = overDiscountLimit(totals, context.maxDiscountPercent) && !context.mayOverDiscount
   /** The lines under what their thing may go for. Who may discount beyond the limit sells them alone. */
   const under = useMemo(() => underFloor(cart, totals), [cart, totals])
   const underAsk = under.length > 0 && !context.mayOverDiscount
@@ -536,7 +545,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
       return
     }
     if (
-      cart.lines.some((line, index) => badDiscount(line.discountText, totals.lines[index]?.gross)) ||
+      cart.lines.some((line, index) =>
+        badDiscount(line.discountText, (totals.lines[index]?.gross ?? 0) - (totals.lines[index]?.auto ?? 0)),
+      ) ||
       badDiscount(cart.discountText, afterLines)
     ) {
       toast.error(t('pos.badDiscount'))
@@ -644,7 +655,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
       return
     }
     if (
-      cart.lines.some((line, index) => badDiscount(line.discountText, totals.lines[index]?.gross)) ||
+      cart.lines.some((line, index) =>
+        badDiscount(line.discountText, (totals.lines[index]?.gross ?? 0) - (totals.lines[index]?.auto ?? 0)),
+      ) ||
       badDiscount(cart.discountText, afterLines)
     ) {
       toast.error(t('pos.badDiscount'))
@@ -845,6 +858,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             backNumber={returning?.found.sale.number ?? null}
             priceType={priceType?.name ?? null}
             customer={cart.customer?.name ?? null}
+            ownReason={cart.customer?.discountReason ?? null}
             credit={credit}
             toPay={toPay}
             toRefund={toRefund}
@@ -964,7 +978,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
                           lines: cart.lines.map((item) => (item.key === line.key ? { ...item, ...change } : item)),
                         })
                       const short = !line.item.epc && line.qty > line.item.onHand
-                      const whole = totals.lines[index]?.gross ?? 0
+                      // What the line is worth once the customer's own discount is off: what the cashier's
+                      // discount, or a price agreed on, is counted from.
+                      const whole = (totals.lines[index]?.gross ?? 0) - (totals.lines[index]?.auto ?? 0)
                       const floor = under.find((item) => item.index === index)?.floor
                       return (
                         <tr key={line.key} className="border-t border-line align-top first:border-t-0">
@@ -1154,7 +1170,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
                     onChange={(discountText) => setCart({ ...cart, discountText })}
                   />
                 ) : null}
-                {totals.discount ? (
+                {totals.auto ? (
+                  <div className="mt-2 flex items-baseline justify-between gap-3 text-[13px] text-accent-ink">
+                    <span className="min-w-0 truncate">
+                      {t('pos.customerDiscount')}
+                      {cart.customer?.discountReason ? ` · ${cart.customer.discountReason}` : ''}
+                    </span>
+                    <span className="tabular shrink-0">−{money(totals.auto)}</span>
+                  </div>
+                ) : null}
+                {given ? (
                   <div
                     className={cn(
                       'mt-2 flex items-baseline justify-between text-[13px]',
@@ -1164,7 +1189,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                     <span>
                       {t('pos.discount')} ({percent.toFixed(1).replace('.', ',')}%)
                     </span>
-                    <span className="tabular">−{money(totals.discount)}</span>
+                    <span className="tabular">−{money(given)}</span>
                   </div>
                 ) : null}
                 {overLimit ? (

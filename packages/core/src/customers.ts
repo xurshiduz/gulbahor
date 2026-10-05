@@ -40,6 +40,54 @@ export const customerInputSchema = z.object({
 })
 export type CustomerInput = z.infer<typeof customerInputSchema>
 
+/** A percentage with at most two places after the point. */
+const percentSchema = z
+  .number()
+  .min(0)
+  .max(100)
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
+    message: "Foizda ko'pi bilan 2 ta kasr xona bo'ladi",
+  })
+
+// ───────────────────────────── Loyalty ─────────────────────────────
+
+/**
+ * A step of the loyalty programme: who has bought for `from` or more gets
+ * `percent` off. What a customer has bought is the sum of their receipts,
+ * less what came back; the highest step they have reached is theirs.
+ */
+export interface LoyaltyTier {
+  /** In so'm tiyin. */
+  from: number
+  percent: number
+}
+
+export const loyaltyInputSchema = z.object({
+  tiers: z
+    .array(
+      z.object({
+        from: z.number().int().min(0).max(1_000_000_000_000_00),
+        percent: percentSchema.refine((value) => value > 0, { message: 'Foizni kiriting' }),
+      }),
+    )
+    .max(20)
+    .superRefine((tiers, context) => {
+      const sums = new Set<number>()
+      tiers.forEach((tier, index) => {
+        if (sums.has(tier.from)) {
+          context.addIssue({ code: 'custom', path: [index, 'from'], message: 'Bunday summa bor' })
+        }
+        sums.add(tier.from)
+      })
+    }),
+})
+export type LoyaltyInput = z.infer<typeof loyaltyInputSchema>
+
+/** The percentage someone who has bought for `purchases` has earned; 0 below the first step. */
+export function tierPercent(tiers: readonly LoyaltyTier[], purchases: number): number {
+  return tiers.reduce((best, tier) => (purchases >= tier.from && tier.percent > best ? tier.percent : best), 0)
+}
+
 // ───────────────────────────── Groups ─────────────────────────────
 
 /**
@@ -52,6 +100,8 @@ export const customerGroupInputSchema = z.object({
   name: requiredText(60),
   /** The price type its members buy at; none for the retail price. */
   priceTypeId: idSchema.nullish().transform((value) => value ?? null),
+  /** Comes off everything its members buy at the retail price, in percent. */
+  discountPercent: percentSchema.default(0),
   /** Shown to the cashier when a member is picked: "Chek berish kerak". */
   reminder: optionalText(200),
   /** Nothing is sold to them on credit. */
@@ -66,6 +116,7 @@ export type CustomerGroupInput = z.infer<typeof customerGroupInputSchema>
 export interface CustomerGroupDto {
   id: string
   name: string
+  discountPercent: number
   priceTypeId: string | null
   priceTypeName: string | null
   reminder: string | null
@@ -102,6 +153,12 @@ export interface CustomerBrief {
 export interface PosCustomerDto extends CustomerBrief {
   groups: string[]
   reminders: string[]
+  /**
+   * What comes off everything they buy at the retail price, in percent, and where it comes from: the most
+   * their groups give, or their loyalty tier, whichever is more. 0 when neither gives anything.
+   */
+  discountPercent: number
+  discountReason: string | null
   priceType: { id: string; name: string } | null
   noDebt: boolean
   noLayaway: boolean
@@ -123,6 +180,8 @@ export interface CustomerDto extends CustomerBrief {
   salesCount: number
   purchases: number
   lastSaleAt: string | null
+  /** What their groups or their loyalty tier take off for them, in percent. */
+  discountPercent: number
 }
 
 /** What stands over the list: the whole base at a glance. */

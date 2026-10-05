@@ -19,6 +19,7 @@ import { Badge, EmptyState } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { usePriceTypes } from '@/features/catalog/catalog'
 import { api } from '@/lib/api'
@@ -81,6 +82,13 @@ export function GroupsTab({ onEdit }: { onEdit: (group: CustomerGroupDto) => voi
           ) : (
             <span className="text-ink-3">{t('pos.retailPrice')}</span>
           ),
+      },
+      {
+        id: 'discount',
+        header: t('pos.discount'),
+        meta: { className: 'tabular text-right', headerClassName: 'text-right' },
+        cell: ({ row }) =>
+          row.original.discountPercent ? `${String(row.original.discountPercent).replace('.', ',')}%` : '',
       },
       {
         id: 'reminder',
@@ -150,6 +158,7 @@ export function GroupsTab({ onEdit }: { onEdit: (group: CustomerGroupDto) => voi
 
 interface Values {
   name: string
+  discountPercent: number | null
   priceTypeId: string
   reminder: string
   noDebt: boolean
@@ -167,6 +176,7 @@ export function GroupDialog({ group, onClose }: { group: CustomerGroupDto | null
   const form = useForm<Values>({
     defaultValues: {
       name: group?.name ?? '',
+      discountPercent: group?.discountPercent || null,
       priceTypeId: group?.priceTypeId ?? RETAIL,
       reminder: group?.reminder ?? '',
       noDebt: group?.noDebt ?? false,
@@ -212,6 +222,7 @@ export function GroupDialog({ group, onClose }: { group: CustomerGroupDto | null
           void form.handleSubmit((values) => {
             const input = zodCheck(form, customerGroupInputSchema, {
               ...values,
+              discountPercent: values.discountPercent ?? 0,
               // "Retail" in the list is no price type of its own: the group has none.
               priceTypeId: values.priceTypeId === RETAIL ? null : values.priceTypeId,
             })
@@ -242,6 +253,29 @@ export function GroupDialog({ group, onClose }: { group: CustomerGroupDto | null
                     { value: RETAIL, label: t('pos.retailPrice') },
                     ...prices.map((type) => ({ value: type.id, label: type.name })),
                   ]}
+                />
+              )}
+            />
+          )}
+        </Field>
+        <Field
+          label={t('customers.groupDiscount')}
+          hint={t('customers.groupDiscountHint')}
+          error={errors.discountPercent?.message}
+        >
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="discountPercent"
+              render={({ field }) => (
+                <NumberInput
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  decimals={2}
+                  max={100}
+                  suffix="%"
+                  className="w-32"
                 />
               )}
             />

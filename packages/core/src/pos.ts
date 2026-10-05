@@ -207,6 +207,11 @@ export interface CartLine {
   qty: number
   /** Taken off this line as a whole. */
   discount: number
+  /**
+   * Taken off by itself before anything a cashier gives: the customer's own discount. A cashier's
+   * discount is then counted from what is left, and against the cashier's limit only that is held.
+   */
+  auto?: number
 }
 
 const QTY_SCALE = 1000n
@@ -218,11 +223,23 @@ export function gross(price: number, qty: number): number {
 
 export interface SaleTotals {
   subtotal: number
-  /** Line discounts and the discount on the whole sale together. */
+  /** Everything that came off: what came off by itself, line discounts and the discount on the whole sale. */
   discount: number
+  /** The part of it that came off by itself: the customer's own discount. */
+  auto: number
   total: number
-  /** Each line after its own discount and its share of the sale's. */
-  lines: { gross: number; discount: number; total: number }[]
+  /** Each line after everything that came off it, with the part that came off by itself. */
+  lines: { gross: number; discount: number; auto: number; total: number }[]
+}
+
+/** What a customer's percentage takes off a line worth `gross`, to the tiyin. */
+export function customerOff(gross: number, percent: number): number {
+  return percent > 0 ? Number((BigInt(gross) * BigInt(Math.round(percent * 100)) + 5000n) / 10000n) : 0
+}
+
+/** Whether what the cashier gave of their own accord is over the limit they may give alone. */
+export function overDiscountLimit(totals: SaleTotals, limitPercent: number): boolean {
+  return (totals.discount - totals.auto) * 100 > (totals.subtotal - totals.auto) * limitPercent
 }
 
 /**
@@ -233,9 +250,10 @@ export interface SaleTotals {
 export function saleTotals(cart: readonly CartLine[], saleDiscount: number): SaleTotals {
   const own = cart.map((line) => {
     const value = gross(line.price, line.qty)
-    return { gross: value, discount: Math.min(line.discount, value) }
+    const auto = Math.min(Math.max(0, line.auto ?? 0), value)
+    return { gross: value, auto, discount: Math.min(line.discount, value - auto) }
   })
-  const after = own.map((line) => line.gross - line.discount)
+  const after = own.map((line) => line.gross - line.auto - line.discount)
   const left = after.reduce((sum, value) => sum + value, 0)
   const shared = allocateExact(
     Math.min(Math.max(0, saleDiscount), left),
@@ -243,12 +261,14 @@ export function saleTotals(cart: readonly CartLine[], saleDiscount: number): Sal
   )
   const lines = own.map((line, index) => ({
     gross: line.gross,
-    discount: line.discount + shared[index],
-    total: line.gross - line.discount - shared[index],
+    discount: line.auto + line.discount + shared[index],
+    auto: line.auto,
+    total: line.gross - line.auto - line.discount - shared[index],
   }))
   const subtotal = lines.reduce((sum, line) => sum + line.gross, 0)
   const discount = lines.reduce((sum, line) => sum + line.discount, 0)
-  return { subtotal, discount, total: subtotal - discount, lines }
+  const auto = lines.reduce((sum, line) => sum + line.auto, 0)
+  return { subtotal, discount, auto, total: subtotal - discount, lines }
 }
 
 export interface Tender {
@@ -530,6 +550,9 @@ export interface SaleListItemDto {
   /** Who bought, when they were on the books. */
   customerId: string | null
   customerName: string | null
+  /** What came off by itself, as the customer's own discount, and why: "Sodiqlik 7%". */
+  autoDiscount: number
+  autoReason: string | null
 }
 
 export interface SaleLineDto {
@@ -541,7 +564,10 @@ export interface SaleLineDto {
   sku: string
   qty: number
   price: number
+  /** Everything that came off the line. */
   discount: number
+  /** The part of it that came off by itself, as the customer's own discount. */
+  autoDiscount: number
   total: number
   epc: string | null
   /** How many of them have been brought back, and what those were worth. */

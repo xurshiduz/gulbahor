@@ -15,6 +15,8 @@ const nodira: PosCustomerDto = {
   phone: '+998901234567',
   groups: ['Oila', 'Doimiy'],
   reminders: ['Chek berish kerak'],
+  discountPercent: 7,
+  discountReason: 'Sodiqlik 7%',
   priceType: { id: 'family', name: 'Oila' },
   noDebt: false,
   noLayaway: false,

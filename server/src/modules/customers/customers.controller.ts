@@ -3,12 +3,15 @@ import {
   customerInputSchema,
   customerListQuerySchema,
   idSchema,
+  loyaltyInputSchema,
   type CustomerDto,
   type CustomerGroupDto,
   type CustomerGroupInput,
   type CustomerInput,
   type CustomerListQuery,
   type CustomerSummary,
+  type LoyaltyInput,
+  type LoyaltyTier,
   type Page,
 } from '@gulbahor/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
@@ -22,6 +25,19 @@ const id = () => Param('id', zod(idSchema))
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customers: CustomersService) {}
+
+  /** Whoever serves customers may see what the programme gives; whoever keeps the base sets it. */
+  @Get('loyalty')
+  @Can('customers.view')
+  loyalty(@CurrentActor() actor: Actor): Promise<LoyaltyTier[]> {
+    return this.customers.loyalty(actor)
+  }
+
+  @Put('loyalty')
+  @Can('customers.manage')
+  setLoyalty(@CurrentActor() actor: Actor, @Body(zod(loyaltyInputSchema)) input: LoyaltyInput): Promise<LoyaltyTier[]> {
+    return this.customers.setLoyalty(actor, input)
+  }
 
   /** Listed before the routes that take an id: `groups` is not a customer. */
   @Get('groups')

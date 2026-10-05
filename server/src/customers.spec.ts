@@ -371,6 +371,8 @@ describe('Customers', () => {
         phone: '+998901234567',
         groups: ['Oila', 'Doimiy'],
         reminders: ['Chek berish kerak', "Sumka sovg'a"],
+        discountPercent: 0,
+        discountReason: null,
         priceType: { id: familyPrice, name: 'Oila' },
         noDebt: false,
         noLayaway: false,
@@ -420,6 +422,99 @@ describe('Customers', () => {
         noExchange: false,
       })
       expect((await scarfSale(nodira.id, familyPrice, som(30_000))).status).toBe(400)
+    })
+  })
+
+  describe('their own discount', () => {
+    let lola: { id: string }
+
+    const buy = (total: number, more: Record<string, unknown> = {}) =>
+      cashier.post('/api/sales').send({
+        clientKey: randomUUID(),
+        registerId,
+        customerId: lola.id,
+        lines: [{ variantId: shirt, qty: 1 }],
+        payments: [{ method: 'cash', currency: 'UZS', amount: total }],
+        total,
+        ...more,
+      })
+    const atTill = async () => (await cashier.get('/api/pos/customers').query({ q: 'lola' }).expect(200)).body[0]
+
+    beforeAll(async () => {
+      lola = (await alpha.post('/api/customers').send({ name: 'Lola', phone: '99 111 22 33' }).expect(201)).body
+    })
+
+    it('is earned by what they have bought, step by step', async () => {
+      const tiers = [
+        { from: som(1_000_000), percent: 10 },
+        { from: som(200_000), percent: 5 },
+      ]
+      // Kept lowest first, however they were sent.
+      expect((await alpha.put('/api/customers/loyalty').send({ tiers }).expect(200)).body).toEqual([
+        { from: som(200_000), percent: 5 },
+        { from: som(1_000_000), percent: 10 },
+      ])
+      const twice = await alpha.put('/api/customers/loyalty').send({ tiers: [tiers[0], tiers[0]] })
+      expect(twice.status).toBe(400)
+      await cashier.put('/api/customers/loyalty').send({ tiers }).expect(403)
+
+      // Nothing bought yet: nothing earned.
+      expect(await atTill()).toMatchObject({ discountPercent: 0, discountReason: null })
+      await buy(som(100_000)).expect(201)
+      await buy(som(100_000)).expect(201)
+      // 200 000 bought: the first step.
+      expect(await atTill()).toMatchObject({ discountPercent: 5, discountReason: 'Sodiqlik 5%' })
+      expect((await alpha.get(`/api/customers/${lola.id}`).expect(200)).body.discountPercent).toBe(5)
+    })
+
+    it('comes off by itself at the till, and is written on the receipt apart from what the cashier gave', async () => {
+      // The till cannot leave it out: the sum without it is not what the sale comes to.
+      expect((await buy(som(100_000))).body.error.code).toBe('PRICE_CHANGED')
+      const sale = (await buy(som(95_000)).expect(201)).body
+      expect(sale).toMatchObject({
+        subtotal: som(100_000),
+        discount: som(5000),
+        autoDiscount: som(5000),
+        autoReason: 'Sodiqlik 5%',
+        total: som(95_000),
+        approvedByName: null,
+      })
+      expect(sale.lines[0]).toMatchObject({ discount: som(5000), autoDiscount: som(5000), total: som(95_000) })
+
+      // The cashier's own 10% is counted from what is left, and only that is held against their limit.
+      const within = (
+        await buy(som(85_500), { lines: [{ variantId: shirt, qty: 1, discount: som(9500) }] }).expect(201)
+      ).body
+      expect(within).toMatchObject({ discount: som(14_500), autoDiscount: som(5000), total: som(85_500) })
+      const over = await buy(som(85_499), { lines: [{ variantId: shirt, qty: 1, discount: som(9501) }] })
+      expect(over.body.error.code).toBe('DISCOUNT_OVER_LIMIT')
+    })
+
+    it('is the most their groups give, when that is more than they have earned', async () => {
+      const staff = (
+        await alpha.post('/api/customers/groups').send({ name: 'Xodimlar', discountPercent: 15 }).expect(201)
+      ).body
+      expect(staff.discountPercent).toBe(15)
+      await alpha
+        .put(`/api/customers/${lola.id}`)
+        .send({ name: 'Lola', phone: '+998991112233', groupIds: [staff.id] })
+        .expect(200)
+      // Not 15 and 5 together: the greater of the two.
+      expect(await atTill()).toMatchObject({ discountPercent: 15, discountReason: 'Xodimlar 15%' })
+      const sale = (await buy(som(85_000)).expect(201)).body
+      expect(sale).toMatchObject({ autoDiscount: som(15_000), autoReason: 'Xodimlar 15%' })
+    })
+
+    it('does not come off a price that is already their own', async () => {
+      const types = (await alpha.get('/api/price-types').expect(200)).body as Record<string, unknown>[]
+      const wholesale = types.find((type) => type.kind === 'wholesale') as { id: string }
+      await alpha
+        .put(`/api/price-types/${wholesale.id}`)
+        .send({ ...wholesale, tillAccess: 'all' })
+        .expect(200)
+      // The shirt has no wholesale price, so the retail one stands; but the sale is a wholesale one.
+      const sale = (await buy(som(100_000), { priceTypeId: wholesale.id }).expect(201)).body
+      expect(sale).toMatchObject({ priceTypeName: 'Ulgurji', autoDiscount: 0, autoReason: null, total: som(100_000) })
     })
   })
 })

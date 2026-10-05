@@ -191,7 +191,7 @@ const customersRoute = createRoute({
   component: CustomersPage,
   validateSearch: z.object({
     ...listSearch,
-    tab: z.enum(['list', 'groups']).default('list').catch('list'),
+    tab: z.enum(['list', 'groups', 'loyalty']).default('list').catch('list'),
     status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
     birthdayIn: z.number().int().min(0).max(366).optional().catch(undefined),
     groupId: z.string().optional().catch(undefined),

@@ -6,6 +6,8 @@ import {
   type CustomerInput,
   type CustomerListQuery,
   type CustomerSummary,
+  type LoyaltyInput,
+  type LoyaltyTier,
   type Page,
   type PosCustomerDto,
 } from '@gulbahor/core'
@@ -15,11 +17,11 @@ import { In, type EntityManager } from 'typeorm'
 import { AppError } from '../../common/errors'
 import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Customer, CustomerGroup, CustomerGroupMember, PriceType } from '../../database/entities'
+import { Customer, CustomerGroup, CustomerGroupMember, LoyaltyTierRow, PriceType } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
-import { rulesOf } from './groups'
+import { loyaltyTiers, rulesOf } from './groups'
 
 const SORTABLE = { name: 'c.name', createdAt: 'c.createdAt' }
 
@@ -159,6 +161,38 @@ export class CustomersService {
     })
   }
 
+  // ───────────────────────────── Loyalty ─────────────────────────────
+
+  async loyalty(actor: Actor): Promise<LoyaltyTier[]> {
+    return this.db.tenant(actor.orgId, async ({ em }) => loyaltyTiers(em))
+  }
+
+  /** The steps of the programme, all at once: what is not sent is no longer a step. */
+  async setLoyalty(actor: Actor, input: LoyaltyInput): Promise<LoyaltyTier[]> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const before = await loyaltyTiers(em)
+      await em.createQueryBuilder().delete().from(LoyaltyTierRow).execute()
+      if (input.tiers.length) {
+        await em.insert(
+          LoyaltyTierRow,
+          input.tiers.map((tier) => ({ orgId: actor.orgId, fromAmount: tier.from, percent: tier.percent })),
+        )
+      }
+      const after = await loyaltyTiers(em)
+      const words = (tiers: LoyaltyTier[]) =>
+        tiers.map((tier) => `${tier.from / 100} dan ${tier.percent}%`).join('; ') || "yo'q"
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'loyalty.update',
+        entity: 'loyalty',
+        entityId: actor.orgId,
+        summary: 'Sodiqlik dasturi',
+        changes: { tiers: [words(before), words(after)] },
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
+      return after
+    })
+  }
+
   // ───────────────────────────── Groups ─────────────────────────────
 
   async groups(actor: Actor): Promise<CustomerGroupDto[]> {
@@ -196,7 +230,15 @@ export class CustomersService {
         entity: 'customer_group',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['name', 'priceTypeId', 'reminder', 'noDebt', 'noLayaway', 'noExchange']),
+        changes: diff(before, after, [
+          'name',
+          'discountPercent',
+          'priceTypeId',
+          'reminder',
+          'noDebt',
+          'noLayaway',
+          'noExchange',
+        ]),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
       return (await this.groupDtos(em, id))[0]
@@ -224,6 +266,7 @@ export class CustomersService {
     const rows: {
       id: string
       name: string
+      discount_percent: number
       price_type_id: string | null
       price_type_name: string | null
       reminder: string | null
@@ -233,7 +276,8 @@ export class CustomersService {
       is_active: boolean
       members: number
     }[] = await em.query(
-      `SELECT g.id, g.name, g.price_type_id, t.name AS price_type_name, g.reminder, g.no_debt, g.no_layaway,
+      `SELECT g.id, g.name, g.discount_percent::float8 AS discount_percent, g.price_type_id,
+              t.name AS price_type_name, g.reminder, g.no_debt, g.no_layaway,
               g.no_exchange, g.is_active,
               (SELECT count(*)::int FROM customer_group_members m JOIN customers c ON c.id = m.customer_id
                WHERE m.group_id = g.id AND c.is_active) AS members
@@ -245,6 +289,7 @@ export class CustomersService {
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      discountPercent: row.discount_percent,
       priceTypeId: row.price_type_id,
       priceTypeName: row.price_type_name,
       reminder: row.reminder,
@@ -339,9 +384,11 @@ export class CustomersService {
        WHERE m.customer_id = ANY($1) ORDER BY g.sort_order, g.name`,
       [ids],
     )
+    const rules = await rulesOf(em, customers)
     return customers.map((customer) => {
       const row = boughtBy.get(customer.id)
       return {
+        discountPercent: rules.get(customer.id)?.discountPercent ?? 0,
         id: customer.id,
         name: customer.name,
         phone: customer.phone,

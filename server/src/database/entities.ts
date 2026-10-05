@@ -704,6 +704,10 @@ export class CustomerGroup {
   @Column('text')
   name: string
 
+  /** Comes off everything its members buy at the retail price, in percent. */
+  @Column('numeric', { transformer: numericAsNumber, default: 0 })
+  discountPercent: number
+
   /** The price type its members buy at. */
   @Column('uuid', { nullable: true })
   priceTypeId: string | null
@@ -729,6 +733,22 @@ export class CustomerGroup {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
+}
+
+@Entity('loyalty_tiers')
+export class LoyaltyTierRow {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  /** Bought for this much or more, in so'm tiyin. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  fromAmount: number
+
+  @Column('numeric', { transformer: numericAsNumber })
+  percent: number
 }
 
 @Entity('customer_group_members')
@@ -1897,6 +1917,13 @@ export class Sale {
   @Column('text', { nullable: true })
   customerName: string | null
 
+  /** The part of `discount` that came off by itself, as the customer's own, and why. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  autoDiscount: number
+
+  @Column('text', { nullable: true })
+  autoReason: string | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
@@ -1926,6 +1953,10 @@ export class SaleLine {
 
   @Column('bigint', { transformer: bigintAsNumber })
   discount: number
+
+  /** The part of `discount` that came off by itself, as the customer's own. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  autoDiscount: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   total: number
@@ -2560,4 +2591,5 @@ export const ENTITIES = [
   Customer,
   CustomerGroup,
   CustomerGroupMember,
+  LoyaltyTierRow,
 ]

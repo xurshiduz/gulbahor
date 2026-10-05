@@ -42,6 +42,7 @@ import { withFilter } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
+import { LoyaltyTab } from './loyalty-tab'
 
 const route = getRouteApi('/customers')
 
@@ -85,7 +86,7 @@ export function CustomersPage() {
   useHotkey('n', add, {
     label: addLabel,
     group: t('shortcuts.groupList'),
-    enabled: canManage && !edit && groupForm === undefined,
+    enabled: canManage && tab !== 'loyalty' && !edit && groupForm === undefined,
   })
 
   const columns = useMemo<ColumnDef<CustomerDto>[]>(
@@ -172,6 +173,23 @@ export function CustomersPage() {
             ),
         },
         {
+          id: 'discount',
+          header: t('pos.discount'),
+          meta: {
+            export: (row) => (row.discountPercent ? `${row.discountPercent}%` : null),
+            className: 'tabular text-right whitespace-nowrap',
+            headerClassName: 'text-right',
+          },
+          cell: ({ row }) =>
+            row.original.discountPercent ? (
+              <span className="font-medium text-accent-ink">
+                {String(row.original.discountPercent).replace('.', ',')}%
+              </span>
+            ) : (
+              ''
+            ),
+        },
+        {
           id: 'salesCount',
           header: t('customers.salesCount'),
           meta: {
@@ -250,7 +268,7 @@ export function CustomersPage() {
     <Page
       title={t('customers.title')}
       actions={
-        canManage ? (
+        canManage && tab !== 'loyalty' ? (
           <Button variant="primary" onClick={add}>
             <Plus />
             {addLabel}
@@ -265,10 +283,14 @@ export function CustomersPage() {
         tabs={[
           { value: 'list', label: t('customers.title') },
           { value: 'groups', label: t('customers.groups') },
+          { value: 'loyalty', label: t('customers.loyalty') },
         ]}
       >
         <TabPanel value="groups">
           <GroupsTab onEdit={setGroupForm} />
+        </TabPanel>
+        <TabPanel value="loyalty">
+          <LoyaltyTab />
         </TabPanel>
         <TabPanel value="list">
           {summary ? (

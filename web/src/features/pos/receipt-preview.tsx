@@ -19,8 +19,9 @@ interface ReceiptPreviewProps {
   backNumber: string | null
   /** The price type the goods are sold at, when it is not the retail one. */
   priceType: string | null
-  /** Who is buying, when they are on the books. */
+  /** Who is buying, when they are on the books, and why something comes off for them: "Sodiqlik 7%". */
   customer: string | null
+  ownReason: string | null
   /** What the goods coming back are worth. */
   credit: number
   /** What is left to take from the customer, or to hand back to them. */
@@ -43,6 +44,7 @@ export function ReceiptPreview({
   backNumber,
   priceType,
   customer,
+  ownReason,
   credit,
   toPay,
   toRefund,
@@ -78,11 +80,11 @@ export function ReceiptPreview({
                       </p>
                       <p className="tabular text-xs text-ink-3">
                         {formatNumber(line.qty)} × {money(line.item.price ?? 0)}
-                        {totals.lineDiscounts[index] ? ` − ${money(totals.lineDiscounts[index])}` : ''}
+                        {sums?.discount ? ` − ${money(sums.discount)}` : ''}
                       </p>
                     </td>
                     <td className="tabular py-1.5 text-right font-medium whitespace-nowrap">
-                      {money((sums?.gross ?? gross(line.item.price ?? 0, line.qty)) - totals.lineDiscounts[index])}
+                      {money(sums?.total ?? gross(line.item.price ?? 0, line.qty))}
                     </td>
                   </tr>
                 )
@@ -123,10 +125,16 @@ export function ReceiptPreview({
           {totals.discount ? (
             <>
               <Line label={t('pos.subtotal')} value={money(totals.subtotal)} />
-              {totals.saleDiscount ? (
-                <Line label={t('pos.saleDiscount')} value={`−${money(totals.saleDiscount)}`} />
+              {/* What came off by itself and what the cashier gave are said apart: it is known later why. */}
+              {totals.auto ? (
+                <Line
+                  label={`${t('pos.customerDiscount')}${ownReason ? ` · ${ownReason}` : ''}`}
+                  value={`−${money(totals.auto)}`}
+                />
               ) : null}
-              <Line label={t('pos.discount')} value={`−${money(totals.discount)}`} />
+              {totals.discount - totals.auto ? (
+                <Line label={t('pos.discount')} value={`−${money(totals.discount - totals.auto)}`} />
+              ) : null}
             </>
           ) : null}
           {credit ? (

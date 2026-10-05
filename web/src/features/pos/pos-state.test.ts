@@ -166,6 +166,38 @@ describe('the floor', () => {
   })
 })
 
+describe("the customer's own discount", () => {
+  const cartOf = (lineDiscount: string, saleDiscount = ''): Cart => ({
+    ...EMPTY_CART,
+    lines: [
+      { key: 'a', item: item('dress', som(200_000)), qty: 1, discountText: lineDiscount },
+      { key: 'b', item: item('scarf', som(100_000)), qty: 1, discountText: '' },
+    ],
+    discountText: saleDiscount,
+  })
+
+  it('comes off every line by itself, and nothing changes without it', () => {
+    expect(cartTotals(cartOf(''))).toMatchObject({ subtotal: som(300_000), auto: 0, total: som(300_000) })
+    const totals = cartTotals(cartOf(''), 10)
+    expect(totals).toMatchObject({ subtotal: som(300_000), auto: som(30_000), discount: som(30_000) })
+    expect(totals.total).toBe(som(270_000))
+    expect(totals.lines.map((line) => line.total)).toEqual([som(180_000), som(90_000)])
+    expect(linesTotal(cartOf(''), 10)).toBe(som(270_000))
+  })
+
+  it("leaves the cashier's discount to be counted from what is left", () => {
+    // 10% of the 180 000 the dress is at for this customer, not of its 200 000.
+    const totals = cartTotals(cartOf('10%'), 10)
+    expect(totals.lineDiscounts).toEqual([som(18_000), 0])
+    expect(totals.lines[0]).toMatchObject({ auto: som(20_000), discount: som(38_000), total: som(162_000) })
+    // A price agreed on for the line, and a sum agreed on for the sale, are what is paid.
+    expect(cartTotals(cartOf('=170 000'), 10).lines[0].total).toBe(som(170_000))
+    expect(cartTotals(cartOf('', '=250 000'), 10).total).toBe(som(250_000))
+    // A price above what the line is now at is no discount at all.
+    expect(badDiscount('=190 000', som(180_000))).toBe(true)
+  })
+})
+
 describe('the search field', () => {
   it('takes a count before the thing', () => {
     expect(splitMultiplier('3*')).toEqual({ qty: 3, rest: '' })
