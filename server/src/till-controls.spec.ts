@@ -136,7 +136,7 @@ describe('Till controls', () => {
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
       // The other cashier has a PIN but nothing to allow; the owner may allow everything but has no PIN.
       expect(context.approvers).toEqual([
-        { id: managerId, name: 'Anvar Menejer', discount: true, returns: true, prices: true },
+        { id: managerId, name: 'Anvar Menejer', discount: true, returns: true, prices: true, debts: true },
       ])
       expect(context.mayOverDiscount).toBe(false)
     })

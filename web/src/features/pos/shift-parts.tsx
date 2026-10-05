@@ -1,4 +1,4 @@
-import { formatMoney, PAYMENT_METHOD_LABELS, shiftCloseSchema, type PosContextDto, type ShiftDto } from '@gulbahor/core'
+import { formatMoney, paymentLabel, shiftCloseSchema, type PosContextDto, type ShiftDto } from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LockOpen } from 'lucide-react'
 import { useState } from 'react'
@@ -237,7 +237,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           totals.payments.map((payment) => (
             <Row
               key={`${payment.method}:${payment.accountName}:${payment.currency}`}
-              label={`${PAYMENT_METHOD_LABELS[payment.method]}${payment.method === 'cash' ? '' : ` · ${payment.accountName}`}`}
+              label={paymentLabel(payment)}
               value={money(payment.amount, payment.currency)}
             />
           ))
@@ -247,9 +247,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
         {totals.refunds.map((refund) => (
           <Row
             key={`back:${refund.method}:${refund.accountName}:${refund.currency}`}
-            label={`${t('sales.refunded')}: ${PAYMENT_METHOD_LABELS[refund.method]}${
-              refund.method === 'cash' ? '' : ` · ${refund.accountName}`
-            }`}
+            label={refund.method === 'debt' ? t('pos.offDebt') : `${t('sales.refunded')}: ${paymentLabel(refund)}`}
             value={`−${money(refund.amount, refund.currency)}`}
           />
         ))}
@@ -290,6 +288,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             {totals.partnersOutUzs ? (
               <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUzs)}`} />
             ) : null}
+            {totals.debtsUzs ? <Row label={t('pos.debtsIn')} value={`+${money(totals.debtsUzs)}`} /> : null}
             {totals.incomeUzs ? <Row label={t('pos.otherIn')} value={`+${money(totals.incomeUzs)}`} /> : null}
             {totals.expensesUzs ? <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUzs)}`} /> : null}
             {shift.countedUzs !== null ? <Row label={t('pos.counted')} value={money(shift.countedUzs)} strong /> : null}
@@ -303,6 +302,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           totals.outUsd ||
           totals.partnersInUsd ||
           totals.partnersOutUsd ||
+          totals.debtsUsd ||
           totals.incomeUsd ||
           totals.expensesUsd ? (
             <div>
@@ -315,6 +315,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
               {totals.partnersOutUsd ? (
                 <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUsd, 'USD')}`} />
               ) : null}
+              {totals.debtsUsd ? <Row label={t('pos.debtsIn')} value={`+${money(totals.debtsUsd, 'USD')}`} /> : null}
               {totals.incomeUsd ? <Row label={t('pos.otherIn')} value={`+${money(totals.incomeUsd, 'USD')}`} /> : null}
               {totals.expensesUsd ? (
                 <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUsd, 'USD')}`} />

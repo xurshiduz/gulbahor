@@ -75,6 +75,9 @@ export class PosService {
         maxDiscountPercent: settings.maxDiscountPercent,
         maxRateLossPercent: settings.maxRateLossPercent,
         mayOverDiscount: can(actor, 'pos.discount'),
+        debtDays: settings.debtDays,
+        debtLimit: settings.debtLimit,
+        mayLend: can(actor, 'pos.debt'),
       }
     })
   }

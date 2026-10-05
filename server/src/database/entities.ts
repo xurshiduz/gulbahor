@@ -4,6 +4,7 @@ import type {
   AttributeKind,
   CurrencyCode,
   CustomerGender,
+  DebtPaymentStatus,
   ExpenseBasis,
   Gender,
   ImageFormat,
@@ -17,7 +18,6 @@ import type {
   PartnerPaymentKind,
   PartnerPaymentStatus,
   PaymentMethod,
-  TenderMethod,
   TillAccess,
   PriceKind,
   PrinterDpi,
@@ -2315,7 +2315,8 @@ export class SaleReturnPayment {
   position: number
 
   @Column('text')
-  method: TenderMethod
+  /** `debt`: taken off what the receipt left owing, not handed back. */
+  method: PaymentMethod
 
   @Column('uuid')
   accountId: string
@@ -2554,6 +2555,155 @@ export class MoneyOpLine {
   shiftId: string | null
 }
 
+/** What a customer owes for one receipt. */
+@Entity('customer_debts')
+export class CustomerDebt {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  customerId: string
+
+  @Column('uuid')
+  saleId: string
+
+  @Column('uuid')
+  locationId: string
+
+  /** What was lent, in so'm. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  /** What has come back as money. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  paid: number
+
+  /** What goods brought back took off. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  returned: number
+
+  @Column('date')
+  dueDate: string
+
+  @Column('boolean')
+  cancelled: boolean
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+/** Money a customer brought against what they owe. */
+@Entity('debt_payments')
+export class DebtPayment {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('text')
+  status: DebtPaymentStatus
+
+  @Column('uuid')
+  customerId: string
+
+  /** What it comes to, in so'm. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  @Column('timestamptz')
+  paidAt: Date
+
+  @Column('date')
+  paidOn: string
+
+  @Column('text')
+  paidBy: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('timestamptz', { nullable: true })
+  cancelledAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  cancelledBy: string | null
+
+  @Column('text', { nullable: true })
+  cancelledByName: string | null
+
+  @Column('text', { nullable: true })
+  cancelReason: string | null
+}
+
+@Entity('debt_payment_lines')
+export class DebtPaymentLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  paymentId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  rate: number | null
+
+  /** The line's worth in so'm. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+
+  @Column('uuid', { nullable: true })
+  shiftId: string | null
+}
+
+/** How much of a payment went to which debt. */
+@Entity('debt_payment_parts')
+export class DebtPaymentPart {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  paymentId: string
+
+  @Column('uuid')
+  debtId: string
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+}
+
 @Entity('shift_terminal_counts')
 export class ShiftTerminalCount {
   @PrimaryGeneratedColumn('uuid')
@@ -2719,6 +2869,10 @@ export const ENTITIES = [
   MoneyCategory,
   MoneyOp,
   MoneyOpLine,
+  CustomerDebt,
+  DebtPayment,
+  DebtPaymentLine,
+  DebtPaymentPart,
   Customer,
   CustomerGroup,
   CustomerGroupMember,

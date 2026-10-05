@@ -1,6 +1,7 @@
 import {
   formatMoney,
   PAYMENT_METHOD_LABELS,
+  paymentLabel,
   returnShare,
   type ReturnableDto,
   type ReturnDto,
@@ -327,9 +328,8 @@ export function ReturnDialog({ returnId, onClose }: { returnId: string; onClose:
             {data.refunds.map((refund, index) => (
               <Row
                 key={index}
-                label={`${t('sales.refunded')}: ${PAYMENT_METHOD_LABELS[refund.method]}${
-                  refund.method === 'cash' ? '' : ` · ${refund.accountName}`
-                }`}
+                // What came off a debt was never money: it is not said to have been handed back.
+                label={refund.method === 'debt' ? t('pos.offDebt') : `${t('sales.refunded')}: ${paymentLabel(refund)}`}
                 value={
                   refund.currency === 'USD'
                     ? `${money(refund.amount, 'USD')} = ${money(refund.base)}`

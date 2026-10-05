@@ -133,6 +133,13 @@ export const NAVIGATION: NavGroup[] = [
         icon: BadgePercent,
         permission: 'customers.view',
       },
+      {
+        to: '/customers',
+        search: { tab: 'debts' },
+        label: 'nav.customerDebts',
+        icon: HandCoins,
+        permission: 'customers.debts',
+      },
     ],
   },
   {

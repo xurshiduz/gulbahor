@@ -2,6 +2,7 @@ import { tierPercent, type LoyaltyTier, type PosCustomerDto } from '@gulbahor/co
 import type { EntityManager } from 'typeorm'
 
 import { LoyaltyTierRow, type Customer } from '../../database/entities'
+import { debtsOf, NO_DEBT } from './debts'
 
 interface GroupRow {
   customer_id: string
@@ -58,6 +59,7 @@ export async function rulesOf(em: EntityManager, customers: Customer[]): Promise
       )
     : []
   const boughtBy = new Map(bought.map((row) => [row.customer_id, row.purchases]))
+  const debts = await debtsOf(em, ids)
 
   return new Map(
     customers.map((customer) => {
@@ -88,6 +90,7 @@ export async function rulesOf(em: EntityManager, customers: Customer[]): Promise
           noDebt: groups.some((group) => group.no_debt),
           noLayaway: groups.some((group) => group.no_layaway),
           noExchange: groups.some((group) => group.no_exchange),
+          debt: debts.get(customer.id) ?? NO_DEBT,
         },
       ]
     }),

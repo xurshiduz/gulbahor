@@ -1,4 +1,4 @@
-import { customerInputSchema, type PosCustomerDto } from '@gulbahor/core'
+import { customerInputSchema, formatMoney, type PosCustomerDto } from '@gulbahor/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { BellRing, UserRound, UserRoundPlus, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
@@ -20,11 +20,15 @@ interface CustomerPickerProps {
   registerId: string
   value: PosCustomerDto | null
   onChange: (customer: PosCustomerDto | null) => void
+  /** The customer has come to pay what they owe. */
+  onPayDebt?: () => void
 }
 
 export interface CustomerPickerHandle {
   focus: () => void
 }
+
+const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
 
 /** Digits alone are a phone being typed; anything else is a name. */
 const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())
@@ -35,7 +39,7 @@ const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())
  * on the spot, with what was typed already in its field.
  */
 export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerProps>(function CustomerPicker(
-  { registerId, value, onChange },
+  { registerId, value, onChange, onPayDebt },
   ref,
 ) {
   const { t } = useTranslation()
@@ -119,6 +123,28 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
             <X />
           </Button>
         </div>
+        {/* What they owe already: said before more is lent, with the way to take it there and then. */}
+        {value.debt?.owed ? (
+          <p
+            role="note"
+            className={cn(
+              'flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-[13px]',
+              value.debt.overdue ? 'bg-bad-soft text-bad' : 'bg-sunken text-ink-2',
+            )}
+          >
+            <span>
+              <span className="font-medium">{t('pos.customerDebt', { amount: money(value.debt.owed) })}</span>
+              {value.debt.overdue ? (
+                <span> · {t('pos.customerOverdue', { amount: money(value.debt.overdue) })}</span>
+              ) : null}
+            </span>
+            {onPayDebt ? (
+              <Button size="sm" tabIndex={-1} onClick={onPayDebt}>
+                {t('debts.take')}
+              </Button>
+            ) : null}
+          </p>
+        ) : null}
         {/* What their groups ask the cashier to remember: it stays in sight for the whole sale. */}
         {reminders.map((reminder) => (
           <p

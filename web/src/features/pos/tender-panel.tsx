@@ -8,11 +8,12 @@ import {
   type Settlement,
 } from '@gulbahor/core'
 import { ArrowLeft } from 'lucide-react'
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/controls'
+import { DateInput } from '@/components/ui/date-input'
 import { Shortcut } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
@@ -57,6 +58,23 @@ interface TenderPanelProps {
   busy: boolean
   onComplete: () => void
   onBack: () => void
+  /** Leaving part of it owing: offered when someone on the books is buying. */
+  lend?: Lending | null
+  /** Goods brought back on a receipt that still leaves something owing: so much comes off the debt, not out of the drawer. */
+  offDebt?: number
+}
+
+export interface Lending {
+  amount: number | null
+  dueDate: string
+  /** The most that can be left owing: what there is to pay. */
+  max: number
+  /** What the customer owes already. */
+  owed: number
+  /** Why a manager's word will be asked for, when it will. */
+  warning: string | null
+  onAmount: (amount: number | null) => void
+  onDueDate: (date: string) => void
 }
 
 /**
@@ -81,8 +99,13 @@ export function TenderPanel({
   busy,
   onComplete,
   onBack,
+  lend = null,
+  offDebt = 0,
 }: TenderPanelProps) {
   const { t } = useTranslation()
+  const lendId = useId()
+  const dueId = useId()
+  const sums = useRef<HTMLDivElement>(null)
   const rate = context.rate?.uzsPerUsd ?? null
   const entered = enteredRows(rows)
   const typed = tendersOf(entered, refunding)
@@ -93,12 +116,15 @@ export function TenderPanel({
     ? refund.problem === null && refund.due === 0
     : settlement.problem === null && settlement.due === 0
 
+  // What is left owing is not for the money to cover.
+  const owing = lend ? Math.min(lend.amount ?? 0, lend.max) : 0
+
   /** What is left for a row to cover once the others have paid theirs, in so'm. */
   const restFor = (row: TenderRow): number => {
     const others = typed
       .filter((_, index) => entered[index].key !== row.key)
       .reduce((sum, item) => sum + worthOf(item, rate), 0)
-    return Math.max(0, due - others)
+    return Math.max(0, due - owing - others)
   }
   /** What a row would have to hold to cover the rest: what "=" fills in. */
   const fillOf = (row: TenderRow): number => {
@@ -159,6 +185,23 @@ export function TenderPanel({
     })
   }
 
+  /** Enter in the sum lent takes it and goes back to the money: the rest is paid there, and sold from there. */
+  const backToMoney = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target
+    if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey || !(target instanceof HTMLElement)) {
+      return
+    }
+    if (target.id !== lendId) {
+      return
+    }
+    event.preventDefault()
+    window.setTimeout(() => {
+      const first = sums.current?.querySelector<HTMLInputElement>('input:not(:disabled)')
+      first?.focus()
+      first?.select()
+    })
+  }
+
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
       <div>
@@ -173,7 +216,7 @@ export function TenderPanel({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-line pt-3" onKeyDown={walk}>
+      <div ref={sums} className="flex flex-col gap-2 border-t border-line pt-3" onKeyDown={walk}>
         {rows.map((row) => {
           const kind = kindOf(row)
           const cap = returning?.found.caps.accounts.find((item) => item.accountId === row.accountId)
@@ -321,6 +364,50 @@ export function TenderPanel({
           </div>
         )}
       </div>
+
+      {lend ? (
+        // Not one of the sums Enter walks: lending is decided, not fallen into.
+        <div
+          data-enter-skip
+          data-lend
+          className="flex flex-col gap-1.5 border-t border-line pt-3"
+          onKeyDown={backToMoney}
+        >
+          <div className="flex items-center gap-2">
+            <label htmlFor={lendId} className="min-w-0 flex-1 text-[13px] text-ink-2">
+              {t('pos.debt')}
+              {lend.owed ? (
+                <span className="text-xs text-ink-3"> · {t('pos.debtOwed', { amount: money(lend.owed) })}</span>
+              ) : null}
+            </label>
+            {/* "=" leaves owing whatever the money typed above has not covered. */}
+            <MoneyInput
+              id={lendId}
+              value={lend.amount}
+              onChange={lend.onAmount}
+              currency="UZS"
+              fillValue={Math.min(lend.max, (lend.amount ?? 0) + settlement.due)}
+              invalid={(lend.amount ?? 0) > lend.max}
+              className="w-44"
+            />
+          </div>
+          {lend.amount ? (
+            <div className="flex items-center justify-end gap-2">
+              <label htmlFor={dueId} className="text-xs text-ink-3">
+                {t('pos.debtDue')}
+              </label>
+              <DateInput id={dueId} value={lend.dueDate} onChange={lend.onDueDate} warnPast className="w-44" />
+            </div>
+          ) : null}
+          {lend.amount && lend.warning ? <p className="text-xs text-warn">{lend.warning}</p> : null}
+        </div>
+      ) : null}
+      {offDebt ? (
+        <div className="flex items-baseline justify-between border-t border-line pt-3 text-[13px]">
+          <span className="text-ink-2">{t('pos.offDebt')}</span>
+          <span className="tabular font-medium">{money(offDebt)}</span>
+        </div>
+      ) : null}
 
       <Button variant="primary" className="h-11 text-sm" loading={busy} onClick={onComplete}>
         {action}

@@ -176,6 +176,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.prices', title: 'Maxsus narx turida sotish (ulgurji, oila)' },
       { key: 'pos.return', title: 'Qaytarish va almashtirish' },
       { key: 'pos.return_any', title: "Muddati o'tgan tovarni olish, pulni boshqa usulda qaytarish" },
+      { key: 'pos.debt', title: "Taqiqlangan, muddati o'tgan yoki chegaradan oshgan mijozga qarzga sotish" },
     ],
   },
   {
@@ -217,6 +218,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: 'customers.view', title: "Mijozlar bazasini ko'rish" },
       { key: 'customers.manage', title: "Qo'shish, tahrirlash va arxivlash" },
+      { key: 'customers.debts', title: "Mijozlar qarzini ko'rish, to'lov olish va to'lovni bekor qilish" },
     ],
   },
   {
@@ -336,6 +338,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'counts.view',
       'sales.*',
       'customers.view',
+      'customers.debts',
       'promotions.view',
       'money.view',
       'money.rates',

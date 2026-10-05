@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { saleDebtSchema } from './debts'
 import type { ImageThumb } from './images'
 import { allocateExact, roundToStep, type CurrencyCode } from './money'
 import type { PromoOffer } from './promotions'
@@ -44,6 +45,7 @@ export const SYSTEM_ACCOUNTS = [
   'expenses',
   'other_income',
   'owner',
+  'receivables',
 ] as const
 export type SystemAccount = (typeof SYSTEM_ACCOUNTS)[number]
 
@@ -53,6 +55,8 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
   fx: 'Kurs farqi',
   cash_diff: 'Kassa farqi (kamomad va ortiqcha)',
   opening: "Boshlang'ich qoldiq",
+  // What customers owe for goods sold on credit.
+  receivables: 'Mijozlar qarzi',
   // What goods brought back were worth, on its way to the goods taken instead; empty between exchanges.
   exchange: 'Almashtirish',
   // Money that has left one account and is not yet confirmed in the other.
@@ -195,7 +199,7 @@ export const TENDER_METHODS = ['cash', 'card', 'terminal'] as const
 export type TenderMethod = (typeof TENDER_METHODS)[number]
 
 /** What a sale can be paid with: money, or `exchange`: what goods brought back were worth, put towards new ones. */
-export const PAYMENT_METHODS = [...TENDER_METHODS, 'exchange'] as const
+export const PAYMENT_METHODS = [...TENDER_METHODS, 'exchange', 'debt'] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -203,6 +207,17 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card: 'Kartaga',
   terminal: 'Terminal',
   exchange: 'Almashtirish',
+  debt: 'Qarzga',
+}
+
+/**
+ * A payment as a receipt names it: how it was paid and, where the money went
+ * to one of several places (a card, a terminal), which. Cash has one drawer
+ * and a debt has no place at all.
+ */
+export function paymentLabel(payment: { method: PaymentMethod; accountName: string }): string {
+  const label = PAYMENT_METHOD_LABELS[payment.method]
+  return payment.method === 'cash' || payment.method === 'debt' ? label : `${label} · ${payment.accountName}`
 }
 
 export interface CartLine {
@@ -509,7 +524,9 @@ export const saleInputSchema = z
     lines: z.array(saleLineInputSchema).min(1, "Chekda kamida bitta tovar bo'lishi kerak").max(300),
     /** Off the whole sale, on top of what each line has. */
     discount: amountSchema.default(0),
-    payments: z.array(salePaymentInputSchema).min(1, "To'lovni kiriting").max(10),
+    payments: z.array(salePaymentInputSchema).max(10).default([]),
+    /** What of it the customer is to pay later, and by when. The rest is paid now. */
+    debt: saleDebtSchema.nullish().transform((value) => value ?? null),
     /** `USD`: hand back whole dollars first, the rest in so'm. */
     changeCurrency: z.enum(['UZS', 'USD']).default('UZS'),
     /** What the till showed as the total: if prices have changed since, the sale is refused rather than made at another sum. */
@@ -518,6 +535,14 @@ export const saleInputSchema = z
     approval: approvalField,
   })
   .superRefine(taggedOnce)
+  .superRefine((sale, context) => {
+    if (!sale.payments.length && !sale.debt) {
+      context.addIssue({ code: 'custom', path: ['payments'], message: "To'lovni kiriting" })
+    }
+    if (sale.debt && !sale.customerId) {
+      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Qarzga sotish uchun mijozni tanlang' })
+    }
+  })
 export type SaleInput = z.infer<typeof saleInputSchema>
 
 export const SALE_STATUSES = ['completed', 'voided'] as const
@@ -618,6 +643,8 @@ export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
   changeUzs: number
   changeUsd: number
   rounding: number
+  /** What of it was left owing, by when it is to be paid, and what is still owed. Null for a sale paid in full. */
+  debt: { amount: number; left: number; dueDate: string } | null
   note: string | null
   voidedAt: string | null
   voidedByName: string | null
@@ -825,6 +852,8 @@ export interface ReturnableDto {
   caps: {
     cash: number
     accounts: { accountId: string; method: TenderMethod; name: string; last4: string | null; left: number }[]
+    /** What the receipt still leaves owing: goods brought back come off this before any money is handed back. */
+    debt: number
   }
 }
 
@@ -895,7 +924,12 @@ export interface PosContextDto {
    * Who at this shop may allow what the cashier may not, with a PIN to say so: for discounts, for returns,
    * for a sale at a special price.
    */
-  approvers: { id: string; name: string; discount: boolean; returns: boolean; prices: boolean }[]
+  approvers: { id: string; name: string; discount: boolean; returns: boolean; prices: boolean; debts: boolean }[]
+  /** Selling on credit: how many days a debt is given for unless another day is set, and what one customer may owe (0: no limit). */
+  debtDays: number
+  debtLimit: number
+  /** This person may lend where the shop's rules would stop a cashier. */
+  mayLend: boolean
   /**
    * The price types this person may sell at beside the retail one. `needsWord`: only with a manager's PIN.
    */
@@ -976,6 +1010,9 @@ export interface ShiftTotals {
   expensesUsd: number
   incomeUzs: number
   incomeUsd: number
+  /** Customers' debts paid into the drawer during the shift, by currency. */
+  debtsUzs: number
+  debtsUsd: number
   /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
   returns: number
   returned: number

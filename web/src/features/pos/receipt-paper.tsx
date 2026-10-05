@@ -2,7 +2,7 @@ import {
   barRuns,
   code128,
   formatMoney,
-  PAYMENT_METHOD_LABELS,
+  paymentLabel,
   receiptColumnMm,
   type ReceiptTemplate,
   type SaleDto,
@@ -10,7 +10,7 @@ import {
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { formatDateTime, formatNumber, formatPhone } from '@/lib/format'
+import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/format'
 
 import { changeText } from './pos-state'
 
@@ -113,7 +113,7 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
         {sale.payments.map((payment, index) => (
           <Row
             key={index}
-            label={`${PAYMENT_METHOD_LABELS[payment.method]}${payment.method === 'cash' ? '' : ` · ${payment.accountName}`}`}
+            label={paymentLabel(payment)}
             value={
               payment.currency === 'USD'
                 ? `${money(payment.amount, 'USD')} = ${money(payment.base)}`
@@ -121,6 +121,8 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
             }
           />
         ))}
+        {/* The day the customer has agreed to: on the paper they take away. */}
+        {sale.debt ? <Row label={t('pos.debtDue')} value={formatDay(sale.debt.dueDate)} /> : null}
         {sale.changeUzs || sale.changeUsd ? (
           <Row label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeUsd)} />
         ) : null}

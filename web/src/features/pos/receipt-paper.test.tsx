@@ -1,4 +1,4 @@
-import { DEFAULT_RECEIPT_TEMPLATE, type ReceiptTemplate } from '@gulbahor/core'
+import { DEFAULT_RECEIPT_TEMPLATE, type ReceiptTemplate, type SaleDto } from '@gulbahor/core'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -65,6 +65,25 @@ describe('a receipt on paper', () => {
     expect(bare.text).toContain('Instagram: @gulbahorTelegram: @gulbahor_uz')
     // The sums are never a matter of design.
     expect(bare.text).toContain("Jami983 000 so'm")
+  })
+
+  it('names what was left owing, and the day it is to be paid by', () => {
+    const lent = {
+      ...sale,
+      payments: [
+        sale.payments[0],
+        { ...sale.payments[1], method: 'debt', accountName: 'Mijozlar qarzi', amount: 48_300_000, base: 48_300_000 },
+      ],
+      debt: { amount: 48_300_000, left: 48_300_000, dueDate: '2026-11-04' },
+    } as SaleDto
+    const { container } = render(<ReceiptPaper sale={lent} template={DEFAULT_RECEIPT_TEMPLATE} orgName="Gulbahor" />)
+    const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? null)
+    // A debt lies in no drawer: the books' own name for it stays off the paper.
+    expect(text).toContain("Qarzga483 000 so'm")
+    expect(text).not.toContain('Mijozlar qarzi')
+    expect(text).toContain("To'lash muddati04.11.2026")
+    // Nothing owed, no day.
+    expect(printed().text).not.toContain("To'lash muddati")
   })
 
   it('carries its number as a barcode, and the logo the business gave it', () => {

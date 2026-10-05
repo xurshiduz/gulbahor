@@ -193,13 +193,16 @@ const customersRoute = createRoute({
   component: CustomersPage,
   validateSearch: z.object({
     ...listSearch,
-    tab: z.enum(['list', 'groups', 'loyalty']).default('list').catch('list'),
+    tab: z.enum(['list', 'groups', 'loyalty', 'debts', 'payments']).default('list').catch('list'),
     status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
+    debtState: z.enum(['owed', 'overdue', 'closed', 'all']).default('owed').catch('owed'),
     birthdayIn: z.number().int().min(0).max(366).optional().catch(undefined),
     groupId: z.string().optional().catch(undefined),
     tag: z.string().optional().catch(undefined),
   }),
-  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active', tab: 'list' })] },
+  search: {
+    middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active', tab: 'list', debtState: 'owed' })],
+  },
 })
 
 const promotionsRoute = createRoute({

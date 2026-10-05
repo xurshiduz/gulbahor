@@ -26,12 +26,33 @@ const context = {
   changeRoundStep: 0,
 } as unknown as PosContextDto
 
-/** The money for a sale of `due`, kept the way the till keeps it. */
-function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[]) => void }) {
+interface Borrower {
+  /** What they owe already. */
+  owed: number
+  warning?: string
+}
+
+/** The money for a sale of `due`, kept the way the till keeps it; with a `borrower`, part of it may be left owing. */
+function Money({
+  due,
+  onComplete,
+  borrower,
+}: {
+  due: number
+  onComplete: (rows: TenderRow[], lent: number) => void
+  borrower?: Borrower
+}) {
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
+  const [lent, setLent] = useState<number | null>(null)
+  const [dueDate, setDueDate] = useState('2026-11-04')
   const rows = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
   const entered = enteredRows(rows)
-  const settlement = settle(due, tendersOf(entered, false), { uzsPerUsd: 12_100, changeCurrency: 'UZS', roundStep: 0 })
+  const owing = Math.min(lent ?? 0, due)
+  const settlement = settle(due - owing, tendersOf(entered, false), {
+    uzsPerUsd: 12_100,
+    changeCurrency: 'UZS',
+    roundStep: 0,
+  })
   return (
     <TenderPanel
       context={context}
@@ -40,14 +61,27 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
       returning={null}
       refunding={false}
       due={due}
-      suggested={{ cash: due }}
+      suggested={due - owing ? { cash: due - owing } : {}}
       settlement={settlement}
+      lend={
+        borrower
+          ? {
+              amount: lent,
+              dueDate,
+              max: due,
+              owed: borrower.owed,
+              warning: borrower.warning ?? null,
+              onAmount: setLent,
+              onDueDate: setDueDate,
+            }
+          : null
+      }
       refund={settleRefund(0, [], { uzsPerUsd: 12_100, roundStep: 0 })}
       changeCurrency="UZS"
       onChangeCurrency={() => undefined}
       action="Sotish"
       busy={false}
-      onComplete={() => onComplete(entered)}
+      onComplete={() => onComplete(entered, owing)}
       onBack={() => undefined}
     />
   )
@@ -143,6 +177,67 @@ describe('Enter in the money', () => {
     expect(document.activeElement).toBe(field('account:pos'))
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('leaving part of it owing', () => {
+  it('is offered only when someone on the books is buying', () => {
+    const { unmount } = render(<Money due={som(200_000)} onComplete={() => undefined} />)
+    expect(screen.queryByLabelText(/Qarzga/)).toBeNull()
+    unmount()
+    render(<Money due={som(200_000)} onComplete={() => undefined} borrower={{ owed: som(150_000) }} />)
+    // What they owe already stands beside the field, before more is lent.
+    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-lend]')?.textContent)).toContain("qarzi 150 000 so'm")
+    // No day is asked for until something is lent.
+    expect(screen.queryByLabelText("To'lash muddati")).toBeNull()
+  })
+
+  it('takes what is lent off what is to be paid, and asks by when', async () => {
+    const sold = vi.fn()
+    render(<Money due={som(1_000_000)} onComplete={sold} borrower={{ owed: 0, warning: 'Rahbar tasdig‘i kerak' }} />)
+    expect(screen.queryByText('Rahbar tasdig‘i kerak')).toBeNull()
+    // Enter takes the sum and goes back to the money: the rest is paid there, and nothing is sold yet.
+    await userEvent.type(screen.getByLabelText(/Qarzga/), '300000{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(field('cash')))
+    expect(sold).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("To'lash muddati")).toBeTruthy()
+    // Why a manager will be asked is said as soon as there is something to ask about.
+    expect(screen.getByText('Rahbar tasdig‘i kerak')).toBeTruthy()
+    // The rest is what cash is offered for.
+    expect(plain(field('cash').placeholder)).toBe('700 000')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+    expect(sold.mock.calls[0]).toEqual([[], som(300_000)])
+  })
+
+  it('fills in with "=" whatever the money typed has not covered', async () => {
+    render(<Money due={som(1_000_000)} onComplete={() => undefined} borrower={{ owed: 0 }} />)
+    await userEvent.type(field('cash'), '400000{Tab}')
+    const lend = screen.getByLabelText(/Qarzga/) as HTMLInputElement
+    lend.focus()
+    await userEvent.keyboard('=')
+    expect(plain(lend.value)).toBe('600 000')
+    await userEvent.keyboard('{Tab}')
+    await waitFor(() => expect(screen.queryByText('Yana kerak')).toBeNull())
+  })
+
+  it('is stepped over by Enter: lending is decided, not fallen into', async () => {
+    const sold = vi.fn()
+    render(<Money due={som(200_000)} onComplete={sold} borrower={{ owed: 0 }} />)
+    // Through every sum to the last, and never past it into the debt.
+    await userEvent.type(field('cash'), '50000{Enter}')
+    for (const key of ['usd', 'account:humo', 'account:uzcard', 'account:pos']) {
+      await waitFor(() => expect(document.activeElement).toBe(field(key)))
+      await userEvent.keyboard('{Enter}')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(document.activeElement).toBe(field('account:pos'))
+    expect(sold).not.toHaveBeenCalled()
+    // "=" in a sum leaves out what is lent.
+    await userEvent.type(screen.getByLabelText(/Qarzga/), '100000{Tab}')
+    field('account:humo').focus()
+    await userEvent.keyboard('=')
+    expect(plain(field('account:humo').value)).toBe('50 000')
   })
 })
 

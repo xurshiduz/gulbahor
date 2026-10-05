@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { CustomerDebtBrief } from './debts'
 import { idSchema, listQuerySchema, optionalText, phoneSchema, requiredText } from './schemas'
 
 /**
@@ -163,6 +164,8 @@ export interface PosCustomerDto extends CustomerBrief {
   noDebt: boolean
   noLayaway: boolean
   noExchange: boolean
+  /** What they owe the shop now, and how much of it is past its day. */
+  debt: CustomerDebtBrief
 }
 
 export interface CustomerDto extends CustomerBrief {
@@ -182,6 +185,9 @@ export interface CustomerDto extends CustomerBrief {
   lastSaleAt: string | null
   /** What their groups or their loyalty tier take off for them, in percent. */
   discountPercent: number
+  /** What they owe the shop now; of it, what is past its day. */
+  debt: number
+  overdue: number
 }
 
 /** What stands over the list: the whole base at a glance. */

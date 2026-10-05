@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b va 9 ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 (9 dan keyin) — core 155, agent 17, server 262, web 133; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-05 (5d dan keyin) — core 163, agent 17, server 275, web 139; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -47,6 +47,7 @@ Keyin, foydalanuvchi ko'rsatgan kamchiliklar (2026-10-05):
 
 - "Ekranni bloklash" maydonida "10" bilan "daqiqa" ustma-ust tushardi — son maydonining birligi endi ramka ichida o'z joyini oladi (hamma joyda).
 - Sozlamalar, Profil, Bosh sahifa, Dollar kursi: oxirigacha aylantirilganda karta oyna tubiga yopishardi — bunday sahifalar endi `Page flow` (ichidagisi bilan o'sadi, oxirida joy qoladi).
+- Tovar sahifasida forma bo'ylab pastga yurilganda butun oyna yuqoriga surilib, pastida bo'sh joy ochilardi — ko'rinmas tanlov elementi sahifani aylantirayotgan edi; endi sahifa aylanmaydi (hamma uzun formada).
 - Kirimdagi qator xarajati maydoni "Xarajat (1 donaga)" deb nomlandi va sozlamadagi izohi aniqlashtirildi: summa shu tovarning har donasiga qo'shiladi, boshqa tovarlarga taqsimlanmaydi.
 
 9-bo'lak (kassa tanlovi, asosiy kassa) ekranda: "Pul → Kassalar"da ikkala kassa "Asosiy" belgisi bilan chiqdi; to'lov oynasi bitta kassa bilan avvalgidek ochildi. Ikki kassali holat (tanlov maydoni) faqat testlar bilan tekshirilgan — bazada tortmasi bor ikkinchi kassa yo'q.
@@ -66,6 +67,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 - Haqiqiy printerda chek chop etish (7a), logotip va shtrix-kod qog'ozda qanday chiqishi, shtrix-kodni skaner o'qishi (7b).
 - Rasmli tovar haqiqiy bazada: ro'yxat va kassadagi kichik rasmlar, telefondan (kameradan) rasm qo'shish, sudrab tartiblash (8). Egasining bazasiga sinov rasmi qo'yilmadi.
 - Haqiqiy printerda etiketka: shablon o'zgartirilgandagi joylashuv (7b). Ekrandagi ko'rinish printer harflarini emas, joylashuvni ko'rsatadi.
+- Chakana qarz (5d): kassadagi "Qarzga" qatori, mijoz yonidagi qarz yozuvi, "Mijozlar → Qarzlar" va "Qarz to'lovlari" ro'yxatlari vaqtinchalik sahifada, soxta ma'lumot bilan ko'rildi (1100 va 1280 kenglikda). Haqiqiy bazada ko'rilmagan: qarzga sotuvni oxirigacha yetkazish, "To'lov olish" oynasi (sessiyaga bog'liq, hamkor to'lovi oynasi bilan bir xil qatorlar), qarzli chekni qaytarish, "Sozlamalar → Biznes"dagi ikki yangi maydon, smena hisobotidagi "Mijozlar qarzidan to'landi".
 
 ## Navbat (KEYINGI-REJA, 14-bo'lim)
 

@@ -1,10 +1,4 @@
-import {
-  DEFAULT_RECEIPT_TEMPLATE,
-  formatMoney,
-  PAYMENT_METHOD_LABELS,
-  SALE_STATUS_LABELS,
-  type SaleDto,
-} from '@gulbahor/core'
+import { DEFAULT_RECEIPT_TEMPLATE, formatMoney, paymentLabel, SALE_STATUS_LABELS, type SaleDto } from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Ban, Printer, Undo2 } from 'lucide-react'
@@ -19,7 +13,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
-import { formatDateTime, formatNumber } from '@/lib/format'
+import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
 
 import { ReceiptPaper } from './receipt-paper'
@@ -232,9 +226,7 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
               {sale.payments.map((payment, index) => (
                 <Line
                   key={index}
-                  label={`${PAYMENT_METHOD_LABELS[payment.method]}${
-                    payment.method === 'cash' ? '' : ` · ${payment.accountName}`
-                  }${payment.reference ? ` (${payment.reference})` : ''}`}
+                  label={`${paymentLabel(payment)}${payment.reference ? ` (${payment.reference})` : ''}`}
                   value={
                     payment.currency === 'USD'
                       ? `${money(payment.amount, 'USD')} = ${money(payment.base)}`
@@ -242,6 +234,20 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   }
                 />
               ))}
+              {sale.debt ? (
+                <>
+                  <Line label={t('pos.debtDue')} value={formatDay(sale.debt.dueDate)} />
+                  {/* How it stands now, not how it stood at the till: nothing for the paper. */}
+                  {sale.debt.left !== sale.debt.amount ? (
+                    <div className="print:hidden">
+                      <Line
+                        label={t('sales.debtLeft')}
+                        value={sale.debt.left ? money(sale.debt.left) : t('debts.state_closed')}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
               {sale.uzsPerUsd && sale.payments.some((payment) => payment.currency === 'USD') ? (
                 <Line label={t('pos.rate')} value={`1 $ = ${money(Math.round(sale.uzsPerUsd * 100))}`} />
               ) : null}

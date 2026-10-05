@@ -41,6 +41,7 @@ import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
+import { DebtPaymentsTab, DebtsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
 
@@ -62,14 +63,21 @@ export function CustomersPage() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const canManage = can('customers.manage')
+  const seesBase = can('customers.view')
+  const seesDebts = can('customers.debts')
   const [groupForm, setGroupForm] = useState<CustomerGroupDto | null | undefined>()
-  const groups = useCustomerGroups()
+  const groups = useCustomerGroups(seesBase)
 
-  const { edit, tab, ...filters } = search
+  const { edit, tab: asked, debtState: _debts, ...filters } = search
+  // Whoever keeps the debts without the base has those two sheets and no other.
+  const tab = seesBase || asked === 'payments' ? asked : 'debts'
+  // Only these two sheets have something to add.
+  const adds = canManage && (tab === 'list' || tab === 'groups')
   const list = useQuery({
     queryKey: ['customers', 'list', filters],
     queryFn: ({ signal }) => api.get<Listed>('/customers', filters, signal),
     placeholderData: keepPreviousData,
+    enabled: seesBase,
   })
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['customers'] })
 
@@ -86,7 +94,7 @@ export function CustomersPage() {
   useHotkey('n', add, {
     label: addLabel,
     group: t('shortcuts.groupList'),
-    enabled: canManage && tab !== 'loyalty' && !edit && groupForm === undefined,
+    enabled: adds && !edit && groupForm === undefined,
   })
 
   const columns = useMemo<ColumnDef<CustomerDto>[]>(
@@ -170,6 +178,22 @@ export function CustomersPage() {
               <span className="font-medium">{money(row.original.purchases)}</span>
             ) : (
               <span className="text-ink-3">—</span>
+            ),
+        },
+        {
+          id: 'debt',
+          header: t('debts.owes'),
+          meta: {
+            export: (row) => moneyCell(row.debt, 'UZS'),
+            className: 'tabular text-right whitespace-nowrap',
+            headerClassName: 'text-right',
+          },
+          // What is past its day is the part somebody has to ring about.
+          cell: ({ row }) =>
+            row.original.debt ? (
+              <span className={cn('font-medium', row.original.overdue && 'text-bad')}>{money(row.original.debt)}</span>
+            ) : (
+              ''
             ),
         },
         {
@@ -270,7 +294,7 @@ export function CustomersPage() {
       // The loyalty tiers are a form to be read down; the other sheets are lists that fill the window.
       flow={tab === 'loyalty'}
       actions={
-        canManage && tab !== 'loyalty' ? (
+        adds ? (
           <Button variant="primary" onClick={add}>
             <Plus />
             {addLabel}
@@ -283,9 +307,19 @@ export function CustomersPage() {
         value={tab}
         onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}
         tabs={[
-          { value: 'list', label: t('customers.title') },
-          { value: 'groups', label: t('customers.groups') },
-          { value: 'loyalty', label: t('customers.loyalty') },
+          ...(seesBase
+            ? [
+                { value: 'list', label: t('customers.title') },
+                { value: 'groups', label: t('customers.groups') },
+                { value: 'loyalty', label: t('customers.loyalty') },
+              ]
+            : []),
+          ...(seesDebts
+            ? [
+                { value: 'debts', label: t('debts.title') },
+                { value: 'payments', label: t('debts.payments') },
+              ]
+            : []),
         ]}
       >
         <TabPanel value="groups">
@@ -294,6 +328,8 @@ export function CustomersPage() {
         <TabPanel value="loyalty">
           <LoyaltyTab />
         </TabPanel>
+        <TabPanel value="debts">{seesDebts ? <DebtsTab /> : null}</TabPanel>
+        <TabPanel value="payments">{seesDebts ? <DebtPaymentsTab /> : null}</TabPanel>
         <TabPanel value="list">
           {summary ? (
             <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">

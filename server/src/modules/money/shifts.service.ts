@@ -338,7 +338,7 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE s.shift_id = $1 AND s.status = 'completed'
        GROUP BY p.method, a.name, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange'], p.method), p.currency DESC, a.name`,
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'debt'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
@@ -358,6 +358,13 @@ export class ShiftsService {
     )
     const withOps = (kind: 'expense' | 'income', currency: CurrencyCode) =>
       ops.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
+    const debts: { currency: CurrencyCode; amount: number }[] = await em.query(
+      `SELECT l.currency, sum(l.amount)::float8 AS amount
+       FROM debt_payment_lines l JOIN debt_payments p ON p.id = l.payment_id
+       WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY l.currency`,
+      [shiftId],
+    )
+    const withDebts = (currency: CurrencyCode) => debts.find((row) => row.currency === currency)?.amount ?? 0
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -370,7 +377,7 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE r.shift_id = $1
        GROUP BY p.method, a.name, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal'], p.method), p.currency DESC, a.name`,
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
     return {
@@ -401,6 +408,8 @@ export class ShiftsService {
       expensesUsd: withOps('expense', 'USD'),
       incomeUzs: withOps('income', 'UZS'),
       incomeUsd: withOps('income', 'USD'),
+      debtsUzs: withDebts('UZS'),
+      debtsUsd: withDebts('USD'),
       returns: returns.returns,
       returned: returns.returned,
       refunds: refunds.map((row) => ({

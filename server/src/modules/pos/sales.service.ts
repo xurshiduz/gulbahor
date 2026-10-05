@@ -1,5 +1,6 @@
 import {
   belowFloor,
+  debtBar,
   DEFAULT_ORG_SETTINGS,
   floorOf,
   cartAutos,
@@ -32,6 +33,7 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Account,
+  CustomerDebt,
   Customer,
   Location,
   Organization,
@@ -341,15 +343,54 @@ export class SalesService {
         { payments: `Kursdan farq ko'pi bilan ${settings.maxRateLossPercent}%` },
       )
     }
-    const vouched = ((overLimit || under.length > 0 || overRate) && !alone) || pricedByWord
-
     // Goods brought back pay first; the customer's money is for what is left.
     const used = Math.min(credit, totals.total)
     if (used < credit && payments.length) {
       throw AppError.validation({ payments: "Qaytarilgan tovar summasi yetarli: qo'shimcha to'lov kerak emas" })
     }
+
+    // ── What is left owing: only to a customer on the books, and only as far as the shop lends. ──
+    const owed = input.debt?.amount ?? 0
+    let lentByWord = false
+    if (input.debt) {
+      if (!customer || !rules) {
+        throw AppError.validation({ customerId: 'Qarzga sotish uchun mijozni tanlang' })
+      }
+      if (input.debt.dueDate < today) {
+        throw AppError.validation({ debt: "Qarz muddati o'tgan kunga qo'yilmaydi" })
+      }
+      if (owed > totals.total - used) {
+        throw AppError.validation({ debt: 'Qarz chek summasidan oshmasligi kerak' })
+      }
+      // Two sales to one customer wait for each other here, so that neither is lent past the limit unseen.
+      await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
+      const standing = (await rulesOf(em, [customer])).get(customer.id) ?? rules
+      const bar = debtBar(
+        { noDebt: standing.noDebt, owed: standing.debt.owed, overdue: standing.debt.overdue },
+        owed,
+        settings.debtLimit,
+      )
+      if (bar && !can(actor, 'pos.debt')) {
+        if (!allows(approver, 'pos.debt')) {
+          const why =
+            bar === 'barred'
+              ? `${customer.name}: bu mijozga qarzga berilmaydi`
+              : bar === 'overdue'
+                ? `${customer.name}: muddati o'tgan qarzi bor (${formatMoney(standing.debt.overdue)})`
+                : `${customer.name}: qarzi chegaradan oshadi (${formatMoney(standing.debt.owed + owed)}, chegara ${formatMoney(settings.debtLimit)})`
+          throw AppError.badRequest(
+            bar === 'barred' ? 'NO_DEBT' : bar === 'overdue' ? 'DEBT_OVERDUE' : 'DEBT_OVER_LIMIT',
+            approver ? `${approver.name} qarzga sotishni tasdiqlay olmaydi` : `${why}: rahbar tasdig'i kerak`,
+            { debt: why },
+          )
+        }
+        lentByWord = true
+      }
+    }
+    const vouched = ((overLimit || under.length > 0 || overRate) && !alone) || pricedByWord || lentByWord
+
     const settlement = settle(
-      totals.total - used,
+      totals.total - used - owed,
       payments.map((payment) => ({ ...payment, value: payment.base })),
       {
         uzsPerUsd: rate,
@@ -377,6 +418,7 @@ export class SalesService {
       ...new Set([
         ...(used ? [PAYMENT_METHOD_LABELS.exchange] : []),
         ...payments.map((payment) => PAYMENT_METHOD_LABELS[payment.method] + (payment.currency === 'USD' ? ' $' : '')),
+        ...(owed ? [PAYMENT_METHOD_LABELS.debt] : []),
       ]),
     ].join(', ')
     const sale = await em.save(
@@ -517,6 +559,29 @@ export class SalesService {
         reference: null,
       })
     }
+    if (input.debt && customer) {
+      // What is owed stands in the books as money that is to come.
+      const receivables = await this.ledger.systemAccount(em, actor.orgId, 'receivables')
+      paid.push({
+        method: 'debt',
+        accountId: receivables.id,
+        currency: 'UZS',
+        amount: owed,
+        base: owed,
+        reference: null,
+      })
+      await em.insert(CustomerDebt, {
+        orgId: actor.orgId,
+        customerId: customer.id,
+        saleId: sale.id,
+        locationId: register.locationId,
+        amount: owed,
+        paid: 0,
+        returned: 0,
+        dueDate: input.debt.dueDate,
+        cancelled: false,
+      })
+    }
     await em.insert(
       SalePayment,
       paid.map((payment, position) => ({ ...payment, orgId: actor.orgId, saleId: sale.id, position })),
@@ -592,12 +657,24 @@ export class SalesService {
           "Bu chek almashtirish bilan to'langan: bekor qilinmaydi, tovar qaytarish orqali olinadi",
         )
       }
+      // Money already brought against what it left owing was brought for a sale that stood.
+      const debt = await em.findOneBy(CustomerDebt, { saleId: id })
+      if (debt?.paid) {
+        throw AppError.conflict(
+          'SALE_DEBT_PAID',
+          "Bu chekning qarziga to'lov tushgan: avval o'sha to'lov bekor qilinadi",
+        )
+      }
       const [open]: { id: string }[] = await em.query(
         `SELECT id FROM shifts WHERE id = $1 AND status = 'open' FOR UPDATE`,
         [sale.shiftId],
       )
       if (!open) {
         throw AppError.conflict('SHIFT_CLOSED', 'Smena yopilgan. Bu chek qaytarish orqali rasmiylashtiriladi')
+      }
+      if (debt) {
+        // The sale never was: nothing is owed for it.
+        await em.update(CustomerDebt, debt.id, { cancelled: true })
       }
       const today = await this.ledger.today(em, actor.orgId)
 
@@ -750,6 +827,7 @@ export class SalesService {
     const returns = sale.returnedTotal
       ? await em.find(SaleReturn, { where: { saleId: sale.id }, order: { returnedAt: 'ASC' } })
       : []
+    const debt = await em.findOneBy(CustomerDebt, { saleId: sale.id })
 
     return {
       ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
@@ -762,6 +840,10 @@ export class SalesService {
       changeUzs: sale.changeUzs,
       changeUsd: sale.changeUsd,
       rounding: sale.rounding,
+      debt:
+        debt && !debt.cancelled
+          ? { amount: debt.amount, left: debt.amount - debt.paid - debt.returned, dueDate: debt.dueDate }
+          : null,
       note: sale.note,
       voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
       voidedByName: sale.voidedByName,

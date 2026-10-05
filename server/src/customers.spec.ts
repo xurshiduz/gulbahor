@@ -377,6 +377,7 @@ describe('Customers', () => {
         noDebt: false,
         noLayaway: false,
         noExchange: true,
+        debt: { owed: 0, overdue: 0, dueDate: null },
       })
     })
 

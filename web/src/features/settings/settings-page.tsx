@@ -75,6 +75,8 @@ function BusinessSettings() {
         maxDiscountPercent: me.org.settings.maxDiscountPercent as number | null,
         maxRateLossPercent: me.org.settings.maxRateLossPercent as number | null,
         returnDays: me.org.settings.returnDays as number | null,
+        debtDays: me.org.settings.debtDays as number | null,
+        debtLimit: me.org.settings.debtLimit as number | null,
         receiptLineExtra: me.org.settings.receiptLineExtra,
       },
     },
@@ -174,6 +176,28 @@ function BusinessSettings() {
               name="settings.returnDays"
               render={({ field }) => (
                 <NumberInput id={id} value={field.value} onChange={field.onChange} min={0} max={3650} suffix={t('settings.days')} className="w-40" />
+              )}
+            />
+          )}
+        </Field>
+        <Field label={t('settings.debtDays')} hint={t('settings.debtDaysHint')} error={errors.settings?.debtDays?.message}>
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="settings.debtDays"
+              render={({ field }) => (
+                <NumberInput id={id} value={field.value} onChange={field.onChange} min={1} max={3650} suffix={t('settings.days')} className="w-40" />
+              )}
+            />
+          )}
+        </Field>
+        <Field label={t('settings.debtLimit')} hint={t('settings.debtLimitHint')} error={errors.settings?.debtLimit?.message}>
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="settings.debtLimit"
+              render={({ field }) => (
+                <MoneyInput id={id} value={field.value} onChange={field.onChange} currency="UZS" className="w-40" />
               )}
             />
           )}

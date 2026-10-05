@@ -1,4 +1,6 @@
 import {
+  addDays,
+  debtBar,
   formatMoney,
   overDiscountLimit,
   overRateLoss,
@@ -6,6 +8,8 @@ import {
   settle,
   settleRefund,
   toBase,
+  todayIn,
+  toIsoDate,
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
@@ -31,11 +35,12 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Page } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
+import { DebtPayDialog } from '@/features/customers/debt-pay'
 import { useRegisters } from '@/features/money/money-page'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
-import { useCovered, useHotkey } from '@/lib/hotkeys'
+import { HotkeyScope, useCovered, useHotkey } from '@/lib/hotkeys'
 import { useShopEvent } from '@/lib/realtime'
 import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
@@ -79,6 +84,7 @@ const route = getRouteApi('/pos')
 const REGISTER_KEY = 'gb.pos.register'
 /** The retail price in the list of price types: it has no id of its own there. */
 const RETAIL = 'retail'
+const NOTHING_OWED = { owed: 0, overdue: 0, dueDate: null }
 const cartKey = (registerId: string) => `gb.pos.cart.${registerId}`
 
 const money = (minor: number, currency: CurrencyCode = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
@@ -243,6 +249,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [picking, setPicking] = useState<{ code?: string } | null>(null)
   // Every way of paying has its field, always there; what is kept is only what was typed into them.
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
+  /** The customer at the counter is paying what they owe. */
+  const [takingDebt, setTakingDebt] = useState(false)
+  /** What of the sale is to be left owing, and by when: typed while paying, gone with the sale. */
+  const [lent, setLent] = useState<{ amount: number | null; dueDate: string | null }>({ amount: null, dueDate: null })
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
@@ -418,6 +428,19 @@ function Till({ context, registers, onSwitch }: TillProps) {
     window.setTimeout(focusSearch)
   }
 
+  /** What the customer owes has changed: they are asked about again, and stay at the counter. */
+  const knowAgain = async (customer: PosCustomerDto) => {
+    try {
+      const found = await api.get<PosCustomerDto[]>('/pos/customers', { q: customer.phone })
+      const fresh = found.find((item) => item.id === customer.id)
+      if (fresh) {
+        setCart((current) => (current.customer?.id === fresh.id ? { ...current, customer: fresh } : current))
+      }
+    } catch {
+      // The sale goes on with what was known; the server decides on what is true.
+    }
+  }
+
   // A window opened over the till (a partner's payment) takes the keys, the scanner and the reader.
   const covered = useCovered()
   const idle = !closing && !viewing && !picking && !handing && !asking && !covered
@@ -523,7 +546,26 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** More came back than is being taken: the till owes the customer. */
   const refunding = !!returning && credit > totals.total
   const toPay = refunding ? 0 : totals.total - credit
-  const toRefund = refunding ? credit - totals.total : 0
+  // What the receipt still leaves owing comes off first: money is handed back only for what was paid.
+  const offDebt = refunding && returning ? Math.min(credit - totals.total, returning.found.caps.debt) : 0
+  const toRefund = refunding ? credit - totals.total - offDebt : 0
+  // ── Leaving part of it owing: a plain sale, to someone on the books ──
+  const buyer = cart.customer ?? null
+  const lending = !!buyer && !returning && toPay > 0
+  const owedNow = lending ? Math.min(lent.amount ?? 0, toPay) : 0
+  const dueDate = lent.dueDate ?? toIsoDate(addDays(todayIn(), context.debtDays))
+  // A cart kept from before debts were known has a customer without one.
+  const standing = buyer?.debt ?? NOTHING_OWED
+  const lendBar = buyer && owedNow ? debtBar({ noDebt: buyer.noDebt, ...standing }, owedNow, context.debtLimit) : null
+  const lendAsk = !!lendBar && !context.mayLend
+  const lendWhy =
+    !buyer || !lendBar
+      ? null
+      : lendBar === 'barred'
+        ? t('pos.debtBarred', { name: buyer.name })
+        : lendBar === 'overdue'
+          ? t('pos.debtLate', { name: buyer.name, amount: money(standing.overdue) })
+          : t('pos.debtOverLimit', { name: buyer.name, limit: money(context.debtLimit) })
 
   // ── The money: paid in, or handed back ──
   const rows = useMemo(
@@ -538,7 +580,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** Dollars taken for more over the rate than the shop lets a cashier give alone. */
   const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent)
   const rateAsk = overRate && !context.mayOverDiscount
-  const settlement = settle(toPay, refunding ? [] : typed, {
+  const settlement = settle(toPay - owedNow, refunding ? [] : typed, {
     uzsPerUsd: rate,
     changeCurrency,
     roundStep: context.changeRoundStep,
@@ -552,10 +594,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     () =>
       refunding && returning
         ? suggestRefunds(toRefund, returning.found, context.changeRoundStep)
-        : toPay
-          ? { cash: toPay }
+        : toPay - owedNow
+          ? { cash: toPay - owedNow }
           : {},
-    [refunding, returning, toRefund, toPay, context.changeRoundStep],
+    [refunding, returning, toRefund, toPay, owedNow, context.changeRoundStep],
   )
 
   const focusField = (kind: TenderKind) => {
@@ -634,6 +676,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     clientKey.current = uuid()
     setCart(EMPTY_CART)
     setPaid({})
+    setLent({ amount: null, dueDate: null })
     setReturning(null)
     setPaying(false)
     for (const key of ['pos', 'sales', 'returns', 'stock']) {
@@ -747,12 +790,17 @@ function Till({ context, registers, onSwitch }: TillProps) {
     const late = !!returning && returning.found.late && !returning.found.free
     // Goods taken instead of the ones brought back, for a customer whose group does not have that done.
     const barred = !!returning && returning.found.noExchange && cart.lines.length > 0 && !returning.found.free
-    if (!approval && (overLimit || underAsk || rateAsk || priceAsk || late || beyond || barred)) {
+    if ((lent.amount ?? 0) > toPay && lending) {
+      toast.error(t('pos.debtOver'))
+      return
+    }
+    if (!approval && (overLimit || underAsk || rateAsk || priceAsk || late || beyond || barred || lendAsk)) {
       const who = context.approvers.filter(
         (approver) =>
           (!(overLimit || underAsk || rateAsk) || approver.discount) &&
           (!priceAsk || approver.prices) &&
-          (!(late || beyond || barred) || approver.returns),
+          (!(late || beyond || barred) || approver.returns) &&
+          (!lendAsk || approver.debts),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -793,6 +841,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           late ? t('pos.returnLate', { days: returning?.found.returnDays }) : null,
           barred ? t('pos.approvalExchange', { name: returning?.found.sale.customerName }) : null,
           beyond ? t('pos.approvalRefund') : null,
+          lendAsk ? lendWhy : null,
         ]
           .filter(Boolean)
           .join('. '),
@@ -815,7 +864,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
       total: totals.total,
     }
     if (!returning) {
-      sell.mutate({ clientKey: clientKey.current, registerId, ...goods, payments: amounts, approval })
+      sell.mutate({
+        clientKey: clientKey.current,
+        registerId,
+        ...goods,
+        payments: amounts,
+        debt: owedNow ? { amount: owedNow, dueDate } : null,
+        approval,
+      })
       return
     }
     giveBack.mutate({
@@ -1170,6 +1226,20 @@ function Till({ context, registers, onSwitch }: TillProps) {
               busy={busy}
               onComplete={() => complete()}
               onBack={() => backToCart()}
+              lend={
+                lending && buyer
+                  ? {
+                      amount: lent.amount,
+                      dueDate,
+                      max: toPay,
+                      owed: standing.owed,
+                      warning: lendAsk ? lendWhy : null,
+                      onAmount: (amount) => setLent((current) => ({ ...current, amount })),
+                      onDueDate: (date) => setLent((current) => ({ ...current, dueDate: date || null })),
+                    }
+                  : null
+              }
+              offDebt={offDebt}
             />
           ) : (
             <>
@@ -1178,6 +1248,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 registerId={registerId}
                 value={cart.customer ?? null}
                 onChange={serve}
+                onPayDebt={() => setTakingDebt(true)}
               />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
                 {/* A code is for a promotion, and promotions are for the retail price. */}
@@ -1315,6 +1386,17 @@ function Till({ context, registers, onSwitch }: TillProps) {
         </aside>
       </div>
 
+      {takingDebt && buyer ? (
+        // The till under it keeps quiet: its keys and its scanner are the window's while it is open.
+        <HotkeyScope>
+          <DebtPayDialog
+            customer={buyer}
+            owed={standing.owed}
+            onClose={() => setTakingDebt(false)}
+            onPaid={() => void knowAgain(buyer)}
+          />
+        </HotkeyScope>
+      ) : null}
       {closing ? <CloseShiftDialog context={context} onClose={() => setClosing(false)} /> : null}
       {handing ? <HandoverDialog context={context} onClose={() => setHanding(false)} /> : null}
       {picking ? (

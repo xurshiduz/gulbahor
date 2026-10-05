@@ -21,6 +21,7 @@ const nodira: PosCustomerDto = {
   noDebt: false,
   noLayaway: false,
   noExchange: true,
+  debt: { owed: 0, overdue: 0, dueDate: null },
 }
 
 /** The picker as the till holds it: one customer, or none. */
@@ -40,6 +41,9 @@ function Counter({ onAsked }: { onAsked?: (q: string) => void }) {
 }
 
 afterEach(() => vi.restoreAllMocks())
+
+/** Thousands are kept apart by a space that does not break: here it is only a space. */
+const plain = (text: string | null) => (text ?? '').replace(/\s/g, ' ')
 
 describe('who is at the counter', () => {
   it('is found by a few digits of their phone, and picked with Enter', async () => {
@@ -87,5 +91,32 @@ describe('who is at the counter', () => {
       expect.objectContaining({ name: 'Sardor', phone: '+998977000001', registerId: 'r1', groupIds: [] }),
     ])
     await waitFor(() => expect(screen.getByLabelText('customer').textContent).toBe('Sardor'))
+  })
+
+  it('is seen to owe, with the way to take it there and then', async () => {
+    const takes = vi.fn()
+    const owing = (debt: PosCustomerDto['debt']) => (
+      <QueryClientProvider client={new QueryClient()}>
+        <CustomerPicker
+          registerId="r1"
+          value={{ ...nodira, reminders: [], debt }}
+          onChange={() => undefined}
+          onPayDebt={takes}
+        />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(owing({ owed: 45_000_000, overdue: 0, dueDate: '2026-11-04' }))
+    expect(plain(screen.getByRole('note').textContent)).toContain("Qarzi: 450 000 so'm")
+    expect(screen.getByRole('note').textContent).not.toContain("muddati o'tgani")
+    await userEvent.click(screen.getByRole('button', { name: "To'lov olish" }))
+    expect(takes).toHaveBeenCalledTimes(1)
+
+    // What is past its day is said apart: it is why more may not be lent.
+    rerender(owing({ owed: 45_000_000, overdue: 20_000_000, dueDate: '2026-09-01' }))
+    expect(plain(screen.getByRole('note').textContent)).toContain("muddati o'tgani 200 000 so'm")
+
+    // Nothing owed, nothing said.
+    rerender(owing({ owed: 0, overdue: 0, dueDate: null }))
+    expect(screen.queryByRole('note')).toBeNull()
   })
 })

@@ -406,6 +406,8 @@ export class CustomersService {
         salesCount: row?.sales ?? 0,
         purchases: row?.purchases ?? 0,
         lastSaleAt: row?.last_at ? row.last_at.toISOString() : null,
+        debt: rules.get(customer.id)?.debt.owed ?? 0,
+        overdue: rules.get(customer.id)?.debt.overdue ?? 0,
       }
     })
   }

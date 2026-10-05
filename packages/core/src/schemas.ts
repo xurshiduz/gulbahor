@@ -177,6 +177,10 @@ export interface OrgSettings {
    * every cost out over the whole shipment and never need it, so it is off until someone asks for it.
    */
   receiptLineExtra: boolean
+  /** A debt is given for this many days unless the cashier sets another day. */
+  debtDays: number
+  /** What one customer may owe at most, in so'm tiyin; more needs someone allowed to lend. 0 sets no limit. */
+  debtLimit: number
   /** How the receipts look on paper; what is not set here is as `DEFAULT_RECEIPT_TEMPLATE` has it. */
   receipt?: Partial<ReceiptTemplate>
   /** What goes on the labels; what is not set here is as `DEFAULT_LABEL_TEMPLATE` has it. */
@@ -190,6 +194,8 @@ export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   maxRateLossPercent: 2,
   returnDays: 14,
   receiptLineExtra: false,
+  debtDays: 30,
+  debtLimit: 0,
 }
 
 export interface OrgDto {
@@ -212,6 +218,8 @@ export const orgUpdateSchema = z.object({
     maxRateLossPercent: z.coerce.number().min(0).max(100).optional(),
     returnDays: z.coerce.number().int().min(0).max(3650).optional(),
     receiptLineExtra: z.boolean().optional(),
+    debtDays: z.coerce.number().int().min(1).max(3650).optional(),
+    debtLimit: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   }),
 })
 export type OrgUpdateInput = z.infer<typeof orgUpdateSchema>
