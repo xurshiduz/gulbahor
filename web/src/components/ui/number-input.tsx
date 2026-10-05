@@ -100,6 +100,22 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
 
   return (
     <div className={cn('relative', className)}>
+      {/* With a unit after it the frame is around both, so that a long unit takes its own room and never lies under the number. */}
+      <div
+        className={cn(
+          suffix && 'flex h-8.5 items-center rounded-md border border-line-strong bg-surface transition-colors hover:border-control',
+          suffix && 'focus-within:border-accent focus-within:outline-2 focus-within:outline-accent/25',
+          suffix && bad && 'border-bad focus-within:border-bad focus-within:outline-bad/25',
+          suffix && disabled && 'bg-sunken',
+        )}
+        onMouseDown={(event) => {
+          // A press on the unit is a press on the field.
+          if (suffix && event.target !== ref.current) {
+            event.preventDefault()
+            ref.current?.focus()
+          }
+        }}
+      >
       <input
         ref={ref}
         id={id}
@@ -124,9 +140,10 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
           commit()
         }}
         onKeyDown={handleKeyDown}
-        className={cn(controlClass, 'tabular text-right', suffix && 'pr-10')}
+        className={cn(controlClass, 'tabular text-right', suffix && 'min-w-0 flex-1 border-0 bg-transparent pr-0 focus:outline-0')}
       />
-      {suffix ? <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-ink-3">{suffix}</span> : null}
+      {suffix ? <span className="shrink-0 pr-2.5 pl-1.5 text-xs text-ink-3 select-none">{suffix}</span> : null}
+      </div>
       {preview !== null ? (
         <div className="tabular pointer-events-none absolute top-full right-0 z-20 mt-1 rounded-md bg-ink px-2 py-1 text-xs font-medium text-surface shadow-float">
           = {preview}

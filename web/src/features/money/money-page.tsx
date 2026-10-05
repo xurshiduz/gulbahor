@@ -142,6 +142,8 @@ export function MoneyPage() {
   return (
     <Page
       title={t('money.title')}
+      // The day's rate is a form to be read down; the other sheets are lists that fill the window.
+      flow={tab === 'rates'}
       actions={
         adding ? (
           <Button variant="primary" onClick={add}>

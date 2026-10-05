@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b va 8a ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 (8a dan keyin) — core 151, agent 17, server 257, web 131; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-05 (8b dan keyin) — core 151, agent 17, server 258, web 131; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -42,6 +42,12 @@ Shu ko'rikda topilib tuzatilgani:
 - "Xarajat va kirim" ro'yxatida raqam ustuni "O'tkazma" deb nomlangan edi — "Raqam".
 - Tor oynada tablar sahifadan chiqib ketardi — endi tablar qatori o'zi suriladi.
 - "Bugungi dollar kursi kiritilmagan" yozuvi hech narsa yozilmasdan qizil turardi — endi xira, dollar qatoriga summa yozilgandagina qizil.
+
+Keyin, foydalanuvchi ko'rsatgan kamchiliklar (2026-10-05):
+
+- "Ekranni bloklash" maydonida "10" bilan "daqiqa" ustma-ust tushardi — son maydonining birligi endi ramka ichida o'z joyini oladi (hamma joyda).
+- Sozlamalar, Profil, Bosh sahifa, Dollar kursi: oxirigacha aylantirilganda karta oyna tubiga yopishardi — bunday sahifalar endi `Page flow` (ichidagisi bilan o'sadi, oxirida joy qoladi).
+- Kirimdagi qator xarajati maydoni "Xarajat (1 donaga)" deb nomlandi va sozlamadagi izohi aniqlashtirildi: summa shu tovarning har donasiga qo'shiladi, boshqa tovarlarga taqsimlanmaydi.
 
 Egasiga aytiladigan (ma'lumotga oid, kod emas):
 
@@ -87,7 +93,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] 7b. Etiketka shabloni (o'lcham, maydonlar, narxli yoki narxsiz); chekda logotip va shtrix-kod.
 8. **Tovar rasmlari** — ikki bo'lak:
    - [x] 8a. Rasm saqlash (server diskida), tovar kartasida galereya (qo'shish, tartib, rang), ro'yxat va kassada kichik rasm.
-   - [ ] 8b. Kirim va qoldiq ro'yxatlarida rasm; Billz'dagi rasmlarni ko'chirish.
+   - [ ] 8b. Qoldiq ro'yxatida, kirim bloklarida va tovar tanlash oynasida rasm.
+   - [ ] 8c. Billz'dagi rasmlarni ko'chirish — foydalanuvchidan rasm havolalari bor namunaviy eksport kerak (Billz'ga kirilmaydi).
 
 Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) — foydalanuvchi bilan.
 

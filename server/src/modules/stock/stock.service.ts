@@ -15,6 +15,7 @@ import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import { Brand, Category, Location, Product, StockMovement, type StockMovementKind } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
+import { productFaces } from '../catalog/faces'
 
 /** The kind of the one place per business that holds goods on the way between two others. */
 export const TRANSIT = 'transit'
@@ -328,6 +329,10 @@ export class StockService {
         .getRawAndEntities()
 
       const seesCost = can(actor, 'stock.cost')
+      const faces = await productFaces(
+        em,
+        entities.map((product) => product.id),
+      )
       return {
         items: entities.map((product, index) => {
           const row = raw[index] as {
@@ -353,6 +358,7 @@ export class StockService {
             retailPrice: row.retail_price
               ? { amount: Number(row.retail_price.amount), currency: row.retail_price.currency }
               : null,
+            image: faces.get(product.id) ?? null,
           }
         }),
         total,

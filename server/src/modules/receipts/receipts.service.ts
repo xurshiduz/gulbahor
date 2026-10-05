@@ -35,6 +35,7 @@ import {
 } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
+import { productFaces } from '../catalog/faces'
 import { nextNumbers } from '../catalog/counters'
 import { settleReceiptUnits, voidReceiptUnits } from '../labels/units'
 import { LedgerService, type Posting } from '../money/ledger.service'
@@ -608,6 +609,7 @@ export class ReceiptsService {
        FROM products p WHERE p.id = ANY($1) ORDER BY p.name`,
       [productIds],
     )
+    const faces = await productFaces(em, productIds)
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -616,6 +618,7 @@ export class ReceiptsService {
       weightG: row.weight_g,
       axisIds: row.axis_ids,
       variants: row.variants ?? [],
+      image: faces.get(row.id) ?? null,
     }))
   }
 

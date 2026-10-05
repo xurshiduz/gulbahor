@@ -28,7 +28,7 @@ export function SettingsPage() {
   const navigate = route.useNavigate()
 
   return (
-    <Page title={t('settings.title')} width={tab === 'receipt' || tab === 'label' ? undefined : 'narrow'}>
+    <Page title={t('settings.title')} width={tab === 'receipt' || tab === 'label' ? undefined : 'narrow'} flow>
       <Tabs
         value={tab}
         onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}

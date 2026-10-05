@@ -23,6 +23,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
 import { EmptyState, Spinner } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
+import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { useAttributes, useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
 import { matrixOf } from '@/features/receipts/receipt-state'
@@ -67,6 +68,7 @@ export function StockPage() {
     [locations.data, search.locationId],
   )
 
+  const faces = !!list.data?.items.some((item) => item.image)
   const columns = useMemo<ColumnDef<StockListItemDto>[]>(
     () => [
       {
@@ -84,9 +86,12 @@ export function StockPage() {
         header: t('products.name'),
         meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
         cell: ({ row }) => (
-          <span>
-            <span className="font-medium">{row.original.name}</span>
-            {row.original.brandName ? <span className="text-ink-3"> · {row.original.brandName}</span> : null}
+          <span className="flex items-center gap-2.5">
+            {faces ? <Thumb image={row.original.image} className="size-9" /> : null}
+            <span>
+              <span className="font-medium">{row.original.name}</span>
+              {row.original.brandName ? <span className="text-ink-3"> · {row.original.brandName}</span> : null}
+            </span>
           </span>
         ),
       },
@@ -159,7 +164,7 @@ export function StockPage() {
           ),
       },
     ],
-    [t, shownLocations, seesCost],
+    [t, shownLocations, seesCost, faces],
   )
 
   const setOpen = (productId: string | undefined) =>

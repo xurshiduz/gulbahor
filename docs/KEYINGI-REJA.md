@@ -515,7 +515,8 @@ Qilingan (2026-10-05):
 - **Rasmni brauzer tayyorlaydi, server emas**: uch o'lcham (160, 640, 1600 nuqta, WebP; yoza olmaydigan brauzerda JPEG) va bir necha yuz baytli xira nusxa. Telefonning 5–8 MB rasmi ~200–300 KB bo'lib ketadi. Server kelgan faylni tekshiradi (haqiqatan rasmmi, o'lchami va og'irligi chegaradami) va saqlaydi — serverga rasm kutubxonasi (sharp) kerak bo'lmadi.
 - Saqlash: serverning o'z diskida, `UPLOADS_DIR` (yozilmasa `server/uploads`) ichida `biznes/rasm/s|m|l.webp`; bazada faqat tartib, rang, o'lcham va xira nusxa. Manzil: `/api/files/<biznes>/<rasm>/<o'lcham>` — topib bo'lmaydigan ikki id, kirishsiz ochiladi (`<img>` shunday so'raydi), fayl hech qachon o'zgarmaydi, brauzer uni doimiy eslab qoladi. **Zaxira nusxaga shu papka ham kirishi kerak.**
 - Ko'rinadi: tovarlar ro'yxati (sahifada kamida bitta tovarning rasmi bo'lsa), kassa qidiruvi va savati (o'z rangidagi rasm bilan). Rasm yuklanguncha o'rnida xira nusxasi turadi; rasmlar ekranga yaqinlashganda yuklanadi.
-Hali yo'q: kirim va qoldiq ro'yxatlarida rasm, telefonda narx tekshirish, Billz'dagi rasmlarni ko'chirish, serverda qayta ishlash (havola orqali import bo'lsa kerak bo'ladi).
+- Keyin qo'shildi: qoldiq ro'yxatida, kirimning tovar bloklarida va tovar tanlash oynasida (kirim, ko'chirish, etiketka — hamma hujjatda) tovarning asosiy rasmi.
+Hali yo'q: telefonda narx tekshirish; Billz'dagi rasmlarni ko'chirish — buning uchun Billz eksportida rasm havolalari bor-yo'qligini ko'rish kerak (Billz'ga kirilmaydi, namunaviy fayl foydalanuvchidan); havola orqali import bo'lsa, serverda qayta ishlash kerak bo'ladi.
 
 ---
 

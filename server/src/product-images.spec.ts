@@ -216,6 +216,42 @@ describe('Product photographs', () => {
       .expect(409)
   })
 
+  it('shows the face wherever models are listed: the stock, a receipt', async () => {
+    const dress = (await alpha.get(`/api/products/${dressId}`).expect(200)).body
+    const face = { url: dress.images[0].small, blur: dress.images[0].blur }
+
+    const stock = (await alpha.get('/api/stock').query({ q: 'ylak', presence: 'all' }).expect(200)).body.items
+    expect(stock).toEqual([expect.objectContaining({ productId: dressId, image: face })])
+    // A model with no photograph has none to show.
+    const bare = (await alpha.post('/api/products').send({ name: 'Kamar', axisIds: [], variants: [{ valueIds: [] }] }))
+      .body
+    expect(
+      (await alpha.get('/api/stock').query({ q: 'kamar', presence: 'all' }).expect(200)).body.items[0].image,
+    ).toBeNull()
+
+    const shopId = (await alpha.get('/api/locations').expect(200)).body.items[0].id
+    const receipt = (
+      await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-01',
+          uzsRate: 12_000,
+          currency: 'UZS',
+          usdRate: 12_000,
+          lines: [
+            { variantId: dress.variants[0].id, qty: 1, price: 100_000_00 },
+            { variantId: bare.variants[0].id, qty: 1, price: 50_000_00 },
+          ],
+        })
+        .expect(201)
+    ).body
+    const shown = Object.fromEntries(
+      (receipt.products as { id: string; image: unknown }[]).map((product) => [product.id, product.image]),
+    )
+    expect(shown).toEqual({ [dressId]: face, [bare.id]: null })
+  })
+
   it('takes a photograph away, file and all', async () => {
     const [first, second]: Photo[] = (await alpha.get(`/api/products/${dressId}`).expect(200)).body.images
     expect(onDisk(first)).toBe(true)

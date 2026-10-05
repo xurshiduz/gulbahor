@@ -17,6 +17,15 @@ interface PageProps {
   children: ReactNode
   /** Narrow pages (forms, settings) read better at a limited width. */
   width?: 'full' | 'narrow'
+  /**
+   * The screen is read from top to bottom and may be longer than the window:
+   * settings, a profile. It grows with what is on it, the window scrolls, and
+   * it ends with room under it. Without this a screen is exactly as tall as
+   * the window and what is long inside it — a list — scrolls by itself; a
+   * card too long for such a screen would run out of it and end against the
+   * window's edge.
+   */
+  flow?: boolean
 }
 
 /** Where the frame around the screens shows a screen's name: in its own top bar, so the screen starts with its content. */
@@ -65,7 +74,7 @@ export function PageActions({ children }: { children: ReactNode }) {
  * Inside the app's frame the name sits in the top bar; on its own, a screen
  * shows it above its content.
  */
-export function Page({ title, note, actions, children, width = 'full' }: PageProps) {
+export function Page({ title, note, actions, children, width = 'full', flow = false }: PageProps) {
   const chrome = useContext(PageChrome)
   const [slots, setSlots] = useState<Record<BarKind, HTMLElement | null>>({ tabs: null, toolbar: null })
   const claim = useCallback(
@@ -92,7 +101,13 @@ export function Page({ title, note, actions, children, width = 'full' }: PagePro
 
   return (
     <PageBar.Provider value={bar}>
-      <div className={cn('mx-auto flex h-full min-h-0 w-full flex-col gap-3 p-4', width === 'narrow' && 'max-w-3xl')}>
+      <div
+        className={cn(
+          'mx-auto flex w-full flex-col gap-3 p-4',
+          flow ? 'min-h-full' : 'h-full min-h-0',
+          width === 'narrow' && 'max-w-3xl',
+        )}
+      >
         {chrome?.title ? createPortal(heading, chrome.title) : null}
         {!chrome || ownRow ? (
           <header className="flex shrink-0 flex-wrap items-center gap-3">

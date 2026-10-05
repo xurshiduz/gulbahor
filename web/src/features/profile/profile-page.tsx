@@ -29,7 +29,7 @@ export function ProfilePage() {
   const navigate = route.useNavigate()
 
   return (
-    <Page title={t('profile.title')} width="narrow">
+    <Page title={t('profile.title')} width="narrow" flow>
       <Tabs
         value={tab}
         onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { Fraction } from './fraction'
+import type { ImageThumb } from './images'
 import { ALL_CURRENCY_CODES, allocateExact, assertMinor, type AnyCurrency, type CurrencyCode } from './money'
 import { idSchema, listQuerySchema, optionalPhoneSchema, optionalText, requiredText } from './schemas'
 import type { Unit } from './catalog'
@@ -252,6 +253,8 @@ export interface ReceiptProductDto {
   weightG: number | null
   axisIds: string[]
   variants: { id: string; valueIds: string[]; sku: string; isActive: boolean }[]
+  /** The first of its photographs. Absent on a block made on the screen, before the server has answered. */
+  image?: ImageThumb | null
 }
 
 export interface ReceiptDto {
@@ -467,6 +470,8 @@ export interface StockListItemDto {
   costUzs: number | null
   costUsd: number | null
   retailPrice: { amount: number; currency: CurrencyCode } | null
+  /** The first of its photographs. */
+  image: ImageThumb | null
 }
 
 export interface StockVariantDto {

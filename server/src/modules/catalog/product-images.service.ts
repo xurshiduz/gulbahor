@@ -26,6 +26,7 @@ import { AuditService } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { FileStore } from '../files/file-store'
 import { RealtimeService } from '../realtime/realtime.service'
+import { productFaces } from './faces'
 
 const FIELD_OF: Record<ImageSize, 'small' | 'medium' | 'large'> = { s: 'small', m: 'medium', l: 'large' }
 
@@ -111,12 +112,8 @@ export class ProductImagesService {
   }
 
   /** The face of each model: the first of its photographs. */
-  async faces(em: EntityManager, productIds: string[]): Promise<Map<string, ImageThumb>> {
-    const faces = new Map<string, ImageThumb>()
-    for (const [productId, [first]] of await this.of(em, productIds)) {
-      faces.set(productId, { url: first.small, blur: first.blur })
-    }
-    return faces
+  faces(em: EntityManager, productIds: string[]): Promise<Map<string, ImageThumb>> {
+    return productFaces(em, productIds)
   }
 
   async add(actor: Actor, productId: string, input: ProductImageInput): Promise<ProductImageDto[]> {

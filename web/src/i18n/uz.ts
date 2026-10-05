@@ -563,7 +563,7 @@ export const uz = {
     emptyLines: "Tovar qo'shing: yuqoridagi qidiruvdan toping yoki shtrix-kodini skanerlang.",
     noLines: "Kirimda tovar yo'q",
     price: 'Xarid narxi',
-    extra: "Qo'sh. xarajat",
+    extra: 'Xarajat (1 donaga)',
     unitCost: '1 dona tannarxi',
     markup: 'Ustama',
     blockSupplier: 'Bu tovarning yetkazib beruvchisi:',
@@ -1296,7 +1296,7 @@ export const uz = {
       "Mijoz «50 dollarni 600 000 deb oling» desa, kassir dollarni kun kursidan shuncha foizgacha qimmat ola oladi. Undan ortig'iga rahbar tasdig'i kerak. Farq «Kurs farqi» hisobiga yoziladi.",
     receiptLineExtra: "Kirimda har tovarga «qo'shimcha xarajat» maydoni",
     receiptLineExtraHint:
-      "Odatda xarajat partiyaga pastdan kiritiladi va hamma tovarga o'zi taqsimlanadi. Faqat bitta tovarga tegishli xarajatni alohida yozish kerak bo'lsa, yoqing.",
+      "Odatda xarajat partiyaga pastdan kiritiladi va hamma tovarga o'zi taqsimlanadi. Yoqilsa, kirimda har tovar qatorida maydon chiqadi: unga yozilgan summa faqat shu tovarning har bir donasi tannarxiga qo'shiladi, boshqa tovarlarga taqsimlanmaydi.",
     returnDays: 'Qaytarish muddati',
     returnDaysHint:
       'Sotuvdan keyin shuncha kun ichida tovar qaytarib olinadi; keyinroq faqat ruxsati bor xodim oladi. 0 — muddat cheklanmagan.',

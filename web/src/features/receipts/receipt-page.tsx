@@ -47,6 +47,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { QtyMatrix } from '@/components/ui/qty-matrix'
+import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { useAttributes, usePriceTypes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
@@ -924,9 +925,12 @@ function BlockCard({
   return (
     <section data-block={block.key} className="rounded-lg border border-line bg-surface p-4 shadow-card">
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-        <div className="mr-auto min-w-0 self-start">
-          <p className="truncate text-sm font-semibold">{product.name}</p>
-          <p className="font-code text-xs text-ink-3">{product.sku}</p>
+        <div className="mr-auto flex min-w-0 items-center gap-2.5 self-start">
+          {product.image ? <Thumb image={product.image} className="size-10" /> : null}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{product.name}</p>
+            <p className="font-code text-xs text-ink-3">{product.sku}</p>
+          </div>
         </div>
         <Field label={t('receipts.price')} className="w-36">
           {(id) => (

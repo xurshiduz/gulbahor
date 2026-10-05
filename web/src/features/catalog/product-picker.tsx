@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { ColorDot } from '@/components/ui/combobox'
 import { Spinner } from '@/components/ui/feedback'
 import { controlClass } from '@/components/ui/input'
+import { Thumb } from '@/components/ui/thumb'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
@@ -140,6 +141,7 @@ export const ProductPicker = forwardRef<HTMLInputElement, ProductPickerProps>(fu
                 onClick={() => pick(product)}
                 className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-[13px] data-[highlighted=true]:bg-sunken"
               >
+                {items.some((other) => other.image) ? <Thumb image={product.image} className="size-8" /> : null}
                 <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{product.sku}</span>
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium">{product.name}</span>

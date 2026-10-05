@@ -267,6 +267,8 @@ export function CustomersPage() {
   return (
     <Page
       title={t('customers.title')}
+      // The loyalty tiers are a form to be read down; the other sheets are lists that fill the window.
+      flow={tab === 'loyalty'}
       actions={
         canManage && tab !== 'loyalty' ? (
           <Button variant="primary" onClick={add}>
