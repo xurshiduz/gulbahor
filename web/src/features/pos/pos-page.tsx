@@ -1109,7 +1109,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
         )}
 
         {/* ── The sum; while it is being paid, the money ── */}
-        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+        {/* What scrolls cuts off whatever reaches past its edge: the room given back here is for the focus ring. */}
+        <aside className="-m-1 flex min-h-0 flex-col gap-3 overflow-y-auto p-1">
           {/* As tall as the search field beside it, so the cart and the sum start on one line. */}
           <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-end gap-2">
             {last ? (

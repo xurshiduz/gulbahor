@@ -56,6 +56,11 @@ const ON_HAND = `(
   WHERE sb.variant_id = v.id AND sb.location_id = :locationId
 )`
 
+/** The thing whose article or barcode is exactly what was typed. */
+const EXACT = `(lower(v.sku) = lower(:exact) OR EXISTS (
+  SELECT 1 FROM variant_barcodes c WHERE c.variant_id = v.id AND c.code = :exact
+))`
+
 /**
  * What can be sold in a shop, each thing with its price there and how many
  * are on hand: by id, or by what a cashier types. A price kept in dollars is
@@ -103,8 +108,14 @@ export async function sellables(
     qb.andWhere('v.id IN (:...ids)', { ids: what.ids })
   } else {
     applySearch(qb, 'v.search_key', what.search)
-    // What is on the shelf comes first: that is what the customer is holding.
-    qb.orderBy(`${ON_HAND} > 0`, 'DESC').addOrderBy('p.name').addOrderBy('v.sku').limit(what.limit)
+    // A code typed in full means that thing, whatever else has the same digits somewhere in it: Enter
+    // takes the first of the list. After it, what is on the shelf: that is what the customer is holding.
+    qb.orderBy(EXACT, 'DESC')
+      .addOrderBy(`${ON_HAND} > 0`, 'DESC')
+      .addOrderBy('p.name')
+      .addOrderBy('v.sku')
+      .limit(what.limit)
+      .setParameter('exact', what.search.trim())
   }
 
   const inSom = (priced: Priced | null): number | null =>

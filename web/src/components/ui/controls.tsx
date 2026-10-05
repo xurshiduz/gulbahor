@@ -6,7 +6,7 @@ import {
   Switch as SwitchPrimitive,
   Tabs as TabsPrimitive,
 } from 'radix-ui'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 import { cn } from '@/lib/cn'
 
@@ -175,15 +175,24 @@ export function Tabs({
   children: ReactNode
 }) {
   const actionsRef = usePageBarSlot('tabs')
+  const listRef = useRef<HTMLDivElement>(null)
+  // In a window too narrow for all of them, the tab in view may lie beyond the edge.
+  useEffect(() => {
+    listRef.current?.querySelector('[data-state=active]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [value])
   return (
     <TabsPrimitive.Root value={value} onValueChange={onChange} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-end gap-x-3 border-b border-line">
-        <TabsPrimitive.List className="flex gap-1">
+      <div className="flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1.5 border-b border-line">
+        {/* More tabs than a narrow window has room for are scrolled along, not pushed out of the page. */}
+        <TabsPrimitive.List
+          ref={listRef}
+          className="-mb-px flex max-w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]"
+        >
           {tabs.map((tab) => (
             <TabsPrimitive.Trigger
               key={tab.value}
               value={tab.value}
-              className="-mb-px h-9 border-b-2 border-transparent px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink data-[state=active]:border-accent data-[state=active]:text-ink"
+              className="h-9 shrink-0 border-b-2 border-transparent px-3 text-[13px] font-medium whitespace-nowrap text-ink-3 transition-colors hover:text-ink focus-visible:-outline-offset-2 data-[state=active]:border-accent data-[state=active]:text-ink"
             >
               {tab.label}
             </TabsPrimitive.Trigger>

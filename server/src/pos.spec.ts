@@ -230,6 +230,29 @@ describe('Till', () => {
       await alpha.get('/api/pos/lookup').query({ registerId, code: 'no-such-code' }).expect(404)
     })
 
+    it('lists the thing whose article was typed in full before what only has it in its name', async () => {
+      const retail = ((await alpha.get('/api/price-types')).body as { id: string; kind: string }[]).find(
+        (type) => type.kind === 'retail',
+      )!.id
+      const add = async (name: string) =>
+        (
+          await alpha
+            .post('/api/products')
+            .send({
+              name,
+              axisIds: [],
+              variants: [{ valueIds: [] }],
+              prices: [{ priceTypeId: retail, amount: som(10_000), currency: 'UZS' }],
+            })
+            .expect(201)
+        ).body.variants[0] as { id: string; sku: string }
+      const belt = await add('Zzz kamar')
+      // Comes before the belt by name, and has the belt's article in its own.
+      const decoy = await add(`Aaa ${belt.sku}`)
+      const found = (await alpha.get('/api/pos/search').query({ registerId, q: belt.sku }).expect(200)).body
+      expect(found.map((item: { variantId: string }) => item.variantId).slice(0, 2)).toEqual([belt.id, decoy.id])
+    })
+
     it('takes the goods out of stock and the money into the drawer', async () => {
       const key = randomUUID()
       const body = {

@@ -4,7 +4,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 ## Qoidalar (foydalanuvchi bilan kelishilgan)
 
-- **Commit ham, push ham qilinmaydi** — foydalanuvchi alohida aytmaguncha. Har tugagan bo'lakdan keyin ish daraxtining nusxasi olinadi va pastdagi ro'yxatga yoziladi: `git add -A && git write-tree && git reset -q` (bu commit emas, hech narsani o'zgartirmaydi).
+- **Commit ham, push ham faqat foydalanuvchi aytganda qilinadi.** Oradagi har tugagan bo'lakdan keyin ish daraxtining nusxasi olinadi va pastdagi ro'yxatga yoziladi: `git add -A && git write-tree && git reset -q` (bu commit emas, hech narsani o'zgartirmaydi).
 - Parol va kalitlar chatga ham, hujjatga ham yozilmaydi (`server/.env`, `server/.env.test-users`).
 - Billz'ga kirilmaydi: tahlil tugagan.
 - Har bo'lakdan keyin: `npm run typecheck`, `npm run lint`, `npm test` — hammasi yashil bo'lishi shart. Qizil holatda keyingi bo'lakka o'tilmaydi.
@@ -12,30 +12,48 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 - Rejada ochiq qolgan savolda taklif qilingan qiymat olinadi (dollarni kelishilgan qiymat bilan olish chegarasi — 2%) va sozlamadan o'zgartiriladigan qilinadi.
 - Katta, daftarga tegadigan ish (dinamik valyuta) foydalanuvchisiz boshlanmaydi.
 
-## Tayyor (commit qilinmagan, ish daraxtida)
+## Commit holati
 
-`84e8ac1` dan keyin, tartib bilan: hamkor hisobi va to'lovlar; kassada tez skaner tuzatishi; RFID o'quvchilar; Chainway ko'prigi; xususiyat qiymatlarini birlashtirish; tayyor qatorli to'lov oynasi va Alt+K / Alt+C; alertlar va brauzer bildirishnomalari, `money.sent` / `goods.sent`; kirimdan yetkazib beruvchi qarzi; reja va tahlil hujjatlari.
+2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 — core 126, agent 17, server 246, web 120; typecheck va lint toza (6b dan keyin)
+Oxirgi to'liq tekshiruv: 2026-10-05 (ekran ko'rigidan keyin) — core 126, agent 17, server 248, web 122; typecheck va lint toza.
 
-## Ko'z bilan tekshirilmagan (ertalab ko'rib chiqish kerak)
+## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
-Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) va toza bazada tovar yo'q, shuning uchun quyidagilar faqat testlar bilan tekshirilgan, ekranda ko'rilmagan:
+Brauzerda, egasining hisobi bilan, haqiqiy ma'lumotda ko'rildi (hech narsa saqlanmadi, sotuv qilinmadi):
 
-- Kassa: "Kelishilgan summa" maydoni va yaxlit summa tugmalari (1a).
-- Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b).
-- Kassa: dollar qatori ostidagi "So'mda hisoblanadi" maydoni (1c); Sozlamalar → Biznes dagi "Dollarni kursdan qimmat olish chegarasi".
-- "Sozlamalar → Chek" (7a): chek qog'ozining o'zi alohida sahifada brauzerda ko'rildi (80 va 58 mm); sozlamalar varag'i va haqiqiy printerda chop etish ko'rilmagan.
-- "Aksiyalar" sahifasi va formasi, kassadagi aksiya yozuvi va "Promokod" maydoni (6a) — testlar yashil, ekranda ko'rilmagan.
-- "Mijozlar → Sodiqlik dasturi" varag'i, guruhdagi chegirma foizi, kassadagi "Mijoz chegirmasi" qatori (5c) — testlar yashil, ekranda ko'rilmagan. **Akaning besh pog'onasini kiritish kerak** (jadval bo'sh).
-- "Mijozlar → Guruhlar" varag'i, mijoz formasidagi guruh va teglar, kassada guruh eslatmasi (5b) — testlar yashil, ekranda ko'rilmagan.
-- "Mijozlar" sahifasi va kassadagi "Mijoz" maydoni (5a) — testlar yashil, ekranda ko'rilmagan.
-- Kassa: "Narx" tanlagichi va narx turi formasidagi "Kassada" sozlamasi (4c) — testlar yashil, ekranda ko'rilmagan.
-- Kirim: har narx turiga maydon va yashirin "qo'shimcha xarajat" (4a, 4b); Sozlamalar → Biznes dagi yoqish tugmasi — testlar yashil, ekranda ko'rilmagan.
-- Menyu (3): yon panelning o'zi alohida sahifada brauzerda ko'rildi (yoyilgan va tor holat, yonidan chiqadigan ro'yxat, o'tish); butun tizim ichida, haqiqiy ruxsatlar bilan ko'rilmagan.
-- Pul → Hisoblar: karta formasidagi "Do'konlar" (bir nechta tanlash) maydoni (2b) — testlar yashil, ekranda ko'rilmagan.
-- Pul: "Xarajat" oynasi (Alt+X), "Xarajat va kirim" ro'yxati va "Xarajat turlari" (2a) — testlar yashil, ekranda ko'rilmagan.
-- Kassa: to'lov bo'limi (1d). To'lov paneli va chek ko'rinishi alohida sahifada brauzerda ko'rildi (1440 kenglikda joylashuvi, Enter / Tab / "=" yurishi), lekin butun kassa sahifasi ichida — savatdan F9 bilan o'tish, Esc bilan qaytish, qaytarish va almashtirish — ko'rilmagan.
+- Menyu (bo'limlar, ichki bandlar), Bosh sahifa.
+- Sozlamalar → Biznes (yangi maydonlar), Sozlamalar → Chek (jonli ko'rinish tugmalarga javob beradi).
+- Pul: Kassalar, Hisoblar (hisob formasidagi "Do'konlar"), Xarajat va kirim, Xarajat turlari (13 ta tayyor tur), Dollar kursi; "Xarajat" oynasi (Alt+X), hamkor to'lovi oynasi (Alt+K).
+- Mijozlar: ro'yxat va to'rtta ko'rsatkich, Guruhlar, Sodiqlik dasturi; mijoz va guruh formalari.
+- Aksiyalar: ro'yxat va forma (to'rt tur).
+- Ma'lumotnomalar → Narx turlari va formasidagi "Kassada".
+- Kirim: o'tkazilgan K-000001 va yangi kirim formasi (har narx turiga maydon: Chakana, Ulgurji, Minimal; "qo'shimcha xarajat" yashirin).
+- Kassa: savat (qidiruv, qator, "Mijoz" maydoni, kelishilgan summa va yaxlit takliflar), F9 bilan to'lov bo'limi (chek ko'rinishi, to'lov qatorlari), Esc bilan qaytish, "Qaytarish" oynasi (F4).
+- Qolgan hamma sahifa (cheklar, smenalar, tovarlar, narxlar, etiketkalar, qoldiq, ko'chirish, inventarizatsiya, hisobdan chiqarish, hamkorlar, xodimlar, rollar, joylar, qurilmalar, tarix, profil) ochilib, fokus hoshiyasi kesilmasligi o'lchab chiqildi.
+
+Shu ko'rikda topilib tuzatilgani:
+
+- **Fokus hoshiyasi kesilardi**: aylantiriladigan quti chetiga taqalgan maydonning hoshiyasini kesadi. Kassaning o'ng ustuni ("Mijoz" maydoni, "Smenani yopish") va hujjat formalari (tovar, kirim, sklad hujjatlaridagi tovar qidiruvi) — qutiga chetdan joy berildi (`-m-1 p-1` / `-mx-1 px-1`). Yangi aylantiriladigan quti yozilsa, shu qoida.
+- **Kassa qidiruvi**: artikul to'liq yozilib Enter bosilsa, ro'yxatning birinchisi boshqa tovar bo'lib chiqishi mumkin edi ("8018-09" yozilsa "8018-08" tushardi). Endi artikuli yoki shtrix-kodi aynan mos kelgan tovar doim birinchi (`items.ts` dagi `EXACT`).
+- Menyu: past oynada qatorlar har xil balandlikka siqilardi — endi menyu aylanadi.
+- "Xarajat va kirim" ro'yxatida raqam ustuni "O'tkazma" deb nomlangan edi — "Raqam".
+- Tor oynada tablar sahifadan chiqib ketardi — endi tablar qatori o'zi suriladi.
+- "Bugungi dollar kursi kiritilmagan" yozuvi hech narsa yozilmasdan qizil turardi — endi xira, dollar qatoriga summa yozilgandagina qizil.
+
+Egasiga aytiladigan (ma'lumotga oid, kod emas):
+
+- K-000001 kirimida "cargo" xarajati 43 000 $ deb yozilgan (tovar qiymati 32 472 $), shuning uchun tannarx chakana narxdan baland va ustama −39% chiqyapti. Xato bo'lsa, kirimning xarajatini tuzatish kerak.
+- Bugungi dollar kursi kiritilmagan: kassada dollar qatori "kurs yo'q" deb turadi.
+- Sodiqlik pog'onalari hali kiritilmagan (jadval bo'sh).
+
+## Hali ekranda ko'rilmagan
+
+Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining bazasini ifloslamaslik uchun qilinmadi, testlar bilan tekshirilgan:
+
+- Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b); dollar qatori ostidagi "So'mda hisoblanadi" (1c, bugun kurs yo'q); "Narx" tanlagichi (4c, hozir hech bir narx turi kassaga ochilmagan); mijoz chegirmasi va guruh eslatmasi (5b, 5c); aksiya yozuvi va "Promokod" (6a, 6b).
+- Sotuvni oxirigacha yetkazish, chek oynasi, qaytarish va almashtirish; smena hisobotidagi xarajat qatorlari.
+- Haqiqiy printerda chek chop etish (7a).
 
 ## Navbat (KEYINGI-REJA, 14-bo'lim)
 
@@ -69,7 +87,7 @@ Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) �
 
 ## Hozir ishlanayotgan bo'lak
 
-— (6a tugadi; navbatda 6b, 7, 8)
+— (7a tugadi; navbatda 7b etiketka shabloni, 8 tovar rasmlari; 5d foydalanuvchi bilan)
 
 ## Ish daraxti nusxalari
 
@@ -77,19 +95,3 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 
 | Nusxa | Nimadan keyin |
 | --- | --- |
-| `85854874e3f5aec24b7a9d44fe29c892cc4b9056` | alertlar va bildirishnomalar |
-| `73269aa63b14664781f31fe1b1fb24a7d7983387` | yetkazib beruvchi qarzi, reja va Billz tahlili hujjatlari |
-| `177eda274d987b42f58cd1e0578cea7ce9486ff9` | 1a: kassada kelishilgan summa |
-| `558fe730c903b189f3d035a4162e0d67e0522eb9` | 1b: minimal narx (kassada pol, rahbar tasdig'i) |
-| `c6ccc3d7bcb6cf87087952dc7b0294c92ffeb10a` | 1c: dollar kelishilgan qiymatda (kurs farqi hisobi, chegara sozlamada) |
-| `df2ad66ebaf3bd5f7652c6ec8bab65b7e7f691c8` | 1d: to'lov alohida bo'limda (chek ko'rinishi, har karta va terminalga qator) |
-| `d725b5010953f920fda997a9b912a6a6c2f9cb01` | 2a: xarajat va boshqa kirim, xarajat turlari |
-| `b9e526a513b9e4de5f7cf2326dadba0295efda4b` | 2b: kartani bir nechta do'konga biriktirish |
-| `b08a7b585c7280cea885044745f33a75325ff447` | 3: ikki qavatli menyu |
-| `380ff425678d9d26e9fa3b357c67043618f747f0` | 4a, 4b: kirimda har narx turiga maydon; qo'shimcha xarajat sozlamada |
-| `c399bb632b1c172ce15a59138711616e37436811` | 4c: kassada narx turini tanlash |
-| `ee1f55472caebeb66f9b99b16aabe23d000f9f4c` | 5a: mijozlar bazasi va kassada mijoz |
-| `341b723f2b71ac60afda7a8959b99661e37b9057` | 5b: mijoz guruhlari va teglar |
-| `4833fed41ffe2f24ab0a96005b9bdd2f393e8f85` | 5c: mijoz chegirmasi (guruh foizi, sodiqlik pog'onalari) |
-| `f453628495fdcc0ba396935989fd0a5708530e4a` | 6a: aksiyalar (foiz, belgilangan narx, promokod) |
-| `dc4b822f0ca0327f155be56644f888f7c6e62f7c` | 6b: 1+1 va N dona olinsa chegirma |

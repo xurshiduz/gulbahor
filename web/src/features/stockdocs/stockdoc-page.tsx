@@ -544,7 +544,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
         </>
       }
     >
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-6">
         <Form id={FORM_ID} onSubmit={() => void saveDraft()} className="max-w-5xl gap-4">
           <Card>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

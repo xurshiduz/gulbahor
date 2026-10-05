@@ -357,8 +357,16 @@ export function PaymentLines({
           />
         </div>
       ) : null}
+      {/* Said quietly while the dollar line is empty; in red once something is typed there that cannot be valued. */}
       {lines.some((line) => line.changes && !line.rate) ? (
-        <p className="text-xs text-bad">{t('payments.noRate')}</p>
+        <p
+          className={cn(
+            'text-xs',
+            lines.some((line) => line.changes && !line.rate && line.row.amount) ? 'text-bad' : 'text-ink-3',
+          )}
+        >
+          {t('payments.noRate')}
+        </p>
       ) : null}
       <div className={`${GRID} items-center border-t border-line pt-2`}>
         <span className="col-span-3 pr-1 text-right text-[13px] font-semibold">{t('payments.total')}</span>

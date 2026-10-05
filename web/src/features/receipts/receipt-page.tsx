@@ -603,7 +603,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
         </>
       }
     >
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-6">
         <Form id={FORM_ID} onSubmit={() => void saveDraft()} className="gap-4">
           <div className="grid items-start gap-4 xl:grid-cols-[1fr_19rem]">
             <div className="flex min-w-0 flex-col gap-4">

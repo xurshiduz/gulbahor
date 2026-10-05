@@ -103,7 +103,8 @@ export function Sidebar({ name, groups, collapsed, onCollapse }: SidebarProps) {
         {!collapsed ? <span className="truncate text-sm font-semibold">{name}</span> : null}
       </div>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+      {/* A short window scrolls the menu: rows squeezed to fit would each come out a different height. */}
+      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2 [&>*]:shrink-0">
         {groups.map((group) => {
           const active = group.key === current
           if (group.items.length === 1) {

@@ -399,7 +399,7 @@ export function MoneyOpsTab() {
     () => [
       {
         id: 'number',
-        header: t('money.transferNumber'),
+        header: t('receipts.number'),
         meta: { export: (row) => row.number, fixed: true, className: 'w-px font-code text-xs whitespace-nowrap' },
         cell: ({ row }) => row.original.number,
       },
