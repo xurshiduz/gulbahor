@@ -2,8 +2,8 @@ import {
   belowFloor,
   floorOf,
   formatMoney,
+  cartAutos,
   gross,
-  lineAuto,
   parseDiscount,
   percentOf,
   returnShare,
@@ -126,9 +126,15 @@ export interface CartTotals extends SaleTotals {
   autos: LineAuto[]
 }
 
-/** What comes off a line by itself: the best promotion in force for it, the customer's own discount, or both. */
-const autoOf = (line: CartLine, ownPercent: number): LineAuto =>
-  lineAuto(line.item.price ?? 0, line.qty, line.item.promos ?? [], ownPercent)
+/**
+ * What comes off each line by itself: the best promotion in force for it (one that looks at the line, or at
+ * the whole cart), the customer's own discount, or both.
+ */
+const autosOf = (cart: Cart, ownPercent: number): LineAuto[] =>
+  cartAutos(
+    cart.lines.map((line) => ({ price: line.item.price ?? 0, qty: line.qty, offers: line.item.promos ?? [] })),
+    ownPercent,
+  )
 
 /** Why money came off by itself, in a line: the promotions by name, then the customer's own reason. */
 export function autoReasons(autos: readonly LineAuto[], own: string | null): string {
@@ -142,7 +148,7 @@ export function autoReasons(autos: readonly LineAuto[], own: string | null): str
  * from what is left.
  */
 export function cartTotals(cart: Cart, ownPercent = 0): CartTotals {
-  const autos = cart.lines.map((line) => autoOf(line, ownPercent))
+  const autos = autosOf(cart, ownPercent)
   const lineDiscounts = cart.lines.map((line, index) =>
     discountOf(line.discountText, gross(line.item.price ?? 0, line.qty) - autos[index].auto),
   )
@@ -181,8 +187,9 @@ export function underFloor(cart: Cart, totals: SaleTotals): { index: number; flo
  * whole sale is taken from.
  */
 export function linesTotal(cart: Cart, ownPercent = 0): number {
-  return cart.lines.reduce((sum, line) => {
-    const left = gross(line.item.price ?? 0, line.qty) - autoOf(line, ownPercent).auto
+  const autos = autosOf(cart, ownPercent)
+  return cart.lines.reduce((sum, line, index) => {
+    const left = gross(line.item.price ?? 0, line.qty) - autos[index].auto
     return sum + left - discountOf(line.discountText, left)
   }, 0)
 }

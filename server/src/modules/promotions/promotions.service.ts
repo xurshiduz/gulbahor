@@ -26,6 +26,7 @@ const AUDITED: (keyof Promotion & string)[] = [
   'name',
   'kind',
   'value',
+  'minQty',
   'startsOn',
   'endsOn',
   'locationIds',
@@ -98,6 +99,7 @@ export function offersFor(
       name: promotion.name,
       kind: promotion.kind,
       value: promotion.value,
+      minQty: promotion.minQty,
       stackable: promotion.stackable,
     }))
 }
@@ -149,6 +151,8 @@ export class PromotionsService {
         em.create(Promotion, {
           orgId: actor.orgId,
           ...input,
+          // How many is asked only of the kind that goes by how many.
+          minQty: input.kind === 'quantity' ? input.minQty : null,
           isActive: true,
           createdBy: actor.userId,
           createdByName: actor.name,
@@ -174,7 +178,11 @@ export class PromotionsService {
         throw AppError.validation({ kind: "Cheklarda ishlatilgan aksiyaning turi o'zgartirilmaydi" })
       }
       await this.assertValid(em, input, id)
-      await em.update(Promotion, id, { ...input, searchKey: keyOf(input) })
+      await em.update(Promotion, id, {
+        ...input,
+        minQty: input.kind === 'quantity' ? input.minQty : null,
+        searchKey: keyOf(input),
+      })
       const after = await this.find(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'promotion.update',
@@ -287,6 +295,7 @@ export class PromotionsService {
       name: promotion.name,
       kind: promotion.kind,
       value: promotion.value,
+      minQty: promotion.minQty,
       startsOn: promotion.startsOn,
       endsOn: promotion.endsOn,
       locationIds: promotion.locationIds,

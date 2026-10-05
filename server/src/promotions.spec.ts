@@ -214,7 +214,7 @@ describe('Promotions', () => {
     it('comes off by itself what it covers, a category covering what is under it', async () => {
       // The dress is in a category under the one the promotion names; the scarf is in none.
       expect((await found("ko'ylak")).promos).toEqual([
-        { id: autumn.id, name: 'Kuzgi aksiya', kind: 'percent', value: 20, stackable: false },
+        { id: autumn.id, name: 'Kuzgi aksiya', kind: 'percent', value: 20, minQty: null, stackable: false },
       ])
       expect((await found('sharf')).promos).toEqual([])
 
@@ -343,6 +343,147 @@ describe('Promotions', () => {
       )!
       await alpha.delete(`/api/promotions/${unused.id}`).expect(204)
       expect((await alpha.post(`/api/promotions/${autumn.id}/resume`).expect(200)).body.state).toBe('running')
+    })
+  })
+
+  describe('over the whole cart', () => {
+    let trousers: { id: string; variants: { id: string }[] }
+    let belt: { id: string; variants: { id: string }[] }
+    let pair: Promo
+
+    const cart = (lines: [variantId: string, qty: number][], total: number) =>
+      cashier.post('/api/sales').send({
+        clientKey: randomUUID(),
+        registerId,
+        lines: lines.map(([variantId, qty]) => ({ variantId, qty })),
+        payments: [{ method: 'cash', currency: 'UZS', amount: total }],
+        total,
+      })
+
+    beforeAll(async () => {
+      // Nothing else is running: what comes off below is these promotions' alone.
+      const running = (await alpha.get('/api/promotions').query({ state: 'running' }).expect(200)).body.items as Promo[]
+      for (const promotion of running) {
+        await alpha.post(`/api/promotions/${promotion.id}/stop`).expect(200)
+      }
+      const types = (await alpha.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
+      const retail = types.find((type) => type.kind === 'retail')!.id
+      const product = async (name: string, amount: number) =>
+        (
+          await alpha
+            .post('/api/products')
+            .send({
+              name,
+              axisIds: [],
+              variants: [{ valueIds: [] }],
+              prices: [{ priceTypeId: retail, amount, currency: 'UZS' }],
+            })
+            .expect(201)
+        ).body
+      trousers = await product('Shim', som(120_000))
+      belt = await product('Kamar', som(40_000))
+      const shopId = (await alpha.get('/api/locations')).body.items[0].id
+      const draft = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-01',
+          uzsRate: 12_000,
+          currency: 'UZS',
+          usdRate: 12_000,
+          lines: [
+            { variantId: trousers.variants[0].id, qty: 30, price: som(60_000) },
+            { variantId: belt.variants[0].id, qty: 30, price: som(15_000) },
+          ],
+        })
+        .expect(201)
+      await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
+    })
+
+    it('gives the cheaper of every two pieces away, and leaves an odd one out as it is', async () => {
+      pair = (
+        await add({
+          name: '1+1',
+          kind: 'pair',
+          value: 100,
+          startsOn: day,
+          productIds: [trousers.id, belt.id],
+        }).expect(201)
+      ).body
+      const shim = trousers.variants[0].id
+      const kamar = belt.variants[0].id
+
+      // One piece has nothing to be paired with.
+      await cart([[shim, 1]], som(120_000)).expect(201)
+      // Trousers and a belt: the belt is the cheaper of the two.
+      const two = (
+        await cart(
+          [
+            [shim, 1],
+            [kamar, 1],
+          ],
+          som(120_000),
+        ).expect(201)
+      ).body
+      expect(two).toMatchObject({ autoDiscount: som(40_000), autoReason: '1+1' })
+      expect(two.lines.map((line: { promoDiscount: number }) => line.promoDiscount)).toEqual([0, som(40_000)])
+      // Two pairs of trousers and a belt: the second pair of trousers is free, the belt is the odd one out.
+      const three = (
+        await cart(
+          [
+            [shim, 2],
+            [kamar, 1],
+          ],
+          som(160_000),
+        ).expect(201)
+      ).body
+      expect(
+        three.lines.map((line: { promoDiscount: number; total: number }) => [line.promoDiscount, line.total]),
+      ).toEqual([
+        [som(120_000), som(120_000)],
+        [0, som(40_000)],
+      ])
+      // The till cannot leave it out, nor give more.
+      expect((await cart([[shim, 2]], som(240_000))).body.error.code).toBe('PRICE_CHANGED')
+    })
+
+    it('takes so much off every piece once enough of them are taken', async () => {
+      await alpha.post(`/api/promotions/${pair.id}/stop`).expect(200)
+      const refused = await add({ name: 'Uchtasi', kind: 'quantity', value: 10, startsOn: day })
+      expect(refused.body.error.fields.minQty).toBeDefined()
+      const three = (
+        await add({
+          name: 'Uchtasi arzon',
+          kind: 'quantity',
+          value: 10,
+          minQty: 3,
+          startsOn: day,
+          productIds: [trousers.id, belt.id],
+        }).expect(201)
+      ).body
+      expect(three.minQty).toBe(3)
+      const shim = trousers.variants[0].id
+      const kamar = belt.variants[0].id
+
+      // Two pieces: not yet.
+      await cart(
+        [
+          [shim, 1],
+          [kamar, 1],
+        ],
+        som(160_000),
+      ).expect(201)
+      // Two pairs of trousers and a belt are three pieces: a tenth off each.
+      const sale = (
+        await cart(
+          [
+            [shim, 2],
+            [kamar, 1],
+          ],
+          som(252_000),
+        ).expect(201)
+      ).body
+      expect(sale).toMatchObject({ autoDiscount: som(28_000), autoReason: 'Uchtasi arzon' })
     })
   })
 })

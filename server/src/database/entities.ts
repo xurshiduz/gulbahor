@@ -754,6 +754,10 @@ export class Promotion {
   @Column('numeric', { transformer: numericAsNumber })
   value: number
 
+  /** For `quantity`: how many pieces have to be taken. */
+  @Column('int', { nullable: true })
+  minQty: number | null
+
   @Column('date')
   startsOn: string
 

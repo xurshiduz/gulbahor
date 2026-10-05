@@ -57,9 +57,15 @@ const TONES: Record<PromotionState, 'ok' | 'info' | 'neutral' | 'warn'> = {
   stopped: 'warn',
 }
 
-/** What a promotion gives, in a few characters: "20%", "99 000 so'm". */
-export const gives = (promotion: { kind: PromotionKind; value: number }) =>
-  promotion.kind === 'percent' ? `${String(promotion.value).replace('.', ',')}%` : money(promotion.value)
+/** What a promotion gives, in a few characters: "20%", "99 000 so'm", "3+ → 10%". */
+export const gives = (promotion: { kind: PromotionKind; value: number; minQty?: number | null }) => {
+  const percent = `${String(promotion.value).replace('.', ',')}%`
+  return promotion.kind === 'price'
+    ? money(promotion.value)
+    : promotion.kind === 'quantity'
+      ? `${promotion.minQty}+ → ${percent}`
+      : percent
+}
 
 const useShops = () =>
   useQuery({
@@ -319,6 +325,7 @@ function PromotionDialog({ promotion, shops, onClose, onSaved }: DialogProps) {
   const [name, setName] = useState(promotion?.name ?? '')
   const [kind, setKind] = useState<PromotionKind>(promotion?.kind ?? 'percent')
   const [value, setValue] = useState<number | null>(promotion?.value ?? null)
+  const [minQty, setMinQty] = useState<number | null>(promotion?.minQty ?? null)
   const [startsOn, setStartsOn] = useState(promotion?.startsOn ?? toIsoDate(todayIn(me.org.timezone)))
   const [endsOn, setEndsOn] = useState(promotion?.endsOn ?? '')
   const [locationIds, setLocationIds] = useState(promotion?.locationIds ?? [])
@@ -349,6 +356,7 @@ function PromotionDialog({ promotion, shops, onClose, onSaved }: DialogProps) {
       name,
       kind,
       value: value ?? 0,
+      minQty: kind === 'quantity' ? minQty : null,
       startsOn,
       endsOn: endsOn || null,
       locationIds,
@@ -404,9 +412,11 @@ function PromotionDialog({ promotion, shops, onClose, onSaved }: DialogProps) {
                 id={id}
                 value={kind}
                 onChange={(next) => {
-                  setKind(next as PromotionKind)
                   // A percentage is not a price: what was typed for the one means nothing for the other.
-                  setValue(null)
+                  if ((next === 'price') !== (kind === 'price')) {
+                    setValue(null)
+                  }
+                  setKind(next as PromotionKind)
                 }}
                 options={PROMOTION_KINDS.map((item) => ({ value: item, label: PROMOTION_KIND_LABELS[item] }))}
                 // What it gave on the receipts it is on stays what it was.
@@ -415,18 +425,30 @@ function PromotionDialog({ promotion, shops, onClose, onSaved }: DialogProps) {
             )}
           </Field>
           <Field
-            label={kind === 'percent' ? t('promotions.percent') : t('promotions.price')}
+            label={
+              kind === 'price'
+                ? t('promotions.price')
+                : kind === 'pair'
+                  ? t('promotions.pairPercent')
+                  : t('promotions.percent')
+            }
+            hint={kind === 'pair' ? t('promotions.pairHint') : undefined}
             error={errors.value}
             required
           >
             {(id) =>
-              kind === 'percent' ? (
-                <NumberInput id={id} value={value} onChange={setValue} decimals={2} max={100} suffix="%" />
-              ) : (
+              kind === 'price' ? (
                 <MoneyInput id={id} value={value} onChange={setValue} currency="UZS" invalid={!!errors.value} />
+              ) : (
+                <NumberInput id={id} value={value} onChange={setValue} decimals={2} max={100} suffix="%" />
               )
             }
           </Field>
+          {kind === 'quantity' ? (
+            <Field label={t('promotions.minQty')} hint={t('promotions.minQtyHint')} error={errors.minQty} required>
+              {(id) => <NumberInput id={id} value={minQty} onChange={setMinQty} min={2} max={1000} />}
+            </Field>
+          ) : null}
           <Field label={t('promotions.startsOn')} error={errors.startsOn} required>
             {(id) => <DateInput id={id} value={startsOn} onChange={setStartsOn} invalid={!!errors.startsOn} />}
           </Field>

@@ -232,7 +232,8 @@ Qoidalar:
    - **Promokod**: kodli aksiya faqat kod aytilganda ishlaydi. Kassada "Promokod" maydoni shunday aksiya bor kunlardagina chiqadi; kod yozilgach kassa darhol "qabul qilindi: aksiya nomi" yoki "bunday promokod yo'q" deydi. Chekda promokod yoziladi.
    - Aksiya faqat chakana narxga qo'llanadi (ulgurji yoki "Oila" narxidagi savatga emas). Kassir qo'l chegirmasi aksiyadan keyin qolgan summadan hisoblanadi; minimal narx tekshiruvi yakuniy summa bo'yicha.
    - Ro'yxatda har aksiya **qancha chegirma bergani va nechta chekda ishlagani** ko'rinadi (samaradorlik hisobotining boshlanishi).
-   - Hali yo'q: "1+1", N dona olinsa chegirma, chek summasi yetganda chegirma; o'tgan davr bilan solishtirish hisoboti.
+   - Qilingan (2026-10-05): **"1+1: ikkinchisiga chegirma"** — aksiyadagi tovarlardan har ikki donaning arzonrog'iga foiz (100% — tekin); donalar qimmatidan boshlab juftlanadi, toq qolgani o'z narxida. **"Bir nechta olinsa chegirma"** — aksiyadagi tovarlardan N dona yoki ko'proq olinsa, hammasiga foiz. Ikkalasi butun savat bo'yicha hisoblanadi va boshqa aksiyalar hamda mijoz chegirmasi bilan o'sha "har qatorga eng foydalisi" qoidasida turadi.
+   - Hali yo'q: chek summasi yetganda chegirma; o'tgan davr bilan solishtirish hisoboti.
 3. **Tarqatma.** Guruh, teg yoki filtr bo'yicha, **Telegram** orqali (mijoz boti, bepul). SMS hozircha qurilmaydi (aka: Telegram yetarli).
 4. **Sovg'a kartasi.** Aka ishlatmagan — keyinga.
 5. **Hisobot:** aksiya samaradorligi (aksiya davridagi savdo, o'tgan davr bilan solishtirish).

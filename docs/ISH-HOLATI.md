@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 `84e8ac1` dan keyin, tartib bilan: hamkor hisobi va to'lovlar; kassada tez skaner tuzatishi; RFID o'quvchilar; Chainway ko'prigi; xususiyat qiymatlarini birlashtirish; tayyor qatorli to'lov oynasi va Alt+K / Alt+C; alertlar va brauzer bildirishnomalari, `money.sent` / `goods.sent`; kirimdan yetkazib beruvchi qarzi; reja va tahlil hujjatlari.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 — core 115, agent 17, server 235, web 117; typecheck va lint toza (5c dan keyin)
+Oxirgi to'liq tekshiruv: 2026-10-05 — core 122, agent 17, server 244, web 120; typecheck va lint toza (6a dan keyin)
 
 ## Ko'z bilan tekshirilmagan (ertalab ko'rib chiqish kerak)
 
@@ -58,7 +58,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
    - [ ] 5d. Chakana qarz ("Qarzga" to'lov qatori, muddat, qisman to'lash) — daftarga tegadi, foydalanuvchi bilan.
 6. **Aksiyalar** — bo'laklarga bo'lingan:
    - [x] 6a. Foizli chegirma va belgilangan narx; muddat, do'konlar, tovar doirasi; mijoz chegirmasi bilan "eng foydalisi"; promokod.
-   - [ ] 6b. "1+1" (birini olsa ikkinchisi chegirmada), N dona olinsa chegirma.
+   - [x] 6b. "1+1" (birini olsa ikkinchisi chegirmada), N dona olinsa chegirma.
 7. [ ] Chek va etiketka dizayni.
 8. [ ] Tovar rasmlari.
 
@@ -66,7 +66,7 @@ Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) �
 
 ## Hozir ishlanayotgan bo'lak
 
-6. Aksiyalar (foiz, belgilangan narx), chegirmalar tartibi, promokod (boshlandi).
+— (6a tugadi; navbatda 6b, 7, 8)
 
 ## Ish daraxti nusxalari
 
@@ -88,3 +88,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `ee1f55472caebeb66f9b99b16aabe23d000f9f4c` | 5a: mijozlar bazasi va kassada mijoz |
 | `341b723f2b71ac60afda7a8959b99661e37b9057` | 5b: mijoz guruhlari va teglar |
 | `4833fed41ffe2f24ab0a96005b9bdd2f393e8f85` | 5c: mijoz chegirmasi (guruh foizi, sodiqlik pog'onalari) |
+| `f453628495fdcc0ba396935989fd0a5708530e4a` | 6a: aksiyalar (foiz, belgilangan narx, promokod) |

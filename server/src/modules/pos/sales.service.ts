@@ -2,8 +2,8 @@ import {
   belowFloor,
   DEFAULT_ORG_SETTINGS,
   floorOf,
+  cartAutos,
   formatMoney,
-  lineAuto,
   overDiscountLimit,
   overRateLoss,
   PAYMENT_METHOD_LABELS,
@@ -220,10 +220,13 @@ export class SalesService {
     const ownPercent = priceType ? 0 : (rules?.discountPercent ?? 0)
     // Each line with what comes off it by itself: the best promotion that covers it, the customer's own
     // discount, or both where the promotion stacks. The till works out the same from the same offers.
-    const autos = input.lines.map((line) => {
-      const item = itemOf.get(line.variantId) as PosItemDto
-      return lineAuto(item.price as number, line.qty, item.promos ?? [], ownPercent)
-    })
+    const autos = cartAutos(
+      input.lines.map((line) => {
+        const item = itemOf.get(line.variantId) as PosItemDto
+        return { price: item.price as number, qty: line.qty, offers: item.promos ?? [] }
+      }),
+      ownPercent,
+    )
     const totals = saleTotals(
       input.lines.map((line, index) => ({
         price: itemOf.get(line.variantId)?.price as number,

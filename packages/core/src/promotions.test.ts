@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  cartAutos,
   lineAuto,
   promoOff,
   promotionCovers,
@@ -12,7 +13,7 @@ import {
 
 const som = (amount: number) => amount * 100
 
-const offer = (kind: 'percent' | 'price', value: number, more: Partial<PromoOffer> = {}): PromoOffer => ({
+const offer = (kind: PromoOffer['kind'], value: number, more: Partial<PromoOffer> = {}): PromoOffer => ({
   id: `${kind}-${value}`,
   name: `${kind} ${value}`,
   kind,
@@ -45,6 +46,12 @@ describe('a promotion', () => {
     expect(refused({ ...base, kind: 'price', value: 99_000.5 })).toEqual(['value'])
     expect(refused({ ...base, kind: 'price', value: som(99_000) })).toEqual([])
     expect(refused({ ...base, endsOn: '2026-09-30' })).toEqual(['endsOn'])
+    // "1+1" is a percentage off the second; so many pieces or more has to say how many.
+    expect(refused({ ...base, kind: 'pair', value: 100 })).toEqual([])
+    expect(refused({ ...base, kind: 'pair', value: 150 })).toEqual(['value'])
+    expect(refused({ ...base, kind: 'quantity', value: 10 })).toEqual(['minQty'])
+    expect(refused({ ...base, kind: 'quantity', value: 10, minQty: 1 })).toEqual(['minQty'])
+    expect(refused({ ...base, kind: 'quantity', value: 10, minQty: 3 })).toEqual([])
     expect(refused({ ...base, endsOn: '2026-10-01' })).toEqual([])
   })
 
@@ -94,6 +101,66 @@ describe('what a promotion takes off a line', () => {
       promo: { id: 'price-7000000' },
     })
     expect(lineAuto(som(100_000), 1, [], 0)).toEqual({ auto: 0, promo: null, promoOff: 0, ownOff: 0 })
+  })
+})
+
+describe('a promotion that looks at the whole cart', () => {
+  const pair = offer('pair', 100)
+  const line = (price: number, qty: number, offers: PromoOffer[] = [pair]) => ({ price, qty, offers })
+  const offs = (lines: ReturnType<typeof line>[], ownPercent = 0) =>
+    cartAutos(lines, ownPercent).map((auto) => auto.auto)
+
+  it('gives the cheaper of every two pieces, and leaves an odd one out as it is', () => {
+    // One piece: nothing to pair it with.
+    expect(offs([line(som(200_000), 1)])).toEqual([0])
+    // Two of the same: the second is free.
+    expect(offs([line(som(200_000), 2)])).toEqual([som(200_000)])
+    // Three: one pair, and one left over.
+    expect(offs([line(som(200_000), 3)])).toEqual([som(200_000)])
+    // A dress and a scarf: the scarf is the cheaper of the two.
+    expect(offs([line(som(200_000), 1), line(som(50_000), 1)])).toEqual([0, som(50_000)])
+    // Dearest first, two by two: 200 with 150 (150 free), 100 with 50 (50 free).
+    expect(offs([line(som(50_000), 1), line(som(200_000), 1), line(som(100_000), 1), line(som(150_000), 1)])).toEqual([
+      som(50_000),
+      0,
+      0,
+      som(150_000),
+    ])
+  })
+
+  it('may take only a part off the second, and counts only the pieces it covers', () => {
+    const half = offer('pair', 50)
+    expect(offs([line(som(200_000), 2, [half])])).toEqual([som(100_000)])
+    // The scarf is not in the promotion: the dress has nothing to be paired with.
+    expect(offs([line(som(200_000), 1), line(som(50_000), 1, [])])).toEqual([0, 0])
+    // Cloth by the metre is not "the second piece".
+    expect(offs([line(som(200_000), 1.5)])).toEqual([0])
+  })
+
+  it('takes so much off every piece once enough of them are taken', () => {
+    const three = offer('quantity', 10, { minQty: 3 })
+    const lines = (count: number) => [line(som(100_000), count, [three]), line(som(50_000), 1, [three])]
+    expect(offs(lines(1))).toEqual([0, 0])
+    // Two shirts and a scarf are three pieces.
+    expect(offs(lines(2))).toEqual([som(20_000), som(5000)])
+    const [first] = cartAutos(lines(2), 0)
+    expect(first).toMatchObject({ promoOff: som(20_000), promo: { id: three.id } })
+  })
+
+  it('stands beside the other promotions and the customer like any other: the most for each line', () => {
+    const twenty = offer('percent', 20)
+    // The dress is 20% off either way; as the cheaper of the pair the scarf is free, which beats its 20%.
+    const autos = cartAutos([line(som(200_000), 1, [pair, twenty]), line(som(50_000), 1, [pair, twenty])], 0)
+    expect(autos.map((auto) => [auto.promo?.kind, auto.promoOff])).toEqual([
+      ['percent', som(40_000)],
+      ['pair', som(50_000)],
+    ])
+    // Her own 30% is more than nothing on the dress, and less than the free scarf.
+    const hers = cartAutos([line(som(200_000), 1), line(som(50_000), 1)], 30)
+    expect(hers.map((auto) => [auto.promoOff, auto.ownOff])).toEqual([
+      [0, som(60_000)],
+      [som(50_000), 0],
+    ])
   })
 })
 
