@@ -123,6 +123,10 @@ export const setPinSchema = z.object({
 })
 export type SetPinInput = z.infer<typeof setPinSchema>
 
+/** Taking the PIN off again asks for the password, as setting it did. */
+export const removePinSchema = z.object({ password: z.string().min(1, 'Parolni kiriting').max(100) })
+export type RemovePinInput = z.infer<typeof removePinSchema>
+
 export const unlockSchema = z.object({ pin: pinSchema })
 
 export const LANGUAGES = ['uz', 'ru'] as const

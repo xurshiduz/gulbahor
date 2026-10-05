@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { setLanguage } from '@/i18n'
 import { api, ApiError } from '@/lib/api'
 
@@ -42,7 +43,7 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
           {(id) => <Input id={id} autoFocus autoCapitalize="none" autoComplete="username" invalid={!!errors.login} {...form.register('login')} />}
         </Field>
         <Field label={t('auth.password')} error={errors.password?.message}>
-          {(id) => <Input id={id} type="password" autoComplete="current-password" invalid={!!errors.password} {...form.register('password')} />}
+          {(id) => <PasswordInput id={id} autoComplete="current-password" invalid={!!errors.password} {...form.register('password')} />}
         </Field>
         <Button type="submit" variant="primary" loading={mutation.isPending} className="mt-1 h-10">
           {t('auth.signIn')}

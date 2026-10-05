@@ -5,6 +5,7 @@ import {
   type MeDto,
   type ProfileInput,
   type SessionDto,
+  type RemovePinInput,
   type SetPinInput,
 } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
@@ -241,6 +242,30 @@ export class AuthService {
         entity: 'user',
         entityId: user.id,
         summary: "PIN kod o'rnatildi",
+      })
+    })
+  }
+
+  /**
+   * Takes the PIN off: the screen no longer locks by itself, and this person
+   * can no longer give their word at a till. It is theirs to decide, so it
+   * asks for nothing but their password.
+   */
+  async removePin(actor: Actor, input: RemovePinInput): Promise<void> {
+    const user = await this.db.tenant(actor.orgId, ({ em }) => em.findOneByOrFail(User, { id: actor.userId }))
+    if (!(await verifySecret(input.password, user.passwordHash))) {
+      throw AppError.validation({ password: "Parol noto'g'ri" })
+    }
+    if (!user.pinHash) {
+      return
+    }
+    await this.db.tenant(actor.orgId, async ({ em }) => {
+      await em.update(User, user.id, { pinHash: null, pinFailures: 0 })
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'auth.pin_removed',
+        entity: 'user',
+        entityId: user.id,
+        summary: "PIN kod o'chirildi",
       })
     })
   }

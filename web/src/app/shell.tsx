@@ -237,7 +237,7 @@ export function Shell() {
               }
               items={[
                 { label: t('nav.profile'), icon: <UserRound />, onSelect: () => void navigate({ to: '/profile' }) },
-                ...(me.user.hasPin ? [{ label: t('command.lock'), icon: <Lock />, onSelect: lock }] : []),
+                ...(me.user.hasPin ? [{ label: t('command.lock'), icon: <Lock />, shortcut: 'alt+l', onSelect: lock }] : []),
                 'separator' as const,
                 { label: t('auth.signOut'), icon: <LogOut />, onSelect: () => void logout() },
               ]}

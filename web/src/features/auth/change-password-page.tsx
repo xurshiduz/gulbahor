@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { api } from '@/lib/api'
 import { toast } from '@/lib/toast'
 
@@ -48,10 +48,10 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
   return (
     <Form onSubmit={form.handleSubmit((input) => mutation.mutate(input))}>
       <Field label={t('auth.currentPassword')} error={errors.current?.message}>
-        {(id) => <Input id={id} type="password" autoFocus autoComplete="current-password" invalid={!!errors.current} {...form.register('current')} />}
+        {(id) => <PasswordInput id={id} autoFocus autoComplete="current-password" invalid={!!errors.current} {...form.register('current')} />}
       </Field>
       <Field label={t('auth.newPassword')} hint={t('auth.passwordHint')} error={errors.next?.message}>
-        {(id) => <Input id={id} type="password" autoComplete="new-password" invalid={!!errors.next} {...form.register('next')} />}
+        {(id) => <PasswordInput id={id} autoComplete="new-password" invalid={!!errors.next} {...form.register('next')} />}
       </Field>
       <div>
         <Button type="submit" variant="primary" loading={mutation.isPending}>

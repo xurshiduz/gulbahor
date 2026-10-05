@@ -211,6 +211,22 @@ describe('API', () => {
       await agent.get('/api/auth/me').expect(401)
     })
 
+    it('lets a person take their PIN off again, for their password', async () => {
+      const agent = await signIn('beta')
+      await agent.post('/api/auth/pin').send({ password: PASSWORD, pin: '4321' }).expect(204)
+      expect((await agent.get('/api/auth/me').expect(200)).body.user.hasPin).toBe(true)
+
+      const refused = await agent.post('/api/auth/pin/remove').send({ password: 'not-the-password' }).expect(400)
+      expect(refused.body.error.fields.password).toBe("Parol noto'g'ri")
+      expect((await agent.get('/api/auth/me').expect(200)).body.user.hasPin).toBe(true)
+
+      await agent.post('/api/auth/pin/remove').send({ password: PASSWORD }).expect(204)
+      expect((await agent.get('/api/auth/me').expect(200)).body.user.hasPin).toBe(false)
+      // Nothing left to unlock with, and nothing wrong with asking twice.
+      expect((await agent.post('/api/auth/unlock').send({ pin: '4321' }).expect(400)).body.error.code).toBe('NO_PIN')
+      await agent.post('/api/auth/pin/remove').send({ password: PASSWORD }).expect(204)
+    })
+
     it('writes history that nobody can rewrite', async () => {
       const history = await alpha.get('/api/audit').query({ entity: 'location' }).expect(200)
       expect(history.body.items.some((item: { action: string }) => item.action === 'location.create')).toBe(true)

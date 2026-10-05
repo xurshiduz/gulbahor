@@ -7,11 +7,13 @@ import { useTranslation } from 'react-i18next'
 import { setTheme, useTheme, type ThemeChoice } from '@/app/theme'
 import { Button } from '@/components/ui/button'
 import { Select, TabPanel, Tabs } from '@/components/ui/controls'
+import { useConfirm } from '@/components/ui/dialog'
 import { Badge, Spinner } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Card, Page } from '@/components/ui/page'
+import { PasswordInput } from '@/components/ui/password-input'
 import { PinInput } from '@/components/ui/pin-input'
 import { ChangePasswordForm } from '@/features/auth/change-password-page'
 import { useSession } from '@/features/auth/session'
@@ -149,6 +151,35 @@ function PinCard() {
     onError: (error) => void applyServerErrors(error, form),
   })
 
+  const confirm = useConfirm()
+  const removal = useMutation({
+    mutationFn: (input: unknown) => api.post('/auth/pin/remove', input),
+    onSuccess: async () => {
+      form.reset()
+      await queryClient.invalidateQueries({ queryKey: ['me'] })
+      toast.success(t('profile.pinRemoved'))
+    },
+    onError: (error) => void applyServerErrors(error, form),
+  })
+  /** The PIN is theirs to take off: for the same password that set it, and after being told what goes with it. */
+  const remove = async () => {
+    const password = form.getValues('password')
+    if (!password) {
+      form.setError('password', { message: t('profile.passwordFirst') })
+      form.setFocus('password')
+      return
+    }
+    const sure = await confirm({
+      title: t('profile.removePinConfirm'),
+      description: t('profile.removePinHint'),
+      confirmLabel: t('profile.removePin'),
+      tone: 'danger',
+    })
+    if (sure) {
+      removal.mutate({ password })
+    }
+  }
+
   return (
     <Card title={t('profile.pinTitle')}>
       <p className="mb-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
@@ -158,7 +189,7 @@ function PinCard() {
       <Form onSubmit={() => void zodSubmit(form, setPinSchema, (input) => mutation.mutate(input))()}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('auth.currentPassword')} error={errors.password?.message} required>
-            {(id) => <Input id={id} type="password" autoComplete="current-password" invalid={!!errors.password} {...form.register('password')} />}
+            {(id) => <PasswordInput id={id} autoComplete="current-password" invalid={!!errors.password} {...form.register('password')} />}
           </Field>
           <Field label={t('profile.newPin')} error={errors.pin?.message} required>
             {(id) => (
@@ -174,6 +205,11 @@ function PinCard() {
           <Button type="submit" variant="primary" loading={mutation.isPending}>
             {me.user.hasPin ? t('profile.changePin') : t('profile.setPin')}
           </Button>
+          {me.user.hasPin ? (
+            <Button variant="ghost" className="ml-2" loading={removal.isPending} onClick={() => void remove()}>
+              {t('profile.removePin')}
+            </Button>
+          ) : null}
         </div>
       </Form>
     </Card>

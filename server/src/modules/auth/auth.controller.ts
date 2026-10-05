@@ -3,12 +3,14 @@ import {
   idSchema,
   loginSchema,
   profileSchema,
+  removePinSchema,
   setPinSchema,
   unlockSchema,
   type ChangePasswordInput,
   type LoginInput,
   type MeDto,
   type ProfileInput,
+  type RemovePinInput,
   type SessionDto,
   type SetPinInput,
 } from '@gulbahor/core'
@@ -90,6 +92,13 @@ export class AuthController {
   @HttpCode(204)
   setPin(@CurrentActor() actor: Actor, @Body(zod(setPinSchema)) input: SetPinInput): Promise<void> {
     return this.auth.setPin(actor, input)
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('pin/remove')
+  @HttpCode(204)
+  removePin(@CurrentActor() actor: Actor, @Body(zod(removePinSchema)) input: RemovePinInput): Promise<void> {
+    return this.auth.removePin(actor, input)
   }
 
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

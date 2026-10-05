@@ -613,6 +613,32 @@ Birinchi do'konni Billz'dan o'tkazish uchun aka hozir ishlatayotgan narsalar bir
 | 14 | Superadmin, kirishlar tarixi, tungi tekshiruv, onlayn xodimlar va faol vaqt | Boshqa bizneslarga sotishdan oldin |
 | 15 | Tarqatma (Telegram), telefonda narx tekshirish, chakana qarz, sovg'a kartasi | Keyinroq |
 
+## 14a. Hisobotlar: nima quriladi va qaysi tartibda
+
+2026-10-05 da boshlandi. Billz'da 19 ta hisobot bor (`BILLZ-TAHLIL.md`, 7-bo'lim); ularning hammasi emas, akaga har kuni kerak bo'ladiganlari birinchi quriladi. Menyuda alohida bo'lim — **"Hisobotlar"**.
+
+Umumiy qoidalar (hamma hisobotga tegishli):
+
+- **Davr** tayyor tugmalar bilan tanlanadi: bugun, kecha, shu hafta, shu oy, o'tgan oy, shu yil yoki istalgan oraliq. "Bugun" — biznesning vaqt mintaqasida.
+- **Do'kon** tanlanadi; xodim faqat o'ziga biriktirilgan do'konlarni ko'radi.
+- Har ko'rsatkich yonida **o'tgan shunday davr bilan farqi** (shu hafta ↔ o'tgan hafta): raqamning o'zi emas, o'sdimi-tushdimi ko'rinadi.
+- **Sof tushum** = sotilgan tovar − qaytarilgan tovar. Qaytarish qaytgan kunida ayiriladi (sotilgan kunida emas): kassadagi pul bilan shu mos keladi. Bekor qilingan chek hisobga kirmaydi.
+- **Foyda** = sof tushum − sotilgan tovarning tannarxi (partiyadan, FIFO; qaytgan tovarning tannarxi qaytariladi). Foyda va tannarxni faqat "Tannarxni ko'rish" ruxsati borlar ko'radi — do'kon menejeri savdoni ko'radi, foydani emas.
+- Har jadval Excel'ga chiqariladi.
+- Ruxsat: "Hisobotlar" guruhi — savdo hisobotlari (`reports.sales`), keyin sklad va moliya hisobotlari alohida.
+
+Bo'laklar:
+
+| № | Bo'lak | Nima beradi |
+| --- | --- | --- |
+| 10a | **Savdo hisoboti va bosh sahifa** | Sof tushum, foyda, cheklar soni, o'rtacha chek, chegirma, qaytarish; kunlar (bir kunda — soatlar) bo'yicha grafik; do'konlar, to'lov turlari, kassirlar, eng ko'p sotilgan tovar va kategoriyalar. Bosh sahifada bugungi kun. |
+| 10b | **Tovarlar bo'yicha sotuv** | Tovar, kategoriya, brend, rang, o'lcham, yetkazib beruvchi kesimida: soni, tushum, foyda, ustama, ulushi; ABC tahlil. |
+| 10c | **Tovar harakati va aylanish** | Davr boshidagi qoldiq → kirim → sotuv va chiqim → oxirgi qoldiq; sotilish tezligi, qoldiq necha kunga yetishi; **turib qolgan tovar**; partiya (kirim) qanday sotilyapti. |
+| 10d | **Foyda va zarar, pul harakati** | Tushum, tannarx, yalpi foyda, xarajatlar turlari bo'yicha, boshqa kirim, kurs farqi, kassa farqi, hisobdan chiqarish → sof foyda; oylar va do'konlar bo'yicha. |
+| 10e | **Balans va hisob tarixi** | Istalgan sanada har hisob guruhining qoldig'i (jami nol ekani ko'rinadi); har hisobning yozuvlari va har yozuvdan keyingi qoldiq. |
+| 10f | **Xodimlar, mijozlar, aksiyalar** | Kassir va sotuvchilar (tushum, o'rtacha chek, chegirma, qaytarish, kurs farqi); yangi va qaytgan mijozlar, eng yaxshi mijozlar; aksiya samaradorligi; maxsus narxda sotilganlar. |
+| 10g | **Rahbar nazorati** | Telegram bot va bildirishnomalar sozlamasi (12-bo'lim) — bot kaliti kerak, foydalanuvchi bilan. |
+
 ## 15. Savollar va javoblar
 
 1. **Humo bot xabarlari namunasi** — javob (2026-10-05): cargo tizimida tayyor, o'sha yerdan olinadi (`cargo-server/src/card-feed/card-message.parser.ts` va uning testlari). Xabar ko'rinishi: sarlavha ("To'ldirish", "To'lov", "Naqd pul yechish"), ➕ yoki ➖ bilan summa ("375.000,00 UZS"), kimdan yoki qayerga, karta ("HUMOCARD *3073" — oxirgi 4 raqam), vaqt, kartadagi qoldiq. Yo'nalish belgidan (➕/➖) aniqlanadi.

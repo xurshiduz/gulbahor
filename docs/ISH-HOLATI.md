@@ -62,6 +62,7 @@ Egasiga aytiladigan (ma'lumotga oid, kod emas):
 
 - 2026-10-05: PIN kod aynan 4 ta raqam, har raqamga alohida katak (`PinInput`): bloklangan ekranda 4-raqam terilishi bilan o'zi tekshiriladi, xato bo'lsa kataklar qizarib silkinadi (telefonda titraydi); kassadagi rahbar tasdig'i va profildagi "Yangi PIN" ham shu kataklarda. **Eski PIN 4 raqamdan uzun bo'lsa, endi terib bo'lmaydi** — parol bilan kirib, Profil → Xavfsizlikda yangisini o'rnatish kerak.
 - 2026-10-05: menyuni yig'ish-ochish tugmasi menyuning pastidan yuqori panelning chap boshiga ko'chirildi.
+- 2026-10-05: PIN kodni o'chirib qo'yish (Profil → Xavfsizlik, joriy parol bilan; `POST /auth/pin/remove`); parol maydonlarida "ko'z" tugmasi (`PasswordInput`: kirish, parolni almashtirish, PIN kartasi); profil menyusida "Ekranni bloklash" yonida Alt+L ko'rinadi (tugma avvaldan bor edi).
 
 ## Hali ekranda ko'rilmagan
 
@@ -108,11 +109,20 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 
 9. [x] Pul oynasida kassani tanlash, do'konning asosiy kassasi (KEYINGI-REJA, 7-bo'lim oxiri).
 
-Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) — foydalanuvchi bilan.
+10. **Hisobotlar** (KEYINGI-REJA, 14a-bo'lim) — bo'laklarga bo'lingan:
+   - [ ] 10a. Savdo hisoboti (davr, do'kon, ko'rsatkichlar, grafik, kesimlar) va bosh sahifada bugungi kun.
+   - [ ] 10b. Tovarlar bo'yicha sotuv (kesimlar, ABC).
+   - [ ] 10c. Tovar harakati va aylanish, turib qolgan tovar, partiyaning sotilishi.
+   - [ ] 10d. Foyda va zarar, pul harakati.
+   - [ ] 10e. Balans va hisob tarixi.
+   - [ ] 10f. Xodimlar, mijozlar, aksiyalar hisobotlari.
+   - [ ] 10g. Rahbar nazorati: Telegram bot, bildirishnomalar sozlamasi — foydalanuvchi bilan.
+
+Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-—
+10a. Savdo hisoboti va bosh sahifa.
 
 ## Ish daraxti nusxalari
 
