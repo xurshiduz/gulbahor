@@ -95,7 +95,14 @@ Billz hamma turdagi do'kon uchun qilingan, shuning uchun unda kiyim do'koniga ke
 | Mijoz guruhi | qaysi guruh a'zolariga o'zi qo'llanadi |
 | Minimal narxdan past bo'la oladimi | odatda yo'q; "Oila" kabi maxsus tur uchun — ha |
 
-**Minimal narx alohida narsa — narx turi emas, chegara ("pol").** Biznesda bitta bo'ladi: tannarx + N% (masalan 5%). U sotilmaydigan narx, vazifasi — himoya: chegirma, savdolashish yoki aksiya narxni undan pastga tushirsa, kassa to'xtaydi va rahbar tasdig'ini so'raydi.
+**Minimal narx — sotiladigan narx emas, chegara ("pol").** Texnik jihatdan u `min` turidagi narx turi, biznesda bitta bo'ladi va boshqa narxlar kabi qo'yiladi: ustama qoidasi bilan (tannarx + N%, masalan 5%) yoki qo'lda. Vazifasi — himoya: chegirma, savdolashish yoki aksiya narxni undan pastga tushirsa, kassa to'xtaydi va rahbar tasdig'ini so'raydi.
+
+Qanday ishlaydi (qilingan, 2026-10-05):
+- Chegara har qator bo'yicha tekshiriladi: qatorning o'z chegirmasi va chek chegirmasidan unga tushgan ulush ayirilgandan keyin qolgan summa `minimal narx × son` dan kam bo'lmasligi kerak. Sababi — chekda aynan shu summa yoziladi va qaytarishda shu summa qaytariladi.
+- Kassir minimal narxni oldindan ko'rmaydi (mijoz ekranga qarab turgan bo'lishi mumkin). Qator chegaradan o'tganda qator ostida qizil yozuv chiqadi: "Minimal narx 380 000".
+- "Chegaradan oshiq chegirma berish" huquqi bor xodim (rahbar) o'zi sota oladi; kassirda rahbar PIN'i so'raladi va chekka kim tasdiqlagani yoziladi.
+- Minimal narx qo'yilmagan tovarda chegara yo'q. Minimal narx chakana narxdan baland qo'yilgan bo'lsa (narxlashdagi xato), u hech narsani to'smaydi.
+- Kassir tannarxni ko'rmaydi: chegara tayyor narx sifatida keladi, "tannarx + N%" hisobi faqat narxlash bo'limida.
 
 **Guruhga bog'lash.** Mijoz guruhida "narx turi" tanlanadi. "Oila" guruhidagi 10 kishidan biri kassada tanlansa — savatdagi hamma narx "Oila" narxiga o'tadi, chekda "Oila narxi" deb yoziladi. Kassir hech narsa tanlamaydi, adashmaydi.
 

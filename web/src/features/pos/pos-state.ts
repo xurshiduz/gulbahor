@@ -1,4 +1,6 @@
 import {
+  belowFloor,
+  floorOf,
   formatMoney,
   gross,
   parseDiscount,
@@ -120,6 +122,22 @@ export function cartTotals(cart: Cart): CartTotals {
     saleDiscount,
   )
   return { ...totals, lineDiscounts, saleDiscount }
+}
+
+/**
+ * The lines that end up under what their thing may be sold for, each with that
+ * floor for as many as are in the line. The server counts the same way.
+ */
+export function underFloor(cart: Cart, totals: SaleTotals): { index: number; floor: number }[] {
+  const lines = cart.lines.map((line) => ({
+    price: line.item.price ?? 0,
+    minPrice: line.item.minPrice,
+    qty: line.qty,
+  }))
+  return belowFloor(lines, totals).map((index) => ({
+    index,
+    floor: floorOf(lines[index].price, lines[index].minPrice, lines[index].qty) as number,
+  }))
 }
 
 /** What the lines come to after their own discounts: what a discount on the whole sale is taken from. */

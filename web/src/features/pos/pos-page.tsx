@@ -50,6 +50,7 @@ import {
   splitMultiplier,
   suggestRefunds,
   tenderRows,
+  underFloor,
   type Cart,
   type Returning,
   type TenderRow,
@@ -422,6 +423,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   }, [goods])
   const percent = totals.subtotal ? (totals.discount * 100) / totals.subtotal : 0
   const overLimit = percent > context.maxDiscountPercent && !context.mayOverDiscount
+  /** The lines under what their thing may go for. Who may discount beyond the limit sells them alone. */
+  const under = useMemo(() => underFloor(cart, totals), [cart, totals])
+  const underAsk = under.length > 0 && !context.mayOverDiscount
   const back = useMemo(() => backLines(returning), [returning])
   /** What the goods brought back are worth: it pays for the new ones first. */
   const credit = back.reduce((sum, item) => sum + item.total, 0)
@@ -616,9 +620,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
             cap.left,
         ))
     const late = !!returning && returning.found.late && !returning.found.free
-    if (!approval && (overLimit || late || beyond)) {
+    if (!approval && (overLimit || underAsk || late || beyond)) {
       const who = context.approvers.filter(
-        (approver) => (!overLimit || approver.discount) && (!(late || beyond) || approver.returns),
+        (approver) => (!(overLimit || underAsk) || approver.discount) && (!(late || beyond) || approver.returns),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -633,6 +637,15 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 limit: context.maxDiscountPercent,
               })
             : null,
+          ...(underAsk
+            ? under.map(({ index, floor }) =>
+                t('pos.approvalFloor', {
+                  name: cart.lines[index].item.name,
+                  sum: money(totals.lines[index].total),
+                  floor: money(floor),
+                }),
+              )
+            : []),
           late ? t('pos.returnLate', { days: returning?.found.returnDays }) : null,
           beyond ? t('pos.approvalRefund') : null,
         ]
@@ -826,6 +839,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       })
                     const short = !line.item.epc && line.qty > line.item.onHand
                     const whole = totals.lines[index]?.gross ?? 0
+                    const floor = under.find((item) => item.index === index)?.floor
                     return (
                       <tr key={line.key} className="border-t border-line align-top first:border-t-0">
                         <td className="px-3 py-2">
@@ -846,6 +860,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
                               <span className="text-bad">
                                 {t('pos.onHand', { qty: formatNumber(line.item.onHand) })}
                               </span>
+                            ) : null}
+                            {floor !== undefined ? (
+                              <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
                             ) : null}
                           </p>
                         </td>
@@ -882,7 +899,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                             onChange={(agreed) =>
                               patch({ discountText: agreed === null || agreed === whole ? '' : agreedText(agreed) })
                             }
-                            invalid={badDiscount(line.discountText, whole)}
+                            invalid={badDiscount(line.discountText, whole) || floor !== undefined}
                             className="[&_input]:font-semibold"
                           />
                         </td>
@@ -978,6 +995,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 {t(context.approvers.some((approver) => approver.discount) ? 'pos.overLimitAsk' : 'pos.overLimit', {
                   percent: context.maxDiscountPercent,
                 })}
+              </p>
+            ) : null}
+            {underAsk ? (
+              <p className="mt-1 text-xs text-bad">
+                {t(context.approvers.some((approver) => approver.discount) ? 'pos.floorAsk' : 'pos.floorStop')}
               </p>
             ) : null}
             {returning ? (

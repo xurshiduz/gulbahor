@@ -16,6 +16,8 @@ import {
   roundTotals,
   splitMultiplier,
   suggestRefunds,
+  underFloor,
+  type Cart,
 } from './pos-state'
 import { uuid } from '@/lib/uuid'
 
@@ -28,6 +30,7 @@ const item = (variantId: string, price: number, epc: string | null = null): PosI
   label: '',
   sku: variantId,
   price,
+  minPrice: null,
   onHand: 10,
   decimals: 0,
   epc,
@@ -121,6 +124,45 @@ describe('cart', () => {
     expect(totals).toMatchObject({ subtotal: som(1_770_000), discount: som(170_000), total: som(1_600_000) })
     // Shared out over the lines to the tiyin.
     expect(totals.lines.reduce((sum, line) => sum + line.total, 0)).toBe(som(1_600_000))
+  })
+})
+
+describe('the floor', () => {
+  const dress = { ...item('dress', som(200_000)), minPrice: som(190_000) }
+  const cartOf = (lineDiscount: string, saleDiscount = ''): Cart => ({
+    ...EMPTY_CART,
+    lines: [
+      { key: 'a', item: dress, qty: 2, discountText: lineDiscount },
+      { key: 'b', item: item('scarf', som(100_000)), qty: 1, discountText: '' },
+    ],
+    discountText: saleDiscount,
+  })
+  const under = (cart: Cart) => underFloor(cart, cartTotals(cart))
+
+  it('is not crossed down to it, and is one tiyin under', () => {
+    expect(under(cartOf(''))).toEqual([])
+    expect(under(cartOf('20000'))).toEqual([])
+    expect(under(cartOf('=380 000'))).toEqual([])
+    expect(under(cartOf('=379 999'))).toEqual([{ index: 0, floor: som(380_000) }])
+    // 6% is 24 000 off 400 000.
+    expect(under(cartOf('6%'))).toEqual([{ index: 0, floor: som(380_000) }])
+  })
+
+  it('counts what a discount on the whole sale takes off the line', () => {
+    // 50 000 off 500 000 is a tenth off each: the dresses land at 360 000.
+    expect(under(cartOf('', '=450 000'))).toEqual([{ index: 0, floor: som(380_000) }])
+    // The scarf has no floor and never shows here.
+    expect(under(cartOf('', '=490 000'))).toEqual([])
+  })
+
+  it('is nothing for a cart kept from before floors were known', () => {
+    const old = { ...item('old', som(50_000)) } as Partial<PosItemDto>
+    delete old.minPrice
+    const cart: Cart = {
+      ...EMPTY_CART,
+      lines: [{ key: 'a', item: old as PosItemDto, qty: 1, discountText: '90%' }],
+    }
+    expect(under(cart)).toEqual([])
   })
 })
 

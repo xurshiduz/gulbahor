@@ -11,20 +11,30 @@ interface Row {
   sku: string
   unit: Unit
   value_names: string[]
-  price: { amount: number | string; currency: CurrencyCode } | null
+  price: Priced | null
+  floor: Priced | null
   on_hand: number
 }
 
-/** The retail price of a variant in a shop: the most specific one set wins. */
-const PRICE = `(
+interface Priced {
+  amount: number | string
+  currency: CurrencyCode
+}
+
+/** A variant's price of one kind in a shop: the most specific one set wins. */
+const priceOf = (kind: 'retail' | 'min') => `(
   SELECT jsonb_build_object('amount', pr.amount, 'currency', pr.currency)
   FROM prices pr JOIN price_types t ON t.id = pr.price_type_id
-  WHERE t.kind = 'retail' AND pr.product_id = v.product_id
+  WHERE t.kind = '${kind}' AND pr.product_id = v.product_id
     AND (pr.variant_id IS NULL OR pr.variant_id = v.id)
     AND (pr.location_id IS NULL OR pr.location_id = :locationId)
   ORDER BY (pr.variant_id IS NOT NULL) DESC, (pr.location_id IS NOT NULL) DESC
   LIMIT 1
 )`
+
+/** What it is sold for, and what it is not sold under. */
+const PRICE = priceOf('retail')
+const FLOOR = priceOf('min')
 
 const ON_HAND = `(
   SELECT coalesce(sum(sb.qty), 0)::float8 FROM stock_balances sb
@@ -34,7 +44,8 @@ const ON_HAND = `(
 /**
  * What can be sold in a shop, each thing with its price there and how many
  * are on hand: by id, or by what a cashier types. A price kept in dollars is
- * given in so'm at the day's rate; with no rate it has no price.
+ * given in so'm at the day's rate; with no rate it has no price, and a floor
+ * kept in dollars holds nothing back.
  */
 export async function sellables(
   em: EntityManager,
@@ -58,6 +69,7 @@ export async function sellables(
     .addSelect('p.unit', 'unit')
     .addSelect('array_remove(ARRAY[a1.name, a2.name, a3.name], NULL)', 'value_names')
     .addSelect(PRICE, 'price')
+    .addSelect(FLOOR, 'floor')
     .addSelect(ON_HAND, 'on_hand')
     .where('v.isActive AND p.isActive')
     .setParameter('locationId', locationId)
@@ -70,17 +82,18 @@ export async function sellables(
     qb.orderBy(`${ON_HAND} > 0`, 'DESC').addOrderBy('p.name').addOrderBy('v.sku').limit(what.limit)
   }
 
+  const inSom = (priced: Priced | null): number | null =>
+    !priced
+      ? null
+      : priced.currency === 'UZS'
+        ? Number(priced.amount)
+        : uzsPerUsd
+          ? toBase(Number(priced.amount), 'USD', uzsPerUsd)
+          : null
+
   const rows: Row[] = await qb.getRawMany()
   return rows.map((row) => {
-    const amount = row.price ? Number(row.price.amount) : null
-    const price =
-      amount === null || !row.price
-        ? null
-        : row.price.currency === 'UZS'
-          ? amount
-          : uzsPerUsd
-            ? toBase(amount, 'USD', uzsPerUsd)
-            : null
+    const price = inSom(row.price)
     return {
       variantId: row.variant_id,
       productId: row.product_id,
@@ -88,6 +101,7 @@ export async function sellables(
       label: variantLabel(row.value_names),
       sku: row.sku,
       price,
+      minPrice: inSom(row.floor),
       onHand: row.on_hand,
       decimals: UNIT_INFO[row.unit].decimals,
       epc: null,

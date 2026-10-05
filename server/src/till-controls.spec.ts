@@ -196,6 +196,86 @@ describe('Till controls', () => {
       await discounted({ userId: managerId, pin: PIN }).expect(201)
     })
 
+    it('is needed under the floor of a thing, however small the discount', async () => {
+      const types = (await alpha.get('/api/price-types')).body as { id: string; kind: string }[]
+      const priceOf = (kind: string, amount: number, currency = 'UZS') => ({
+        priceTypeId: types.find((type) => type.kind === kind)!.id,
+        amount,
+        currency,
+      })
+      // A dress at 200 000 that is not to go under 190 000: 5% off, well inside the cashier's 10%.
+      const dress = (
+        await alpha
+          .post('/api/products')
+          .send({
+            name: "Ko'ylak",
+            axisIds: [],
+            variants: [{ valueIds: [] }],
+            prices: [priceOf('retail', som(200_000)), priceOf('min', som(190_000))],
+          })
+          .expect(201)
+      ).body.variants[0].id as string
+      const shopId = (await alpha.get('/api/locations')).body.items[0].id
+      const draft = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-01',
+          uzsRate: 12_000,
+          currency: 'UZS',
+          usdRate: 12_000,
+          lines: [{ variantId: dress, qty: 10, price: som(120_000) }],
+        })
+        .expect(201)
+      await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
+
+      const found = (await cashier.get('/api/pos/search').query({ registerId, q: "ko'ylak" }).expect(200)).body
+      expect(found).toEqual([expect.objectContaining({ price: som(200_000), minPrice: som(190_000) })])
+      // The shirt has no floor.
+      const shirts = (await cashier.get('/api/pos/search').query({ registerId, q: 'futbolka' }).expect(200)).body
+      expect(shirts[0].minPrice).toBeNull()
+
+      const two = (discount: number, more: Record<string, unknown> = {}, agent = cashier) =>
+        sell(
+          {
+            lines: [{ variantId: dress, qty: 2, discount }],
+            payments: [cash(som(400_000) - discount)],
+            total: som(400_000) - discount,
+            ...more,
+          },
+          agent,
+        )
+      // Down to the floor the cashier sells alone.
+      expect((await two(som(20_000)).expect(201)).body.approvedByName).toBeNull()
+
+      const under = await two(som(20_001))
+      expect(under.status).toBe(400)
+      expect(under.body.error.code).toBe('BELOW_MIN_PRICE')
+      expect(under.body.error.message).toContain("Ko'ylak")
+      expect(under.body.error.fields['lines.0.discount']).toContain('380')
+      const powerless = await two(som(20_001), { approval: { userId: otherId, pin: PIN } })
+      expect(powerless.body.error.code).toBe('BELOW_MIN_PRICE')
+      expect(powerless.body.error.message).toContain('Zarina Kassir')
+
+      const allowed = (await two(som(20_001), { approval: { userId: managerId, pin: PIN } }).expect(201)).body
+      expect(allowed.approvedByName).toBe('Anvar Menejer')
+      // Who may discount beyond the limit sells under the floor on their own word.
+      expect((await two(som(30_000), {}, manager).expect(201)).body.approvedByName).toBeNull()
+
+      // A share of a discount on the whole sale counts too: 30 000 off both is 20 000 off the dress.
+      const shared = await sell({
+        lines: [
+          { variantId: dress, qty: 1 },
+          { variantId: shirt, qty: 1 },
+        ],
+        discount: som(30_000),
+        payments: [cash(som(270_000))],
+        total: som(270_000),
+      })
+      expect(shared.body.error.code).toBe('BELOW_MIN_PRICE')
+      expect(Object.keys(shared.body.error.fields)).toEqual(['lines.0.discount'])
+    })
+
     it('takes goods back late, and hands money back otherwise than it was paid', async () => {
       const approval = { userId: managerId, pin: PIN }
       const old = (

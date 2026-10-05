@@ -226,6 +226,30 @@ export interface Tender {
   amount: number
 }
 
+/**
+ * What a line may not be sold under: the thing's floor for that many. A floor
+ * set above the price itself is a slip in the price list and holds nothing
+ * back; null when the thing has no floor.
+ */
+export function floorOf(price: number, minPrice: number | null | undefined, qty: number): number | null {
+  return minPrice === null || minPrice === undefined ? null : gross(Math.min(minPrice, price), qty)
+}
+
+/**
+ * The lines that end up under their floor, by what is paid for each after its
+ * own discount and its share of the sale's: that is what the receipt will say
+ * the thing went for, and what a return of it gives back.
+ */
+export function belowFloor(
+  lines: readonly { price: number; minPrice?: number | null; qty: number }[],
+  totals: SaleTotals,
+): number[] {
+  return lines.flatMap((line, index) => {
+    const floor = floorOf(line.price, line.minPrice, line.qty)
+    return floor !== null && totals.lines[index].total < floor ? [index] : []
+  })
+}
+
 export type SettleProblem =
   /** Dollars were tendered and no rate is set. */
   | 'rate'
@@ -679,6 +703,8 @@ export interface PosItemDto {
   sku: string
   /** One unit in so'm tiyin; null when the model has no retail price and so cannot be sold. */
   price: number | null
+  /** What one unit is not sold under without a manager's word, in so'm tiyin; null when no floor is set. */
+  minPrice: number | null
   /** On hand in the till's shop. */
   onHand: number
   /** Pieces sold by weight or length may be fractions. */

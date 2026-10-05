@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  belowFloor,
+  floorOf,
   fromBase,
   gross,
   returnInputSchema,
@@ -47,6 +49,47 @@ describe('sale totals', () => {
   it('never discounts below nothing', () => {
     const totals = saleTotals([{ price: som(10_000), qty: 1, discount: som(50_000) }], som(1000))
     expect(totals).toMatchObject({ subtotal: som(10_000), discount: som(10_000), total: 0 })
+  })
+})
+
+describe('the floor', () => {
+  const lines = [
+    { price: som(100_000), minPrice: som(95_000), qty: 1 },
+    { price: som(100_000), minPrice: som(60_000), qty: 2 },
+    { price: som(40_000), minPrice: null, qty: 1 },
+  ]
+  const under = (discounts: number[], saleDiscount = 0) =>
+    belowFloor(
+      lines,
+      saleTotals(
+        lines.map((line, index) => ({ price: line.price, qty: line.qty, discount: discounts[index] })),
+        saleDiscount,
+      ),
+    )
+
+  it('is for as many as are sold, and never above the price itself', () => {
+    expect(floorOf(som(100_000), som(60_000), 2)).toBe(som(120_000))
+    expect(floorOf(som(100_000), null, 2)).toBeNull()
+    // A floor above the price is a slip in the price list: the price as it stands is not under it.
+    expect(floorOf(som(100_000), som(130_000), 1)).toBe(som(100_000))
+    expect(
+      belowFloor(
+        [{ price: som(100_000), minPrice: som(130_000), qty: 1 }],
+        saleTotals([{ price: som(100_000), qty: 1, discount: 0 }], 0),
+      ),
+    ).toEqual([])
+  })
+
+  it('is crossed by what a line ends up at, its share of the discount on the whole sale counted', () => {
+    expect(under([0, 0, 0])).toEqual([])
+    // Right on the floor is not under it.
+    expect(under([som(5000), som(80_000), 0])).toEqual([])
+    expect(under([som(5001), 0, 0])).toEqual([0])
+    // Without a floor a thing may go for anything.
+    expect(under([0, 0, som(40_000)])).toEqual([])
+    // 34 000 off 340 000 is a tenth off each line: the first lands at 90 000, under its 95 000.
+    expect(under([0, 0, 0], som(34_000))).toEqual([0])
+    expect(under([0, som(90_000), 0], som(34_000))).toEqual([0, 1])
   })
 })
 

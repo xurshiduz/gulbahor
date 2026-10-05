@@ -1,5 +1,7 @@
 import {
+  belowFloor,
   DEFAULT_ORG_SETTINGS,
+  floorOf,
   formatMoney,
   PAYMENT_METHOD_LABELS,
   saleTotals,
@@ -8,6 +10,7 @@ import {
   toBase,
   variantLabel,
   type Page,
+  type PosItemDto,
   type SaleDto,
   type SaleInput,
   type SaleListItemDto,
@@ -177,14 +180,37 @@ export class SalesService {
     }
     // Over the limit a cashier needs someone's word: their own right, or a manager's PIN given with the sale.
     const overLimit = totals.discount * 100 > totals.subtotal * settings.maxDiscountPercent
-    const vouched = overLimit && !can(actor, 'pos.discount')
+    // The same word is needed under a thing's floor, however small the discount that took it there.
+    const priced = input.lines.map((line) => {
+      const item = itemOf.get(line.variantId) as PosItemDto
+      return { name: item.name, price: item.price as number, minPrice: item.minPrice, qty: line.qty }
+    })
+    const under = belowFloor(priced, totals)
+    const vouched = (overLimit || under.length > 0) && !can(actor, 'pos.discount')
     if (vouched && !allows(approver, 'pos.discount')) {
+      if (overLimit) {
+        throw AppError.badRequest(
+          'DISCOUNT_OVER_LIMIT',
+          approver
+            ? `${approver.name} chegaradan oshiq chegirmani tasdiqlay olmaydi`
+            : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
+          { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
+        )
+      }
       throw AppError.badRequest(
-        'DISCOUNT_OVER_LIMIT',
+        'BELOW_MIN_PRICE',
         approver
-          ? `${approver.name} chegaradan oshiq chegirmani tasdiqlay olmaydi`
-          : `Chegirma ${settings.maxDiscountPercent}% dan oshdi: rahbar tasdig'i kerak`,
-        { discount: `Ko'pi bilan ${settings.maxDiscountPercent}%` },
+          ? `${approver.name} minimal narxdan past sotishni tasdiqlay olmaydi`
+          : `«${priced[under[0]].name}» minimal narxdan past: rahbar tasdig'i kerak`,
+        Object.fromEntries(
+          under.map((index) => {
+            const line = priced[index]
+            return [
+              `lines.${index}.discount`,
+              `Minimal narx ${formatMoney(floorOf(line.price, line.minPrice, line.qty) as number)}`,
+            ]
+          }),
+        ),
       )
     }
 
