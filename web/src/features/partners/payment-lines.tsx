@@ -218,6 +218,11 @@ interface PaymentLinesProps {
   autoFocus?: boolean
   /** A line just added: the cursor goes to it. */
   focusId?: string | null
+  /**
+   * Other words over the two sums, where the other side is not a partner: an
+   * expense is not "out of the partner's account" but simply worth so much.
+   */
+  headings?: { ours: string; theirs: string }
 }
 
 const GRID = 'grid grid-cols-[minmax(0,1fr)_11rem_6.5rem_11rem_1.75rem] gap-2'
@@ -236,6 +241,7 @@ export function PaymentLines({
   problems = {},
   autoFocus,
   focusId,
+  headings,
 }: PaymentLinesProps) {
   const { t } = useTranslation()
   // A total the lines could not make up is put back as it was.
@@ -248,9 +254,13 @@ export function PaymentLines({
       <div className={`${GRID} text-[11px] font-semibold tracking-[0.04em] text-ink-3 uppercase`}>
         <span>{kind === 'in' ? t('payments.accountIn') : t('payments.accountOut')}</span>
         {/* Whose money each field is, in words: the two are never mistaken for one another. */}
-        <span className="text-right">{kind === 'in' ? t('payments.intoUs') : t('payments.outOfUs')}</span>
+        <span className="text-right">
+          {headings?.ours ?? (kind === 'in' ? t('payments.intoUs') : t('payments.outOfUs'))}
+        </span>
         <span className="text-right">{t('payments.rate')}</span>
-        <span className="text-right">{kind === 'in' ? t('payments.fromPartner') : t('payments.toPartner')}</span>
+        <span className="text-right">
+          {headings?.theirs ?? (kind === 'in' ? t('payments.fromPartner') : t('payments.toPartner'))}
+        </span>
         <span />
       </div>
       {lines.map((line) => {

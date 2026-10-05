@@ -15,6 +15,7 @@ import {
   removeRow,
   spreadTotal,
   startRows,
+  totalOf,
   valueLines,
   type PaymentRow,
 } from './payment-lines'
@@ -245,5 +246,57 @@ describe('the ready lines', () => {
     expect(plain(rate.placeholder)).toBe('12 650')
     await userEvent.type(rate, '12000{Tab}')
     expect(settled.value).toBe('100,00')
+  })
+})
+
+/** An expense: no partner on the other side, everything counted in so'm. */
+function Expense({ start }: { start: PaymentRow[] }) {
+  const [rows, setRows] = useState(start)
+  const lines = valueLines(rows, ACCOUNTS, 'UZS', RATE)
+  return (
+    <>
+      <PaymentLines
+        kind="out"
+        lines={lines}
+        spare={[]}
+        currency="UZS"
+        owed={null}
+        onPatch={(accountId, change) => setRows((current) => patchRow(current, accountId, change))}
+        onAdd={() => undefined}
+        onRemove={() => undefined}
+        onTotal={(total) => {
+          const taken = spreadTotal(lines, total, 'UZS')
+          if (taken) {
+            setRows((current) => patchRow(current, taken.accountId, { amount: taken.amount }))
+          }
+          return !!taken
+        }}
+        setsRates={false}
+        headings={{ ours: 'Bizdan chiqdi', theirs: "So'mda" }}
+      />
+      <output aria-label="total">{totalOf(lines) / 100}</output>
+    </>
+  )
+}
+
+describe('the ready lines of an expense', () => {
+  it("are counted in so'm, dollars at the day's rate, under words of their own", async () => {
+    render(<Expense start={[row('uzs'), row('usd')]} />)
+    expect(screen.getByText("So'mda")).toBeTruthy()
+    expect(screen.queryByText('Hamkor hisobiga')).toBeNull()
+
+    // So'm have one field; dollars have their worth in so'm beside them.
+    const [som1, dollars, worth, total] = fields()
+    expect(fields()).toHaveLength(4)
+    await userEvent.type(som1, '494000{Tab}')
+    await userEvent.type(dollars, '40{Tab}')
+    expect(plain(worth.value)).toBe('506 000')
+    expect(plain(total.value)).toBe('1 000 000')
+    expect(screen.getByLabelText('total').textContent).toBe('1000000')
+
+    // The worth typed instead works the dollars out.
+    await userEvent.clear(worth)
+    await userEvent.type(worth, '253000{Tab}')
+    expect(dollars.value).toBe('20,00')
   })
 })

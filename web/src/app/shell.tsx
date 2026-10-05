@@ -1,6 +1,6 @@
-import type { GateAlarmEvent, GoodsSentEvent, MoneySentEvent } from '@gulbahor/core'
+import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@gulbahor/core'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, UserRound } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Search, Sun, UserRound } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,6 +10,7 @@ import { Shortcut, Tooltip } from '@/components/ui/feedback'
 import { PageChrome } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { tillHere } from '@/features/partners/payment-lines'
+import { MoneyOpDialog } from '@/features/money/ops'
 import { PaymentDialog } from '@/features/partners/payments'
 import { cn } from '@/lib/cn'
 import { HotkeyScope, useHotkey } from '@/lib/hotkeys'
@@ -54,6 +55,9 @@ export function Shell() {
   // Money taken from or paid to a partner, from whatever screen is in view.
   const [paying, setPaying] = useState<'in' | 'out' | null>(null)
   const canPay = can('partners.pay')
+  // An expense, or other money in, the same way.
+  const [spending, setSpending] = useState<MoneyOpKind | null>(null)
+  const canSpend = can('money.ops')
   // The screen in view puts its name into the top bar.
   const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null)
   const chrome = useMemo(() => ({ title: titleSlot }), [titleSlot])
@@ -85,6 +89,8 @@ export function Shell() {
   const pay = (kind: 'in' | 'out') => (document.querySelector('[role="dialog"]') ? false : setPaying(kind))
   useHotkey('alt+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canPay })
   useHotkey('alt+c', () => pay('out'), { label: t('payments.payOut'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+  const spend = (kind: MoneyOpKind) => (document.querySelector('[role="dialog"]') ? false : setSpending(kind))
+  useHotkey('alt+x', () => spend('expense'), { label: t('ops.expense'), group: t('shortcuts.groupGlobal'), enabled: canSpend })
 
   // What needs this person, wherever they are: on the screen while they work in the system, on the desktop when they do not.
   useFocusBeacon()
@@ -207,7 +213,7 @@ export function Shell() {
           </button>
 
           <div className="flex shrink-0 items-center gap-1">
-            {canPay ? (
+            {canPay || canSpend ? (
               <Menu
                 trigger={
                   <Button variant="ghost" aria-label={t('payments.desk')}>
@@ -216,8 +222,18 @@ export function Shell() {
                   </Button>
                 }
                 items={[
-                  { label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'alt+k', onSelect: () => setPaying('in') },
-                  { label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') },
+                  ...(canPay
+                    ? [
+                        { label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'alt+k', onSelect: () => setPaying('in') },
+                        { label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') },
+                      ]
+                    : []),
+                  ...(canSpend
+                    ? [
+                        { label: t('ops.expense'), icon: <ReceiptText />, shortcut: 'alt+x', onSelect: () => setSpending('expense') },
+                        { label: t('ops.income'), icon: <HandCoins />, onSelect: () => setSpending('income') },
+                      ]
+                    : []),
                 ]}
               />
             ) : null}
@@ -264,11 +280,17 @@ export function Shell() {
         pages={pages}
         onShowShortcuts={openHelp}
         onPay={canPay ? setPaying : undefined}
+        onSpend={canSpend ? setSpending : undefined}
       />
       {hearsGate || hearsMoney || hearsGoods ? <NotificationPrompt /> : null}
       {paying ? (
         <HotkeyScope>
           <PaymentDialog kind={paying} onClose={() => setPaying(null)} />
+        </HotkeyScope>
+      ) : null}
+      {spending ? (
+        <HotkeyScope>
+          <MoneyOpDialog kind={spending} onClose={() => setSpending(null)} />
         </HotkeyScope>
       ) : null}
       <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />

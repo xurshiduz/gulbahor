@@ -282,6 +282,17 @@ Kartalar bir nechta odam nomida bo'lishi mumkin, Humo bot esa har kimga o'z Tele
 - Xarajat, boshqa daromad va pul yechib olish — o'sha tayyor qatorli oyna orqali ("Kirim-chiqim" tugmasi ostida, Alt+K / Alt+C yonida).
 - Smena hisobotida xarajatlar alohida ko'rinadi.
 
+Qanday ishlaydi (qilingan, 2026-10-05):
+- **Xarajat turlari**: "Pul → Xarajat turlari". Har biznes tayyor ro'yxat bilan boshlaydi (Ijara, Ish haqi, Oshxona, Yuk haqi, Kommunal to'lovlar, Tozalik, Reklama, Soliq va yig'imlar, Bank komissiyasi, Boshqa xarajat; kirim uchun — Boshqa daromad). Qo'shiladi, nomi o'zgartiriladi, arxivlanadi. Billz'dagi aniq nomlar bilan solishtirib, kerak bo'lsa nomlar o'zgartiriladi.
+- **"Egasi oldi" / "Egasi qo'shdi"** — alohida belgi bilan ("foydaga kirmaydi"). Egasi kassadan pul olsa, bu xarajat emas: foyda hisobotini buzmaydi, "Egasi bilan hisob" hisobida alohida yig'iladi.
+- **Yozish**: yuqoridagi "Kirim-chiqim" tugmasi → "Xarajat" (**Alt+X**) yoki "Boshqa kirim"; Ctrl+K qidiruvida ham bor. Oyna hamkor to'lovi oynasi bilan bir xil: turi tanlanadi (oxirgi tanlangan tur eslab qolinadi), pul qaysi hisobdan chiqqani tayyor qatorlarga yoziladi — naqd, seyf, karta, bank; bir nechta joydan birga ham bo'ladi. Dollar kun kursida so'mga keltiriladi (kurs qo'yish huquqi bor xodim o'z kursini yozadi). "Saqlash va yana" — ketma-ket yozish uchun.
+- **Qoidalar**: hisobda yo'q pul chiqmaydi; kassadan faqat smena ochiq bo'lganda; ikki marta yuborilsa bitta yoziladi.
+- **Bekor qilish**: sababi bilan; pul joyiga qaytadi, ikkala yozuv ham daftarda qoladi. Smena yopilgan bo'lsa bekor qilinmaydi — teskari yozuv bilan tuzatiladi.
+- **Ro'yxat**: "Pul → Xarajat va kirim": sana, tur, summa, hisob, kim yozgan, izoh; filtrlar va Excel; tepada ko'rinib turganlarning jami. Hisoblarni ko'rmaydigan xodim faqat o'zi yozganini ko'radi.
+- **Smena hisoboti**: kassadan chiqqan xarajatlar va kassaga tushgan boshqa kirim alohida qatorlarda.
+- **Ruxsatlar**: "Xarajat va boshqa kirimni yozish" (do'kon menejeri, hisobchi, boshqaruvchi) va "Xarajat va kirim turlarini boshqarish" (hisobchi, boshqaruvchi). Kassirda yo'q — kerak bo'lsa rolga qo'shiladi.
+- Daftarda: xarajat — pul hisobidan chiqadi, "Xarajatlar" hisobiga tushadi; boshqa kirim — "Boshqa daromad"; egasi bilan — "Egasi bilan hisob". Har yozuv nolga teng.
+
 ---
 
 ## 8. Valyuta

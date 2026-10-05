@@ -9,6 +9,7 @@ import {
   toIsoDate,
   type AccountDto,
   type AccountInput,
+  type MoneyCategoryDto,
   type PaymentAccountKind,
   type RateDto,
   type RegisterDto,
@@ -40,6 +41,7 @@ import { useHotkey } from '@/lib/hotkeys'
 import { LIST_DEFAULTS } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
+import { MoneyCategoriesTab, MoneyCategoryDialog, MoneyOpDialog, MoneyOpsTab } from './ops'
 import { TransferDialog, TransfersTab } from './transfers'
 
 const route = getRouteApi('/money')
@@ -89,17 +91,51 @@ export function MoneyPage() {
   const [registerForm, setRegisterForm] = useState<RegisterDto | null | undefined>()
   const [accountForm, setAccountForm] = useState<AccountDto | null | undefined>()
   const [moving, setMoving] = useState(false)
+  const [spending, setSpending] = useState(false)
+  const [categoryForm, setCategoryForm] = useState<MoneyCategoryDto | null | undefined>()
   const accounts = useAccounts(seesAccounts)
+  const canSpend = can('money.ops')
+  const seesOps = canSpend || can('money.view')
+  const canName = can('money.categories')
 
   const add = () =>
-    tab === 'registers' ? setRegisterForm(null) : tab === 'transfers' ? setMoving(true) : setAccountForm(null)
+    tab === 'registers'
+      ? setRegisterForm(null)
+      : tab === 'transfers'
+        ? setMoving(true)
+        : tab === 'ops'
+          ? setSpending(true)
+          : tab === 'categories'
+            ? setCategoryForm(null)
+            : setAccountForm(null)
   const addLabel =
-    tab === 'registers' ? t('money.addRegister') : tab === 'transfers' ? t('money.addTransfer') : t('money.addAccount')
-  const adding = tab === 'transfers' ? canMove : canManage && tab !== 'rates'
+    tab === 'registers'
+      ? t('money.addRegister')
+      : tab === 'transfers'
+        ? t('money.addTransfer')
+        : tab === 'ops'
+          ? t('ops.expense')
+          : tab === 'categories'
+            ? t('ops.addCategory')
+            : t('money.addAccount')
+  const adding =
+    tab === 'transfers'
+      ? canMove
+      : tab === 'ops'
+        ? canSpend
+        : tab === 'categories'
+          ? canName
+          : canManage && tab !== 'rates'
   useHotkey('n', add, {
     label: addLabel,
     group: t('shortcuts.groupList'),
-    enabled: adding && registerForm === undefined && accountForm === undefined && !moving,
+    enabled:
+      adding &&
+      registerForm === undefined &&
+      accountForm === undefined &&
+      categoryForm === undefined &&
+      !moving &&
+      !spending,
   })
 
   return (
@@ -123,6 +159,8 @@ export function MoneyPage() {
           { value: 'registers', label: t('money.tabRegisters') },
           ...(seesAccounts ? [{ value: 'accounts', label: t('money.tabAccounts') }] : []),
           ...(seesAccounts ? [{ value: 'transfers', label: t('money.tabTransfers') }] : []),
+          ...(seesOps ? [{ value: 'ops', label: t('ops.title') }] : []),
+          ...(seesOps || canName ? [{ value: 'categories', label: t('ops.categories') }] : []),
           ...(hasModule('usd') ? [{ value: 'rates', label: t('money.tabRates') }] : []),
         ]}
       >
@@ -134,6 +172,12 @@ export function MoneyPage() {
         </TabPanel>
         <TabPanel value="transfers">
           <TransfersTab />
+        </TabPanel>
+        <TabPanel value="ops">
+          <MoneyOpsTab />
+        </TabPanel>
+        <TabPanel value="categories">
+          <MoneyCategoriesTab onEdit={setCategoryForm} />
         </TabPanel>
         <TabPanel value="rates">
           <RatesTab />
@@ -147,6 +191,10 @@ export function MoneyPage() {
         <AccountDialog account={accountForm} onClose={() => setAccountForm(undefined)} />
       ) : null}
       {moving ? <TransferDialog accounts={accounts.data ?? []} onClose={() => setMoving(false)} /> : null}
+      {spending ? <MoneyOpDialog onClose={() => setSpending(false)} /> : null}
+      {categoryForm !== undefined ? (
+        <MoneyCategoryDialog category={categoryForm} onClose={() => setCategoryForm(undefined)} />
+      ) : null}
     </Page>
   )
 }

@@ -1,6 +1,6 @@
-import { matchScore, queryKeys, searchKey } from '@gulbahor/core'
+import { matchScore, queryKeys, searchKey, type MoneyOpKind } from '@gulbahor/core'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowUpRight, BellRing, Keyboard, Lock, LogOut, Search, SunMoon, type LucideIcon } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, BellRing, HandCoins, Keyboard, Lock, LogOut, ReceiptText, Search, SunMoon, type LucideIcon } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,13 +30,15 @@ interface Props {
   onShowShortcuts: () => void
   /** Opens a payment with a partner; absent for those who may not make one. */
   onPay?: (kind: 'in' | 'out') => void
+  /** Opens an expense, or other money in; absent for those who may not write one. */
+  onSpend?: (kind: MoneyOpKind) => void
 }
 
 /**
  * Ctrl+K: go to any screen or run any action by typing a few letters of its
  * name, in either script and either keyboard layout.
  */
-export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay }: Props) {
+export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay, onSpend }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { me, lock, logout } = useSession()
@@ -65,6 +67,12 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay }:
             { id: 'pay-out', label: t('payments.payOut'), group: t('command.actions'), icon: ArrowUpRight, shortcut: 'alt+c', run: () => onPay('out') },
           ]
         : []),
+      ...(onSpend
+        ? [
+            { id: 'expense', label: t('ops.expense'), group: t('command.actions'), icon: ReceiptText, shortcut: 'alt+x', run: () => onSpend('expense') },
+            { id: 'income', label: t('ops.income'), group: t('command.actions'), icon: HandCoins, run: () => onSpend('income') },
+          ]
+        : []),
       { id: 'theme', label: t('command.toggleTheme'), group: t('command.actions'), icon: SunMoon, run: toggleTheme },
       ...(typeof Notification !== 'undefined' && Notification.permission !== 'granted'
         ? [{ id: 'notify', label: t('notify.turnOn'), group: t('command.actions'), icon: BellRing, run: turnOnNotifications }]
@@ -76,7 +84,7 @@ export function CommandPalette({ open, onClose, pages, onShowShortcuts, onPay }:
       { id: 'logout', label: t('command.logout'), group: t('command.actions'), icon: LogOut, run: () => void logout() },
     ]
     return [...pageCommands, ...actions]
-  }, [pages, t, navigate, me.user.hasPin, lock, logout, onShowShortcuts, onPay])
+  }, [pages, t, navigate, me.user.hasPin, lock, logout, onShowShortcuts, onPay, onSpend])
 
   const shown = useMemo(() => {
     if (!query.trim()) {

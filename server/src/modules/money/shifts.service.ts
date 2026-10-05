@@ -350,6 +350,14 @@ export class ShiftsService {
     )
     const withPartners = (kind: 'in' | 'out', currency: CurrencyCode) =>
       partners.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
+    const ops: { kind: 'expense' | 'income'; currency: CurrencyCode; amount: number }[] = await em.query(
+      `SELECT o.kind, l.currency, sum(l.amount)::float8 AS amount
+       FROM money_op_lines l JOIN money_ops o ON o.id = l.op_id
+       WHERE l.shift_id = $1 AND o.status = 'posted' GROUP BY o.kind, l.currency`,
+      [shiftId],
+    )
+    const withOps = (kind: 'expense' | 'income', currency: CurrencyCode) =>
+      ops.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -389,6 +397,10 @@ export class ShiftsService {
       partnersInUsd: withPartners('in', 'USD'),
       partnersOutUzs: withPartners('out', 'UZS'),
       partnersOutUsd: withPartners('out', 'USD'),
+      expensesUzs: withOps('expense', 'UZS'),
+      expensesUsd: withOps('expense', 'USD'),
+      incomeUzs: withOps('income', 'UZS'),
+      incomeUsd: withOps('income', 'USD'),
       returns: returns.returns,
       returned: returns.returned,
       refunds: refunds.map((row) => ({

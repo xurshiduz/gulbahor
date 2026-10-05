@@ -92,7 +92,12 @@ export const NAVIGATION: NavGroup[] = [
     label: 'nav.groupManage',
     items: [
       { to: '/locations', label: 'nav.locations', icon: Building2, permission: 'locations.view' },
-      { to: '/money', label: 'nav.money', icon: Wallet, permission: ['money.view', 'money.manage', 'money.collect'] },
+      {
+        to: '/money',
+        label: 'nav.money',
+        icon: Wallet,
+        permission: ['money.view', 'money.manage', 'money.collect', 'money.ops', 'money.categories'],
+      },
       { to: '/devices', label: 'nav.devices', icon: MonitorSmartphone, permission: 'devices.manage' },
       { to: '/gate', label: 'nav.gate', icon: Siren, permission: 'devices.alarms', module: 'rfid' },
       { to: '/users', label: 'nav.users', icon: Users, permission: 'users.view' },

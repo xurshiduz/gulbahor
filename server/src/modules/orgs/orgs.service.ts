@@ -21,6 +21,7 @@ import { ActorService } from '../auth/actor.service'
 import { hashSecret } from '../auth/crypto'
 import { applyStarter, createPriceTypes } from '../catalog/starter'
 import { LocationsService } from '../locations/locations.service'
+import { createMoneyCategories } from '../money/ops.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { toOrgDto } from './org.mapper'
 
@@ -182,6 +183,7 @@ export class OrgsService {
       )
       const roles = await this.createRoles(em, org.id)
       await createPriceTypes(em, org.id)
+      await createMoneyCategories(em, org.id)
       const owner = await em.save(
         em.create(User, {
           orgId: org.id,

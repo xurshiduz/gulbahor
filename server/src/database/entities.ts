@@ -10,6 +10,8 @@ import type {
   MarkupBase,
   OrgSettings,
   MoneyTransferStatus,
+  MoneyOpKind,
+  MoneyOpStatus,
   PartnerPaymentKind,
   PartnerPaymentStatus,
   PaymentMethod,
@@ -2141,6 +2143,129 @@ export class PartnerPaymentLine {
   shiftId: string | null
 }
 
+@Entity('money_categories')
+export class MoneyCategory {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  kind: MoneyOpKind
+
+  @Column('text')
+  name: string
+
+  /** Counts towards profit; money the owner takes or brings does not. */
+  @Column('boolean')
+  inProfit: boolean
+
+  @Column('boolean')
+  isActive: boolean
+
+  @Column('int')
+  sortOrder: number
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('money_ops')
+export class MoneyOp {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('text')
+  kind: MoneyOpKind
+
+  @Column('text')
+  status: MoneyOpStatus
+
+  @Column('uuid')
+  categoryId: string
+
+  /** What it comes to, in so'm. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  @Column('timestamptz')
+  doneAt: Date
+
+  @Column('date')
+  doneOn: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @Column('text')
+  paidBy: string
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('timestamptz', { nullable: true })
+  cancelledAt: Date | null
+
+  @Column('uuid', { nullable: true })
+  cancelledBy: string | null
+
+  @Column('text', { nullable: true })
+  cancelledByName: string | null
+
+  @Column('text', { nullable: true })
+  cancelReason: string | null
+
+  @Column('text')
+  searchKey: string
+}
+
+@Entity('money_op_lines')
+export class MoneyOpLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  opId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('text')
+  currency: CurrencyCode
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  rate: number | null
+
+  /** The line's worth in so'm. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+
+  @Column('uuid', { nullable: true })
+  shiftId: string | null
+}
+
 @Entity('shift_terminal_counts')
 export class ShiftTerminalCount {
   @PrimaryGeneratedColumn('uuid')
@@ -2302,4 +2427,7 @@ export const ENTITIES = [
   ShiftTerminalCount,
   PartnerPayment,
   PartnerPaymentLine,
+  MoneyCategory,
+  MoneyOp,
+  MoneyOpLine,
 ]

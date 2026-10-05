@@ -290,6 +290,8 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             {totals.partnersOutUzs ? (
               <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUzs)}`} />
             ) : null}
+            {totals.incomeUzs ? <Row label={t('pos.otherIn')} value={`+${money(totals.incomeUzs)}`} /> : null}
+            {totals.expensesUzs ? <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUzs)}`} /> : null}
             {shift.countedUzs !== null ? <Row label={t('pos.counted')} value={money(shift.countedUzs)} strong /> : null}
             {shift.expectedUzs !== null ? <Row label={t('pos.expected')} value={money(shift.expectedUzs)} /> : null}
             {diff(shift.diffUzs, 'UZS')}
@@ -300,7 +302,9 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           totals.inUsd ||
           totals.outUsd ||
           totals.partnersInUsd ||
-          totals.partnersOutUsd ? (
+          totals.partnersOutUsd ||
+          totals.incomeUsd ||
+          totals.expensesUsd ? (
             <div>
               <Row label={t('pos.opening')} value={money(shift.openingUsd, 'USD')} />
               {totals.inUsd ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUsd, 'USD')}`} /> : null}
@@ -310,6 +314,10 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
               ) : null}
               {totals.partnersOutUsd ? (
                 <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUsd, 'USD')}`} />
+              ) : null}
+              {totals.incomeUsd ? <Row label={t('pos.otherIn')} value={`+${money(totals.incomeUsd, 'USD')}`} /> : null}
+              {totals.expensesUsd ? (
+                <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUsd, 'USD')}`} />
               ) : null}
               {shift.countedUsd !== null ? (
                 <Row label={t('pos.counted')} value={money(shift.countedUsd, 'USD')} strong />

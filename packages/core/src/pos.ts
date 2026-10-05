@@ -39,6 +39,9 @@ export const SYSTEM_ACCOUNTS = [
   'exchange',
   'transit',
   'purchases',
+  'expenses',
+  'other_income',
+  'owner',
 ] as const
 export type SystemAccount = (typeof SYSTEM_ACCOUNTS)[number]
 
@@ -54,6 +57,11 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
   transit: "Yo'ldagi pul",
   // What goods received from suppliers were worth: the other side of what the business owes them for those goods.
   purchases: 'Tovar xaridi',
+  // What was spent on running the business, and what it earned otherwise than by selling goods.
+  expenses: 'Xarajatlar',
+  other_income: 'Boshqa daromad',
+  // What the owner took out of the business, less what they put into it: neither spent nor earned.
+  owner: 'Egasi bilan hisob',
 }
 
 /** The accounts a person sets up; a till's own cash is made with the till. */
@@ -840,6 +848,11 @@ export interface ShiftTotals {
   partnersInUsd: number
   partnersOutUzs: number
   partnersOutUsd: number
+  /** Expenses paid out of the drawer during the shift, and other money put into it, by currency. */
+  expensesUzs: number
+  expensesUsd: number
+  incomeUzs: number
+  incomeUsd: number
   /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
   returns: number
   returned: number

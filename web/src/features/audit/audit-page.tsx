@@ -36,6 +36,8 @@ const ENTITIES = [
   'partner',
   'partner_payment',
   'money_transfer',
+  'money_op',
+  'money_category',
   'register',
   'account',
   'rate',

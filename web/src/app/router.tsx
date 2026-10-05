@@ -1,6 +1,8 @@
 import {
   GENDERS,
   LOCATION_KINDS,
+  MONEY_OP_KINDS,
+  MONEY_OP_STATUSES,
   MONEY_TRANSFER_STATUSES,
   PARTNER_PAYMENT_KINDS,
   PARTNER_PAYMENT_STATUSES,
@@ -310,15 +312,20 @@ const moneyRoute = createRoute({
   path: '/money',
   component: MoneyPage,
   validateSearch: z.object({
-    tab: z.enum(['registers', 'accounts', 'transfers', 'rates']).default('registers').catch('registers'),
-    // The list of transfers.
+    tab: z
+      .enum(['registers', 'accounts', 'transfers', 'ops', 'categories', 'rates'])
+      .default('registers')
+      .catch('registers'),
+    // The list of transfers, or of expenses: whichever tab is open.
     page: listSearch.page,
     size: listSearch.size,
     q: listSearch.q,
     status: z
-      .enum(['all', ...MONEY_TRANSFER_STATUSES])
+      .enum(['all', ...MONEY_TRANSFER_STATUSES, ...MONEY_OP_STATUSES.filter((status) => status !== 'cancelled')])
       .default('all')
       .catch('all'),
+    kind: z.enum(MONEY_OP_KINDS).optional().catch(undefined),
+    categoryId: z.string().optional().catch(undefined),
     from: z.string().optional().catch(undefined),
     to: z.string().optional().catch(undefined),
   }),
