@@ -384,6 +384,45 @@ describe('Till', () => {
 
       await save({ autoLockMinutes: 10, maxDiscountPercent: 10 }).expect(200)
     })
+
+    it('is printed the way the business laid its receipts out', async () => {
+      // Until the business says otherwise, the template is the one every business starts with.
+      expect((await alpha.get('/api/auth/me').expect(200)).body.org.settings.receipt).toBeUndefined()
+      const org = (
+        await alpha
+          .put('/api/org/receipt')
+          .send({ width: 58, title: ' Alpha Style ', showSku: true, footer: 'Rahmat!\n14 kun ichida qaytariladi' })
+          .expect(200)
+      ).body
+      // What was not sent is as the starting template has it.
+      expect(org.settings.receipt).toEqual({
+        width: 58,
+        title: 'Alpha Style',
+        showShop: true,
+        showAddress: true,
+        showCashier: true,
+        showSeller: true,
+        showCustomer: true,
+        showSku: true,
+        showLineDiscount: true,
+        showSavings: true,
+        footer: 'Rahmat!\n14 kun ichida qaytariladi',
+        socials: null,
+      })
+      // The other settings are left as they were.
+      expect(org.settings).toMatchObject({ maxDiscountPercent: 10, changeRoundStep: som(1000) })
+      expect((await alpha.put('/api/org/receipt').send({ width: 70 })).status).toBe(400)
+      await cashier.put('/api/org/receipt').send({ width: 80 }).expect(403)
+
+      // A receipt carries where the shop is, for the template that prints it.
+      await alpha
+        .put(`/api/locations/${shopId}`)
+        .send({ name: 'Alpha shop', kind: 'store', address: 'Chilonzor, 12-uy', phone: '71 200 00 01' })
+        .expect(200)
+      const [listed] = (await alpha.get('/api/sales').expect(200)).body.items
+      const sale = (await alpha.get(`/api/sales/${listed.id}`).expect(200)).body
+      expect(sale).toMatchObject({ locationAddress: 'Chilonzor, 12-uy', locationPhone: '+998712000001' })
+    })
   })
 
   describe('a tagged piece', () => {

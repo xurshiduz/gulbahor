@@ -1,10 +1,12 @@
 import {
   modulesSchema,
   orgUpdateSchema,
+  receiptTemplateSchema,
   setupSchema,
   type ModulesInput,
   type OrgDto,
   type OrgUpdateInput,
+  type ReceiptTemplate,
   type SetupInput,
 } from '@gulbahor/core'
 import { Body, Controller, Get, Post, Put } from '@nestjs/common'
@@ -26,6 +28,13 @@ export class OrgsController {
   @Can('settings.manage')
   update(@CurrentActor() actor: Actor, @Body(zod(orgUpdateSchema)) input: OrgUpdateInput): Promise<OrgDto> {
     return this.orgs.update(actor, input)
+  }
+
+  /** How the receipts look on paper. */
+  @Put('receipt')
+  @Can('settings.manage')
+  setReceipt(@CurrentActor() actor: Actor, @Body(zod(receiptTemplateSchema)) input: ReceiptTemplate): Promise<OrgDto> {
+    return this.orgs.setReceipt(actor, input)
   }
 
   @Put('modules')

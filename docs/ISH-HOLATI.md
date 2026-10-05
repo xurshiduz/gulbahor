@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 `84e8ac1` dan keyin, tartib bilan: hamkor hisobi va to'lovlar; kassada tez skaner tuzatishi; RFID o'quvchilar; Chainway ko'prigi; xususiyat qiymatlarini birlashtirish; tayyor qatorli to'lov oynasi va Alt+K / Alt+C; alertlar va brauzer bildirishnomalari, `money.sent` / `goods.sent`; kirimdan yetkazib beruvchi qarzi; reja va tahlil hujjatlari.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 — core 122, agent 17, server 244, web 120; typecheck va lint toza (6a dan keyin)
+Oxirgi to'liq tekshiruv: 2026-10-05 — core 126, agent 17, server 246, web 120; typecheck va lint toza (6b dan keyin)
 
 ## Ko'z bilan tekshirilmagan (ertalab ko'rib chiqish kerak)
 
@@ -25,6 +25,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
 - Kassa: "Kelishilgan summa" maydoni va yaxlit summa tugmalari (1a).
 - Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b).
 - Kassa: dollar qatori ostidagi "So'mda hisoblanadi" maydoni (1c); Sozlamalar → Biznes dagi "Dollarni kursdan qimmat olish chegarasi".
+- "Sozlamalar → Chek" (7a): chek qog'ozining o'zi alohida sahifada brauzerda ko'rildi (80 va 58 mm); sozlamalar varag'i va haqiqiy printerda chop etish ko'rilmagan.
 - "Aksiyalar" sahifasi va formasi, kassadagi aksiya yozuvi va "Promokod" maydoni (6a) — testlar yashil, ekranda ko'rilmagan.
 - "Mijozlar → Sodiqlik dasturi" varag'i, guruhdagi chegirma foizi, kassadagi "Mijoz chegirmasi" qatori (5c) — testlar yashil, ekranda ko'rilmagan. **Akaning besh pog'onasini kiritish kerak** (jadval bo'sh).
 - "Mijozlar → Guruhlar" varag'i, mijoz formasidagi guruh va teglar, kassada guruh eslatmasi (5b) — testlar yashil, ekranda ko'rilmagan.
@@ -59,7 +60,9 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
 6. **Aksiyalar** — bo'laklarga bo'lingan:
    - [x] 6a. Foizli chegirma va belgilangan narx; muddat, do'konlar, tovar doirasi; mijoz chegirmasi bilan "eng foydalisi"; promokod.
    - [x] 6b. "1+1" (birini olsa ikkinchisi chegirmada), N dona olinsa chegirma.
-7. [ ] Chek va etiketka dizayni.
+7. **Chek va etiketka dizayni** — ikki bo'lak:
+   - [x] 7a. Chek shabloni: "Sozlamalar → Chek" (jonli ko'rinish, kenglik, qaysi qismlar, pastki matn); chop etish shu shablon bo'yicha.
+   - [ ] 7b. Etiketka shabloni (o'lcham, maydonlar, narxli yoki narxsiz); chekda logotip va shtrix-kod.
 8. [ ] Tovar rasmlari.
 
 Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) — foydalanuvchi bilan.
@@ -89,3 +92,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `341b723f2b71ac60afda7a8959b99661e37b9057` | 5b: mijoz guruhlari va teglar |
 | `4833fed41ffe2f24ab0a96005b9bdd2f393e8f85` | 5c: mijoz chegirmasi (guruh foizi, sodiqlik pog'onalari) |
 | `f453628495fdcc0ba396935989fd0a5708530e4a` | 6a: aksiyalar (foiz, belgilangan narx, promokod) |
+| `dc4b822f0ca0327f155be56644f888f7c6e62f7c` | 6b: 1+1 va N dona olinsa chegirma |

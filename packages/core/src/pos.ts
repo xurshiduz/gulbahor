@@ -605,6 +605,9 @@ export interface SalePaymentDto {
 export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
   shiftId: string
   shiftNumber: string
+  /** Where the shop is and how to call it, for the receipt. */
+  locationAddress: string | null
+  locationPhone: string | null
   subtotal: number
   /** So'm for a dollar when the sale was made; null when none was set. */
   uzsPerUsd: number | null

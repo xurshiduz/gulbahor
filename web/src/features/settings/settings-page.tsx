@@ -17,6 +17,8 @@ import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { toast } from '@/lib/toast'
 
+import { ReceiptSettings } from './receipt-settings'
+
 const route = getRouteApi('/settings')
 
 export function SettingsPage() {
@@ -25,15 +27,19 @@ export function SettingsPage() {
   const navigate = route.useNavigate()
 
   return (
-    <Page title={t('settings.title')} width="narrow">
+    <Page title={t('settings.title')} width={tab === 'receipt' ? undefined : 'narrow'}>
       <Tabs
         value={tab}
         onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}
         tabs={[
           { value: 'business', label: t('settings.tabBusiness') },
+          { value: 'receipt', label: t('settings.tabReceipt') },
           { value: 'modules', label: t('settings.tabModules') },
         ]}
       >
+        <TabPanel value="receipt">
+          <ReceiptSettings />
+        </TabPanel>
         <TabPanel value="business">
           <BusinessSettings />
         </TabPanel>

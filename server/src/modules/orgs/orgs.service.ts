@@ -1,4 +1,5 @@
 import {
+  DEFAULT_RECEIPT_TEMPLATE,
   LOCATION_KIND_LABELS,
   MODULES,
   ROLE_TEMPLATES,
@@ -7,6 +8,7 @@ import {
   type ModulesInput,
   type OrgDto,
   type OrgUpdateInput,
+  type ReceiptTemplate,
   type SetupInput,
 } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
@@ -77,6 +79,27 @@ export class OrgsService {
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
       return toOrgDto(after)
+    })
+  }
+
+  async setReceipt(actor: Actor, input: ReceiptTemplate): Promise<OrgDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const before = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      await em.update(Organization, actor.orgId, { settings: { ...before.settings, receipt: input } })
+      const was = { ...DEFAULT_RECEIPT_TEMPLATE, ...before.settings.receipt }
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'org.receipt',
+        entity: 'org',
+        entityId: actor.orgId,
+        summary: 'Chek shabloni',
+        changes: diff(
+          was as unknown as Record<string, unknown>,
+          input as unknown as Record<string, unknown>,
+          Object.keys(DEFAULT_RECEIPT_TEMPLATE),
+        ),
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
+      return toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId }))
     })
   }
 

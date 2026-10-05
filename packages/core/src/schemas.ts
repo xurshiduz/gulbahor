@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { MODULE_KEYS } from './access'
 import type { CurrencyCode } from './money'
 import { parsePhone } from './phone'
+import type { ReceiptTemplate } from './receipt-template'
 
 /**
  * The API contract: what each request must look like and what comes back.
@@ -175,6 +176,8 @@ export interface OrgSettings {
    * every cost out over the whole shipment and never need it, so it is off until someone asks for it.
    */
   receiptLineExtra: boolean
+  /** How the receipts look on paper; what is not set here is as `DEFAULT_RECEIPT_TEMPLATE` has it. */
+  receipt?: Partial<ReceiptTemplate>
 }
 
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {

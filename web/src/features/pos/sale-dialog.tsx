@@ -1,4 +1,10 @@
-import { formatMoney, PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS, type SaleDto } from '@gulbahor/core'
+import {
+  DEFAULT_RECEIPT_TEMPLATE,
+  formatMoney,
+  PAYMENT_METHOD_LABELS,
+  SALE_STATUS_LABELS,
+  type SaleDto,
+} from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Ban, Printer, Undo2 } from 'lucide-react'
@@ -15,6 +21,8 @@ import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
+
+import { ReceiptPaper } from './receipt-paper'
 import { toast } from '@/lib/toast'
 
 import { changeText } from './pos-state'
@@ -33,7 +41,8 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
   const go = useNavigate()
   const [voiding, setVoiding] = useState(false)
   const [reason, setReason] = useState('')
-  const receiptRef = useRef<HTMLDivElement>(null)
+  /** The receipt as it goes onto paper, laid out by the business's template: kept off the screen. */
+  const paperRef = useRef<HTMLDivElement>(null)
 
   const query = useQuery({
     queryKey: ['sales', 'one', saleId],
@@ -85,7 +94,7 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
           <Button onClick={onClose}>{t('common.close')}</Button>
           <Button
             variant="primary"
-            onClick={() => (receiptRef.current ? printElement(receiptRef.current) : undefined)}
+            onClick={() => (paperRef.current ? printElement(paperRef.current) : undefined)}
             disabled={!sale}
           >
             <Printer />
@@ -122,8 +131,17 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
             </Form>
           ) : null}
 
-          {/* The receipt: the part of the screen a printer is given. */}
-          <div ref={receiptRef} className="text-[13px]">
+          <div className="hidden">
+            <ReceiptPaper
+              ref={paperRef}
+              sale={sale}
+              template={{ ...DEFAULT_RECEIPT_TEMPLATE, ...me.org.settings.receipt }}
+              orgName={me.org.name}
+            />
+          </div>
+
+          {/* The receipt as the till keeps it, with what is nobody's business outside the shop. */}
+          <div className="text-[13px]">
             <div className="text-center">
               <p className="text-sm font-semibold">{me.org.name}</p>
               <p className="text-xs text-ink-3">{sale.locationName}</p>

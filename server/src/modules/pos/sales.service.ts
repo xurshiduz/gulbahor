@@ -753,6 +753,8 @@ export class SalesService {
 
     return {
       ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
+      locationAddress: location.address,
+      locationPhone: location.phone,
       shiftId: sale.shiftId,
       shiftNumber: shift.number,
       subtotal: sale.subtotal,

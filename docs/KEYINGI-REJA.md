@@ -408,6 +408,9 @@ RFID'siz (faqat shtrix-kodli) tovarda bu imkon yo'q: shtrix-kod hamma bir xil sh
 
 - **Chek shabloni**: chapda jonli ko'rinish, o'ngda belgilab tanlanadigan qismlar: logotip (yuklash, o'lchami), do'kon nomi va manzili, sana, sotuvchi, kassir, mijoz, mijoz qarzi va chegirmasi, tovar qatorida nimalar chiqishi (nom, brend, artikul, o'lcham), chegirmalar, jami, pastki matn, ijtimoiy tarmoqlar, chek shtrix-kodi.
 - Har kassaga o'z shabloni; ikki tur: chek va yuk xati.
+
+Qilingan (2026-10-05), chek shabloni: **"Sozlamalar → Chek"**. Chapda chek qog'ozda qanday chiqishi jonli ko'rinadi (namunaviy chek bilan), o'ngda sozlamalar: qog'oz kengligi (80 yoki 58 mm), sarlavha (bo'sh bo'lsa biznes nomi), do'kon nomi, manzil va telefon, kassir, sotuvchi, mijoz, tovar artikuli, qator chegirmasi va aksiya nomi, "Siz … tejadingiz" qatori, pastki matn (bir necha qator), ijtimoiy tarmoqlar. Saqlanmaguncha hech narsa o'zgarmaydi. Chek oynasidagi "Chop etish" endi shu shablon bo'yicha chiqaradi; chekda mijoz chegirmasi va kassir chegirmasi alohida qatorlarda, do'kon manzili va telefoni joy kartasidan olinadi.
+Hali yo'q: logotip (fayl saqlash bilan birga, rasmlar bo'lagida), chek shtrix-kodi, har kassaga o'z shabloni, yuk xati, etiketka dizayni.
 - **Etiketka shabloni**: o'lchami, qaysi maydonlar (nom, o'lcham, rang, narx, artikul, kod, shtrix-kod), narxli yoki narxsiz, shrift kattaligi. Jonli ko'rinish bilan. Hozirgi ikki tayyor shablon standart bo'lib qoladi.
 
 ---
