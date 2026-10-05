@@ -28,6 +28,7 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Account,
+  Customer,
   Location,
   Organization,
   Register,
@@ -43,6 +44,7 @@ import {
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
+import { rulesOf } from '../customers/groups'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
@@ -130,6 +132,7 @@ export class ReturnsService {
       }
       const settings = await this.settings(em, actor.orgId)
       const today = await this.ledger.today(em, actor.orgId)
+      const buyer = sale.customerId ? await em.findOneBy(Customer, { id: sale.customerId }) : null
       return {
         // Whoever may take goods back sees the receipt they are brought back on, whoever rang it up.
         sale: await this.sales.loadIn(em, actor, sale),
@@ -137,6 +140,7 @@ export class ReturnsService {
         late: isLate(sale.soldOn, today, settings.returnDays),
         returnDays: settings.returnDays,
         free: can(actor, 'pos.return_any'),
+        noExchange: buyer ? !!(await rulesOf(em, [buyer])).get(buyer.id)?.noExchange : false,
         caps: await this.caps(em, sale),
       }
     })
@@ -188,6 +192,18 @@ export class ReturnsService {
           approver
             ? `${approver.name} muddati o'tgan qaytarishni tasdiqlay olmaydi`
             : `Qaytarish muddati (${settings.returnDays} kun) o'tgan: rahbar ruxsati kerak`,
+        )
+      }
+
+      // What is not done for a customer's group is refused here, not left to the cashier's memory.
+      const buyer = input.exchange && sale.customerId ? await em.findOneBy(Customer, { id: sale.customerId }) : null
+      const barred = buyer ? !!(await rulesOf(em, [buyer])).get(buyer.id)?.noExchange : false
+      if (barred && !free) {
+        throw AppError.conflict(
+          'NO_EXCHANGE',
+          approver
+            ? `${approver.name} bu almashtirishni tasdiqlay olmaydi`
+            : `${buyer?.name}: bu mijozga almashtirib berilmaydi. Rahbar ruxsati kerak`,
         )
       }
 
@@ -422,7 +438,7 @@ export class ReturnsService {
         }
       }
       // The manager's word is written down only where it was needed.
-      const vouched = !own && (late || otherwise) ? approver : null
+      const vouched = !own && (late || otherwise || barred) ? approver : null
 
       if (refunds.length) {
         await em.insert(

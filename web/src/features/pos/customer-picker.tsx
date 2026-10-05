@@ -1,6 +1,6 @@
-import { customerInputSchema, type CustomerBrief } from '@gulbahor/core'
+import { customerInputSchema, type PosCustomerDto } from '@gulbahor/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { UserRound, UserRoundPlus, X } from 'lucide-react'
+import { BellRing, UserRound, UserRoundPlus, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,8 +18,8 @@ import { toast } from '@/lib/toast'
 
 interface CustomerPickerProps {
   registerId: string
-  value: CustomerBrief | null
-  onChange: (customer: CustomerBrief | null) => void
+  value: PosCustomerDto | null
+  onChange: (customer: PosCustomerDto | null) => void
 }
 
 export interface CustomerPickerHandle {
@@ -56,7 +56,7 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
 
   const found = useQuery({
     queryKey: ['customers', 'pos', query],
-    queryFn: ({ signal }) => api.get<CustomerBrief[]>('/pos/customers', { q: query }, signal),
+    queryFn: ({ signal }) => api.get<PosCustomerDto[]>('/pos/customers', { q: query }, signal),
     enabled: query.length >= 2,
     placeholderData: keepPreviousData,
   })
@@ -64,7 +64,7 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
   // Below those found there is always the way to write a new one down.
   const rows = results.length + 1
 
-  const pick = (customer: CustomerBrief) => {
+  const pick = (customer: PosCustomerDto) => {
     onChange(customer)
     setText('')
     setOpen(false)
@@ -95,22 +95,41 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
   }
 
   if (value) {
+    // A cart kept from before groups were known has a customer without them.
+    const groups = value.groups ?? []
+    const reminders = value.reminders ?? []
     return (
-      <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-2.5 py-1.5 text-[13px]">
-        <UserRound className="size-4 shrink-0 text-ink-3" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{value.name}</span>
-          <span className="tabular block text-xs text-ink-3">{formatPhone(value.phone)}</span>
-        </span>
-        <Button
-          variant="ghost"
-          size="iconSm"
-          tabIndex={-1}
-          aria-label={t('pos.customerClear')}
-          onClick={() => onChange(null)}
-        >
-          <X />
-        </Button>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-2.5 py-1.5 text-[13px]">
+          <UserRound className="size-4 shrink-0 text-ink-3" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{value.name}</span>
+            <span className="tabular block truncate text-xs text-ink-3">
+              {formatPhone(value.phone)}
+              {groups.length ? <span className="text-accent-ink"> · {groups.join(', ')}</span> : null}
+            </span>
+          </span>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            tabIndex={-1}
+            aria-label={t('pos.customerClear')}
+            onClick={() => onChange(null)}
+          >
+            <X />
+          </Button>
+        </div>
+        {/* What their groups ask the cashier to remember: it stays in sight for the whole sale. */}
+        {reminders.map((reminder) => (
+          <p
+            key={reminder}
+            role="note"
+            className="flex items-start gap-1.5 rounded-md bg-warn-soft px-2.5 py-1.5 text-[13px] font-medium text-warn"
+          >
+            <BellRing className="mt-0.5 size-3.5 shrink-0" />
+            {reminder}
+          </p>
+        ))}
       </div>
     )
   }
@@ -189,7 +208,7 @@ interface NewCustomerDialogProps {
   /** What was in the field: a phone, or a name. */
   typed: string
   onClose: () => void
-  onAdded: (customer: CustomerBrief) => void
+  onAdded: (customer: PosCustomerDto) => void
 }
 
 function NewCustomerDialog({ registerId, typed, onClose, onAdded }: NewCustomerDialogProps) {
@@ -200,7 +219,7 @@ function NewCustomerDialog({ registerId, typed, onClose, onAdded }: NewCustomerD
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const save = useMutation({
-    mutationFn: (input: unknown) => api.post<CustomerBrief>('/pos/customers', input),
+    mutationFn: (input: unknown) => api.post<PosCustomerDto>('/pos/customers', input),
     meta: { silent: true },
     onSuccess: (customer) => {
       toast.success(t('pos.customerAdded', { name: customer.name }))

@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Coins,
   FlaskConical,
+  Group,
   HandCoins,
   Handshake,
   History,
@@ -109,7 +110,22 @@ export const NAVIGATION: NavGroup[] = [
     key: 'customers',
     label: 'nav.customers',
     icon: UsersRound,
-    items: [{ to: '/customers', label: 'nav.customers', icon: UsersRound, permission: 'customers.view' }],
+    items: [
+      {
+        to: '/customers',
+        search: { tab: 'list' },
+        label: 'nav.customers',
+        icon: UsersRound,
+        permission: 'customers.view',
+      },
+      {
+        to: '/customers',
+        search: { tab: 'groups' },
+        label: 'nav.customerGroups',
+        icon: Group,
+        permission: 'customers.view',
+      },
+    ],
   },
   {
     key: 'money',

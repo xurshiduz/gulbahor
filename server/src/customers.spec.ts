@@ -141,14 +141,16 @@ describe('Customers', () => {
     expect(await names('935551122')).toEqual(["G'ayrat Olimov"])
     // The till finds them the same way, and tells a cashier no more than who they are.
     const found = (await cashier.get('/api/pos/customers').query({ q: '90123' }).expect(200)).body
-    expect(found).toEqual([{ id: nodira.id, name: 'Nodira Karimova', phone: '+998901234567' }])
+    expect(found).toEqual([
+      expect.objectContaining({ id: nodira.id, name: 'Nodira Karimova', phone: '+998901234567', groups: [] }),
+    ])
   })
 
   it('are written down at the till the first time they buy, in the shop where they stood', async () => {
     const added = (
       await cashier.post('/api/pos/customers').send({ registerId, name: 'Sardor', phone: '97 700 00 01' }).expect(201)
     ).body
-    expect(added).toEqual({ id: expect.any(String), name: 'Sardor', phone: '+998977000001' })
+    expect(added).toMatchObject({ id: expect.any(String), name: 'Sardor', phone: '+998977000001', priceType: null })
     expect((await alpha.get(`/api/customers/${added.id}`).expect(200)).body.locationName).toBe('Alpha shop')
     // A cashier serves customers; the base itself is for those who keep it.
     await cashier.get('/api/customers').expect(403)
@@ -250,5 +252,174 @@ describe('Customers', () => {
     // Born on 29 February: 1 March in a year without one.
     expect(daysToBirthday('1992-02-29', '2027-02-27')).toBe(2)
     expect(daysToBirthday('1992-02-29', '2028-02-27')).toBe(2)
+  })
+
+  describe('groups and tags', () => {
+    let family: { id: string }
+    let regular: { id: string }
+    let familyPrice: string
+    let scarf: string
+
+    const scarfSale = (customerId: string | null, priceTypeId: string | null, total: number) =>
+      cashier.post('/api/sales').send({
+        clientKey: randomUUID(),
+        registerId,
+        customerId,
+        priceTypeId,
+        lines: [{ variantId: scarf, qty: 1 }],
+        payments: [{ method: 'cash', currency: 'UZS', amount: total }],
+        total,
+      })
+
+    beforeAll(async () => {
+      const types = (await alpha.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
+      const of = (kind: string) => types.find((type) => type.kind === kind)!.id
+      // A price nobody picks at the till: it is for the family's group alone.
+      familyPrice = (
+        await alpha.post('/api/price-types').send({ name: 'Oila', kind: 'other', currency: 'UZS' }).expect(201)
+      ).body.id
+      const shopId = (await alpha.get('/api/locations')).body.items[0].id
+      scarf = (
+        await alpha
+          .post('/api/products')
+          .send({
+            name: 'Sharf',
+            axisIds: [],
+            variants: [{ valueIds: [] }],
+            prices: [
+              { priceTypeId: of('retail'), amount: som(50_000), currency: 'UZS' },
+              { priceTypeId: familyPrice, amount: som(30_000), currency: 'UZS' },
+            ],
+          })
+          .expect(201)
+      ).body.variants[0].id
+      const draft = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-01',
+          uzsRate: 12_000,
+          currency: 'UZS',
+          usdRate: 12_000,
+          lines: [{ variantId: scarf, qty: 20, price: som(25_000) }],
+        })
+        .expect(201)
+      await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
+    })
+
+    it('give a group its rules: a price, a reminder, what is not done', async () => {
+      family = (
+        await alpha
+          .post('/api/customers/groups')
+          .send({ name: 'Oila', priceTypeId: familyPrice, reminder: 'Chek berish kerak', noExchange: true })
+          .expect(201)
+      ).body
+      expect(family).toMatchObject({
+        name: 'Oila',
+        priceTypeName: 'Oila',
+        reminder: 'Chek berish kerak',
+        noDebt: false,
+        noExchange: true,
+        members: 0,
+      })
+      regular = (
+        await alpha.post('/api/customers/groups').send({ name: 'Doimiy', reminder: "Sumka sovg'a" }).expect(201)
+      ).body
+
+      expect((await alpha.post('/api/customers/groups').send({ name: 'oila' })).body.error.fields.name).toBeDefined()
+      const types = (await alpha.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
+      const floor = types.find((type) => type.kind === 'min')!.id
+      // The floor is not a price anybody buys at.
+      const atFloor = await alpha.post('/api/customers/groups').send({ name: 'Pol', priceTypeId: floor })
+      expect(atFloor.body.error.fields.priceTypeId).toBeDefined()
+      await cashier.get('/api/customers/groups').expect(403)
+    })
+
+    it('put a customer in groups and under tags, and find them by either', async () => {
+      const card = { name: 'Nodira Aliyeva', phone: '+998901234567', birthday: '1994-03-08', gender: 'female' }
+      const saved = (
+        await alpha
+          .put(`/api/customers/${nodira.id}`)
+          .send({ ...card, groupIds: [family.id, regular.id], tags: ['vip', 'toy', 'vip'] })
+          .expect(200)
+      ).body
+      expect(saved.groups.map((group: { name: string }) => group.name)).toEqual(['Oila', 'Doimiy'])
+      expect(saved.tags).toEqual(['vip', 'toy'])
+      const unknown = await alpha.put(`/api/customers/${nodira.id}`).send({ ...card, groupIds: [randomUUID()] })
+      expect(unknown.body.error.fields.groupIds).toBeDefined()
+
+      const names = async (query: Record<string, string>) =>
+        ((await alpha.get('/api/customers').query(query).expect(200)).body.items as CustomerRow[]).map(
+          (item) => item.name,
+        )
+      expect(await names({ groupId: family.id })).toEqual(['Nodira Aliyeva'])
+      expect(await names({ tag: 'toy' })).toEqual(['Nodira Aliyeva'])
+      expect(await names({ tag: 'yoq' })).toEqual([])
+      expect(await names({ q: 'vip' })).toEqual(['Nodira Aliyeva'])
+      const groups = (await alpha.get('/api/customers/groups').expect(200)).body as { name: string; members: number }[]
+      expect(groups.map((group) => [group.name, group.members])).toEqual([
+        ['Oila', 1],
+        ['Doimiy', 1],
+      ])
+    })
+
+    it('tell the till what the groups of the customer it picked ask for', async () => {
+      const [picked] = (await cashier.get('/api/pos/customers').query({ q: '1234567' }).expect(200)).body
+      expect(picked).toEqual({
+        id: nodira.id,
+        name: 'Nodira Aliyeva',
+        phone: '+998901234567',
+        groups: ['Oila', 'Doimiy'],
+        reminders: ['Chek berish kerak', "Sumka sovg'a"],
+        priceType: { id: familyPrice, name: 'Oila' },
+        noDebt: false,
+        noLayaway: false,
+        noExchange: true,
+      })
+    })
+
+    it("sell to a group's member at the group's price, whoever is at the till", async () => {
+      // Nobody picks this price at the till; it comes with the customer.
+      const sale = (await scarfSale(nodira.id, familyPrice, som(30_000)).expect(201)).body
+      expect(sale).toMatchObject({ total: som(30_000), priceTypeName: 'Oila', customerName: 'Nodira Aliyeva' })
+      expect(sale.approvedByName).toBeNull()
+      // Without the customer, or for one who is not in the group, there is no such price.
+      expect((await scarfSale(null, familyPrice, som(30_000))).body.error.fields.priceTypeId).toBeDefined()
+      const other = (await cashier.get('/api/pos/customers').query({ q: 'sardor' }).expect(200)).body[0]
+      expect((await scarfSale(other.id, familyPrice, som(30_000))).status).toBe(400)
+      // A member may still buy at the retail price.
+      await scarfSale(nodira.id, null, som(50_000)).expect(201)
+    })
+
+    it('refuse what is not done for the group, and leave the rest alone', async () => {
+      const sale = (await scarfSale(nodira.id, null, som(50_000)).expect(201)).body
+      const back = (more: Record<string, unknown>) =>
+        cashier.post('/api/returns').send({
+          clientKey: randomUUID(),
+          registerId,
+          saleId: sale.id,
+          lines: [{ saleLineId: sale.lines[0].id, qty: 1 }],
+          total: som(50_000),
+          ...more,
+        })
+      const swap = await back({ exchange: { lines: [{ variantId: scarf, qty: 1 }], total: som(50_000) } })
+      expect(swap.status).toBe(409)
+      expect(swap.body.error.code).toBe('NO_EXCHANGE')
+      expect(swap.body.error.message).toContain('almashtirib berilmaydi')
+      // Their money back is another matter.
+      await back({ refunds: [{ method: 'cash', currency: 'UZS', amount: som(50_000) }] }).expect(201)
+    })
+
+    it('stop giving rules once the group is archived', async () => {
+      expect((await alpha.post(`/api/customers/groups/${family.id}/archive`).expect(200)).body.isActive).toBe(false)
+      const [picked] = (await cashier.get('/api/pos/customers').query({ q: '1234567' }).expect(200)).body
+      expect(picked).toMatchObject({
+        groups: ['Doimiy'],
+        reminders: ["Sumka sovg'a"],
+        priceType: null,
+        noExchange: false,
+      })
+      expect((await scarfSale(nodira.id, familyPrice, som(30_000))).status).toBe(400)
+    })
   })
 })

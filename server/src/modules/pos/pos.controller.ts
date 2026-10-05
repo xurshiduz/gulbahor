@@ -11,10 +11,10 @@ import {
   saleInputSchema,
   saleListQuerySchema,
   saleVoidSchema,
-  type CustomerBrief,
   type CustomerInput,
   type Page,
   type PosContextDto,
+  type PosCustomerDto,
   type PosItemDto,
   type ReturnableDto,
   type ReturnDto,
@@ -74,7 +74,7 @@ export class PosController {
   findCustomers(
     @CurrentActor() actor: Actor,
     @Query(zod(posCustomerSearchSchema)) query: { q: string },
-  ): Promise<CustomerBrief[]> {
+  ): Promise<PosCustomerDto[]> {
     return this.customers.search(actor, query.q)
   }
 
@@ -83,11 +83,12 @@ export class PosController {
   async addCustomer(
     @CurrentActor() actor: Actor,
     @Body(zod(posCustomerInputSchema)) input: { registerId: string } & CustomerInput,
-  ): Promise<CustomerBrief> {
+  ): Promise<PosCustomerDto> {
     const { registerId, ...customer } = input
     const { locationId } = await this.pos.registerOf(actor, registerId)
-    const saved = await this.customers.create(actor, customer, locationId)
-    return { id: saved.id, name: saved.name, phone: saved.phone }
+    // Who is in which group is for those who keep the base: at the till a customer is only written down.
+    const saved = await this.customers.create(actor, { ...customer, groupIds: [], tags: [] }, locationId)
+    return this.customers.forTill(actor, saved.id)
   }
 
   @Post('items')

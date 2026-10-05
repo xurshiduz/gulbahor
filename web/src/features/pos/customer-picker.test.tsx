@@ -1,4 +1,4 @@
-import type { CustomerBrief } from '@gulbahor/core'
+import type { PosCustomerDto } from '@gulbahor/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -9,11 +9,21 @@ import { api } from '@/lib/api'
 
 import { CustomerPicker } from './customer-picker'
 
-const nodira: CustomerBrief = { id: 'c1', name: 'Nodira Karimova', phone: '+998901234567' }
+const nodira: PosCustomerDto = {
+  id: 'c1',
+  name: 'Nodira Karimova',
+  phone: '+998901234567',
+  groups: ['Oila', 'Doimiy'],
+  reminders: ['Chek berish kerak'],
+  priceType: { id: 'family', name: 'Oila' },
+  noDebt: false,
+  noLayaway: false,
+  noExchange: true,
+}
 
 /** The picker as the till holds it: one customer, or none. */
 function Counter({ onAsked }: { onAsked?: (q: string) => void }) {
-  const [customer, setCustomer] = useState<CustomerBrief | null>(null)
+  const [customer, setCustomer] = useState<PosCustomerDto | null>(null)
   vi.spyOn(api, 'get').mockImplementation(((_path: string, params?: Record<string, unknown>) => {
     const q = String(params?.q ?? '')
     onAsked?.(q)
@@ -47,6 +57,9 @@ describe('who is at the counter', () => {
     // Picked, they stand where the field was, with their number.
     expect(screen.queryByRole('textbox', { name: 'Mijoz' })).toBeNull()
     expect(screen.getByText(/\+998 90 123 45 67/)).toBeTruthy()
+    // With them come their groups, and what the groups ask the cashier to remember.
+    expect(screen.getByText(/Oila, Doimiy/)).toBeTruthy()
+    expect(screen.getByRole('note').textContent).toBe('Chek berish kerak')
 
     // Taken off again, the field is back.
     await userEvent.click(screen.getByRole('button', { name: 'Mijozni olib tashlash' }))
@@ -66,9 +79,10 @@ describe('who is at the counter', () => {
     expect(document.activeElement).toBe(name)
     await userEvent.type(name, 'Sardor{Enter}')
     await waitFor(() => expect(saved).toHaveBeenCalledTimes(1))
+    // The till writes down who they are and where; groups are for those who keep the base.
     expect(saved.mock.calls[0]).toEqual([
       '/pos/customers',
-      { name: 'Sardor', phone: '+998977000001', birthday: null, gender: null, note: null, registerId: 'r1' },
+      expect.objectContaining({ name: 'Sardor', phone: '+998977000001', registerId: 'r1', groupIds: [] }),
     ])
     await waitFor(() => expect(screen.getByLabelText('customer').textContent).toBe('Sardor'))
   })

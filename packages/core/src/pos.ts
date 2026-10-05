@@ -771,6 +771,8 @@ export interface ReturnableDto {
   returnDays: number
   /** This person may take goods back late, and hand money back otherwise than it was paid. */
   free: boolean
+  /** The customer's group does not have goods exchanged: taking others instead needs someone allowed to. */
+  noExchange: boolean
   /** How much may still go back each way, in so'm: what was paid that way, less what has gone back. */
   caps: {
     cash: number

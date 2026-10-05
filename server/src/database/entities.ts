@@ -676,6 +676,10 @@ export class Customer {
   @Column('uuid', { nullable: true })
   locationId: string | null
 
+  /** Marks for finding and for mailings. */
+  @Column('text', { array: true, default: () => "'{}'" })
+  tags: string[]
+
   @Column('boolean')
   isActive: boolean
 
@@ -687,6 +691,56 @@ export class Customer {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date
+}
+
+@Entity('customer_groups')
+export class CustomerGroup {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  name: string
+
+  /** The price type its members buy at. */
+  @Column('uuid', { nullable: true })
+  priceTypeId: string | null
+
+  /** Shown to the cashier when a member is picked. */
+  @Column('text', { nullable: true })
+  reminder: string | null
+
+  @Column('boolean')
+  noDebt: boolean
+
+  @Column('boolean')
+  noLayaway: boolean
+
+  @Column('boolean')
+  noExchange: boolean
+
+  @Column('boolean')
+  isActive: boolean
+
+  @Column('int')
+  sortOrder: number
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+@Entity('customer_group_members')
+export class CustomerGroupMember {
+  @PrimaryColumn('uuid')
+  customerId: string
+
+  @PrimaryColumn('uuid')
+  groupId: string
+
+  @Column('uuid')
+  orgId: string
 }
 
 @Entity('receipts')
@@ -2504,4 +2558,6 @@ export const ENTITIES = [
   MoneyOp,
   MoneyOpLine,
   Customer,
+  CustomerGroup,
+  CustomerGroupMember,
 ]

@@ -5,6 +5,7 @@ import {
   formatMoney,
   type CustomerDto,
   type CustomerGender,
+  type CustomerGroupDto,
   type CustomerInput,
   type CustomerSummary,
   type Page as PageOf,
@@ -13,13 +14,14 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, Cake, MoreHorizontal, Pencil, Plus, UsersRound } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FilterSelect } from '@/components/ui/column-filters'
-import { Menu, Select, type MenuItem } from '@/components/ui/controls'
+import { Combobox } from '@/components/ui/combobox'
+import { Menu, Select, TabPanel, Tabs, type MenuItem } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog } from '@/components/ui/dialog'
@@ -29,6 +31,7 @@ import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input, Textarea } from '@/components/ui/input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { PhoneInput } from '@/components/ui/phone-input'
+import { TagInput } from '@/components/ui/tag-input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -37,6 +40,8 @@ import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/form
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
+
+import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 
 const route = getRouteApi('/customers')
 
@@ -56,8 +61,10 @@ export function CustomersPage() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const canManage = can('customers.manage')
+  const [groupForm, setGroupForm] = useState<CustomerGroupDto | null | undefined>()
+  const groups = useCustomerGroups()
 
-  const { edit, ...filters } = search
+  const { edit, tab, ...filters } = search
   const list = useQuery({
     queryKey: ['customers', 'list', filters],
     queryFn: ({ signal }) => api.get<Listed>('/customers', filters, signal),
@@ -73,10 +80,12 @@ export function CustomersPage() {
 
   const open = (value: string | undefined) => void navigate({ search: (previous) => ({ ...previous, edit: value }) })
 
-  useHotkey('n', () => open('new'), {
-    label: t('customers.add'),
+  const add = () => (tab === 'groups' ? setGroupForm(null) : open('new'))
+  const addLabel = tab === 'groups' ? t('customers.addGroup') : t('customers.add')
+  useHotkey('n', add, {
+    label: addLabel,
     group: t('shortcuts.groupList'),
-    enabled: canManage && !edit,
+    enabled: canManage && !edit && groupForm === undefined,
   })
 
   const columns = useMemo<ColumnDef<CustomerDto>[]>(
@@ -110,6 +119,27 @@ export function CustomersPage() {
           header: t('customers.phone'),
           meta: { export: (row) => formatPhone(row.phone), className: 'tabular whitespace-nowrap' },
           cell: ({ row }) => formatPhone(row.original.phone),
+        },
+        {
+          id: 'groups',
+          header: t('customers.groups'),
+          meta: {
+            export: (row) => [...row.groups.map((group) => group.name), ...row.tags.map((tag) => `#${tag}`)].join(', '),
+          },
+          cell: ({ row }) => (
+            <span className="flex flex-wrap items-center gap-1">
+              {row.original.groups.map((group) => (
+                <Badge key={group.id} tone="accent">
+                  {group.name}
+                </Badge>
+              ))}
+              {row.original.tags.map((tag) => (
+                <span key={tag} className="text-xs text-ink-3">
+                  #{tag}
+                </span>
+              ))}
+            </span>
+          ),
         },
         {
           id: 'birthday',
@@ -221,86 +251,128 @@ export function CustomersPage() {
       title={t('customers.title')}
       actions={
         canManage ? (
-          <Button variant="primary" onClick={() => open('new')}>
+          <Button variant="primary" onClick={add}>
             <Plus />
-            {t('customers.add')}
+            {addLabel}
             <Shortcut combo="n" className="ml-1 opacity-70" />
           </Button>
         ) : null
       }
     >
-      {summary ? (
-        <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-          <Figure label={t('customers.total')} value={summary.total} />
-          <Figure label={t('customers.newThisWeek')} value={summary.newThisWeek} tone="ok" />
-          <Figure label={t('customers.lapsed')} value={summary.lapsed} hint={t('customers.lapsedHint')} tone="warn" />
-          {/* The one figure that is also a filter: who to congratulate this week. */}
-          <Figure
-            label={t('customers.birthdaysSoon')}
-            value={summary.birthdaysSoon}
-            icon={<Cake className="size-4" />}
-            active={soon}
-            onClick={() =>
-              void navigate({ search: (previous) => withFilter(previous, { birthdayIn: soon ? undefined : 7 }) })
+      <Tabs
+        value={tab}
+        onChange={(value) => void navigate({ search: { tab: value as typeof tab } })}
+        tabs={[
+          { value: 'list', label: t('customers.title') },
+          { value: 'groups', label: t('customers.groups') },
+        ]}
+      >
+        <TabPanel value="groups">
+          <GroupsTab onEdit={setGroupForm} />
+        </TabPanel>
+        <TabPanel value="list">
+          {summary ? (
+            <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+              <Figure label={t('customers.total')} value={summary.total} />
+              <Figure label={t('customers.newThisWeek')} value={summary.newThisWeek} tone="ok" />
+              <Figure
+                label={t('customers.lapsed')}
+                value={summary.lapsed}
+                hint={t('customers.lapsedHint')}
+                tone="warn"
+              />
+              {/* The one figure that is also a filter: who to congratulate this week. */}
+              <Figure
+                label={t('customers.birthdaysSoon')}
+                value={summary.birthdaysSoon}
+                icon={<Cake className="size-4" />}
+                active={soon}
+                onClick={() =>
+                  void navigate({ search: (previous) => withFilter(previous, { birthdayIn: soon ? undefined : 7 }) })
+                }
+              />
+            </div>
+          ) : null}
+          <DataTable
+            columns={columns}
+            data={list.data?.items}
+            loading={list.isFetching}
+            rowId={(row) => row.id}
+            onRowOpen={canManage ? (row) => open(row.id) : undefined}
+            exportAs={{ fileName: t('customers.title'), rows: () => fetchAll<CustomerDto>('/customers', filters) }}
+            sort={search.sort ?? 'name'}
+            order={search.order}
+            onSortChange={(sort, order) =>
+              void navigate({ search: (previous) => withFilter(previous, { sort, order }) })
+            }
+            preferenceKey="customers"
+            rowClassName={(row) => (row.isActive ? undefined : 'text-ink-3')}
+            pagination={{
+              page: search.page,
+              size: search.size,
+              total: list.data?.total ?? 0,
+              onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
+              onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
+            }}
+            filters={{
+              groups: (
+                <FilterSelect
+                  value={search.groupId ?? 'all'}
+                  onChange={(groupId) =>
+                    void navigate({
+                      search: (previous) => withFilter(previous, { groupId: groupId === 'all' ? undefined : groupId }),
+                    })
+                  }
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    ...(groups.data ?? []).map((group) => ({ value: group.id, label: group.name })),
+                  ]}
+                />
+              ),
+              status: (
+                <FilterSelect
+                  value={search.status}
+                  onChange={(status) =>
+                    void navigate({
+                      search: (previous) => withFilter(previous, { status: status as typeof search.status }),
+                    })
+                  }
+                  options={[
+                    { value: 'active', label: t('common.active') },
+                    { value: 'archived', label: t('common.archived') },
+                    { value: 'all', label: t('common.all') },
+                  ]}
+                />
+              ),
+            }}
+            toolbar={
+              <SearchInput
+                value={search.q ?? ''}
+                onChange={(q) =>
+                  void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
+                }
+              />
+            }
+            empty={
+              <EmptyState
+                icon={UsersRound}
+                title={search.q || soon ? t('common.nothingFound') : t('customers.empty')}
+                hint={search.q || soon ? undefined : t('customers.emptyHint')}
+              />
             }
           />
-        </div>
-      ) : null}
-      <DataTable
-        columns={columns}
-        data={list.data?.items}
-        loading={list.isFetching}
-        rowId={(row) => row.id}
-        onRowOpen={canManage ? (row) => open(row.id) : undefined}
-        exportAs={{ fileName: t('customers.title'), rows: () => fetchAll<CustomerDto>('/customers', filters) }}
-        sort={search.sort ?? 'name'}
-        order={search.order}
-        onSortChange={(sort, order) => void navigate({ search: (previous) => withFilter(previous, { sort, order }) })}
-        preferenceKey="customers"
-        rowClassName={(row) => (row.isActive ? undefined : 'text-ink-3')}
-        pagination={{
-          page: search.page,
-          size: search.size,
-          total: list.data?.total ?? 0,
-          onPageChange: (page) => void navigate({ search: (previous) => ({ ...previous, page }) }),
-          onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
-        }}
-        filters={{
-          status: (
-            <FilterSelect
-              value={search.status}
-              onChange={(status) =>
-                void navigate({
-                  search: (previous) => withFilter(previous, { status: status as typeof search.status }),
-                })
-              }
-              options={[
-                { value: 'active', label: t('common.active') },
-                { value: 'archived', label: t('common.archived') },
-                { value: 'all', label: t('common.all') },
-              ]}
-            />
-          ),
-        }}
-        toolbar={
-          <SearchInput
-            value={search.q ?? ''}
-            onChange={(q) =>
-              void navigate({ search: (previous) => withFilter(previous, { q: q || undefined }), replace: true })
-            }
-          />
-        }
-        empty={
-          <EmptyState
-            icon={UsersRound}
-            title={search.q || soon ? t('common.nothingFound') : t('customers.empty')}
-            hint={search.q || soon ? undefined : t('customers.emptyHint')}
-          />
-        }
-      />
+        </TabPanel>
+      </Tabs>
       {edit && dialogCustomer !== undefined ? (
-        <CustomerDialog key={edit} customer={dialogCustomer} onClose={() => open(undefined)} onSaved={refresh} />
+        <CustomerDialog
+          key={edit}
+          customer={dialogCustomer}
+          groups={(groups.data ?? []).filter((group) => group.isActive)}
+          onClose={() => open(undefined)}
+          onSaved={refresh}
+        />
       ) : null}
+      {groupForm !== undefined ? <GroupDialog group={groupForm} onClose={() => setGroupForm(undefined)} /> : null}
     </Page>
   )
 }
@@ -357,14 +429,19 @@ interface Values {
   birthday: string
   gender: CustomerGender | ''
   note: string
+  groupIds: string[]
+  tags: string[]
 }
 
 export function CustomerDialog({
   customer,
+  groups,
   onClose,
   onSaved,
 }: {
   customer: CustomerDto | null
+  /** The groups a customer can be put in. */
+  groups: CustomerGroupDto[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -377,6 +454,8 @@ export function CustomerDialog({
       birthday: customer?.birthday ?? '',
       gender: customer?.gender ?? '',
       note: customer?.note ?? '',
+      groupIds: customer?.groups.map((group) => group.id) ?? [],
+      tags: customer?.tags ?? [],
     },
   })
   const errors = form.formState.errors
@@ -473,6 +552,46 @@ export function CustomerDialog({
             )}
           </Field>
         </div>
+        {groups.length || customer?.groups.length ? (
+          <Field label={t('customers.groups')} hint={t('customers.groupsHint')} error={errors.groupIds?.message}>
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="groupIds"
+                render={({ field }) => (
+                  <Combobox
+                    id={id}
+                    multiple
+                    options={[
+                      ...groups,
+                      // A group since archived stays on the customer until it is taken off them.
+                      ...(customer?.groups.filter((group) => !groups.some((item) => item.id === group.id)) ?? []),
+                    ].map((group) => ({ value: group.id, label: group.name }))}
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            )}
+          </Field>
+        ) : null}
+        <Field label={t('customers.tags')} hint={t('customers.tagsHint')} error={errors.tags?.message}>
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="tags"
+              render={({ field }) => (
+                <TagInput
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  parse={(text) => text.replace(/^#/, '').slice(0, 30) || null}
+                  max={20}
+                />
+              )}
+            />
+          )}
+        </Field>
         <Field label={t('partners.note')} error={errors.note?.message}>
           {(id) => <Textarea id={id} rows={2} {...form.register('note')} />}
         </Field>

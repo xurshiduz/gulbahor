@@ -206,6 +206,11 @@ Qoidalar:
 3. **Kassadagi eslatma — Billz'dan yaxshiroq.** Guruhda ikki narsa bo'ladi:
    - **Eslatma matni** — mijoz tanlanganda kassada sariq yozuv bo'lib chiqadi ("Chek berish kerak").
    - **Taqiqlar** — belgilab qo'yiladi va tizim o'zi bajaradi: "qarzga berilmaydi", "otlojka qilinmaydi", "almashtirib berilmaydi". Billz'da bu faqat matn, kassir unutsa bo'ldi; bizda tizim o'zi to'xtatadi.
+   - Qilingan (2026-10-05), 2- va 3-bandlar: **"Mijozlar → Guruhlar"**. Guruhda: nomi, **narxi** (narx turi — masalan "Oila"), **kassadagi eslatma**, **taqiqlar** (qarzga berilmaydi, tovar olib qo'yilmaydi, almashtirib berilmaydi). Mijoz bir nechta guruhda bo'ladi; **teglar** mijoz kartasida erkin yoziladi (qidiruvda va filtrda ishlaydi, qoida bermaydi).
+   - Kassada mijoz tanlanganda: ismi yonida guruhlari, ostida **sariq eslatma** (chek tugaguncha ko'rinib turadi); guruhning narxi bo'lsa **savat o'zi shu narxga o'tadi** — kassir hech narsa tanlamaydi, ruxsat ham, rahbar PIN'i ham kerak emas (narx mijoz bilan keladi). Mijoz olib tashlansa, narx ham chakanaga qaytadi. Guruhga biriktirilgan narx turi "kassada tanlanmaydi" bo'lsa ham ishlaydi — ya'ni "Oila" narxini mijozsiz hech kim qo'ya olmaydi.
+   - "Almashtirib berilmaydi" taqiqi ishlaydi: shunday guruh a'zosining chekida almashtirish boshlansa, kassa rahbar tasdig'ini so'raydi (pulini qaytarish taqiqlanmagan). "Qarzga berilmaydi" va "olib qo'yilmaydi" belgilari saqlanadi va qarz hamda otlojka qurilganda ishlay boshlaydi.
+   - Bir nechta guruhda bo'lsa: eslatmalarning hammasi chiqadi, narx — birinchi guruhniki, taqiq — birortasida bo'lsa ham amal qiladi. Arxivlangan guruh qoida bermaydi.
+   - Hali yo'q: guruh chegirmasi foizi (5c da, sodiqlik pog'onalari bilan birga — ikkalasi bitta "mijoz chegirmasi" mexanizmi).
 4. **Sodiqlik dasturi.** Ikki tur, biznes birini tanlaydi: pog'onali chegirma (akaning hozirgisi) yoki keshbek (ball). Pog'onalar Billz'dagidek ko'chiriladi.
 5. **Chakana qarz.** Qarzga sotish, muddat, qisman to'lash, muddati o'tganlar ro'yxati. Bu hamkor hisobining soddaroq ko'rinishi — asosi tayyor.
 

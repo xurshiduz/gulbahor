@@ -16,7 +16,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 `84e8ac1` dan keyin, tartib bilan: hamkor hisobi va to'lovlar; kassada tez skaner tuzatishi; RFID o'quvchilar; Chainway ko'prigi; xususiyat qiymatlarini birlashtirish; tayyor qatorli to'lov oynasi va Alt+K / Alt+C; alertlar va brauzer bildirishnomalari, `money.sent` / `goods.sent`; kirimdan yetkazib beruvchi qarzi; reja va tahlil hujjatlari.
 
-Oxirgi to'liq tekshiruv: 2026-10-05 06:00 — core 107, agent 17, server 218, web 113; typecheck va lint toza
+Oxirgi to'liq tekshiruv: 2026-10-05 06:40 — core 107, agent 17, server 225, web 115; typecheck va lint toza
 
 ## Ko'z bilan tekshirilmagan (ertalab ko'rib chiqish kerak)
 
@@ -25,6 +25,7 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
 - Kassa: "Kelishilgan summa" maydoni va yaxlit summa tugmalari (1a).
 - Kassa: minimal narxdan past qatorning qizil yozuvi va rahbar tasdig'i (1b).
 - Kassa: dollar qatori ostidagi "So'mda hisoblanadi" maydoni (1c); Sozlamalar → Biznes dagi "Dollarni kursdan qimmat olish chegarasi".
+- "Mijozlar → Guruhlar" varag'i, mijoz formasidagi guruh va teglar, kassada guruh eslatmasi (5b) — testlar yashil, ekranda ko'rilmagan.
 - "Mijozlar" sahifasi va kassadagi "Mijoz" maydoni (5a) — testlar yashil, ekranda ko'rilmagan.
 - Kassa: "Narx" tanlagichi va narx turi formasidagi "Kassada" sozlamasi (4c) — testlar yashil, ekranda ko'rilmagan.
 - Kirim: har narx turiga maydon va yashirin "qo'shimcha xarajat" (4a, 4b); Sozlamalar → Biznes dagi yoqish tugmasi — testlar yashil, ekranda ko'rilmagan.
@@ -50,8 +51,8 @@ Tunda brauzerda tizimga kira olmadim (parolni o'qish ruxsati yo'q, to'g'ri ham) 
    - [x] 4c. Kassada narx turini tanlash: narx turida "kassada kim tanlaydi", chekda qaysi narx va kim tanlagani.
 5. **Mijozlar** — bo'laklarga bo'lingan:
    - [x] 5a. Mijozlar bazasi, "Mijozlar" sahifasi, kassada mijozni topish va qo'shish, chekda mijoz.
-   - [ ] 5b. Guruh va teglar: guruh chegirmasi va narx turi, kassadagi eslatma va taqiqlar.
-   - [ ] 5c. Sodiqlik pog'onalari (xaridlar summasidan chegirma foizi).
+   - [x] 5b. Guruh va teglar: guruhning narx turi, kassadagi eslatma va taqiqlar.
+   - [ ] 5c. Mijoz chegirmasi: guruh foizi va sodiqlik pog'onalari (xaridlar summasidan) — avtomatik chegirma, qo'l chegirmasidan alohida.
    - [ ] 5d. Chakana qarz ("Qarzga" to'lov qatori, muddat, qisman to'lash) — daftarga tegadi, foydalanuvchi bilan.
 6. [ ] Aksiyalar (foiz, belgilangan narx, 1+1), chegirmalar tartibi, promokod.
 7. [ ] Chek va etiketka dizayni.
@@ -61,7 +62,7 @@ Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) �
 
 ## Hozir ishlanayotgan bo'lak
 
-5. Mijozlar: baza, guruh va teg, kassadagi eslatma va taqiqlar, sodiqlik pog'onalari (2026-10-05 06:00 da boshlandi).
+5b. Mijoz guruhlari va teglar (2026-10-05 06:40 da boshlandi).
 
 ## Ish daraxti nusxalari
 
@@ -80,3 +81,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `b08a7b585c7280cea885044745f33a75325ff447` | 3: ikki qavatli menyu |
 | `380ff425678d9d26e9fa3b357c67043618f747f0` | 4a, 4b: kirimda har narx turiga maydon; qo'shimcha xarajat sozlamada |
 | `c399bb632b1c172ce15a59138711616e37436811` | 4c: kassada narx turini tanlash |
+| `ee1f55472caebeb66f9b99b16aabe23d000f9f4c` | 5a: mijozlar bazasi va kassada mijoz |

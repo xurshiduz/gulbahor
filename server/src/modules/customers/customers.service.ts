@@ -1,26 +1,29 @@
 import {
   searchKey,
-  type CustomerBrief,
   type CustomerDto,
+  type CustomerGroupDto,
+  type CustomerGroupInput,
   type CustomerInput,
   type CustomerListQuery,
   type CustomerSummary,
   type Page,
+  type PosCustomerDto,
 } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
-import type { EntityManager } from 'typeorm'
+import { In, type EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Customer } from '../../database/entities'
+import { Customer, CustomerGroup, CustomerGroupMember, PriceType } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
+import { rulesOf } from './groups'
 
 const SORTABLE = { name: 'c.name', createdAt: 'c.createdAt' }
 
-const AUDITED: (keyof Customer & string)[] = ['name', 'phone', 'birthday', 'gender', 'note', 'isActive']
+const AUDITED: (keyof Customer & string)[] = ['name', 'phone', 'birthday', 'gender', 'note', 'tags', 'isActive']
 
 interface Bought {
   customer_id: string
@@ -50,6 +53,13 @@ export class CustomersService {
       if (query.birthdayIn !== undefined) {
         qb.andWhere(`${DAYS_TO_BIRTHDAY} <= :within`, { within: query.birthdayIn })
       }
+      if (query.groupId) {
+        qb.andWhere(
+          `EXISTS (SELECT 1 FROM customer_group_members m WHERE m.customer_id = c.id AND m.group_id = :groupId)`,
+          { groupId: query.groupId },
+        )
+      }
+      if (query.tag) qb.andWhere(':tag = ANY(c.tags)', { tag: query.tag })
       applySearch(qb, 'c.search_key', query.q)
       applySort(qb, SORTABLE, query.sort, query.order, 'name')
       const [rows, total] = await qb
@@ -70,22 +80,36 @@ export class CustomersService {
     return this.db.tenant(actor.orgId, async ({ em }) => (await this.dtos(em, [await this.find(em, id)]))[0])
   }
 
-  /** Who the till finds by a few digits of a phone or a few letters of a name: those still on the books. */
-  async search(actor: Actor, q: string): Promise<CustomerBrief[]> {
+  /**
+   * Who the till finds by a few digits of a phone or a few letters of a name: those still on the books,
+   * each with the rules their groups give.
+   */
+  async search(actor: Actor, q: string): Promise<PosCustomerDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const qb = em.createQueryBuilder(Customer, 'c').where('c.isActive')
       applySearch(qb, 'c.search_key', q)
       const rows = await qb.orderBy('c.name').limit(10).getMany()
-      return rows.map(brief)
+      const rules = await rulesOf(em, rows)
+      return rows.map((row) => rules.get(row.id) as PosCustomerDto)
+    })
+  }
+
+  /** One customer as the till knows them. */
+  async forTill(actor: Actor, id: string): Promise<PosCustomerDto> {
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const customer = await this.find(em, id)
+      return (await rulesOf(em, [customer])).get(id) as PosCustomerDto
     })
   }
 
   async create(actor: Actor, input: CustomerInput, locationId: string | null = null): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertPhoneFree(em, input.phone)
+      const { groupIds, ...fields } = input
       const saved = await em.save(
-        em.create(Customer, { orgId: actor.orgId, ...input, locationId, isActive: true, searchKey: keyOf(input) }),
+        em.create(Customer, { orgId: actor.orgId, ...fields, locationId, isActive: true, searchKey: keyOf(input) }),
       )
+      await this.setGroups(em, actor.orgId, saved.id, groupIds)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'customer.create',
         entity: 'customer',
@@ -101,7 +125,9 @@ export class CustomersService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
       await this.assertPhoneFree(em, input.phone, id)
-      await em.update(Customer, id, { ...input, searchKey: keyOf(input) })
+      const { groupIds, ...fields } = input
+      await em.update(Customer, id, { ...fields, searchKey: keyOf(input) })
+      await this.setGroups(em, actor.orgId, id, groupIds)
       const after = await this.find(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'customer.update',
@@ -131,6 +157,143 @@ export class CustomersService {
       }
       return (await this.dtos(em, [await this.find(em, id)]))[0]
     })
+  }
+
+  // ───────────────────────────── Groups ─────────────────────────────
+
+  async groups(actor: Actor): Promise<CustomerGroupDto[]> {
+    return this.db.tenant(actor.orgId, async ({ em }) => this.groupDtos(em))
+  }
+
+  async createGroup(actor: Actor, input: CustomerGroupInput): Promise<CustomerGroupDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      await this.assertGroup(em, input)
+      const [{ last }]: { last: number }[] = await em.query(
+        `SELECT coalesce(max(sort_order), 0)::int AS last FROM customer_groups`,
+      )
+      const saved = await em.save(
+        em.create(CustomerGroup, { orgId: actor.orgId, ...input, isActive: true, sortOrder: last + 1 }),
+      )
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'customer_group.create',
+        entity: 'customer_group',
+        entityId: saved.id,
+        summary: saved.name,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
+      return (await this.groupDtos(em, saved.id))[0]
+    })
+  }
+
+  async updateGroup(actor: Actor, id: string, input: CustomerGroupInput): Promise<CustomerGroupDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const before = await this.findGroup(em, id)
+      await this.assertGroup(em, input, id)
+      await em.update(CustomerGroup, id, input)
+      const after = await this.findGroup(em, id)
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'customer_group.update',
+        entity: 'customer_group',
+        entityId: id,
+        summary: after.name,
+        changes: diff(before, after, ['name', 'priceTypeId', 'reminder', 'noDebt', 'noLayaway', 'noExchange']),
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
+      return (await this.groupDtos(em, id))[0]
+    })
+  }
+
+  async setGroupActive(actor: Actor, id: string, active: boolean): Promise<CustomerGroupDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const before = await this.findGroup(em, id)
+      if (before.isActive !== active) {
+        await em.update(CustomerGroup, id, { isActive: active })
+        await this.audit.record(em, actor.orgId, actor, {
+          action: active ? 'customer_group.restore' : 'customer_group.archive',
+          entity: 'customer_group',
+          entityId: id,
+          summary: before.name,
+        })
+        afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
+      }
+      return (await this.groupDtos(em, id))[0]
+    })
+  }
+
+  private async groupDtos(em: EntityManager, id?: string): Promise<CustomerGroupDto[]> {
+    const rows: {
+      id: string
+      name: string
+      price_type_id: string | null
+      price_type_name: string | null
+      reminder: string | null
+      no_debt: boolean
+      no_layaway: boolean
+      no_exchange: boolean
+      is_active: boolean
+      members: number
+    }[] = await em.query(
+      `SELECT g.id, g.name, g.price_type_id, t.name AS price_type_name, g.reminder, g.no_debt, g.no_layaway,
+              g.no_exchange, g.is_active,
+              (SELECT count(*)::int FROM customer_group_members m JOIN customers c ON c.id = m.customer_id
+               WHERE m.group_id = g.id AND c.is_active) AS members
+       FROM customer_groups g LEFT JOIN price_types t ON t.id = g.price_type_id
+       WHERE $1::uuid IS NULL OR g.id = $1
+       ORDER BY g.sort_order, g.name`,
+      [id ?? null],
+    )
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      priceTypeId: row.price_type_id,
+      priceTypeName: row.price_type_name,
+      reminder: row.reminder,
+      noDebt: row.no_debt,
+      noLayaway: row.no_layaway,
+      noExchange: row.no_exchange,
+      isActive: row.is_active,
+      members: row.members,
+    }))
+  }
+
+  private async findGroup(em: EntityManager, id: string): Promise<CustomerGroup> {
+    const group = await em.findOneBy(CustomerGroup, { id })
+    if (!group) {
+      throw AppError.notFound('Guruh topilmadi')
+    }
+    return group
+  }
+
+  private async assertGroup(em: EntityManager, input: CustomerGroupInput, exceptId?: string) {
+    const [taken] = await em.query(
+      `SELECT 1 FROM customer_groups WHERE lower(name) = lower($1) AND id IS DISTINCT FROM $2`,
+      [input.name, exceptId ?? null],
+    )
+    if (taken) {
+      throw AppError.validation({ name: 'Bunday guruh bor' })
+    }
+    if (input.priceTypeId) {
+      // A group's members buy at a price; the floor is not one.
+      const type = await em.findOneBy(PriceType, { id: input.priceTypeId, isActive: true })
+      if (!type || type.kind === 'min') {
+        throw AppError.validation({ priceTypeId: 'Narx turi topilmadi' })
+      }
+    }
+  }
+
+  /** Puts a customer in exactly these groups. */
+  private async setGroups(em: EntityManager, orgId: string, customerId: string, groupIds: string[]) {
+    const ids = [...new Set(groupIds)]
+    if (ids.length && (await em.countBy(CustomerGroup, { id: In(ids) })) !== ids.length) {
+      throw AppError.validation({ groupIds: 'Guruh topilmadi' })
+    }
+    await em.delete(CustomerGroupMember, { customerId })
+    if (ids.length) {
+      await em.insert(
+        CustomerGroupMember,
+        ids.map((groupId) => ({ orgId, customerId, groupId })),
+      )
+    }
   }
 
   // ───────────────────────────── Inside ─────────────────────────────
@@ -171,10 +334,21 @@ export class CustomersService {
       customers.flatMap((customer) => customer.locationId ?? []),
     ])
     const placeOf = new Map(places.map((place) => [place.id, place.name]))
+    const memberships: { customer_id: string; id: string; name: string }[] = await em.query(
+      `SELECT m.customer_id, g.id, g.name FROM customer_group_members m JOIN customer_groups g ON g.id = m.group_id
+       WHERE m.customer_id = ANY($1) ORDER BY g.sort_order, g.name`,
+      [ids],
+    )
     return customers.map((customer) => {
       const row = boughtBy.get(customer.id)
       return {
-        ...brief(customer),
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        groups: memberships
+          .filter((member) => member.customer_id === customer.id)
+          .map((member) => ({ id: member.id, name: member.name })),
+        tags: customer.tags,
         birthday: customer.birthday,
         gender: customer.gender,
         note: customer.note,
@@ -219,10 +393,8 @@ const DAYS_TO_BIRTHDAY = `(
   ) x WHERE x.d >= 0
 )`
 
-const brief = (customer: Customer): CustomerBrief => ({ id: customer.id, name: customer.name, phone: customer.phone })
-
-function keyOf(customer: { name: string; phone: string; note: string | null }): string {
+function keyOf(customer: { name: string; phone: string; note: string | null; tags: string[] }): string {
   // The number is looked for as it is said: with the country code, or from the operator's two digits on.
   const digits = customer.phone.replace(/\D/g, '')
-  return searchKey(`${customer.name} ${digits} ${digits.slice(3)} ${customer.note ?? ''}`)
+  return searchKey(`${customer.name} ${digits} ${digits.slice(3)} ${customer.note ?? ''} ${customer.tags.join(' ')}`)
 }

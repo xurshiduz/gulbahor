@@ -1,8 +1,11 @@
 import {
+  customerGroupInputSchema,
   customerInputSchema,
   customerListQuerySchema,
   idSchema,
   type CustomerDto,
+  type CustomerGroupDto,
+  type CustomerGroupInput,
   type CustomerInput,
   type CustomerListQuery,
   type CustomerSummary,
@@ -19,6 +22,46 @@ const id = () => Param('id', zod(idSchema))
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customers: CustomersService) {}
+
+  /** Listed before the routes that take an id: `groups` is not a customer. */
+  @Get('groups')
+  @Can('customers.view')
+  groups(@CurrentActor() actor: Actor): Promise<CustomerGroupDto[]> {
+    return this.customers.groups(actor)
+  }
+
+  @Post('groups')
+  @Can('customers.manage')
+  createGroup(
+    @CurrentActor() actor: Actor,
+    @Body(zod(customerGroupInputSchema)) input: CustomerGroupInput,
+  ): Promise<CustomerGroupDto> {
+    return this.customers.createGroup(actor, input)
+  }
+
+  @Put('groups/:id')
+  @Can('customers.manage')
+  updateGroup(
+    @CurrentActor() actor: Actor,
+    @id() groupId: string,
+    @Body(zod(customerGroupInputSchema)) input: CustomerGroupInput,
+  ): Promise<CustomerGroupDto> {
+    return this.customers.updateGroup(actor, groupId, input)
+  }
+
+  @Post('groups/:id/archive')
+  @HttpCode(200)
+  @Can('customers.manage')
+  archiveGroup(@CurrentActor() actor: Actor, @id() groupId: string): Promise<CustomerGroupDto> {
+    return this.customers.setGroupActive(actor, groupId, false)
+  }
+
+  @Post('groups/:id/restore')
+  @HttpCode(200)
+  @Can('customers.manage')
+  restoreGroup(@CurrentActor() actor: Actor, @id() groupId: string): Promise<CustomerGroupDto> {
+    return this.customers.setGroupActive(actor, groupId, true)
+  }
 
   @Get()
   @Can('customers.view')

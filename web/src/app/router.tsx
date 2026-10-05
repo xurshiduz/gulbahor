@@ -191,10 +191,13 @@ const customersRoute = createRoute({
   component: CustomersPage,
   validateSearch: z.object({
     ...listSearch,
+    tab: z.enum(['list', 'groups']).default('list').catch('list'),
     status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
     birthdayIn: z.number().int().min(0).max(366).optional().catch(undefined),
+    groupId: z.string().optional().catch(undefined),
+    tag: z.string().optional().catch(undefined),
   }),
-  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active', tab: 'list' })] },
 })
 
 const partnersSearch = z.object({

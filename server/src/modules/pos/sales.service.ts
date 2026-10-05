@@ -45,6 +45,7 @@ import {
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
+import { rulesOf } from '../customers/groups'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { servesShop } from '../money/places'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -135,14 +136,17 @@ export class SalesService {
     }
 
     // ── The price type the cart is sold at, when it is not the retail one, and whether this person may. ──
+    const rules = customer ? (await rulesOf(em, [customer])).get(customer.id) : undefined
     let priceType: PriceType | null = null
+    // The price a customer's group gives them is theirs whoever is at the till: nobody picked it.
+    const theirs = !!input.priceTypeId && rules?.priceType?.id === input.priceTypeId
     if (input.priceTypeId) {
       priceType = await em.findOneBy(PriceType, { id: input.priceTypeId })
-      if (!priceType || !priceType.isActive || priceType.tillAccess === 'none') {
+      if (!priceType || !priceType.isActive || (priceType.tillAccess === 'none' && !theirs)) {
         throw AppError.validation({ priceTypeId: 'Bu narx turida kassada sotilmaydi' })
       }
     }
-    const mayPrice = can(actor, 'pos.prices')
+    const mayPrice = can(actor, 'pos.prices') || theirs
     if (priceType?.tillAccess === 'permitted' && !mayPrice) {
       throw AppError.forbidden(`«${priceType.name}» narxida sotishga ruxsat yo'q`)
     }

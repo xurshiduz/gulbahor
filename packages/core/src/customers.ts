@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { listQuerySchema, optionalText, phoneSchema, requiredText } from './schemas'
+import { idSchema, listQuerySchema, optionalText, phoneSchema, requiredText } from './schemas'
 
 /**
  * The people who buy in the shops. A customer is known by their phone
@@ -29,13 +29,60 @@ export const customerInputSchema = z.object({
     .nullish()
     .transform((value) => value ?? null),
   note: optionalText(300),
+  /** The groups they belong to: a group gives rules (a price, a reminder at the till, what is not done for them). */
+  groupIds: z.array(idSchema).max(20).default([]),
+  /** Marks for finding and for mailings; they give no rules. */
+  tags: z
+    .array(z.string().trim().min(1).max(30))
+    .max(20)
+    .default([])
+    .transform((tags) => [...new Set(tags)]),
 })
 export type CustomerInput = z.infer<typeof customerInputSchema>
+
+// ───────────────────────────── Groups ─────────────────────────────
+
+/**
+ * A group gives its members rules. The till applies them by itself when one
+ * of them is picked: their price type prices the cart, the reminder is shown
+ * to the cashier, and what is not done for them is refused, not merely
+ * written down for the cashier to remember.
+ */
+export const customerGroupInputSchema = z.object({
+  name: requiredText(60),
+  /** The price type its members buy at; none for the retail price. */
+  priceTypeId: idSchema.nullish().transform((value) => value ?? null),
+  /** Shown to the cashier when a member is picked: "Chek berish kerak". */
+  reminder: optionalText(200),
+  /** Nothing is sold to them on credit. */
+  noDebt: z.boolean().default(false),
+  /** Nothing is put aside for them. */
+  noLayaway: z.boolean().default(false),
+  /** What they bought is not exchanged for something else. */
+  noExchange: z.boolean().default(false),
+})
+export type CustomerGroupInput = z.infer<typeof customerGroupInputSchema>
+
+export interface CustomerGroupDto {
+  id: string
+  name: string
+  priceTypeId: string | null
+  priceTypeName: string | null
+  reminder: string | null
+  noDebt: boolean
+  noLayaway: boolean
+  noExchange: boolean
+  isActive: boolean
+  /** How many customers on the books are in it. */
+  members: number
+}
 
 export const customerListQuerySchema = listQuerySchema.extend({
   status: z.enum(['active', 'archived', 'all']).default('active'),
   /** Those whose birthday falls within the next so many days. */
   birthdayIn: z.coerce.number().int().min(0).max(366).optional(),
+  groupId: idSchema.optional(),
+  tag: z.string().trim().min(1).max(30).optional(),
 })
 export type CustomerListQuery = z.infer<typeof customerListQuerySchema>
 
@@ -46,7 +93,24 @@ export interface CustomerBrief {
   phone: string
 }
 
+/**
+ * What the till is told about the customer it picked: the rules their groups
+ * give, already put together. Several reminders are all shown; of several
+ * price types the first group's stands; what any one group forbids is
+ * forbidden.
+ */
+export interface PosCustomerDto extends CustomerBrief {
+  groups: string[]
+  reminders: string[]
+  priceType: { id: string; name: string } | null
+  noDebt: boolean
+  noLayaway: boolean
+  noExchange: boolean
+}
+
 export interface CustomerDto extends CustomerBrief {
+  groups: { id: string; name: string }[]
+  tags: string[]
   birthday: string | null
   gender: CustomerGender | null
   note: string | null

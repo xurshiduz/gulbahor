@@ -7,6 +7,7 @@ import {
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
+  type PosCustomerDto,
   type PosItemDto,
   type ReaderTagEvent,
   type ReturnDto,
@@ -252,8 +253,19 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [searching, setSearching] = useState(false)
   const [last, setLast] = useState<LastDocument | null>(null)
   const [viewing, setViewing] = useState<LastDocument | null>(null)
-  // The price type the cart is sold at: one this person may no longer sell at falls back to the retail price.
-  const priceType = context.priceTypes.find((type) => type.id === cart.priceTypeId) ?? null
+  // The price types this cart may be sold at: those this person may pick, and the one the customer's group gives.
+  const theirs = cart.customer?.priceType ?? null
+  const priceTypes = useMemo(
+    () => [
+      ...context.priceTypes,
+      ...(theirs && !context.priceTypes.some((type) => type.id === theirs.id) ? [{ ...theirs, needsWord: false }] : []),
+    ],
+    [context.priceTypes, theirs],
+  )
+  // The one it is sold at: one that is no longer among them falls back to the retail price. A price that
+  // comes with the customer needs nobody's word.
+  const picked = priceTypes.find((type) => type.id === cart.priceTypeId) ?? null
+  const priceType = picked && picked.id === theirs?.id ? { ...picked, needsWord: false } : picked
   const priceTypeId = priceType?.id ?? null
 
   const rate = context.rate?.uzsPerUsd ?? null
@@ -365,6 +377,20 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const sellAt = (id: string | null) => {
     setCart((current) => ({ ...current, priceTypeId: id }))
     refreshCart(id)
+  }
+  /**
+   * Someone is at the counter, or no longer is. The price their group gives comes with them and leaves
+   * with them; a price the cashier picked stays as it was.
+   */
+  const serve = (customer: PosCustomerDto | null) => {
+    const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
+    const at = customer?.priceType?.id ?? kept
+    setCart((current) => ({ ...current, customer, priceTypeId: at }))
+    if (at !== priceTypeId) {
+      refreshCart(at)
+    }
+    // Found, the cursor goes back to the goods.
+    window.setTimeout(focusSearch)
   }
 
   // A window opened over the till (a partner's payment) takes the keys, the scanner and the reader.
@@ -668,12 +694,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
             cap.left,
         ))
     const late = !!returning && returning.found.late && !returning.found.free
-    if (!approval && (overLimit || underAsk || rateAsk || priceAsk || late || beyond)) {
+    // Goods taken instead of the ones brought back, for a customer whose group does not have that done.
+    const barred = !!returning && returning.found.noExchange && cart.lines.length > 0 && !returning.found.free
+    if (!approval && (overLimit || underAsk || rateAsk || priceAsk || late || beyond || barred)) {
       const who = context.approvers.filter(
         (approver) =>
           (!(overLimit || underAsk || rateAsk) || approver.discount) &&
           (!priceAsk || approver.prices) &&
-          (!(late || beyond) || approver.returns),
+          (!(late || beyond || barred) || approver.returns),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -712,6 +740,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               )
             : []),
           late ? t('pos.returnLate', { days: returning?.found.returnDays }) : null,
+          barred ? t('pos.approvalExchange', { name: returning?.found.sale.customerName }) : null,
           beyond ? t('pos.approvalRefund') : null,
         ]
           .filter(Boolean)
@@ -1081,14 +1110,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 ref={customerRef}
                 registerId={registerId}
                 value={cart.customer ?? null}
-                onChange={(customer) => {
-                  setCart((current) => ({ ...current, customer }))
-                  // Found, the cursor goes back to the goods.
-                  window.setTimeout(focusSearch)
-                }}
+                onChange={serve}
               />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
-                {context.priceTypes.length ? (
+                {priceTypes.length ? (
                   <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">
                     <span>{t('pos.priceType')}</span>
                     <Select
@@ -1096,7 +1121,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       onChange={(value) => sellAt(value === RETAIL ? null : value)}
                       options={[
                         { value: RETAIL, label: t('pos.retailPrice') },
-                        ...context.priceTypes.map((type) => ({ value: type.id, label: type.name })),
+                        ...priceTypes.map((type) => ({ value: type.id, label: type.name })),
                       ]}
                       className={cn('h-8 w-36', priceType && 'font-medium text-accent-ink')}
                     />
