@@ -347,6 +347,8 @@ export const uz = {
     cancel: 'Bekor qilish',
     cancelReason: 'Bekor qilish sababi',
     cancelLine: 'Bekor qilindi',
+    receiptLine: 'Tovar kirimi',
+    receiptCancelled: 'Kirim bekor qilindi',
     saved: "{{number}} to'lov o'tkazildi",
     cancelled: "{{number}} to'lov bekor qilindi",
     pickPartner: 'Hamkorni tanlang',

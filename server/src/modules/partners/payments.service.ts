@@ -366,6 +366,7 @@ export class PartnerPaymentsService {
       const rows: {
         at: Date
         entry_kind: string
+        document_type: string | null
         change: number
         document_id: string | null
         number: string | null
@@ -374,11 +375,12 @@ export class PartnerPaymentsService {
         cancel_reason: string | null
       }[] = account
         ? await em.query(
-            `SELECT e.created_at AS at, e.kind AS entry_kind, l.amount::float8 AS change, e.document_id,
-                    p.number, p.kind, p.note, p.cancel_reason
+            `SELECT e.created_at AS at, e.kind AS entry_kind, e.document_type, l.amount::float8 AS change, e.document_id,
+                    coalesce(p.number, r.number) AS number, p.kind, coalesce(p.note, r.note) AS note, p.cancel_reason
              FROM ledger_lines l
              JOIN ledger_entries e ON e.id = l.entry_id
              LEFT JOIN partner_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
+             LEFT JOIN receipts r ON r.id = e.document_id AND e.document_type = 'receipt'
              WHERE l.account_id = $1
              ORDER BY e.created_at, l.position`,
             [account.id],
@@ -388,9 +390,11 @@ export class PartnerPaymentsService {
       const lines: PartnerStatementLine[] = rows.map((row) => {
         balance += row.change
         const cancelled = row.entry_kind.endsWith('_cancel')
+        const source = row.document_type === 'receipt' ? 'receipt' : 'payment'
         return {
           at: row.at.toISOString(),
-          kind: cancelled ? 'cancel' : (row.kind ?? 'opening'),
+          kind: cancelled ? 'cancel' : source === 'receipt' ? 'receipt' : (row.kind ?? 'opening'),
+          source,
           number: row.number,
           documentId: row.document_id,
           change: row.change,

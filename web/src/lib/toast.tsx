@@ -41,7 +41,8 @@ function Alert({ tone, title, description, action, onClose }: AlertProps) {
       role={tone === 'bad' ? 'alert' : 'status'}
       onClick={onClose}
       className={cn(
-        'gb-alert relative flex w-fit max-w-[min(26rem,calc(100vw-2rem))] min-w-52 cursor-pointer items-start gap-2.5',
+        // The corner the messages come up in keeps its own font; they speak in the system's.
+        'gb-alert relative flex w-fit max-w-[min(26rem,calc(100vw-2rem))] min-w-52 cursor-pointer items-start gap-2.5 font-sans',
         'rounded-lg border border-line bg-surface py-2.5 pr-3.5 pl-4 shadow-float select-none',
         INK[tone],
       )}

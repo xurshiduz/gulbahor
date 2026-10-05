@@ -347,6 +347,8 @@ export const ru: Dictionary = {
     cancel: 'Отменить',
     cancelReason: 'Причина отмены',
     cancelLine: 'Отменён',
+    receiptLine: 'Поступление товара',
+    receiptCancelled: 'Поступление отменено',
     saved: 'Платёж {{number}} проведён',
     cancelled: 'Платёж {{number}} отменён',
     pickPartner: 'Выберите партнёра',

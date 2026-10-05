@@ -30,7 +30,16 @@ export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   partner: 'Hamkor hisobi',
 }
 
-export const SYSTEM_ACCOUNTS = ['sales', 'rounding', 'fx', 'cash_diff', 'opening', 'exchange', 'transit'] as const
+export const SYSTEM_ACCOUNTS = [
+  'sales',
+  'rounding',
+  'fx',
+  'cash_diff',
+  'opening',
+  'exchange',
+  'transit',
+  'purchases',
+] as const
 export type SystemAccount = (typeof SYSTEM_ACCOUNTS)[number]
 
 export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
@@ -43,6 +52,8 @@ export const SYSTEM_ACCOUNT_LABELS: Record<SystemAccount, string> = {
   exchange: 'Almashtirish',
   // Money that has left one account and is not yet confirmed in the other.
   transit: "Yo'ldagi pul",
+  // What goods received from suppliers were worth: the other side of what the business owes them for those goods.
+  purchases: 'Tovar xaridi',
 }
 
 /** The accounts a person sets up; a till's own cash is made with the till. */

@@ -37,6 +37,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { settleReceiptUnits, voidReceiptUnits } from '../labels/units'
+import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, TRANSIT, type Movement } from '../stock/stock.service'
 
@@ -67,6 +68,7 @@ export class ReceiptsService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly stock: StockService,
+    private readonly ledger: LedgerService,
   ) {}
 
   async list(actor: Actor, query: ReceiptListQuery): Promise<Page<ReceiptListItemDto>> {
@@ -279,6 +281,7 @@ export class ReceiptsService {
 
       // Pieces labelled before posting are on hand from now on.
       await settleReceiptUnits(em, id, receipt.locationId)
+      await this.owe(em, actor, receipt, lines, costing)
 
       const priced = can(actor, 'products.prices') ? await this.applyPrices(em, actor, lines) : 0
       await this.audit.record(em, actor.orgId, actor, {
@@ -289,9 +292,60 @@ export class ReceiptsService {
           priced ? `; ${priced} ta model narxi yangilandi` : ''
         }`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'products', 'labels']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'products', 'labels', 'partners']))
       return this.load(em, await this.find(em, actor, id))
     })
+  }
+
+  /**
+   * What each supplier is owed for their goods on a receipt being posted: the
+   * goods at their prices, without the expenses (those are paid to others),
+   * written to the supplier's account in the currency it is kept in. A line
+   * names its own supplier when one shipment carries several; goods with no
+   * supplier at all were paid for on the spot.
+   */
+  private async owe(
+    em: EntityManager,
+    actor: Actor,
+    receipt: Receipt,
+    lines: ReceiptLine[],
+    costing: Costing,
+  ): Promise<void> {
+    const owed = new Map<string, { usd: number; uzs: number }>()
+    lines.forEach((line, index) => {
+      const supplierId = line.supplierId ?? receipt.supplierId
+      if (!supplierId) {
+        return
+      }
+      const sum = owed.get(supplierId) ?? { usd: 0, uzs: 0 }
+      sum.usd += costing.lines[index].goodsUsd
+      sum.uzs += costing.lines[index].goodsUzs
+      owed.set(supplierId, sum)
+    })
+    if (!owed.size) {
+      return
+    }
+    const ids = [...owed.keys()].sort()
+    const suppliers = await em.findBy(Partner, { id: In(ids) })
+    const postings: Posting[] = []
+    let worth = 0
+    // One supplier after another in the same order every time: two receipts never wait on each other's accounts.
+    for (const supplierId of ids) {
+      const supplier = suppliers.find((item) => item.id === supplierId) as Partner
+      const { usd, uzs } = owed.get(supplierId) as { usd: number; uzs: number }
+      const account = await this.ledger.partnerAccount(em, supplier)
+      // Dollars stay dollars on a dollar account; their worth in so'm is the receipt's own rate.
+      postings.push({ accountId: account.id, amount: -(account.currency === 'USD' ? usd : uzs), base: -uzs })
+      worth += uzs
+    }
+    const purchases = await this.ledger.systemAccount(em, actor.orgId, 'purchases')
+    postings.push({ accountId: purchases.id, amount: worth, base: worth })
+    await this.ledger.post(
+      em,
+      actor,
+      { date: receipt.docDate, kind: 'receipt', documentType: DOCUMENT, documentId: receipt.id },
+      postings,
+    )
   }
 
   /** Takes the goods back off hand. Possible only while every piece is still where the receipt put it. */
@@ -329,6 +383,18 @@ export class ReceiptsService {
       })
       await this.stock.apply(em, actor.orgId, actor.userId, movements)
       await voidReceiptUnits(em, id)
+      // What the suppliers were owed for these goods is owed no more.
+      await this.ledger.reverse(
+        em,
+        actor,
+        {
+          date: await this.ledger.today(em, actor.orgId),
+          kind: 'receipt_cancel',
+          documentType: DOCUMENT,
+          documentId: id,
+        },
+        'receipt',
+      )
       await em.update(Receipt, id, { status: 'cancelled', cancelledAt: new Date(), cancelledBy: actor.userId })
       await this.audit.record(em, actor.orgId, actor, {
         action: 'receipt.cancel',
@@ -336,7 +402,7 @@ export class ReceiptsService {
         entityId: id,
         summary: receipt.number,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'partners']))
       return this.load(em, await this.find(em, actor, id))
     })
   }

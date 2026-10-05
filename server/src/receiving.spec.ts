@@ -16,6 +16,7 @@ interface VariantRow {
 }
 
 const usd = (dollars: number) => Math.round(dollars * 100)
+const som = (amount: number) => Math.round(amount * 100)
 
 /**
  * Receiving goods: what a receipt costs, what it puts on hand, and how a bill
@@ -338,6 +339,99 @@ describe('Receiving', () => {
         .expect(201)
       const visible = (await keeper.get('/api/receipts')).body.items
       expect(visible.map((item: { locationName: string }) => item.locationName)).toEqual(['Depot'])
+    })
+  })
+
+  describe('what suppliers are owed', () => {
+    const systemBalance = async (key: string) =>
+      harness.dataSource.transaction(async (em) => {
+        await em.query(`SELECT set_config('app.bypass_rls', 'on', true)`)
+        const [row] = await em.query(`SELECT balance::float8 AS balance FROM accounts WHERE system_key = $1`, [key])
+        return (row?.balance ?? 0) as number
+      })
+    const statement = async (partnerId: string) =>
+      (await alpha.get(`/api/partners/${partnerId}/statement`).expect(200)).body as {
+        balance: number
+        lines: { kind: string; source: string; number: string; documentId: string; change: number; balance: number }[]
+      }
+
+    it("is the goods at their prices, in the currency of each one's account, and nothing more once cancelled", async () => {
+      const dordoy = (
+        await alpha.post('/api/partners').send({ name: 'Dordoy', isSupplier: true, currency: 'USD' }).expect(201)
+      ).body.id
+      const market = (
+        await alpha.post('/api/partners').send({ name: 'Abu Saxiy', isSupplier: true, currency: 'UZS' }).expect(201)
+      ).body.id
+      const before = await systemBalance('purchases')
+
+      // One shipment, two suppliers: the jeans are the market's. The cargo is paid to somebody else.
+      const draft = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          supplierId: dordoy,
+          docDate: '2026-10-02',
+          currency: 'USD',
+          usdRate: 1,
+          uzsRate: 12_800,
+          lines: [
+            { variantId: tshirt.variants[0].id, qty: 100, price: usd(3) },
+            { variantId: jeans.variants[0].id, supplierId: market, qty: 50, price: usd(8) },
+          ],
+          expenses: [{ name: 'Kargo', amount: usd(100), currency: 'USD', basis: 'value' }],
+        })
+        .expect(201)
+      // A draft owes nobody anything yet.
+      expect((await statement(dordoy)).lines).toEqual([])
+
+      await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
+      // 300 dollars to the dollar supplier; 400 dollars of jeans are 5 120 000 so'm on the so'm one's account.
+      expect(await statement(dordoy)).toMatchObject({
+        balance: -usd(300),
+        lines: [
+          {
+            kind: 'receipt',
+            source: 'receipt',
+            number: draft.body.number,
+            documentId: draft.body.id,
+            change: -usd(300),
+          },
+        ],
+      })
+      expect((await statement(market)).balance).toBe(-som(5_120_000))
+      expect(await systemBalance('purchases')).toBe(before + som(300 * 12_800 + 5_120_000))
+      const listed = (await alpha.get('/api/partners').query({ debt: 'owed' }).expect(200)).body.items
+      // Both are now among those the business owes (with the supplier of the yuan purchase above).
+      expect(listed.map((partner: { name: string }) => partner.name)).toEqual(
+        expect.arrayContaining(['Abu Saxiy', 'Dordoy']),
+      )
+
+      await alpha.post(`/api/receipts/${draft.body.id}/cancel`).expect(201)
+      const after = await statement(dordoy)
+      expect(after.balance).toBe(0)
+      expect(after.lines.map((line) => [line.kind, line.change])).toEqual([
+        ['receipt', -usd(300)],
+        ['cancel', usd(300)],
+      ])
+      expect((await statement(market)).balance).toBe(0)
+      expect(await systemBalance('purchases')).toBe(before)
+    })
+
+    it('leaves out goods that name no supplier: those were paid for on the spot', async () => {
+      const before = await systemBalance('purchases')
+      const draft = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-02',
+          currency: 'UZS',
+          usdRate: 1,
+          uzsRate: 12_800,
+          lines: [{ variantId: coat.variants[0].id, qty: 2, price: som(400_000) }],
+        })
+        .expect(201)
+      await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
+      expect(await systemBalance('purchases')).toBe(before)
     })
   })
 })
