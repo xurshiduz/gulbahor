@@ -5,8 +5,7 @@ import { fractionToMinor, type CurrencyCode } from './money'
 export type AmountError = ExpressionError | 'negative' | 'too_large' | 'not_integer'
 
 export type AmountResult =
-  | { ok: true; minor: number; currency: CurrencyCode | null; isExpression: boolean }
-  | { ok: false; error: AmountError }
+  { ok: true; minor: number; currency: CurrencyCode | null; isExpression: boolean } | { ok: false; error: AmountError }
 
 /** Largest amount a single field accepts: 1 trillion in major units. */
 const MAX_MINOR = 100_000_000_000_000
@@ -32,12 +31,16 @@ export function parseAmount(input: string, options: ParseAmountOptions = {}): Am
   if (scaled > BigInt(MAX_MINOR) || scaled < -BigInt(MAX_MINOR)) {
     return { ok: false, error: 'too_large' }
   }
-  return { ok: true, minor: fractionToMinor(result.value), currency: result.currency, isExpression: result.isExpression }
+  return {
+    ok: true,
+    minor: fractionToMinor(result.value),
+    currency: result.currency,
+    isExpression: result.isExpression,
+  }
 }
 
 export type QuantityResult =
-  | { ok: true; value: number; text: string; isExpression: boolean }
-  | { ok: false; error: AmountError }
+  { ok: true; value: number; text: string; isExpression: boolean } | { ok: false; error: AmountError }
 
 /**
  * Reads a quantity: "5*12" -> 60. Piece goods take whole numbers only;
@@ -66,11 +69,17 @@ export function parseQuantity(input: string, decimals = 0): QuantityResult {
 export type DiscountResult =
   | { ok: true; kind: 'percent'; percent: string }
   | { ok: true; kind: 'amount'; minor: number }
+  /** Not what comes off but what is left: the sum agreed with the customer. */
+  | { ok: true; kind: 'target'; minor: number }
   | { ok: false; error: AmountError | 'over_100' }
 
-/** "10%" is a percentage, "50000" or "50k" is an amount. */
+/** "10%" is a percentage, "50000" or "50k" is an amount, "=1600000" is the sum the whole is brought down to. */
 export function parseDiscount(input: string): DiscountResult {
   const trimmed = input.trim()
+  if (trimmed.startsWith('=')) {
+    const agreed = parseAmount(trimmed.slice(1))
+    return agreed.ok ? { ok: true, kind: 'target', minor: agreed.minor } : agreed
+  }
   if (trimmed.endsWith('%')) {
     const result = evaluateExpression(trimmed.slice(0, -1))
     if (!result.ok) {

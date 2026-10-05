@@ -45,7 +45,10 @@ export interface Cart {
 
 export const EMPTY_CART: Cart = { lines: [], discountText: '', sellerId: null }
 
-/** What "10%" or "5000" takes off `base`, in tiyin; nothing for what cannot be read. */
+/**
+ * What "10%", "5000" or "=90000" takes off `base`, in tiyin; nothing for what
+ * cannot be read. "=" names the sum agreed on: what comes off is the rest.
+ */
 export function discountOf(text: string, base: number): number {
   if (!text.trim()) {
     return 0
@@ -54,12 +57,51 @@ export function discountOf(text: string, base: number): number {
   if (!parsed.ok) {
     return 0
   }
-  const amount = parsed.kind === 'percent' ? percentOf(base, parsed.percent) : parsed.minor
+  const amount =
+    parsed.kind === 'percent'
+      ? percentOf(base, parsed.percent)
+      : parsed.kind === 'target'
+        ? base - parsed.minor
+        : parsed.minor
   return Math.min(Math.max(0, amount), base)
 }
 
-/** Whether a discount field holds something that cannot be read. */
-export const badDiscount = (text: string) => !!text.trim() && !parseDiscount(text).ok
+/**
+ * Whether a discount field holds something that cannot be read, or, where
+ * the sum it is taken from is given, an agreed sum above it: haggling only
+ * brings a price down.
+ */
+export function badDiscount(text: string, base?: number): boolean {
+  if (!text.trim()) {
+    return false
+  }
+  const parsed = parseDiscount(text)
+  return !parsed.ok || (parsed.kind === 'target' && base !== undefined && parsed.minor > base)
+}
+
+/** The sum agreed on that a discount field holds, if that is how it was written. */
+export function agreedOf(text: string): number | null {
+  const parsed = parseDiscount(text)
+  return parsed.ok && parsed.kind === 'target' ? parsed.minor : null
+}
+
+/** How an agreed sum is written into a discount field. */
+export const agreedText = (minor: number) => `=${formatMoney(minor, 'UZS', { symbol: false, group: ' ' })}`
+
+/**
+ * The round sums a total is usually brought down to, nearest first:
+ * 1 770 000 gives 1 700 000 and 1 600 000; 285 000 gives 280 000 and
+ * 270 000. The step is a tenth of the total's own order of size.
+ */
+export function roundTotals(total: number, count = 2): number[] {
+  const som = Math.floor(total / 100)
+  if (som < 1000) {
+    return []
+  }
+  const step = 10 ** (String(som).length - 2)
+  const first = Math.floor((som - 1) / step) * step
+  return Array.from({ length: count }, (_, index) => (first - index * step) * 100).filter((sum) => sum > 0)
+}
 
 export interface CartTotals extends SaleTotals {
   /** Each line's own discount, as sent to the server. */
@@ -71,16 +113,21 @@ export interface CartTotals extends SaleTotals {
 /** What the cart comes to. The server works the same sum out again from its own prices. */
 export function cartTotals(cart: Cart): CartTotals {
   const lineDiscounts = cart.lines.map((line) => discountOf(line.discountText, gross(line.item.price ?? 0, line.qty)))
-  const afterLines = cart.lines.reduce(
-    (sum, line, index) => sum + gross(line.item.price ?? 0, line.qty) - lineDiscounts[index],
-    0,
-  )
+  const afterLines = linesTotal(cart)
   const saleDiscount = discountOf(cart.discountText, afterLines)
   const totals = saleTotals(
     cart.lines.map((line, index) => ({ price: line.item.price ?? 0, qty: line.qty, discount: lineDiscounts[index] })),
     saleDiscount,
   )
   return { ...totals, lineDiscounts, saleDiscount }
+}
+
+/** What the lines come to after their own discounts: what a discount on the whole sale is taken from. */
+export function linesTotal(cart: Cart): number {
+  return cart.lines.reduce((sum, line) => {
+    const whole = gross(line.item.price ?? 0, line.qty)
+    return sum + whole - discountOf(line.discountText, whole)
+  }, 0)
 }
 
 /**

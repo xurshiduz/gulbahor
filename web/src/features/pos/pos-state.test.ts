@@ -3,13 +3,17 @@ import { describe, expect, it } from 'vitest'
 
 import {
   addToCart,
+  agreedOf,
+  agreedText,
   backLines,
   badDiscount,
   cartTotals,
   changeText,
   discountOf,
   EMPTY_CART,
+  linesTotal,
   refundRows,
+  roundTotals,
   splitMultiplier,
   suggestRefunds,
 } from './pos-state'
@@ -59,6 +63,32 @@ describe('cart', () => {
     expect(badDiscount('  ')).toBe(false)
   })
 
+  it('takes "=" as the sum agreed on, and what comes off as the rest', () => {
+    // 1 620 000 on the tag, 1 600 000 agreed.
+    expect(discountOf('=1600000', som(1_620_000))).toBe(som(20_000))
+    expect(discountOf('=1 600 000', som(1_620_000))).toBe(som(20_000))
+    expect(agreedOf('=1600000')).toBe(som(1_600_000))
+    expect(agreedOf('10%')).toBeNull()
+    // Written the way the till writes it, it reads back the same.
+    expect(agreedOf(agreedText(som(1_600_000)))).toBe(som(1_600_000))
+    // Haggling only brings a price down.
+    expect(discountOf('=2000000', som(1_620_000))).toBe(0)
+    expect(badDiscount('=2000000', som(1_620_000))).toBe(true)
+    expect(badDiscount('=1600000', som(1_620_000))).toBe(false)
+    expect(badDiscount('=1620000', som(1_620_000))).toBe(false)
+    expect(badDiscount('=')).toBe(true)
+  })
+
+  it('offers the round sums a total is brought down to', () => {
+    expect(roundTotals(som(1_770_000))).toEqual([som(1_700_000), som(1_600_000)])
+    expect(roundTotals(som(285_000))).toEqual([som(280_000), som(270_000)])
+    // Already round: the next ones down.
+    expect(roundTotals(som(1_700_000))).toEqual([som(1_600_000), som(1_500_000)])
+    expect(roundTotals(som(95_000))).toEqual([som(94_000), som(93_000)])
+    // Too small to haggle over.
+    expect(roundTotals(som(900))).toEqual([])
+  })
+
   it('comes to the same sum the server will work out', () => {
     let cart = addToCart(EMPTY_CART, item('shirt', som(95_000)), 2).cart
     cart = addToCart(cart, item('scarf', som(40_000)), 1).cart
@@ -73,6 +103,24 @@ describe('cart', () => {
     expect(totals.saleDiscount).toBe(som(22_500))
     expect(totals).toMatchObject({ subtotal: som(230_000), discount: som(27_500), total: som(202_500) })
     expect(totals.lines.reduce((sum, line) => sum + line.total, 0)).toBe(totals.total)
+  })
+
+  it('brings a line and then the whole sale down to what was agreed', () => {
+    let cart = addToCart(EMPTY_CART, item('suit', som(740_000)), 1).cart
+    cart = addToCart(cart, item('bag', som(1_030_000)), 1).cart
+    // The bag for a round million, then the lot for 1 600 000.
+    cart = {
+      ...cart,
+      lines: cart.lines.map((line, index) => (index === 1 ? { ...line, discountText: '=1000000' } : line)),
+    }
+    expect(linesTotal(cart)).toBe(som(1_740_000))
+    cart = { ...cart, discountText: agreedText(som(1_600_000)) }
+    const totals = cartTotals(cart)
+    expect(totals.lineDiscounts).toEqual([0, som(30_000)])
+    expect(totals.saleDiscount).toBe(som(140_000))
+    expect(totals).toMatchObject({ subtotal: som(1_770_000), discount: som(170_000), total: som(1_600_000) })
+    // Shared out over the lines to the tiyin.
+    expect(totals.lines.reduce((sum, line) => sum + line.total, 0)).toBe(som(1_600_000))
   })
 })
 

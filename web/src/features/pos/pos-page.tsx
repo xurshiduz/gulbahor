@@ -38,11 +38,14 @@ import { uuid } from '@/lib/uuid'
 
 import {
   addToCart,
+  agreedOf,
+  agreedText,
   backLines,
   badDiscount,
   cartTotals,
   changeText,
   EMPTY_CART,
+  linesTotal,
   refundRows,
   splitMultiplier,
   suggestRefunds,
@@ -51,6 +54,7 @@ import {
   type Returning,
   type TenderRow,
 } from './pos-state'
+import { AgreedSum } from './agreed'
 import { ApprovalDialog } from './approval'
 import { HandoverDialog, WaitingTransfers } from './handover'
 import { ReturnDialog, ReturnPicker } from './return-parts'
@@ -220,6 +224,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const navigate = route.useNavigate()
   const registerId = context.register.id
   const searchRef = useRef<HTMLInputElement>(null)
+  const agreedRef = useRef<HTMLInputElement>(null)
   // One sale, one key: sent twice, it is still made once.
   const clientKey = useRef(uuid())
 
@@ -392,6 +397,29 @@ function Till({ context, registers, onSwitch }: TillProps) {
 
   // ── The sum ──
   const totals = useMemo(() => cartTotals(cart), [cart])
+  /** What a discount on the whole sale is taken from. */
+  const afterLines = useMemo(() => linesTotal(cart), [cart])
+
+  // A sum agreed on was agreed for the goods that were in the cart. When they change it no longer
+  // stands: left in place, whatever was added after it would be given away.
+  const goods = cart.lines
+    .map((line) => [line.item.variantId, line.item.epc, line.qty, line.item.price, line.discountText].join(':'))
+    .join('|')
+  const agreedFor = useRef(goods)
+  useEffect(() => {
+    if (agreedFor.current === goods) {
+      return
+    }
+    agreedFor.current = goods
+    if (agreedOf(cart.discountText) !== null) {
+      setCart((current) => ({ ...current, discountText: '' }))
+      if (cart.lines.length) {
+        toast.warning(t('pos.agreedReset'))
+      }
+    }
+    // Only a change of the goods matters here; the discount is read as it stands at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goods])
   const percent = totals.subtotal ? (totals.discount * 100) / totals.subtotal : 0
   const overLimit = percent > context.maxDiscountPercent && !context.mayOverDiscount
   const back = useMemo(() => backLines(returning), [returning])
@@ -538,7 +566,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     if (busy || (!cart.lines.length && !returning)) {
       return
     }
-    if (cart.lines.some((line) => badDiscount(line.discountText)) || badDiscount(cart.discountText)) {
+    if (
+      cart.lines.some((line, index) => badDiscount(line.discountText, totals.lines[index]?.gross)) ||
+      badDiscount(cart.discountText, afterLines)
+    ) {
       toast.error(t('pos.badDiscount'))
       return
     }
@@ -647,6 +678,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
 
   const group = t('pos.title')
   useHotkey('f2', focusSearch, { label: t('pos.search'), group, enabled: idle })
+  useHotkey('f3', () => agreedRef.current?.focus(), {
+    label: t('pos.agreed'),
+    group,
+    enabled: idle && cart.lines.length > 0,
+  })
   useHotkey('f4', () => setPicking({}), { label: t('pos.returnTitle'), group, enabled: idle && mayReturn })
   useHotkey('f5', () => focusTender('cash'), { label: t('pos.payCash'), group, enabled: idle })
   useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
@@ -777,7 +813,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                     <th className="w-24 px-2 py-2 text-right">{t('receipts.totalQty')}</th>
                     <th className="w-28 px-2 py-2 text-right">{t('pos.price')}</th>
                     <th className="w-28 px-2 py-2">{t('pos.discount')}</th>
-                    <th className="w-32 px-3 py-2 text-right">{t('pos.total')}</th>
+                    <th className="w-36 px-3 py-2 text-right">{t('pos.total')}</th>
                     <th className="w-px" />
                   </tr>
                 </thead>
@@ -789,6 +825,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                         lines: cart.lines.map((item) => (item.key === line.key ? { ...item, ...change } : item)),
                       })
                     const short = !line.item.epc && line.qty > line.item.onHand
+                    const whole = totals.lines[index]?.gross ?? 0
                     return (
                       <tr key={line.key} className="border-t border-line align-top first:border-t-0">
                         <td className="px-3 py-2">
@@ -815,7 +852,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
                         <td className="px-2 py-1.5">
                           <NumberInput
                             value={line.qty}
-                            onChange={(qty) => (qty ? patch({ qty }) : undefined)}
+                            // A sum agreed on for the line was for that many: with another count it is asked again.
+                            onChange={(qty) =>
+                              qty
+                                ? patch({ qty, ...(agreedOf(line.discountText) === null ? {} : { discountText: '' }) })
+                                : undefined
+                            }
                             decimals={line.item.decimals}
                             min={line.item.decimals ? 0.001 : 1}
                             // A tagged piece is that one piece.
@@ -829,12 +871,20 @@ function Till({ context, registers, onSwitch }: TillProps) {
                           <Input
                             value={line.discountText}
                             placeholder="10% / 5000"
-                            invalid={badDiscount(line.discountText)}
+                            invalid={badDiscount(line.discountText, whole)}
                             onChange={(event) => patch({ discountText: event.target.value })}
                           />
                         </td>
-                        <td className="tabular px-3 py-2.5 text-right font-semibold">
-                          {money(totals.lines[index]?.gross - totals.lineDiscounts[index])}
+                        <td className="px-2 py-1.5">
+                          {/* The price agreed on for the line is typed straight in: what comes off is the rest. */}
+                          <MoneyInput
+                            value={whole - totals.lineDiscounts[index]}
+                            onChange={(agreed) =>
+                              patch({ discountText: agreed === null || agreed === whole ? '' : agreedText(agreed) })
+                            }
+                            invalid={badDiscount(line.discountText, whole)}
+                            className="[&_input]:font-semibold"
+                          />
                         </td>
                         <td className="py-1.5 pr-2">
                           <Button
@@ -897,11 +947,19 @@ function Till({ context, registers, onSwitch }: TillProps) {
               <Input
                 value={cart.discountText}
                 placeholder="10% / 5000"
-                invalid={badDiscount(cart.discountText) || overLimit}
+                invalid={badDiscount(cart.discountText, afterLines) || overLimit}
                 onChange={(event) => setCart({ ...cart, discountText: event.target.value })}
-                className="w-32 text-right"
+                className="w-36 text-right"
               />
             </div>
+            {cart.lines.length ? (
+              <AgreedSum
+                ref={agreedRef}
+                text={cart.discountText}
+                base={afterLines}
+                onChange={(discountText) => setCart({ ...cart, discountText })}
+              />
+            ) : null}
             {totals.discount ? (
               <div
                 className={cn(

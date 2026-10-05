@@ -37,7 +37,7 @@ Qolgani (donalar ro'yxati, dinamik valyuta, Humo bot, hisobotlar, superadmin) �
 
 ## Hozir ishlanayotgan bo'lak
 
-—
+1a. Summani to'g'ridan-to'g'ri belgilash (2026-10-05 02:55 da boshlandi).
 
 ## Ish daraxti nusxalari
 
@@ -46,3 +46,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | Nusxa | Nimadan keyin |
 | --- | --- |
 | `85854874e3f5aec24b7a9d44fe29c892cc4b9056` | alertlar va bildirishnomalar |
+| `73269aa63b14664781f31fe1b1fb24a7d7983387` | yetkazib beruvchi qarzi, reja va Billz tahlili hujjatlari |

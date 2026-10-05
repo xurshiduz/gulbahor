@@ -81,4 +81,12 @@ describe('parseDiscount', () => {
     expect(parseDiscount('50k')).toEqual({ ok: true, kind: 'amount', minor: 5_000_000 })
     expect(parseDiscount('120%')).toMatchObject({ ok: false, error: 'over_100' })
   })
+
+  it('reads "=" as the sum agreed on, not as what comes off', () => {
+    expect(parseDiscount('=1600000')).toEqual({ ok: true, kind: 'target', minor: 160_000_000 })
+    expect(parseDiscount('= 1 600 000')).toEqual({ ok: true, kind: 'target', minor: 160_000_000 })
+    expect(parseDiscount('=1,6 mln')).toEqual({ ok: true, kind: 'target', minor: 160_000_000 })
+    expect(parseDiscount('=')).toMatchObject({ ok: false })
+    expect(parseDiscount('=abc')).toMatchObject({ ok: false })
+  })
 })
