@@ -28,7 +28,7 @@ import { LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { mayUse } from '../money/places'
 import { RealtimeService } from '../realtime/realtime.service'
-import { partnerDto } from './partners.service'
+import { partnerDto, priceTypeNames } from './partners.service'
 
 const DOCUMENT = 'partner_payment'
 
@@ -423,7 +423,11 @@ export class PartnerPaymentsService {
           note: cancelled ? row.cancel_reason : row.note,
         }
       })
-      return { partner: partnerDto(partner, account?.balance ?? 0), lines, balance: account?.balance ?? 0 }
+      return {
+        partner: partnerDto(partner, account?.balance ?? 0, (await priceTypeNames(em, [partner]))(partner)),
+        lines,
+        balance: account?.balance ?? 0,
+      }
     })
   }
 

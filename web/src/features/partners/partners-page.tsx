@@ -1,5 +1,6 @@
 import {
   partnerInputSchema,
+  TILL_PRICE_KINDS,
   type AnyCurrency,
   type Page as PageOf,
   type PartnerDto,
@@ -31,11 +32,12 @@ import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
-import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
+import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input, Textarea } from '@/components/ui/input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { useSession } from '@/features/auth/session'
+import { usePriceTypes } from '@/features/catalog/catalog'
 import { currencyName } from '@/features/money/currencies-view'
 import { useCurrencies } from '@/features/money/rates'
 import { api } from '@/lib/api'
@@ -389,8 +391,12 @@ interface Values {
   isSupplier: boolean
   isBuyer: boolean
   currency: AnyCurrency
+  /** `RETAIL` for the retail price: the field cannot hold nothing. */
+  priceTypeId: string
   note: string
 }
+
+const RETAIL = 'retail'
 
 function PartnerDialog({
   partner,
@@ -410,12 +416,18 @@ function PartnerDialog({
       isSupplier: partner?.isSupplier ?? true,
       isBuyer: partner?.isBuyer ?? false,
       currency: partner?.currency ?? 'UZS',
+      priceTypeId: partner?.priceTypeId ?? RETAIL,
       note: partner?.note ?? '',
     },
   })
   const errors = form.formState.errors
   const currencies = useCurrencies()
   const kept = currencies.data?.active.map((currency) => currency.code) ?? ['UZS', 'USD']
+  // The price they buy at the till at: any the business sells at beside the retail one, but never the floor.
+  const priceTypes = usePriceTypes()
+  const prices = (priceTypes.data ?? []).filter(
+    (type) => (type.isActive && TILL_PRICE_KINDS.includes(type.kind)) || type.id === partner?.priceTypeId,
+  )
 
   const mutation = useMutation({
     mutationFn: (input: PartnerInput) =>
@@ -443,7 +455,20 @@ function PartnerDialog({
         </>
       }
     >
-      <Form id={formId} onSubmit={() => void zodSubmit(form, partnerInputSchema, (input) => mutation.mutate(input))()}>
+      <Form
+        id={formId}
+        onSubmit={() =>
+          void form.handleSubmit((values) => {
+            const input = zodCheck(form, partnerInputSchema, {
+              ...values,
+              priceTypeId: values.priceTypeId === RETAIL ? null : values.priceTypeId,
+            })
+            if (input) {
+              mutation.mutate(input)
+            }
+          })()
+        }
+      >
         <Field label={t('partners.name')} error={errors.name?.message} required>
           {(id) => <Input id={id} autoFocus invalid={!!errors.name} {...form.register('name')} />}
         </Field>
@@ -507,6 +532,25 @@ function PartnerDialog({
           </div>
           {errors.isSupplier?.message ? <p className="mt-1 text-xs text-bad">{errors.isSupplier.message}</p> : null}
         </div>
+        <Field label={t('partners.priceType')} hint={t('partners.priceTypeHint')} error={errors.priceTypeId?.message}>
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="priceTypeId"
+              render={({ field }) => (
+                <Select
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={[
+                    { value: RETAIL, label: t('pos.retailPrice') },
+                    ...prices.map((type) => ({ value: type.id, label: type.name })),
+                  ]}
+                />
+              )}
+            />
+          )}
+        </Field>
         <Field label={t('partners.note')} error={errors.note?.message}>
           {(id) => <Textarea id={id} rows={2} invalid={!!errors.note} {...form.register('note')} />}
         </Field>

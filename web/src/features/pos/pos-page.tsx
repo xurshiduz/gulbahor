@@ -275,8 +275,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [searching, setSearching] = useState(false)
   const [last, setLast] = useState<LastDocument | null>(null)
   const [viewing, setViewing] = useState<LastDocument | null>(null)
-  // The price types this cart may be sold at: those this person may pick, and the one the customer's group gives.
-  const theirs = cart.customer?.priceType ?? null
+  // The price types this cart may be sold at: those this person may pick, and the one the customer's group
+  // or the partner gives.
+  const theirs = cart.customer?.priceType ?? cart.partner?.priceType ?? null
   const priceTypes = useMemo(
     () => [
       ...context.priceTypes,
@@ -438,9 +439,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** A partner at the counter instead of a customer: none of a customer's rules go with them. */
   const servePartner = (partner: PosPartnerDto | null) => {
     const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
-    setCart((current) => ({ ...current, partner, customer: partner ? null : current.customer, priceTypeId: kept }))
-    if (kept !== priceTypeId) {
-      refreshCart(kept)
+    // A partner's own price is the one the cart goes to: a wholesale buyer is sold at wholesale without asking.
+    const at = partner?.priceType?.id ?? kept
+    setCart((current) => ({ ...current, partner, customer: partner ? null : current.customer, priceTypeId: at }))
+    if (at !== priceTypeId) {
+      refreshCart(at)
     }
     setAccount({ amount: null, received: null })
     window.setTimeout(focusSearch)

@@ -138,7 +138,7 @@ describe('Partner sales', () => {
   describe('finding a partner at the till', () => {
     it('shows who they are and what their account is kept in, never what they owe', async () => {
       const found = (await cashier.get('/api/pos/partners').query({ q: 'ela' }).expect(200)).body
-      expect(found).toEqual([{ id: elaris, name: 'Elaris', phone: null, currency: 'USD' }])
+      expect(found).toEqual([{ id: elaris, name: 'Elaris', phone: null, currency: 'USD', priceType: null }])
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context.maySellToPartners).toBe(false)
       expect(context.approvers).toEqual([expect.objectContaining({ id: alphaUserId, partners: true })])
@@ -287,13 +287,84 @@ describe('Partner sales', () => {
     })
   })
 
+  describe('a partner’s own price', () => {
+    it('is what the till sells at once they are picked, without anyone’s word', async () => {
+      const types = (await alpha.get('/api/price-types').expect(200)).body as {
+        id: string
+        kind: string
+        name: string
+      }[]
+      const wholesale = types.find((type) => type.kind === 'wholesale')!
+      const floor = types.find((type) => type.kind === 'min')!
+      // The floor is no price to buy at.
+      const refused = await alpha
+        .post('/api/partners')
+        .send({ name: 'Pol', isBuyer: true, currency: 'UZS', priceTypeId: floor.id })
+        .expect(400)
+      expect(refused.body.error.fields.priceTypeId).toBeDefined()
+      const bulk = (
+        await alpha
+          .post('/api/partners')
+          .send({ name: 'Ulgurji Bozor', isBuyer: true, currency: 'UZS', priceTypeId: wholesale.id })
+          .expect(201)
+      ).body
+      expect(bulk).toMatchObject({ priceTypeId: wholesale.id, priceTypeName: wholesale.name })
+      const found = (await cashier.get('/api/pos/partners').query({ q: 'ulgurji' }).expect(200)).body
+      expect(found[0].priceType).toEqual({ id: wholesale.id, name: wholesale.name })
+
+      const retail = types.find((type) => type.kind === 'retail')!
+      const shopId = (await alpha.get('/api/locations')).body.items[0].id
+      const trousers = (
+        await alpha
+          .post('/api/products')
+          .send({
+            name: 'Shim',
+            axisIds: [],
+            variants: [{ valueIds: [] }],
+            prices: [
+              { priceTypeId: retail.id, amount: som(300_000), currency: 'UZS' },
+              { priceTypeId: wholesale.id, amount: som(250_000), currency: 'UZS' },
+            ],
+          })
+          .expect(201)
+      ).body.variants[0].id
+      const receipt = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-01',
+          uzsRate: 12_000,
+          currency: 'UZS',
+          usdRate: 12_000,
+          lines: [{ variantId: trousers, qty: 5, price: som(150_000) }],
+        })
+        .expect(201)
+      await alpha.post(`/api/receipts/${receipt.body.id}/post`).expect(201)
+
+      const atWholesale = (partnerId: string | null) =>
+        cashier.post('/api/sales').send({
+          clientKey: randomUUID(),
+          registerId,
+          partnerId,
+          priceTypeId: wholesale.id,
+          lines: [{ variantId: trousers, qty: 1 }],
+          total: som(250_000),
+          payments: [{ method: 'cash', currency: 'UZS', amount: som(250_000) }],
+        })
+      // The cashier may not pick the wholesale price; with the partner whose price it is, nobody picked it.
+      expect((await atWholesale(null)).status).toBe(400)
+      const sold = (await atWholesale(bulk.id).expect(201)).body
+      expect(sold).toMatchObject({ total: som(250_000), priceTypeName: wholesale.name, partnerName: 'Ulgurji Bozor' })
+    })
+  })
+
   describe('the shift and the books', () => {
     it('show what went on accounts as a line of its own, apart from the cash counted', async () => {
       const shift = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       const partner = shift.totals.payments.filter((payment: { method: string }) => payment.method === 'partner')
       expect(partner.map((payment: { currency: string }) => payment.currency).sort()).toEqual(['USD', 'UZS'])
       expect(shift.totals.payments.find((payment: { method: string }) => payment.method === 'cash')).toMatchObject({
-        amount: som(265_000),
+        amount: som(265_000) + som(250_000),
       })
     })
 

@@ -339,6 +339,8 @@ export const ru: Dictionary = {
     starterDone: 'Цвета, размеры и категории добавлены',
   },
   partners: {
+    priceType: 'Цена',
+    priceTypeHint: 'Когда на кассе выбран этот партнёр, товары продаются по этой цене',
     title: 'Партнёры',
     currency: 'Валюта счёта',
     balance: 'Взаиморасчёты',

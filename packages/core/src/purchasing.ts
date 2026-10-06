@@ -22,6 +22,8 @@ export const partnerInputSchema = z
     isBuyer: z.boolean().default(false),
     /** The currency their account is kept in: what they owe, or are owed, is always said in it. */
     currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).default('UZS'),
+    /** The price they buy at the till at, when it is not the retail one: the till takes it with them. */
+    priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     note: optionalText(500),
   })
   .refine((partner) => partner.isSupplier || partner.isBuyer, {
@@ -46,6 +48,9 @@ export interface PartnerDto {
   isBuyer: boolean
   /** Any currency the business has switched on: one partner, one currency. */
   currency: AnyCurrency
+  /** The price they buy at the till at; null for the retail one. */
+  priceTypeId: string | null
+  priceTypeName: string | null
   /** What they owe the business, in their currency; negative when the business owes them. Null for a person who may not see debts. */
   balance: number | null
   note: string | null

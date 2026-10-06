@@ -959,6 +959,8 @@ export interface PosPartnerDto {
   name: string
   phone: string | null
   currency: AnyCurrency
+  /** The price they buy at: the till sells at it once they are picked, without anyone's word. */
+  priceType: { id: string; name: string } | null
 }
 
 /** One sellable thing as the till shows it. */

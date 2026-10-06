@@ -28,7 +28,7 @@ const context = {
   mayOverDiscount: false,
   changeRoundStep: 0,
 } as unknown as PosContextDto
-const elaris: PosPartnerDto = { id: 'p1', name: 'Elaris', phone: null, currency: 'USD' }
+const elaris: PosPartnerDto = { id: 'p1', name: 'Elaris', phone: null, currency: 'USD', priceType: null }
 
 afterEach(() => vi.restoreAllMocks())
 

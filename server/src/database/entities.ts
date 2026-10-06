@@ -676,6 +676,10 @@ export class Partner {
   @Column('text')
   currency: AnyCurrency
 
+  /** The price they buy at the till at; null for the retail one. */
+  @Column('uuid', { nullable: true })
+  priceTypeId: string | null
+
   @Column('text', { nullable: true })
   note: string | null
 

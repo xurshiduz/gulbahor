@@ -12,7 +12,7 @@ import { In, type EntityManager } from 'typeorm'
 import { AppError } from '../../common/errors'
 import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Account, Partner } from '../../database/entities'
+import { Account, Partner, PriceType } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { CurrenciesService } from '../money/currencies.service'
@@ -20,7 +20,16 @@ import { RealtimeService } from '../realtime/realtime.service'
 
 const SORTABLE = { name: 'p.name', createdAt: 'p.createdAt' }
 
-const AUDITED: (keyof Partner & string)[] = ['name', 'phone', 'isSupplier', 'isBuyer', 'currency', 'note', 'isActive']
+const AUDITED: (keyof Partner & string)[] = [
+  'name',
+  'phone',
+  'isSupplier',
+  'isBuyer',
+  'currency',
+  'priceTypeId',
+  'note',
+  'isActive',
+]
 
 /**
  * The people and firms the business trades with. Each has an account in the
@@ -59,8 +68,9 @@ export class PartnersService {
         actor,
         rows.map((row) => row.id),
       )
+      const named = await priceTypeNames(em, rows)
       return {
-        items: rows.map((row) => partnerDto(row, owed(row.id))),
+        items: rows.map((row) => partnerDto(row, owed(row.id), named(row))),
         total,
         page: query.page,
         size: query.size,
@@ -83,13 +93,18 @@ export class PartnersService {
   }
 
   private async dto(em: EntityManager, actor: Actor, partner: Partner): Promise<PartnerDto> {
-    return partnerDto(partner, (await this.owed(em, actor, [partner.id]))(partner.id))
+    return partnerDto(
+      partner,
+      (await this.owed(em, actor, [partner.id]))(partner.id),
+      (await priceTypeNames(em, [partner]))(partner),
+    )
   }
 
   async create(actor: Actor, input: PartnerInput): Promise<PartnerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertNameFree(em, input.name)
       await this.assertCurrency(em, actor, input.currency)
+      await this.assertPriceType(em, input.priceTypeId)
       const saved = await em.save(
         em.create(Partner, { orgId: actor.orgId, ...input, isActive: true, searchKey: keyOf(input) }),
       )
@@ -110,6 +125,9 @@ export class PartnersService {
       await this.assertNameFree(em, input.name, id)
       if (before.currency !== input.currency) {
         await this.assertCurrency(em, actor, input.currency)
+      }
+      if (before.priceTypeId !== input.priceTypeId) {
+        await this.assertPriceType(em, input.priceTypeId)
       }
       // Once anything has been owed either way, the account stays in the currency it was kept in.
       const account = await em.findOneBy(Account, { partnerId: id })
@@ -170,6 +188,17 @@ export class PartnersService {
     }
   }
 
+  /** A partner buys at a price; the floor is not one. */
+  private async assertPriceType(em: EntityManager, id: string | null) {
+    if (!id) {
+      return
+    }
+    const type = await em.findOneBy(PriceType, { id, isActive: true })
+    if (!type || type.kind === 'min') {
+      throw AppError.validation({ priceTypeId: 'Narx turi topilmadi' })
+    }
+  }
+
   private async assertNameFree(em: EntityManager, name: string, exceptId?: string) {
     const taken = await em
       .createQueryBuilder(Partner, 'p')
@@ -186,7 +215,17 @@ function keyOf(partner: { name: string; phone: string | null; note: string | nul
   return searchKey(`${partner.name} ${partner.phone ?? ''} ${partner.note ?? ''}`)
 }
 
-export function partnerDto(partner: Partner, balance: number | null): PartnerDto {
+/** The names of the price types some partners buy at, to be read one partner at a time. */
+export async function priceTypeNames(
+  em: EntityManager,
+  partners: Partner[],
+): Promise<(partner: Partner) => string | null> {
+  const ids = [...new Set(partners.flatMap((partner) => (partner.priceTypeId ? [partner.priceTypeId] : [])))]
+  const types = ids.length ? await em.findBy(PriceType, { id: In(ids) }) : []
+  return (partner) => types.find((type) => type.id === partner.priceTypeId)?.name ?? null
+}
+
+export function partnerDto(partner: Partner, balance: number | null, priceTypeName: string | null = null): PartnerDto {
   return {
     id: partner.id,
     name: partner.name,
@@ -194,6 +233,8 @@ export function partnerDto(partner: Partner, balance: number | null): PartnerDto
     isSupplier: partner.isSupplier,
     isBuyer: partner.isBuyer,
     currency: partner.currency,
+    priceTypeId: partner.priceTypeId,
+    priceTypeName: partner.priceTypeId ? priceTypeName : null,
     balance,
     note: partner.note,
     isActive: partner.isActive,

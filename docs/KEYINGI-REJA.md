@@ -467,6 +467,8 @@ Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini mas
 
 - **B3. Kassadan hamkorga sotuv.** Kassadagi "Mijoz" maydoniga hamkor nomi yozilsa, u mijozlardan keyin "hamkor · USD" belgisi bilan chiqadi; tanlansa, mijoz qoidalari (sodiqlik, guruh chegirmasi) qo'llanmaydi. To'lov bo'limida "Hisobiga · Elaris" qatori (summalardan alohida, «=» qolganini oladi): chekning shu qismi hamkor hisobiga yoziladi. Hamkor boshqa valyutada bo'lsa, ostida ikkinchi maydon: "Hisobiga (USD)" — kun kursida chiqadi, ustidan yozilsa kelishilgan summa, izoh bilan. Ruxsat — "Hamkorga uning hisobiga sotish" (kassirda yo'q: rahbar PIN'i so'raladi; do'kon menejerida bor). Kelishilgan summa kun kursidan 2% dan uzoq bo'lsa, chegirma kabi tasdiq kerak. Chekda "Hamkor: Elaris" va "Hamkor hisobiga: 1 265 000 so'm (100,00 $)". Smena hisobotida alohida qator; naqd sanog'iga aralashmaydi. Qaytarishda hamkor hisobidan o'sha sotuvda yozilgan summaning ulushi ayiriladi (bugungi kurs emas). Hisob-kitobda "Kassadan sotuv CH-…" va "Tovar qaytarildi" qatorlari.
 
+- **B4. Hamkorga narx turi.** Hamkor formasida "Narx" maydoni (chakana yoki biznesning kassa narx turlari: ulgurji va boshqalar; minimal narx emas). Kassada shu hamkor tanlansa, savat o'zi o'sha narxga o'tadi — kassirdan ruxsat ham, rahbar PIN'i ham so'ralmaydi (mijoz guruhining narxi kabi).
+
 ### Kurs sozlamasi (alohida sahifa)
 
 - Bugungi kurslar jadvali: har yoqilgan valyuta uchun bitta son; yonida kechagi va o'zgarish foizi.

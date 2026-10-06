@@ -18,6 +18,7 @@ import { MoneyService } from '../money/money.service'
 import { servesShop } from '../money/places'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
+import { priceTypeNames } from '../partners/partners.service'
 import { runningAt } from '../promotions/promotions.service'
 import { ApprovalsService } from './approvals.service'
 import { sellables } from './items'
@@ -124,7 +125,17 @@ export class PosService {
       const qb = em.createQueryBuilder(Partner, 'p').where('p.isActive')
       applySearch(qb, 'p.search_key', q)
       const rows = await qb.orderBy('p.name').limit(10).getMany()
-      return rows.map((row) => ({ id: row.id, name: row.name, phone: row.phone, currency: row.currency }))
+      const named = await priceTypeNames(em, rows)
+      return rows.map((row) => {
+        const priceType = row.priceTypeId ? named(row) : null
+        return {
+          id: row.id,
+          name: row.name,
+          phone: row.phone,
+          currency: row.currency,
+          priceType: row.priceTypeId && priceType ? { id: row.priceTypeId, name: priceType } : null,
+        }
+      })
     })
   }
 

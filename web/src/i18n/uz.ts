@@ -339,6 +339,8 @@ export const uz = {
     starterDone: 'Ranglar, o‘lchamlar va kategoriyalar qo‘shildi',
   },
   partners: {
+    priceType: 'Narx',
+    priceTypeHint: 'Kassada shu hamkor tanlansa, tovarlar shu narxda sotiladi',
     title: 'Hamkorlar',
     currency: 'Hisob valyutasi',
     balance: 'Hisob-kitob',

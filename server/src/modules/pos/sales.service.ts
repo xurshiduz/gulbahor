@@ -157,8 +157,10 @@ export class SalesService {
     // ── The price type the cart is sold at, when it is not the retail one, and whether this person may. ──
     const rules = customer ? (await rulesOf(em, [customer])).get(customer.id) : undefined
     let priceType: PriceType | null = null
-    // The price a customer's group gives them is theirs whoever is at the till: nobody picked it.
-    const theirs = !!input.priceTypeId && rules?.priceType?.id === input.priceTypeId
+    // The price a customer's group gives them, or a partner's own, is theirs whoever is at the till: nobody picked it.
+    const theirs =
+      !!input.priceTypeId &&
+      (rules?.priceType?.id === input.priceTypeId || (!!partner && partner.priceTypeId === input.priceTypeId))
     if (input.priceTypeId) {
       priceType = await em.findOneBy(PriceType, { id: input.priceTypeId })
       if (!priceType || !priceType.isActive || (priceType.tillAccess === 'none' && !theirs)) {
