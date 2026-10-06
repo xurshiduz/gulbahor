@@ -4,6 +4,7 @@ import {
   DEFAULT_ORG_SETTINGS,
   formatMoney,
   normalizeEpc,
+  partnerShare,
   returnShare,
   searchKey,
   settleRefund,
@@ -57,6 +58,10 @@ const DAY_MS = 86_400_000
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
 
+/** The share of an exchange difference that goes with `part` of `whole`, rounded half away from nothing. */
+const fxShareOf = (fx: number, whole: number, part: number) =>
+  Math.sign(fx) * Number((BigInt(Math.abs(fx)) * BigInt(part) * 2n + BigInt(whole)) / (BigInt(whole) * 2n))
+
 /** Quantities are kept to three decimals; they are added up as whole thousandths. */
 const milli = (qty: number) => Math.round(qty * 1000)
 
@@ -81,6 +86,8 @@ interface Caps {
   accounts: { accountId: string; method: TenderMethod; name: string; last4: string | null; left: number }[]
   /** What the receipt still leaves owing. */
   debt: number
+  /** What of it still stands on a partner's account, in so'm. */
+  partner: number
 }
 
 /**
@@ -365,7 +372,12 @@ export class ReturnsService {
         [sale.id],
       )
       const offDebt = Math.min(total - credit, owing?.left ?? 0)
-      const due = total - credit - offDebt
+      // ── What the sale put on a partner's account comes off it next, at what the sale wrote, not today's rate. ──
+      const onAccount = await this.partnerPart(em, sale.id)
+      const offAccount = onAccount
+        ? Math.min(total - credit - offDebt, onAccount.put.base - onAccount.returned.base)
+        : 0
+      const due = total - credit - offDebt - offAccount
 
       // ── The money that goes back: the way it was paid, unless this person may do otherwise. ──
       const caps = await this.caps(em, sale)
@@ -500,6 +512,31 @@ export class ReturnsService {
       if (receivables) {
         postings.push({ accountId: receivables.id, amount: -offDebt, base: -offDebt })
       }
+      if (onAccount && offAccount) {
+        const share = partnerShare(onAccount.put, onAccount.returned, offAccount)
+        // The account was put at its worth on the day of the sale: the same share of that worth comes off,
+        // and what the sale wrote down as an exchange difference goes back with it.
+        const last = offAccount === onAccount.put.base - onAccount.returned.base
+        const fxBack = last
+          ? onAccount.fx - onAccount.returned.fx
+          : fxShareOf(onAccount.fx, onAccount.put.base, offAccount)
+        await em.insert(SaleReturnPayment, {
+          orgId: actor.orgId,
+          returnId: made.id,
+          position: refunds.length + (receivables ? 1 : 0),
+          method: 'partner',
+          accountId: onAccount.accountId,
+          currency: onAccount.currency,
+          amount: share,
+          base: offAccount,
+          reference: null,
+        })
+        postings.push({ accountId: onAccount.accountId, amount: -share, base: -(offAccount + fxBack) })
+        if (fxBack) {
+          const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+          postings.push({ accountId: fx.id, amount: fxBack, base: fxBack })
+        }
+      }
       if (settlement.rounding) {
         const account = await this.ledger.systemAccount(em, actor.orgId, 'rounding')
         postings.push({ accountId: account.id, amount: -settlement.rounding, base: -settlement.rounding })
@@ -590,7 +627,7 @@ export class ReturnsService {
         continue
       }
       notCash += payment.base
-      if (payment.method !== 'exchange' && payment.method !== 'debt') {
+      if (payment.method === 'card' || payment.method === 'terminal') {
         const entry = byAccount.get(payment.accountId) ?? { method: payment.method, paid: 0 }
         entry.paid += payment.base
         byAccount.set(payment.accountId, entry)
@@ -610,7 +647,9 @@ export class ReturnsService {
     const cashBack = back.reduce((sum, row) => sum + (row.method === 'cash' ? row.base : 0), 0) + rounding
     const accounts = byAccount.size ? await em.findBy(Account, { id: In([...byAccount.keys()]) }) : []
     const debt = await em.findOneBy(CustomerDebt, { saleId: sale.id, cancelled: false })
+    const onAccount = await this.partnerPart(em, sale.id)
     return {
+      partner: onAccount ? onAccount.put.base - onAccount.returned.base : 0,
       // What was left owing and has been paid since was paid in money: it may go back as money.
       cash: Math.max(0, sale.total - notCash + (debt?.paid ?? 0) - cashBack),
       debt: debt ? debt.amount - debt.paid - debt.returned : 0,
@@ -625,6 +664,37 @@ export class ReturnsService {
           left: Math.max(0, entry.paid - gone),
         }
       }),
+    }
+  }
+
+  /**
+   * What a sale put on a partner's account, and what of it has come back:
+   * in so'm of the sale (`base`) and in the partner's currency (`settled`).
+   * Null for a sale that put nothing there.
+   */
+  private async partnerPart(em: EntityManager, saleId: string) {
+    const put = await em.findOneBy(SalePayment, { saleId, method: 'partner' })
+    if (!put) {
+      return null
+    }
+    const back: { base: number }[] = await em.query(
+      `SELECT p.base::float8 AS base, p.amount::float8 AS amount
+       FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
+       WHERE r.sale_id = $1 AND p.method = 'partner'`,
+      [saleId],
+    )
+    const rows = back as { base: number; amount: number }[]
+    return {
+      accountId: put.accountId,
+      currency: put.currency,
+      put: { base: put.base, settled: put.amount },
+      fx: put.fx,
+      returned: {
+        base: rows.reduce((sum, row) => sum + row.base, 0),
+        settled: rows.reduce((sum, row) => sum + row.amount, 0),
+        // Every return before the last took its share of the difference, rounded; the last takes what is left.
+        fx: rows.reduce((sum, row) => sum + fxShareOf(put.fx, put.base, row.base), 0),
+      },
     }
   }
 

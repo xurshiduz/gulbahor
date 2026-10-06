@@ -1,4 +1,4 @@
-import { hasPermission, type ApprovalInput } from '@gulbahor/core'
+import { hasPermission, type ApprovalInput, type PosContextDto } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
@@ -106,11 +106,7 @@ export class ApprovalsService {
   }
 
   /** Who at a shop may allow what a cashier may not, and has a PIN to say so with. */
-  async approversAt(
-    em: EntityManager,
-    locationId: string,
-    exceptUserId: string,
-  ): Promise<{ id: string; name: string; discount: boolean; returns: boolean; prices: boolean; debts: boolean }[]> {
+  async approversAt(em: EntityManager, locationId: string, exceptUserId: string): Promise<PosContextDto['approvers']> {
     const rows: { id: string; full_name: string; permissions: string[] }[] = await em.query(
       `SELECT u.id, u.full_name, ${PERMISSIONS} AS permissions
        FROM users u
@@ -129,7 +125,8 @@ export class ApprovalsService {
         returns: hasPermission(row.permissions, 'pos.return_any'),
         prices: hasPermission(row.permissions, 'pos.prices'),
         debts: hasPermission(row.permissions, 'pos.debt'),
+        partners: hasPermission(row.permissions, 'pos.partner_sale'),
       }))
-      .filter((row) => row.discount || row.returns || row.prices || row.debts)
+      .filter((row) => row.discount || row.returns || row.prices || row.debts || row.partners)
   }
 }

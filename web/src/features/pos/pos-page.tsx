@@ -15,6 +15,7 @@ import {
   type PosContextDto,
   type PosCustomerDto,
   type PosItemDto,
+  type PosPartnerDto,
   type ReaderTagEvent,
   type ReturnDto,
   type SaleDto,
@@ -36,7 +37,9 @@ import { Page } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { DebtPayDialog } from '@/features/customers/debt-pay'
+import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/exchange'
 import { useRegisters } from '@/features/money/money-page'
+import { useRateBook } from '@/features/money/rates'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
@@ -253,6 +256,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [takingDebt, setTakingDebt] = useState(false)
   /** What of the sale is to be left owing, and by when: typed while paying, gone with the sale. */
   const [lent, setLent] = useState<{ amount: number | null; dueDate: string | null }>({ amount: null, dueDate: null })
+  /** What of the sale goes on the partner's account: so much of it, and — agreed — what that is in their currency. */
+  const [account, setAccount] = useState<ExchangeSums>({ amount: null, received: null })
+  // The day's rates: what goes on a partner's account in another currency is worth what they make of it.
+  const book = useRateBook()
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
@@ -420,11 +427,22 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const serve = (customer: PosCustomerDto | null) => {
     const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
     const at = customer?.priceType?.id ?? kept
-    setCart((current) => ({ ...current, customer, priceTypeId: at }))
+    setCart((current) => ({ ...current, customer, partner: customer ? null : current.partner, priceTypeId: at }))
     if (at !== priceTypeId) {
       refreshCart(at)
     }
     // Found, the cursor goes back to the goods.
+    window.setTimeout(focusSearch)
+  }
+
+  /** A partner at the counter instead of a customer: none of a customer's rules go with them. */
+  const servePartner = (partner: PosPartnerDto | null) => {
+    const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
+    setCart((current) => ({ ...current, partner, customer: partner ? null : current.customer, priceTypeId: kept }))
+    if (kept !== priceTypeId) {
+      refreshCart(kept)
+    }
+    setAccount({ amount: null, received: null })
     window.setTimeout(focusSearch)
   }
 
@@ -548,7 +566,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const toPay = refunding ? 0 : totals.total - credit
   // What the receipt still leaves owing comes off first: money is handed back only for what was paid.
   const offDebt = refunding && returning ? Math.min(credit - totals.total, returning.found.caps.debt) : 0
-  const toRefund = refunding ? credit - totals.total - offDebt : 0
+  // Then what the sale put on a partner's account: it comes off there, not out of the drawer.
+  const offPartner =
+    refunding && returning ? Math.min(credit - totals.total - offDebt, returning.found.caps.partner ?? 0) : 0
+  const toRefund = refunding ? credit - totals.total - offDebt - offPartner : 0
   // ── Leaving part of it owing: a plain sale, to someone on the books ──
   const buyer = cart.customer ?? null
   const lending = !!buyer && !returning && toPay > 0
@@ -567,6 +588,23 @@ function Till({ context, registers, onSwitch }: TillProps) {
           ? t('pos.debtLate', { name: buyer.name, amount: money(standing.overdue) })
           : t('pos.debtOverLimit', { name: buyer.name, limit: money(context.debtLimit) })
 
+  // ── Putting part of it on a partner's account: in their currency, at the day's rate or a sum agreed ──
+  const partner = cart.partner ?? null
+  const crediting = !!partner && !returning && toPay > 0
+  const onAccountNow = crediting ? Math.min(account.amount ?? 0, toPay - owedNow) : 0
+  const accountLine =
+    crediting && partner
+      ? exchangeLine(
+          { id: 'sale', currency: book?.base ?? 'UZS' },
+          partner.currency,
+          { amount: onAccountNow || null, received: account.received },
+          book,
+          context.maxRateLossPercent,
+        )
+      : null
+  const partnerAsk = onAccountNow > 0 && !context.maySellToPartners
+  const partnerRateAsk = !!accountLine?.strays && !context.mayOverDiscount
+
   // ── The money: paid in, or handed back ──
   const rows = useMemo(
     () => (refunding && returning ? refundRows(context, returning.found) : tenderRows(context)),
@@ -580,7 +618,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** Dollars taken for more over the rate than the shop lets a cashier give alone. */
   const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent)
   const rateAsk = overRate && !context.mayOverDiscount
-  const settlement = settle(toPay - owedNow, refunding ? [] : typed, {
+  const settlement = settle(toPay - owedNow - onAccountNow, refunding ? [] : typed, {
     uzsPerUsd: rate,
     changeCurrency,
     roundStep: context.changeRoundStep,
@@ -594,10 +632,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     () =>
       refunding && returning
         ? suggestRefunds(toRefund, returning.found, context.changeRoundStep)
-        : toPay - owedNow
-          ? { cash: toPay - owedNow }
+        : toPay - owedNow - onAccountNow
+          ? { cash: toPay - owedNow - onAccountNow }
           : {},
-    [refunding, returning, toRefund, toPay, owedNow, context.changeRoundStep],
+    [refunding, returning, toRefund, toPay, owedNow, onAccountNow, context.changeRoundStep],
   )
 
   const focusField = (kind: TenderKind) => {
@@ -677,6 +715,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setCart(EMPTY_CART)
     setPaid({})
     setLent({ amount: null, dueDate: null })
+    setAccount({ amount: null, received: null })
     setReturning(null)
     setPaying(false)
     for (const key of ['pos', 'sales', 'returns', 'stock']) {
@@ -794,13 +833,30 @@ function Till({ context, registers, onSwitch }: TillProps) {
       toast.error(t('pos.debtOver'))
       return
     }
-    if (!approval && (overLimit || underAsk || rateAsk || priceAsk || late || beyond || barred || lendAsk)) {
+    if ((account.amount ?? 0) > toPay && crediting) {
+      toast.error(t('pos.onAccountOver'))
+      return
+    }
+    if (
+      !approval &&
+      (overLimit ||
+        underAsk ||
+        rateAsk ||
+        priceAsk ||
+        late ||
+        beyond ||
+        barred ||
+        lendAsk ||
+        partnerAsk ||
+        partnerRateAsk)
+    ) {
       const who = context.approvers.filter(
         (approver) =>
-          (!(overLimit || underAsk || rateAsk) || approver.discount) &&
+          (!(overLimit || underAsk || rateAsk || partnerRateAsk) || approver.discount) &&
           (!priceAsk || approver.prices) &&
           (!(late || beyond || barred) || approver.returns) &&
-          (!lendAsk || approver.debts),
+          (!lendAsk || approver.debts) &&
+          (!partnerAsk || approver.partners),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -842,6 +898,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
           barred ? t('pos.approvalExchange', { name: returning?.found.sale.customerName }) : null,
           beyond ? t('pos.approvalRefund') : null,
           lendAsk ? lendWhy : null,
+          partnerAsk ? t('pos.approvalPartner', { name: partner?.name }) : null,
+          partnerRateAsk && accountLine
+            ? t('pos.approvalPartnerRate', {
+                name: partner?.name,
+                percent: String(accountLine.gap).replace('.', ','),
+              })
+            : null,
         ]
           .filter(Boolean)
           .join('. '),
@@ -851,6 +914,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     const goods = {
       sellerId: cart.sellerId,
       customerId: cart.customer?.id ?? null,
+      partnerId: partner?.id ?? null,
       priceTypeId,
       promoCode,
       lines: cart.lines.map((line, index) => ({
@@ -870,6 +934,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
         ...goods,
         payments: amounts,
         debt: owedNow ? { amount: owedNow, dueDate } : null,
+        onAccount: onAccountNow ? { amount: onAccountNow, settled: receivedOf(accountLine) } : null,
         approval,
       })
       return
@@ -1239,6 +1304,22 @@ function Till({ context, registers, onSwitch }: TillProps) {
                   : null
               }
               offDebt={offDebt}
+              offPartner={offPartner}
+              onAccount={
+                crediting && partner
+                  ? {
+                      name: partner.name,
+                      currency: partner.currency,
+                      sums: { amount: account.amount, received: account.received },
+                      line: accountLine,
+                      max: toPay,
+                      book,
+                      setsRates: context.mayOverDiscount,
+                      warning: partnerAsk ? t('pos.onAccountAsk') : null,
+                      onChange: setAccount,
+                    }
+                  : null
+              }
             />
           ) : (
             <>
@@ -1247,6 +1328,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 registerId={registerId}
                 value={cart.customer ?? null}
                 onChange={serve}
+                partner={partner}
+                onPartner={servePartner}
                 onPayDebt={() => setTakingDebt(true)}
               />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">

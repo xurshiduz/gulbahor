@@ -16,6 +16,7 @@ import {
   type Page,
   type PosContextDto,
   type PosCustomerDto,
+  type PosPartnerDto,
   type PosItemDto,
   type ReturnableDto,
   type ReturnDto,
@@ -88,6 +89,15 @@ export class PosController {
     @Query(zod(posCustomerSearchSchema)) query: { q: string },
   ): Promise<PosCustomerDto[]> {
     return this.customers.search(actor, query.q)
+  }
+
+  /** A partner buying at the till, found by their name or phone: what they owe is not the till's to see. */
+  @Get('partners')
+  findPartners(
+    @CurrentActor() actor: Actor,
+    @Query(zod(posCustomerSearchSchema)) query: { q: string },
+  ): Promise<PosPartnerDto[]> {
+    return this.pos.partners(actor, query.q)
   }
 
   /** A customer who is not on the books yet is written down where they stand, by whoever is serving them. */

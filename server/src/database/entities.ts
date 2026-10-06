@@ -2038,6 +2038,12 @@ export class Sale {
   @Column('text', { nullable: true })
   customerName: string | null
 
+  @Column('uuid', { nullable: true })
+  partnerId: string | null
+
+  @Column('text', { nullable: true })
+  partnerName: string | null
+
   /** The part of `discount` that came off by itself, as the customer's own, and why. */
   @Column('bigint', { transformer: bigintAsNumber, default: 0 })
   autoDiscount: number
@@ -2176,7 +2182,7 @@ export class SalePayment {
   accountId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('bigint', { transformer: bigintAsNumber })
   amount: number
@@ -2327,7 +2333,7 @@ export class SaleReturnPayment {
   accountId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('bigint', { transformer: bigintAsNumber })
   amount: number

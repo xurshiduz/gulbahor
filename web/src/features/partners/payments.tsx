@@ -654,10 +654,20 @@ export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogPr
                 <td className="tabular py-1.5 pr-2 whitespace-nowrap">{formatDateTime(line.at)}</td>
                 <td className="px-2 py-1.5">
                   {line.kind === 'cancel'
-                    ? t(line.source === 'receipt' ? 'payments.receiptCancelled' : 'payments.cancelLine')
+                    ? t(
+                        line.source === 'receipt'
+                          ? 'payments.receiptCancelled'
+                          : line.source === 'sale'
+                            ? 'payments.saleVoided'
+                            : 'payments.cancelLine',
+                      )
                     : line.kind === 'receipt'
                       ? t('payments.receiptLine')
-                      : PARTNER_PAYMENT_KIND_LABELS[line.kind]}{' '}
+                      : line.kind === 'sale'
+                        ? t('payments.saleLine')
+                        : line.kind === 'sale_return'
+                          ? t('payments.saleReturnLine')
+                          : PARTNER_PAYMENT_KIND_LABELS[line.kind]}{' '}
                   {line.number && line.source === 'receipt' && line.documentId ? (
                     // The goods behind the debt are a click away.
                     <Link

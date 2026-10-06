@@ -271,10 +271,10 @@ describe('uuid', () => {
 describe('goods coming back', () => {
   const line = (id: string, qty: number, total: number, returnedQty = 0, returnedTotal = 0) =>
     ({ id, qty, total, returnedQty, returnedTotal }) as SaleLineDto
-  const found = (caps: Omit<ReturnableDto['caps'], 'debt'>, free = false) =>
+  const found = (caps: Omit<ReturnableDto['caps'], 'debt' | 'partner'>, free = false) =>
     ({
       sale: { lines: [line('a', 2, som(171_000)), line('b', 1, som(36_000))] },
-      caps: { debt: 0, ...caps },
+      caps: { debt: 0, partner: 0, ...caps },
       free,
     }) as ReturnableDto
 

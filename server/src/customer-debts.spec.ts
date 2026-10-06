@@ -353,7 +353,7 @@ describe('Customer debts', () => {
       const customer = (await alpha.post('/api/customers').send({ name: 'Zilola', phone: '94 111 22 33' })).body.id
       const sale: Sale = (await onCredit(customer, som(500_000)).expect(201)).body
       const found = (await alpha.get('/api/returns/lookup').query({ code: sale.number }).expect(200)).body
-      expect(found.caps).toEqual({ cash: 0, accounts: [], debt: som(500_000) })
+      expect(found.caps).toEqual({ cash: 0, accounts: [], debt: som(500_000), partner: 0 })
 
       const before = await books()
       // Money asked for what is still owed: refused.
@@ -372,7 +372,7 @@ describe('Customer debts', () => {
       await pay(customer, som(200_000)).expect(200)
       const found = (await alpha.get('/api/returns/lookup').query({ code: sale.number }).expect(200)).body
       // 300 000 is still owed; the 200 000 she paid may go back as cash.
-      expect(found.caps).toEqual({ cash: som(200_000), accounts: [], debt: som(300_000) })
+      expect(found.caps).toEqual({ cash: som(200_000), accounts: [], debt: som(300_000), partner: 0 })
 
       const before = await books()
       expect((await giveBack(sale, [])).status).toBe(400)

@@ -2,7 +2,9 @@ import {
   formatMoney,
   toBase,
   worthOf,
+  type AnyCurrency,
   type CurrencyCode,
+  type RateBook,
   type PosContextDto,
   type RefundSettlement,
   type Settlement,
@@ -17,6 +19,8 @@ import { DateInput } from '@/components/ui/date-input'
 import { Shortcut } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
+import { ReceivedField, type ExchangeSums } from '@/features/money/exchange'
+import type { ValuedLine } from '@/features/partners/payment-lines'
 import { cn } from '@/lib/cn'
 
 import { changeText, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
@@ -62,6 +66,27 @@ interface TenderPanelProps {
   lend?: Lending | null
   /** Goods brought back on a receipt that still leaves something owing: so much comes off the debt, not out of the drawer. */
   offDebt?: number
+  /** Putting part of it on a partner's account: offered when a partner is buying. */
+  onAccount?: OnAccount | null
+  /** Goods brought back on a receipt that put something on a partner's account: so much comes off it there. */
+  offPartner?: number
+}
+
+export interface OnAccount {
+  /** Whose account. */
+  name: string
+  currency: AnyCurrency
+  sums: ExchangeSums
+  /** The pair of sums where the account is in another currency than the sale; null where it is not. */
+  line: ValuedLine | null
+  /** The most that can go there: what there is to pay. */
+  max: number
+  book: RateBook | null
+  /** An agreed sum however far from the day's rate is this person's to make. */
+  setsRates: boolean
+  /** Why a manager's word will be asked for, when it will. */
+  warning: string | null
+  onChange: (sums: ExchangeSums) => void
 }
 
 export interface Lending {
@@ -101,9 +126,12 @@ export function TenderPanel({
   onBack,
   lend = null,
   offDebt = 0,
+  onAccount = null,
+  offPartner = 0,
 }: TenderPanelProps) {
   const { t } = useTranslation()
   const lendId = useId()
+  const accountId = useId()
   const dueId = useId()
   const sums = useRef<HTMLDivElement>(null)
   const rate = context.rate?.uzsPerUsd ?? null
@@ -117,7 +145,9 @@ export function TenderPanel({
     : settlement.problem === null && settlement.due === 0
 
   // What is left owing is not for the money to cover.
-  const owing = lend ? Math.min(lend.amount ?? 0, lend.max) : 0
+  const owing =
+    (lend ? Math.min(lend.amount ?? 0, lend.max) : 0) +
+    (onAccount ? Math.min(onAccount.sums.amount ?? 0, onAccount.max) : 0)
 
   /** What is left for a row to cover once the others have paid theirs, in so'm. */
   const restFor = (row: TenderRow): number => {
@@ -400,6 +430,50 @@ export function TenderPanel({
             </div>
           ) : null}
           {lend.amount && lend.warning ? <p className="text-xs text-warn">{lend.warning}</p> : null}
+        </div>
+      ) : null}
+      {onAccount ? (
+        // Like lending, decided rather than fallen into: Enter does not walk into it.
+        <div
+          data-enter-skip
+          data-on-account
+          className="flex flex-col gap-1.5 border-t border-line pt-3"
+          onKeyDown={backToMoney}
+        >
+          <div className="flex items-center gap-2">
+            <label htmlFor={accountId} className="min-w-0 flex-1 truncate text-[13px] text-ink-2">
+              {t('pos.onAccount')} · {onAccount.name}
+            </label>
+            {/* "=" puts on the account whatever the money typed above has not covered. */}
+            <MoneyInput
+              id={accountId}
+              value={onAccount.sums.amount}
+              // What goes there in the sale's money is the anchor: typed, the partner's sum follows afresh.
+              onChange={(amount) => onAccount.onChange({ amount, received: null })}
+              currency="UZS"
+              fillValue={Math.min(onAccount.max, (onAccount.sums.amount ?? 0) + settlement.due)}
+              invalid={(onAccount.sums.amount ?? 0) > onAccount.max}
+              className="w-44"
+            />
+          </div>
+          {onAccount.line && onAccount.sums.amount ? (
+            <ReceivedField
+              line={onAccount.line}
+              sums={onAccount.sums}
+              toCurrency={onAccount.currency}
+              onChange={onAccount.onChange}
+              book={onAccount.book}
+              setsRates={onAccount.setsRates}
+              label={t('pos.onAccountIn', { currency: onAccount.currency })}
+            />
+          ) : null}
+          {onAccount.sums.amount && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}
+        </div>
+      ) : null}
+      {offPartner ? (
+        <div className="flex items-baseline justify-between border-t border-line pt-3 text-[13px]">
+          <span className="text-ink-2">{t('pos.offPartner')}</span>
+          <span className="tabular font-medium">{money(offPartner)}</span>
         </div>
       ) : null}
       {offDebt ? (

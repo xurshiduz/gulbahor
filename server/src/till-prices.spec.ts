@@ -154,7 +154,15 @@ describe('Price types at the till', () => {
       { id: types.family.id, name: 'Oila', needsWord: true },
     ])
     expect(context.approvers).toEqual([
-      { id: managerId, name: 'Anvar Menejer', discount: true, returns: true, prices: true, debts: true },
+      {
+        id: managerId,
+        name: 'Anvar Menejer',
+        discount: true,
+        returns: true,
+        prices: true,
+        debts: true,
+        partners: true,
+      },
     ])
     const mine = (await manager.get(`/api/pos/context/${registerId}`).expect(200)).body
     expect(mine.priceTypes.map((type: { name: string; needsWord: boolean }) => [type.name, type.needsWord])).toEqual([

@@ -13,6 +13,7 @@ import {
   type LineAuto,
   type PosContextDto,
   type PosCustomerDto,
+  type PosPartnerDto,
   type PosItemDto,
   type ReturnableDto,
   type SaleLineDto,
@@ -53,6 +54,8 @@ export interface Cart {
   priceTypeId?: string | null
   /** Who is buying, when they are on the books, with the rules their groups give. */
   customer?: PosCustomerDto | null
+  /** A partner buying instead of a customer: none of a customer's rules, and part of it may go on their account. */
+  partner?: PosPartnerDto | null
   /** The promotion code the customer said, once the till has been told it means something. */
   promoCode?: string | null
 }

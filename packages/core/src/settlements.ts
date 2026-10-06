@@ -413,10 +413,14 @@ export interface PartnerPaymentDto {
 
 export interface PartnerStatementLine {
   at: string
-  /** What happened: a payment's kind, `receipt` for goods received from them, or `cancel` for either taken back. */
-  kind: PartnerPaymentKind | 'receipt' | 'cancel'
-  /** The document behind it: a payment, or a receipt of goods. */
-  source: 'payment' | 'receipt'
+  /**
+   * What happened: a payment's kind, `receipt` for goods received from them,
+   * `sale` for goods sold to them on their account, `sale_return` for such
+   * goods brought back, or `cancel` for any of it taken back.
+   */
+  kind: PartnerPaymentKind | 'receipt' | 'sale' | 'sale_return' | 'cancel'
+  /** The document behind it: a payment, a receipt of goods, a sale at the till or a return to it. */
+  source: 'payment' | 'receipt' | 'sale' | 'sale_return'
   number: string | null
   documentId: string | null
   /** How the partner's debt changed, in the partner's currency. */

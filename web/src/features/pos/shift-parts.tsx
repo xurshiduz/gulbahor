@@ -1,4 +1,11 @@
-import { formatMoney, paymentLabel, shiftCloseSchema, type PosContextDto, type ShiftDto } from '@gulbahor/core'
+import {
+  formatMoney,
+  paymentLabel,
+  shiftCloseSchema,
+  type AnyCurrency,
+  type PosContextDto,
+  type ShiftDto,
+} from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LockOpen } from 'lucide-react'
 import { useState } from 'react'
@@ -192,7 +199,7 @@ const Row = ({
   </div>
 )
 
-const money = (minor: number, currency: 'UZS' | 'USD' = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
 
 /** The Z-report: what was sold in a shift and how it was paid; for those who check it, the count against the books. */
 export function ShiftReport({ shift }: { shift: ShiftDto }) {
@@ -234,8 +241,17 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           totals.payments.map((payment) => (
             <Row
               key={`${payment.method}:${payment.accountName}:${payment.currency}`}
-              label={paymentLabel(payment)}
-              value={money(payment.amount, payment.currency)}
+              // What went on a partner's account is no money in the drawer: whose account, and in both currencies.
+              label={
+                payment.method === 'partner'
+                  ? `${paymentLabel(payment)} · ${payment.accountName}`
+                  : paymentLabel(payment)
+              }
+              value={
+                payment.method === 'partner' && payment.currency !== 'UZS'
+                  ? `${money(payment.base)} (${money(payment.amount, payment.currency)})`
+                  : money(payment.amount, payment.currency)
+              }
             />
           ))
         ) : (
@@ -244,7 +260,13 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
         {totals.refunds.map((refund) => (
           <Row
             key={`back:${refund.method}:${refund.accountName}:${refund.currency}`}
-            label={refund.method === 'debt' ? t('pos.offDebt') : `${t('sales.refunded')}: ${paymentLabel(refund)}`}
+            label={
+              refund.method === 'debt'
+                ? t('pos.offDebt')
+                : refund.method === 'partner'
+                  ? `${t('pos.offPartner')} · ${refund.accountName}`
+                  : `${t('sales.refunded')}: ${paymentLabel(refund)}`
+            }
             value={`−${money(refund.amount, refund.currency)}`}
           />
         ))}

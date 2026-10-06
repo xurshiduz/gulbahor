@@ -177,6 +177,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.return', title: 'Qaytarish va almashtirish' },
       { key: 'pos.return_any', title: 'Muddati o‘tgan tovarni olish, pulni boshqa usulda qaytarish' },
       { key: 'pos.debt', title: 'Taqiqlangan, muddati o‘tgan yoki chegaradan oshgan mijozga qarzga sotish' },
+      { key: 'pos.partner_sale', title: 'Hamkorga uning hisobiga sotish' },
     ],
   },
   {

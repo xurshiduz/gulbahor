@@ -30,6 +30,7 @@ import { Currencies1790000028000 } from './1790000028000-currencies'
 import { MoneyInAnyCurrency1790000029000 } from './1790000029000-money-in-any-currency'
 import { MoneyExchange1790000030000 } from './1790000030000-money-exchange'
 import { PartnersInAnyCurrency1790000031000 } from './1790000031000-partners-in-any-currency'
+import { PartnerSales1790000032000 } from './1790000032000-partner-sales'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -65,4 +66,5 @@ export const MIGRATIONS = [
   MoneyInAnyCurrency1790000029000,
   MoneyExchange1790000030000,
   PartnersInAnyCurrency1790000031000,
+  PartnerSales1790000032000,
 ]

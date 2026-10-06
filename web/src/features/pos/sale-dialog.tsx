@@ -16,7 +16,7 @@ import { api } from '@/lib/api'
 import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
 
-import { ReceiptPaper } from './receipt-paper'
+import { paidText, ReceiptPaper } from './receipt-paper'
 import { toast } from '@/lib/toast'
 
 import { changeText } from './pos-state'
@@ -168,6 +168,11 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                 {t('pos.customer')}: {sale.customerName}
               </p>
             ) : null}
+            {sale.partnerName ? (
+              <p className="mt-1 text-xs text-ink-2">
+                {t('pos.partner')}: {sale.partnerName}
+              </p>
+            ) : null}
             {sale.promoCode ? (
               <p className="mt-1 text-xs text-ink-3">
                 {t('pos.promoCode')}: <span className="font-code">{sale.promoCode}</span>
@@ -227,11 +232,7 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                 <Line
                   key={index}
                   label={`${paymentLabel(payment)}${payment.reference ? ` (${payment.reference})` : ''}`}
-                  value={
-                    payment.currency === 'USD'
-                      ? `${money(payment.amount, 'USD')} = ${money(payment.base)}`
-                      : money(payment.amount)
-                  }
+                  value={paidText(payment)}
                 />
               ))}
               {sale.debt ? (

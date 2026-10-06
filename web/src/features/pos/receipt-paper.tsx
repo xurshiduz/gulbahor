@@ -4,8 +4,10 @@ import {
   formatMoney,
   paymentLabel,
   receiptColumnMm,
+  type AnyCurrency,
   type ReceiptTemplate,
   type SaleDto,
+  type SalePaymentDto,
 } from '@gulbahor/core'
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +16,21 @@ import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/form
 
 import { changeText } from './pos-state'
 
-const money = (minor: number, currency: 'UZS' | 'USD' = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+
+/**
+ * What a payment came to, as a receipt says it: dollars with what they paid
+ * of the sum, and what went on a partner's account in so'm with what that is
+ * in the partner's own currency — "1 265 000 so'm (100,00 $)".
+ */
+export function paidText(payment: Pick<SalePaymentDto, 'method' | 'currency' | 'amount' | 'base'>): string {
+  if (payment.method === 'partner') {
+    return payment.currency === 'UZS'
+      ? money(payment.base)
+      : `${money(payment.base)} (${money(payment.amount, payment.currency)})`
+  }
+  return payment.currency === 'USD' ? `${money(payment.amount, 'USD')} = ${money(payment.base)}` : money(payment.amount)
+}
 
 interface ReceiptPaperProps {
   sale: SaleDto
@@ -75,6 +91,11 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
           {t('pos.customer')}: {sale.customerName}
         </p>
       ) : null}
+      {sale.partnerName ? (
+        <p>
+          {t('pos.partner')}: {sale.partnerName}
+        </p>
+      ) : null}
 
       <table className="mt-1.5 w-full border-t border-dashed border-black">
         <tbody>
@@ -111,15 +132,7 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
         ) : null}
         <Row label={t('pos.total')} value={money(sale.total)} strong />
         {sale.payments.map((payment, index) => (
-          <Row
-            key={index}
-            label={paymentLabel(payment)}
-            value={
-              payment.currency === 'USD'
-                ? `${money(payment.amount, 'USD')} = ${money(payment.base)}`
-                : money(payment.amount)
-            }
-          />
+          <Row key={index} label={paymentLabel(payment)} value={paidText(payment)} />
         ))}
         {/* The day the customer has agreed to: on the paper they take away. */}
         {sale.debt ? <Row label={t('pos.debtDue')} value={formatDay(sale.debt.dueDate)} /> : null}

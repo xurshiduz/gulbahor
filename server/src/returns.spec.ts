@@ -316,6 +316,7 @@ describe('Returns', () => {
         cash: som(100_000),
         accounts: [{ accountId: cardId, method: 'card', name: 'Humo', last4: '3073', left: som(200_000) }],
         debt: 0,
+        partner: 0,
       })
 
       const back = { saleId: sale.id, lines: [{ saleLineId: sale.lines[0].id, qty: 1 }], total: som(300_000) }

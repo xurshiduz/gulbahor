@@ -8,14 +8,18 @@ import {
   overDiscountLimit,
   overRateLoss,
   PAYMENT_METHOD_LABELS,
+  rateGap,
   saleTotals,
   searchKey,
   rateGain,
   settle,
+  settleLine,
+  straysFromRate,
   toBase,
   variantLabel,
   worthOf,
   type LineAuto,
+  type LineWorth,
   type Page,
   type PosItemDto,
   type SaleDto,
@@ -37,6 +41,7 @@ import {
   Customer,
   Location,
   Organization,
+  Partner,
   PriceType,
   Register,
   Sale,
@@ -51,6 +56,8 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
+import { wantingRate } from '../money/agreed'
+import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { servesShop } from '../money/places'
 import { runningAt } from '../promotions/promotions.service'
@@ -86,6 +93,7 @@ export class SalesService {
     private readonly stock: StockService,
     private readonly ledger: LedgerService,
     private readonly approvals: ApprovalsService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async create(actor: Actor, input: SaleInput): Promise<SaleDto> {
@@ -139,6 +147,11 @@ export class SalesService {
     const customer = input.customerId ? await em.findOneBy(Customer, { id: input.customerId, isActive: true }) : null
     if (input.customerId && !customer) {
       throw AppError.validation({ customerId: 'Mijoz topilmadi' })
+    }
+    // A partner is no customer: none of a customer's rules (their discount, their group's price) are theirs.
+    const partner = input.partnerId ? await em.findOneBy(Partner, { id: input.partnerId, isActive: true }) : null
+    if (input.partnerId && !partner) {
+      throw AppError.validation({ partnerId: 'Hamkor topilmadi' })
     }
 
     // ── The price type the cart is sold at, when it is not the retail one, and whether this person may. ──
@@ -391,10 +404,57 @@ export class SalesService {
         lentByWord = true
       }
     }
-    const vouched = ((overLimit || under.length > 0 || overRate) && !alone) || pricedByWord || lentByWord
+    // ── What goes on a partner's account: in their currency, at the day's rate or at a sum agreed. ──
+    const onAccount = input.onAccount?.amount ?? 0
+    let partnerWorth: LineWorth | null = null
+    let soldByWord = false
+    let partnerOverRate = false
+    if (input.onAccount) {
+      if (!partner) {
+        throw AppError.validation({ partnerId: 'Hisobiga yozish uchun hamkorni tanlang' })
+      }
+      if (onAccount > totals.total - used - owed) {
+        throw AppError.validation({ onAccount: 'Hisobiga yoziladigan summa chekdan oshmasligi kerak' })
+      }
+      if (!can(actor, 'pos.partner_sale')) {
+        if (!allows(approver, 'pos.partner_sale')) {
+          throw AppError.badRequest(
+            'PARTNER_SALE_NEEDS_WORD',
+            approver
+              ? `${approver.name} hamkor hisobiga sotishni tasdiqlay olmaydi`
+              : `${partner.name} hisobiga sotish uchun rahbar tasdig‘i kerak`,
+            { onAccount: 'Rahbar tasdig‘i kerak' },
+          )
+        }
+        soldByWord = true
+      }
+      const book = await this.currencies.book(em, actor, today)
+      const wanting = wantingRate(book, book.base, partner.currency)
+      if (wanting) {
+        throw AppError.validation({ onAccount: wanting })
+      }
+      partnerWorth = settleLine(onAccount, book.base, partner.currency, book, input.onAccount.settled)
+      // An agreed sum far from the day's rate gives as much away as a discount does: the same word lets it.
+      partnerOverRate = partnerWorth.agreed && straysFromRate(partnerWorth, settings.maxRateLossPercent)
+      if (partnerOverRate && !allowed) {
+        const gap = String(rateGap(partnerWorth)).replace('.', ',')
+        throw AppError.badRequest(
+          'RATE_LOSS_OVER_LIMIT',
+          approver
+            ? `${approver.name} kun kursidan uzoq kelishilgan summani tasdiqlay olmaydi`
+            : `Kelishilgan summa kun kursidan ${gap}% farq qiladi: rahbar tasdig‘i kerak`,
+          { onAccount: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
+        )
+      }
+    }
+    const vouched =
+      ((overLimit || under.length > 0 || overRate || partnerOverRate) && !alone) ||
+      pricedByWord ||
+      lentByWord ||
+      soldByWord
 
     const settlement = settle(
-      totals.total - used - owed,
+      totals.total - used - owed - onAccount,
       payments.map((payment) => ({ ...payment, value: payment.base })),
       {
         uzsPerUsd: rate,
@@ -423,6 +483,7 @@ export class SalesService {
         ...(used ? [PAYMENT_METHOD_LABELS.exchange] : []),
         ...payments.map((payment) => PAYMENT_METHOD_LABELS[payment.method] + (payment.currency === 'USD' ? ' $' : '')),
         ...(owed ? [PAYMENT_METHOD_LABELS.debt] : []),
+        ...(onAccount ? [PAYMENT_METHOD_LABELS.partner] : []),
       ]),
     ].join(', ')
     const sale = await em.save(
@@ -457,11 +518,15 @@ export class SalesService {
         priceTypeName: priceType?.name ?? null,
         customerId: customer?.id ?? null,
         customerName: customer?.name ?? null,
+        partnerId: partner?.id ?? null,
+        partnerName: partner?.name ?? null,
         autoDiscount: totals.auto,
         autoReason: totals.auto ? autoReason(autos, rules?.discountReason ?? null) : null,
         promoCode: input.promoCode,
         note: input.note ?? null,
-        searchKey: searchKey([number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' ')),
+        searchKey: searchKey(
+          [number, actor.name, seller?.fullName ?? '', customer?.name ?? '', partner?.name ?? ''].join(' '),
+        ),
       }),
     )
     const lines = await em.save(
@@ -586,6 +651,19 @@ export class SalesService {
         cancelled: false,
       })
     }
+    if (partnerWorth && partner) {
+      // On the partner's account in their currency; its worth there is what the day's rates make of that sum.
+      const account = await this.ledger.partnerAccount(em, partner)
+      paid.push({
+        method: 'partner',
+        accountId: account.id,
+        currency: partner.currency,
+        amount: partnerWorth.settled,
+        base: onAccount,
+        fx: partnerWorth.partnerBase - onAccount,
+        reference: null,
+      })
+    }
     await em.insert(
       SalePayment,
       paid.map((payment, position) => ({ ...payment, orgId: actor.orgId, saleId: sale.id, position })),
@@ -596,7 +674,8 @@ export class SalesService {
       amount: payment.amount as number,
       base: (payment.base as number) + (payment.fx ?? 0),
     }))
-    const gained = payments.reduce((sum, payment) => sum + payment.fx, 0)
+    const gained =
+      payments.reduce((sum, payment) => sum + payment.fx, 0) + (partnerWorth ? partnerWorth.partnerBase - onAccount : 0)
     if (gained) {
       const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
       postings.push({ accountId: fx.id, amount: -gained, base: -gained })
@@ -906,6 +985,8 @@ function summary(sale: Sale, locationName: string, registerName: string, seesCos
     priceTypeName: sale.priceTypeName,
     customerId: sale.customerId,
     customerName: sale.customerName,
+    partnerId: sale.partnerId,
+    partnerName: sale.partnerName,
     autoDiscount: sale.autoDiscount,
     autoReason: sale.autoReason,
     promoCode: sale.promoCode,

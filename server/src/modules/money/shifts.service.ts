@@ -340,7 +340,7 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE s.shift_id = $1 AND s.status = 'completed'
        GROUP BY p.method, a.name, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'debt'], p.method), p.currency DESC, a.name`,
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'debt', 'partner'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
@@ -379,7 +379,7 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE r.shift_id = $1
        GROUP BY p.method, a.name, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt'], p.method), p.currency DESC, a.name`,
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt', 'partner'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
     return {
