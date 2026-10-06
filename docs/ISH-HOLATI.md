@@ -4,7 +4,8 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 ## Qoidalar (foydalanuvchi bilan kelishilgan)
 
-- **Commit ham, push ham faqat foydalanuvchi aytganda qilinadi.** Oradagi har tugagan bo'lakdan keyin ish daraxtining nusxasi olinadi va pastdagi ro'yxatga yoziladi: `git add -A && git write-tree && git reset -q` (bu commit emas, hech narsani o'zgartirmaydi).
+- **Bulut sessiyasi** (claude.ai/code) uchun alohida tartib bor — `docs/BULUT-SESSIYA.md`: u o'z branchida ishlaydi, har bo'lakni commit qiladi va `v2` ga PR ochadi; natijani lokal sessiya tekshiradi.
+- **Commit ham, push ham faqat foydalanuvchi aytganda qilinadi** (lokal sessiyada). Oradagi har tugagan bo'lakdan keyin ish daraxtining nusxasi olinadi va pastdagi ro'yxatga yoziladi: `git add -A && git write-tree && git reset -q` (bu commit emas, hech narsani o'zgartirmaydi).
 - Parol va kalitlar chatga ham, hujjatga ham yozilmaydi (`server/.env`, `server/.env.test-users`).
 - Billz'ga kirilmaydi: tahlil tugagan.
 - Har bo'lakdan keyin: `npm run typecheck`, `npm run lint`, `npm test` — hammasi yashil bo'lishi shart. Qizil holatda keyingi bo'lakka o'tilmaydi.
@@ -16,7 +17,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b, 9, UI tuzatishlar, 5d va PIN kataklari ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-2026-10-06 da foydalanuvchi aytgach yana to'rtta commit qilindi (`58abc6f` PIN'ni o'chirish va parol ko'zi, `47f23ba` savdo hisoboti, `65ed5c7` juft maydon, pul joylari va "Pul holati", `2f50d01` o‘/g‘ imlosi va Ctrl+Q). Push qilinmagan.
+2026-10-06 da foydalanuvchi aytgach yana to'rtta commit qilindi (`58abc6f` PIN'ni o'chirish va parol ko'zi, `47f23ba` savdo hisoboti, `65ed5c7` juft maydon, pul joylari va "Pul holati", `2f50d01` o‘/g‘ imlosi va Ctrl+Q). Shu kuni keyinroq V1 (valyutalar va kurslar), V2 (pul joylari istalgan valyutada) va bulut sessiyasiga tayyorgarlik ham commit qilindi va `v2` GitHub'ga chiqarildi (foydalanuvchi so'rovi: ish bulut sessiyasida davom etadi).
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
@@ -137,9 +138,9 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 
 12. **Valyuta va hamkor** (KEYINGI-REJA, 8-bo'lim: "Yakuniy qarorlar" va "Valyuta va hamkor ishining bosqichlari") — reja 2026-10-06 da kelishib olindi; **kod foydalanuvchi "boshla" deganda boshlanadi**:
    - [x] V1. Valyutalar va kurslar (katalog, yoqish, kurs va yozilish shakli, zanjirli hisob, "Kurslar" ekrani).
-   - [ ] V2. Pul joylari istalgan valyutada.
-   - [ ] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish.
-   - [ ] V4. Ayirboshlash va komissiya.
+   - [x] V2. Pul joylari istalgan valyutada.
+   - [ ] V4. Ayirboshlash: o'tkazmada va kassadan pul olishda juft maydon (foydalanuvchi so'rovi, 2026-10-06) — **navbatdagi ish**; talabi `docs/BULUT-SESSIYA.md`, 4-bo'lim, A. Komissiya keyin.
+   - [ ] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish — V4 dan keyin; talabi o'sha yerda, B (B1–B5).
    - [ ] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy va ikkinchi valyuta").
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
@@ -163,3 +164,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `3ffd62a21e0048fd893d051b495729f694f642bf` | 11: juft maydon va kurs farqi, pul joylarining nomi va karta raqami, "Pul holati", menyu akkordeoni; kirimda dona bo'yicha va yashirin yetkazib beruvchi maydoni; valyuta taklifi va rejasi |
 | `c043d1b528b33d4f3c70b1d124080811260355d2` | O‘ va g‘ imlosi (1107 ta matn, migratsiya bilan), qidiruv Ctrl+Q da va yuqori panelda qutisiz, Ctrl+K — to'lov olish |
 | `96fac49b6f29fd9f0c447d2671a2e0717e1d01d2` | V1: valyuta katalogi (16 ta), yoqish va o'chirib qo'yish, har valyutaga kurs va yozilish shakli, zanjirli hisob, "Pul → Kurslar" sahifasi; reja hujjatda |
+| `be4867c78de6ebbb896d2d917dd1b2b5d9e04354` | V2: hisob istalgan yoqilgan valyutada (naqd, karta, bank); to'lov, xarajat va qarz oynalarida boshqa valyutadagi qator; zanjirli kurs bilan baholash; "Pul holati"da har valyuta; kurs tarixi ekrandan olib turildi; hisob turi "Naqd" |
