@@ -391,14 +391,16 @@ export class PartnerPaymentsService {
       }[] = account
         ? await em.query(
             `SELECT e.created_at AS at, e.kind AS entry_kind, e.document_type, l.amount::float8 AS change, e.document_id,
-                    coalesce(p.number, r.number, s.number, sr.number) AS number, p.kind,
-                    coalesce(p.note, r.note, s.note) AS note, coalesce(p.cancel_reason, s.void_reason) AS cancel_reason
+                    coalesce(p.number, r.number, s.number, sr.number, sd.number) AS number, p.kind,
+                    coalesce(p.note, r.note, s.note, sd.note) AS note,
+                    coalesce(p.cancel_reason, s.void_reason) AS cancel_reason
              FROM ledger_lines l
              JOIN ledger_entries e ON e.id = l.entry_id
              LEFT JOIN partner_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
              LEFT JOIN receipts r ON r.id = e.document_id AND e.document_type = 'receipt'
              LEFT JOIN sales s ON s.id = e.document_id AND e.document_type = 'sale'
              LEFT JOIN sale_returns sr ON sr.id = e.document_id AND e.document_type = 'sale_return'
+             LEFT JOIN stock_documents sd ON sd.id = e.document_id AND e.document_type = 'supplier_return'
              WHERE l.account_id = $1
              ORDER BY e.created_at, l.position`,
             [account.id],
@@ -409,7 +411,10 @@ export class PartnerPaymentsService {
         balance += row.change
         const cancelled = row.entry_kind.endsWith('_cancel') || row.entry_kind === 'sale_void'
         const source =
-          row.document_type === 'receipt' || row.document_type === 'sale' || row.document_type === 'sale_return'
+          row.document_type === 'receipt' ||
+          row.document_type === 'sale' ||
+          row.document_type === 'sale_return' ||
+          row.document_type === 'supplier_return'
             ? row.document_type
             : 'payment'
         return {

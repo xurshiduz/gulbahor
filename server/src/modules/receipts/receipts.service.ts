@@ -349,14 +349,7 @@ export class ReceiptsService {
       const supplier = suppliers.find((item) => item.id === supplierId) as Partner
       const { goods, usd, uzs } = owed.get(supplierId) as { goods: number; usd: number; uzs: number }
       const account = await this.ledger.partnerAccount(em, supplier)
-      const amount =
-        account.currency === receipt.currency
-          ? goods
-          : account.currency === 'USD'
-            ? usd
-            : account.currency === 'UZS'
-              ? uzs
-              : await this.dayWorth(em, actor, receipt, usd, account.currency)
+      const amount = await this.inAccount(em, actor, receipt, account.currency, { goods, usd, uzs })
       postings.push({ accountId: account.id, amount: -amount, base: -uzs })
       worth += uzs
     }
@@ -368,6 +361,91 @@ export class ReceiptsService {
       { date: receipt.docDate, kind: 'receipt', documentType: DOCUMENT, documentId: receipt.id },
       postings,
     )
+  }
+
+  /**
+   * Goods of a posted receipt sent back to who supplied them: what the
+   * business owes for them comes off each supplier's account, at the
+   * receipt's prices and by the same rules it was written with, for the
+   * share of each line sent back. Goods with no supplier were paid on the
+   * spot and change no account. Returns what came off, in the currency of
+   * the account, when there was one supplier; posts nothing when nothing
+   * was owed.
+   */
+  async creditIn(
+    em: EntityManager,
+    actor: Actor,
+    receiptId: string,
+    parts: { receiptLineId: string; qty: number }[],
+    head: { date: string; documentType: string; documentId: string },
+  ): Promise<{ amount: number; currency: AnyCurrency } | null> {
+    const receipt = await em.findOneByOrFail(Receipt, { id: receiptId })
+    const lines = await em.find(ReceiptLine, { where: { receiptId }, order: { position: 'ASC' } })
+    const expenses = await em.find(ReceiptExpense, { where: { receiptId }, order: { position: 'ASC' } })
+    const costing = await this.cost(em, receipt, lines, expenses)
+    const owed = new Map<string, { goods: number; usd: number; uzs: number }>()
+    for (const piece of parts) {
+      const index = lines.findIndex((line) => line.id === piece.receiptLineId)
+      const line = lines[index]
+      const supplierId = line ? (line.supplierId ?? receipt.supplierId) : null
+      if (!line || !supplierId) {
+        continue
+      }
+      // So many thousandths of the line: its sums shared out in proportion, rounded half up.
+      const share = (sum: number) =>
+        Number(
+          (BigInt(sum) * BigInt(Math.round(piece.qty * 1000)) * 2n + BigInt(Math.round(line.qty * 1000))) /
+            (BigInt(Math.round(line.qty * 1000)) * 2n),
+        )
+      const sum = owed.get(supplierId) ?? { goods: 0, usd: 0, uzs: 0 }
+      sum.goods += share(costing.lines[index].goods)
+      sum.usd += share(costing.lines[index].goodsUsd)
+      sum.uzs += share(costing.lines[index].goodsUzs)
+      owed.set(supplierId, sum)
+    }
+    if (!owed.size) {
+      return null
+    }
+    const ids = [...owed.keys()].sort()
+    const suppliers = await em.findBy(Partner, { id: In(ids) })
+    const postings: Posting[] = []
+    let worth = 0
+    let credited: { amount: number; currency: AnyCurrency } | null = null
+    for (const supplierId of ids) {
+      const supplier = suppliers.find((item) => item.id === supplierId) as Partner
+      const sums = owed.get(supplierId) as { goods: number; usd: number; uzs: number }
+      const account = await this.ledger.partnerAccount(em, supplier)
+      const amount = await this.inAccount(em, actor, receipt, account.currency, sums)
+      postings.push({ accountId: account.id, amount, base: sums.uzs })
+      worth += sums.uzs
+      credited = { amount, currency: account.currency }
+    }
+    const purchases = await this.ledger.systemAccount(em, actor.orgId, 'purchases')
+    postings.push({ accountId: purchases.id, amount: -worth, base: -worth })
+    await this.ledger.post(em, actor, { ...head, kind: head.documentType }, postings)
+    return ids.length === 1 ? credited : null
+  }
+
+  /**
+   * What the goods of a receipt come to on an account kept in `currency`:
+   * exactly what was billed in the receipt's own currency; in dollars or
+   * so'm, what the receipt's rates make of it; in any other, the receipt's
+   * dollars at the rates of its day.
+   */
+  private async inAccount(
+    em: EntityManager,
+    actor: Actor,
+    receipt: Receipt,
+    currency: AnyCurrency,
+    sums: { goods: number; usd: number; uzs: number },
+  ): Promise<number> {
+    return currency === receipt.currency
+      ? sums.goods
+      : currency === 'USD'
+        ? sums.usd
+        : currency === 'UZS'
+          ? sums.uzs
+          : this.dayWorth(em, actor, receipt, sums.usd, currency)
   }
 
   /** Dollars of a receipt in a currency it has no rate of: the rates of the receipt's day say. */

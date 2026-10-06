@@ -21,6 +21,7 @@ import {
   Megaphone,
   MonitorSmartphone,
   PackageMinus,
+  PackageX,
   PackagePlus,
   ReceiptText,
   ScanBarcode,
@@ -107,6 +108,12 @@ export const NAVIGATION: NavGroup[] = [
       { to: '/transfers', label: 'nav.transfers', icon: Truck, permission: 'transfers.view' },
       { to: '/counts', label: 'nav.counts', icon: ClipboardCheck, permission: 'counts.view' },
       { to: '/writeoffs', label: 'nav.writeoffs', icon: PackageMinus, permission: 'writeoffs.view' },
+      {
+        to: '/supplier-returns',
+        label: 'nav.supplierReturns',
+        icon: PackageX,
+        permission: 'supplier_returns.view',
+      },
     ],
   },
   {

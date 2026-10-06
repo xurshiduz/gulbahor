@@ -21,7 +21,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-06 (bulut, V4 ayirboshlashdan keyin) — core 199, agent 17, server 330, web 199; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-06 (bulut, V4 va V3 dan keyin) — core 199, agent 17, server 354, web 204; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -140,7 +140,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] V1. Valyutalar va kurslar (katalog, yoqish, kurs va yozilish shakli, zanjirli hisob, "Kurslar" ekrani).
    - [x] V2. Pul joylari istalgan valyutada.
    - [x] V4. Ayirboshlash: o'tkazmada va kassadan pul olishda juft maydon (foydalanuvchi so'rovi, 2026-10-06) — **navbatdagi ish**; talabi `docs/BULUT-SESSIYA.md`, 4-bo'lim, A. Komissiya keyin.
-   - [ ] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish — V4 dan keyin; talabi o'sha yerda, B (B1–B5).
+   - [x] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish — V4 dan keyin; talabi o'sha yerda, B (B1–B5).
    - [ ] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy va ikkinchi valyuta").
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
@@ -166,3 +166,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `96fac49b6f29fd9f0c447d2671a2e0717e1d01d2` | V1: valyuta katalogi (16 ta), yoqish va o'chirib qo'yish, har valyutaga kurs va yozilish shakli, zanjirli hisob, "Pul → Kurslar" sahifasi; reja hujjatda |
 | `be4867c78de6ebbb896d2d917dd1b2b5d9e04354` | V2: hisob istalgan yoqilgan valyutada (naqd, karta, bank); to'lov, xarajat va qarz oynalarida boshqa valyutadagi qator; zanjirli kurs bilan baholash; "Pul holati"da har valyuta; kurs tarixi ekrandan olib turildi; hisob turi "Naqd" |
 | `71a6070098fa2009c7795775a94ecc3cd6916fc9` | V4: ayirboshlash — o'tkazmada va inkassatsiyada juft maydon, kurs yuborilganda qotadi |
+| `a3386593c172ac0a2253f16d7f3551a9446656c4` | V3 (B1–B5): hamkor istalgan valyutada, kirim qarzi o'z valyutasida, kassadan hamkorga sotuv, hamkorga narx turi, yetkazib beruvchiga qaytarish |

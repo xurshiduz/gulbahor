@@ -11,7 +11,7 @@ import {
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowRight, ClipboardCheck, PackageMinus, Plus, Truck, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ClipboardCheck, PackageMinus, PackageX, Plus, Truck, type LucideIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +27,12 @@ import { cn } from '@/lib/cn'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 
-export const DOC_ROUTES = { transfer: '/transfers', writeoff: '/writeoffs', count: '/counts' } as const
+export const DOC_ROUTES = {
+  transfer: '/transfers',
+  writeoff: '/writeoffs',
+  count: '/counts',
+  supplier_return: '/supplier-returns',
+} as const
 
 export const DOC_STATUS_TONES: Record<StockDocStatus, 'warn' | 'info' | 'ok' | 'neutral'> = {
   draft: 'warn',
@@ -36,13 +41,19 @@ export const DOC_STATUS_TONES: Record<StockDocStatus, 'warn' | 'info' | 'ok' | '
   cancelled: 'neutral',
 }
 
-const ICONS: Record<StockDocKind, LucideIcon> = { transfer: Truck, writeoff: PackageMinus, count: ClipboardCheck }
+const ICONS: Record<StockDocKind, LucideIcon> = {
+  transfer: Truck,
+  writeoff: PackageMinus,
+  count: ClipboardCheck,
+  supplier_return: PackageX,
+}
 
 /** A transfer can be on the way; the other two cannot. */
 const STATUSES: Record<StockDocKind, StockDocStatus[]> = {
   transfer: ['draft', 'sent', 'posted', 'cancelled'],
   writeoff: ['draft', 'posted', 'cancelled'],
   count: ['draft', 'posted'],
+  supplier_return: ['draft', 'posted', 'cancelled'],
 }
 
 export interface DocSearch {
@@ -65,6 +76,7 @@ interface LocationOption {
 const transfers = getRouteApi('/transfers')
 const writeoffs = getRouteApi('/writeoffs')
 const counts = getRouteApi('/counts')
+const supplierReturns = getRouteApi('/supplier-returns')
 
 export function TransfersPage() {
   const navigate = transfers.useNavigate()
@@ -94,6 +106,17 @@ export function CountsPage() {
     <StockDocsList
       kind="count"
       search={counts.useSearch()}
+      onSearch={(patch, replace) => void navigate({ search: (previous) => ({ ...previous, ...patch }), replace })}
+    />
+  )
+}
+
+export function SupplierReturnsPage() {
+  const navigate = supplierReturns.useNavigate()
+  return (
+    <StockDocsList
+      kind="supplier_return"
+      search={supplierReturns.useSearch()}
       onSearch={(patch, replace) => void navigate({ search: (previous) => ({ ...previous, ...patch }), replace })}
     />
   )
@@ -182,13 +205,29 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
             } satisfies ColumnDef<StockDocListItemDto>,
           ]
         : []),
+      ...(kind === 'supplier_return'
+        ? [
+            {
+              id: 'partner',
+              header: t('stockdocs.supplier_return.partner'),
+              meta: { export: (row) => row.partnerName },
+              cell: ({ row }) => row.original.partnerName ?? '',
+            } satisfies ColumnDef<StockDocListItemDto>,
+            {
+              id: 'receipt',
+              header: t('stockdocs.supplier_return.receipt'),
+              meta: { export: (row) => row.receiptNumber, className: 'w-px font-code text-xs whitespace-nowrap' },
+              cell: ({ row }) => row.original.receiptNumber ?? '',
+            } satisfies ColumnDef<StockDocListItemDto>,
+          ]
+        : []),
       {
         id: 'qty',
         header: kind === 'count' ? t('stockdocs.counted') : t('receipts.totalQty'),
         meta: { export: (row) => row.qty, className: 'tabular text-right', headerClassName: 'text-right' },
         cell: ({ row }) => formatNumber(row.original.qty),
       },
-      ...(kind !== 'writeoff'
+      ...(kind === 'transfer' || kind === 'count'
         ? [
             {
               id: 'diff',

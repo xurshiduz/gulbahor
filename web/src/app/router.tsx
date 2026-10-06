@@ -41,8 +41,8 @@ import { ReceiptPage } from '@/features/receipts/receipt-page'
 import { ReceiptsPage } from '@/features/receipts/receipts-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { StockPage } from '@/features/stock/stock-page'
-import { CountPage, TransferPage, WriteoffPage } from '@/features/stockdocs/stockdoc-page'
-import { CountsPage, TransfersPage, WriteoffsPage } from '@/features/stockdocs/stockdocs-page'
+import { CountPage, SupplierReturnPage, TransferPage, WriteoffPage } from '@/features/stockdocs/stockdoc-page'
+import { CountsPage, SupplierReturnsPage, TransfersPage, WriteoffsPage } from '@/features/stockdocs/stockdocs-page'
 import { RolesPage } from '@/features/users/roles-page'
 import { UsersPage } from '@/features/users/users-page'
 import { LIST_DEFAULTS, listSearch } from '@/lib/list-search'
@@ -188,6 +188,19 @@ const countsRoute = createRoute({
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
 })
 const countRoute = createRoute({ getParentRoute: () => rootRoute, path: '/counts/$docId', component: CountPage })
+
+const supplierReturnsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/supplier-returns',
+  component: SupplierReturnsPage,
+  validateSearch: stockDocsSearch,
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'all' })] },
+})
+const supplierReturnRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/supplier-returns/$docId',
+  component: SupplierReturnPage,
+})
 
 const customersRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -490,6 +503,8 @@ const routeTree = rootRoute.addChildren([
   writeoffsRoute,
   writeoffRoute,
   countsRoute,
+  supplierReturnsRoute,
+  supplierReturnRoute,
   countRoute,
   labelsRoute,
   partnersRoute,

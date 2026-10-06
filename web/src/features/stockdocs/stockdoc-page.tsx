@@ -10,7 +10,9 @@ import {
   WRITEOFF_REASONS,
   type AttributeDto,
   type ProductDto,
+  type Page as PageOf,
   type ProductListItemDto,
+  type ReceiptListItemDto,
   type ReceiptProductDto,
   type StockDocDto,
   type StockDocKind,
@@ -43,7 +45,7 @@ import { ProductPicker } from '@/features/catalog/product-picker'
 import { matrixOf, toReceiptProduct } from '@/features/receipts/receipt-state'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { formatNumber } from '@/lib/format'
+import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
@@ -53,10 +55,12 @@ import { DOC_ROUTES, DOC_STATUS_TONES } from './stockdocs-page'
 const transfer = getRouteApi('/transfers/$docId')
 const writeoff = getRouteApi('/writeoffs/$docId')
 const count = getRouteApi('/counts/$docId')
+const supplierReturn = getRouteApi('/supplier-returns/$docId')
 
 export const TransferPage = () => <StockDocPage kind="transfer" docId={transfer.useParams().docId} />
 export const WriteoffPage = () => <StockDocPage kind="writeoff" docId={writeoff.useParams().docId} />
 export const CountPage = () => <StockDocPage kind="count" docId={count.useParams().docId} />
+export const SupplierReturnPage = () => <StockDocPage kind="supplier_return" docId={supplierReturn.useParams().docId} />
 
 const FORM_ID = 'stockdoc-form'
 
@@ -77,6 +81,8 @@ interface Header {
   toLocationId: string | null
   docDate: string
   reason: WriteoffReason | null
+  /** A return to a supplier: the receipt the goods came on. */
+  receiptId: string | null
   fullCount: boolean
   note: string
 }
@@ -165,9 +171,27 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
     toLocationId: doc?.toLocationId ?? null,
     docDate: doc?.docDate ?? toIsoDate(todayIn(me.org.timezone)),
     reason: doc?.reason ?? null,
+    receiptId: doc?.receiptId ?? null,
     fullCount: doc?.fullCount ?? false,
     note: doc?.note ?? '',
   }))
+  // A return to a supplier goes against a receipt that was carried out: the latest of them, to pick from.
+  const receipts = useQuery({
+    queryKey: ['receipts', 'list', 'posted'],
+    queryFn: ({ signal }) => api.get<PageOf<ReceiptListItemDto>>('/receipts', { status: 'posted', size: 200 }, signal),
+    enabled: kind === 'supplier_return' && editable,
+  })
+  const receiptOptions = [
+    ...(receipts.data?.items ?? []).map((receipt) => ({
+      value: receipt.id,
+      label: `${receipt.number} · ${formatDay(receipt.docDate)}`,
+      hint: receipt.supplierName ?? undefined,
+    })),
+    // The one the document already names stays there, whether or not it is among the latest.
+    ...(doc?.receiptId && !receipts.data?.items.some((receipt) => receipt.id === doc.receiptId)
+      ? [{ value: doc.receiptId, label: doc.receiptNumber ?? '', hint: doc.partnerName ?? undefined }]
+      : []),
+  ]
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const byProduct = new Map<string, Block>()
     for (const line of doc?.lines ?? []) {
@@ -449,7 +473,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
   const busy = save.isPending || act.isPending
   const canCancel =
     (kind === 'transfer' && status === 'sent' && can('transfers.manage') && worksAt(doc?.locationId ?? null)) ||
-    (kind === 'writeoff' && status === 'posted' && can('writeoffs.post'))
+    ((kind === 'writeoff' || kind === 'supplier_return') && status === 'posted' && can(`${permission}.post`))
 
   return (
     <Page
@@ -586,6 +610,25 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
                   )}
                 </Field>
               ) : null}
+              {kind === 'supplier_return' ? (
+                <Field
+                  label={t('stockdocs.supplier_return.receipt')}
+                  hint={doc?.partnerName ?? receiptOptions.find((option) => option.value === header.receiptId)?.hint}
+                  error={errors.receiptId}
+                  required
+                >
+                  {(id) => (
+                    <Combobox
+                      id={id}
+                      options={receiptOptions}
+                      value={header.receiptId}
+                      onChange={(receiptId) => patchHeader({ receiptId })}
+                      invalid={!!errors.receiptId}
+                      disabled={!editable}
+                    />
+                  )}
+                </Field>
+              ) : null}
               {kind === 'writeoff' ? (
                 <Field label={t('stockdocs.reason')} error={errors.reason} required>
                   {(id) => (
@@ -715,6 +758,14 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
                 >
                   {kind === 'count' && doc.diffQty > 0 ? '+' : ''}
                   {formatNumber(doc.diffQty)}
+                </span>
+              </span>
+            ) : null}
+            {doc?.credited ? (
+              <span className="text-ink-3">
+                {t('stockdocs.supplier_return.credited', { name: doc.partnerName })}:{' '}
+                <span className="tabular font-semibold text-ok">
+                  {formatMoney(doc.credited.amount, doc.credited.currency, { minor: 'auto' })}
                 </span>
               </span>
             ) : null}

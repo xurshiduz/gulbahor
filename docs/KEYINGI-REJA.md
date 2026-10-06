@@ -469,6 +469,8 @@ Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini mas
 
 - **B4. Hamkorga narx turi.** Hamkor formasida "Narx" maydoni (chakana yoki biznesning kassa narx turlari: ulgurji va boshqalar; minimal narx emas). Kassada shu hamkor tanlansa, savat o'zi o'sha narxga o'tadi — kassirdan ruxsat ham, rahbar PIN'i ham so'ralmaydi (mijoz guruhining narxi kabi).
 
+- **B5. Yetkazib beruvchiga tovar qaytarish.** "Sklad → Yetkazib beruvchiga qaytarish" (YQ-…): joy, sana va **kirim** tanlanadi (o'tkazilgan kirimlar, yonida yetkazib beruvchi), tovarlar odatdagidek qo'shiladi. Tasdiqlanganda tovar faqat shu kirim partiyalaridan chiqadi (boshqa kirimdan kelgan xuddi shu tovarga tegilmaydi); kirimda yo'q tovar yoki shu kirimdan qolganidan ko'p miqdor rad etiladi. Yetkazib beruvchiga qarzimiz kirim narxida, uning hisobi valyutasida kamayadi (yuan kirimi — aynan yuan summasi) va hujjatda "… hisobidan qarzimiz kamaydi: 90,00 $" ko'rinadi; hamkorning hisob-kitobida "Tovar qaytarildi" qatori. Bekor qilinsa tovar ham, qarz ham aynan qaytadi. Ruxsatlar: "Yetkazib beruvchiga qaytarish" guruhi (ko'rish, qoralama, tasdiqlash); sklad mudiri qoralama tuzadi, boshqaruvchi tasdiqlaydi.
+
 ### Kurs sozlamasi (alohida sahifa)
 
 - Bugungi kurslar jadvali: har yoqilgan valyuta uchun bitta son; yonida kechagi va o'zgarish foizi.

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { AnyCurrency } from './money'
 import { idSchema, listQuerySchema, optionalText } from './schemas'
 import type { ReceiptProductDto } from './purchasing'
 
@@ -9,13 +10,15 @@ import type { ReceiptProductDto } from './purchasing'
  * carried out, and none is edited afterwards.
  */
 
-export const STOCK_DOC_KINDS = ['transfer', 'writeoff', 'count'] as const
+/** `supplier_return`: goods of a receipt sent back to who supplied them; what the business owes them comes down. */
+export const STOCK_DOC_KINDS = ['transfer', 'writeoff', 'count', 'supplier_return'] as const
 export type StockDocKind = (typeof STOCK_DOC_KINDS)[number]
 
 export const STOCK_DOC_KIND_LABELS: Record<StockDocKind, string> = {
   transfer: 'Ko‘chirish',
   writeoff: 'Hisobdan chiqarish',
   count: 'Inventarizatsiya',
+  supplier_return: 'Yetkazib beruvchiga qaytarish',
 }
 
 /** `sent` exists only for transfers: the goods have left one place and not yet reached the other. */
@@ -45,6 +48,7 @@ export const STOCK_DOC_PERMISSION: Record<StockDocKind, string> = {
   transfer: 'transfers',
   writeoff: 'writeoffs',
   count: 'counts',
+  supplier_return: 'supplier_returns',
 }
 
 const quantity = z
@@ -74,6 +78,8 @@ export const stockDocInputSchema = z
       .enum(WRITEOFF_REASONS)
       .nullish()
       .transform((value) => value ?? null),
+    /** A return to a supplier: the receipt the goods came on; they leave from its batches, at its prices. */
+    receiptId: idSchema.nullish().transform((value) => value || null),
     /** A full count: whatever is on hand and was not counted is taken as missing. */
     fullCount: z.boolean().default(false),
     note: optionalText(500),
@@ -86,6 +92,9 @@ export const stockDocInputSchema = z
       } else if (doc.toLocationId === doc.locationId) {
         context.addIssue({ code: 'custom', path: ['toLocationId'], message: 'Boshqa joyni tanlang' })
       }
+    }
+    if (doc.kind === 'supplier_return' && !doc.receiptId) {
+      context.addIssue({ code: 'custom', path: ['receiptId'], message: 'Tovar qaysi kirim bilan kelganini tanlang' })
     }
     if (doc.kind === 'writeoff' && !doc.reason) {
       context.addIssue({ code: 'custom', path: ['reason'], message: 'Sababni tanlang' })
@@ -134,6 +143,9 @@ export interface StockDocListItemDto {
   locationName: string
   toLocationName: string | null
   reason: WriteoffReason | null
+  /** A return to a supplier: the receipt and whom it goes back to. */
+  receiptNumber: string | null
+  partnerName: string | null
   /** Sent, written off or counted. */
   qty: number
   /** A transfer: how many did not arrive. A count: what was found against what should be there, signed. */
@@ -167,6 +179,13 @@ export interface StockDocDto {
   toLocationName: string | null
   docDate: string
   reason: WriteoffReason | null
+  /** A return to a supplier: the receipt the goods came on, and whom they go back to. */
+  receiptId: string | null
+  receiptNumber: string | null
+  partnerId: string | null
+  partnerName: string | null
+  /** What the return took off what the business owes, in the supplier's currency; null until it is posted. */
+  credited: { amount: number; currency: AnyCurrency } | null
   fullCount: boolean
   note: string | null
   lines: StockDocLineDto[]

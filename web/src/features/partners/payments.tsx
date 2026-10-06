@@ -659,7 +659,9 @@ export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogPr
                           ? 'payments.receiptCancelled'
                           : line.source === 'sale'
                             ? 'payments.saleVoided'
-                            : 'payments.cancelLine',
+                            : line.source === 'supplier_return'
+                              ? 'payments.supplierReturnCancelled'
+                              : 'payments.cancelLine',
                       )
                     : line.kind === 'receipt'
                       ? t('payments.receiptLine')
@@ -667,7 +669,9 @@ export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogPr
                         ? t('payments.saleLine')
                         : line.kind === 'sale_return'
                           ? t('payments.saleReturnLine')
-                          : PARTNER_PAYMENT_KIND_LABELS[line.kind]}{' '}
+                          : line.kind === 'supplier_return'
+                            ? t('payments.supplierReturnLine')
+                            : PARTNER_PAYMENT_KIND_LABELS[line.kind]}{' '}
                   {line.number && line.source === 'receipt' && line.documentId ? (
                     // The goods behind the debt are a click away.
                     <Link

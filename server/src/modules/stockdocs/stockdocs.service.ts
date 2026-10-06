@@ -5,6 +5,7 @@ import {
   STOCK_DOC_PERMISSION,
   STOCK_DOC_STATUS_LABELS,
   WRITEOFF_REASON_LABELS,
+  type AnyCurrency,
   type GoodsSentEvent,
   type Page,
   type ReceiptProductDto,
@@ -24,7 +25,10 @@ import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Location,
+  Partner,
   ProductVariant,
+  Receipt,
+  ReceiptLine,
   StockBatch,
   StockDocument,
   StockDocumentItem,
@@ -33,12 +37,17 @@ import {
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
+import { LedgerService } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
+import { ReceiptsService } from '../receipts/receipts.service'
 import { StockService, TRANSIT, type Movement, type Piece } from '../stock/stock.service'
 
 const SORTABLE = { number: 'd.number', docDate: 'd.docDate', createdAt: 'd.createdAt' }
 
-const PREFIX: Record<StockDocKind, string> = { transfer: 'KO', writeoff: 'HC', count: 'IN' }
+const PREFIX: Record<StockDocKind, string> = { transfer: 'KO', writeoff: 'HC', count: 'IN', supplier_return: 'YQ' }
+
+/** How the books name a return to a supplier: its entry, and the document it belongs to. */
+const SUPPLIER_RETURN = 'supplier_return'
 
 const QTY_SCALE = 1000
 const scaled = (qty: number) => Math.round(qty * QTY_SCALE)
@@ -57,6 +66,8 @@ export class StockDocsService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly stock: StockService,
+    private readonly receipts: ReceiptsService,
+    private readonly ledger: LedgerService,
   ) {}
 
   async list(actor: Actor, query: StockDocListQuery): Promise<Page<StockDocListItemDto>> {
@@ -68,6 +79,10 @@ export class StockDocsService {
         .leftJoin(Location, 't', 't.id = d.toLocationId')
         .addSelect('l.name', 'location_name')
         .addSelect('t.name', 'to_location_name')
+        .leftJoin(Receipt, 'r', 'r.id = d.receiptId')
+        .leftJoin(Partner, 'p', 'p.id = r.supplierId')
+        .addSelect('r.number', 'receipt_number')
+        .addSelect('p.name', 'partner_name')
         .where('d.kind = :kind', { kind: query.kind })
 
       if (!actor.allLocations) {
@@ -100,6 +115,8 @@ export class StockDocsService {
           locationName: raw[index].location_name,
           toLocationName: raw[index].to_location_name,
           reason: doc.reason,
+          receiptNumber: raw[index].receipt_number ?? null,
+          partnerName: raw[index].partner_name ?? null,
           qty: doc.totalQty,
           diffQty: doc.diffQty,
           costUzs: seesCost ? doc.costUzs : null,
@@ -317,6 +334,8 @@ export class StockDocsService {
         const taken = await this.takeOut(em, actor, doc, lines, 'writeoff', null)
         await em.update(StockDocument, id, taken.cost)
         summary = `${doc.number}: ${doc.totalQty} dona, ${formatMoney(taken.cost.costUzs)} (${WRITEOFF_REASON_LABELS[doc.reason ?? 'other']})`
+      } else if (doc.kind === 'supplier_return') {
+        summary = await this.sendBack(em, actor, doc, lines)
       } else {
         summary = await this.settleCount(em, actor, doc, lines)
       }
@@ -332,7 +351,12 @@ export class StockDocsService {
         entityId: id,
         summary,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock']))
+      afterCommit(() =>
+        this.realtime.changed(
+          actor.orgId,
+          doc.kind === 'supplier_return' ? ['stockdocs', 'stock', 'partners'] : ['stockdocs', 'stock'],
+        ),
+      )
       return this.load(em, actor, await this.find(em, actor, id))
     })
   }
@@ -360,12 +384,27 @@ export class StockDocsService {
           }
           movements.push(...move('transfer_cancel', doc, item.lineId, transit, doc.locationId, onTheWay.pieces[0]))
         }
-      } else if (doc.kind === 'writeoff') {
+      } else if (doc.kind === 'writeoff' || doc.kind === 'supplier_return') {
         need(actor, doc.kind, 'post')
         assertStatus(doc, 'posted')
         this.assertWorksAt(actor, doc.locationId)
+        const kind = doc.kind === 'writeoff' ? 'writeoff_cancel' : 'supplier_return_cancel'
         for (const item of items) {
-          movements.push(...move('writeoff_cancel', doc, item.lineId, null, doc.locationId, item))
+          movements.push(...move(kind, doc, item.lineId, null, doc.locationId, item))
+        }
+        if (doc.kind === 'supplier_return' && (await this.credited(em, doc.id))) {
+          // What came off the supplier's account goes back on it, exactly as it came off.
+          await this.ledger.reverse(
+            em,
+            actor,
+            {
+              date: await this.ledger.today(em, actor.orgId),
+              kind: 'supplier_return_cancel',
+              documentType: SUPPLIER_RETURN,
+              documentId: doc.id,
+            },
+            SUPPLIER_RETURN,
+          )
         }
       } else {
         throw AppError.conflict('WRONG_KIND', 'Inventarizatsiya bekor qilinmaydi: yangi sanash bilan to‘g‘rilanadi')
@@ -379,12 +418,105 @@ export class StockDocsService {
         entityId: id,
         summary: doc.number,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock', 'partners']))
       return this.load(em, actor, await this.find(em, actor, id))
     })
   }
 
   // ───────────────────────────── Carrying out ─────────────────────────────
+
+  /**
+   * Sends goods back to who supplied them: they leave from the batches of
+   * the receipt they came on, oldest first, and what the business owes for
+   * them comes off the supplier's account at that receipt's prices.
+   */
+  private async sendBack(
+    em: EntityManager,
+    actor: Actor,
+    doc: StockDocument,
+    lines: StockDocumentLine[],
+  ): Promise<string> {
+    if (!lines.length) {
+      throw AppError.validation({ lines: 'Hujjatda kamida bitta tovar bo‘lishi kerak' })
+    }
+    const receiptLines = await em.findBy(ReceiptLine, { receiptId: doc.receiptId as string })
+    const fields: Record<string, string> = {}
+    const movements: Movement[] = []
+    const items: Partial<StockDocumentItem>[] = []
+    const parts: { receiptLineId: string; qty: number }[] = []
+    let costUsd = 0
+    let costUzs = 0
+    for (const [index, line] of lines.entries()) {
+      const own = receiptLines.filter((item) => item.variantId === line.variantId).map((item) => item.id)
+      const held: { batch_id: string; receipt_line_id: string; qty: number }[] = own.length
+        ? await em.query(
+            `SELECT sb.batch_id, b.receipt_line_id, sb.qty::float8 AS qty
+             FROM stock_balances sb JOIN stock_batches b ON b.id = sb.batch_id
+             WHERE sb.location_id = $1 AND b.receipt_line_id = ANY($2) AND sb.qty > 0
+             ORDER BY b.received_on, b.created_at, b.id
+             FOR UPDATE OF sb`,
+            [doc.locationId, own],
+          )
+        : []
+      let left = scaled(line.qty)
+      const wants: { batchId: string; qty: number }[] = []
+      const lineOf = new Map<string, string>()
+      for (const batch of held) {
+        const take = Math.min(left, scaled(batch.qty))
+        if (take > 0) {
+          wants.push({ batchId: batch.batch_id, qty: unscaled(take) })
+          lineOf.set(batch.batch_id, batch.receipt_line_id)
+          left -= take
+        }
+      }
+      if (left > 0) {
+        fields[`lines.${index}.qty`] =
+          `Bu kirimdan bu joyda qoldiq yetarli emas: bor ${unscaled(scaled(line.qty) - left)}, kerak ${line.qty}`
+        continue
+      }
+      const picked = await this.stock.pickBatches(em, doc.locationId, wants)
+      const pieces = picked.flatMap((result) => result.pieces)
+      pieces.forEach((piece, position) => {
+        movements.push(...move('supplier_return', doc, line.id, doc.locationId, null, piece))
+        items.push({ orgId: actor.orgId, documentId: doc.id, lineId: line.id, position, ...piece })
+        parts.push({ receiptLineId: lineOf.get(piece.batchId) as string, qty: piece.qty })
+      })
+      const usd = pieces.reduce((sum, piece) => sum + piece.costUsd, 0)
+      const uzs = pieces.reduce((sum, piece) => sum + piece.costUzs, 0)
+      await em.update(StockDocumentLine, line.id, { costUsd: usd, costUzs: uzs })
+      costUsd += usd
+      costUzs += uzs
+    }
+    throwIfAny(fields, 'Qoldiq yetarli emas')
+    await this.stock.apply(em, actor.orgId, actor.userId, movements)
+    for (let start = 0; start < items.length; start += 500) {
+      await em.insert(StockDocumentItem, items.slice(start, start + 500))
+    }
+    await em.update(StockDocument, doc.id, { costUsd, costUzs })
+    const credited = await this.receipts.creditIn(em, actor, doc.receiptId as string, parts, {
+      date: doc.docDate,
+      documentType: SUPPLIER_RETURN,
+      documentId: doc.id,
+    })
+    return `${doc.number}: ${doc.totalQty} dona${credited ? `, qarzdan ${formatMoney(credited.amount, credited.currency)}` : ''}`
+  }
+
+  /** What a return took off the supplier's account, in its currency; null when it took nothing. */
+  private async credited(
+    em: EntityManager,
+    documentId: string,
+  ): Promise<{ amount: number; currency: AnyCurrency } | null> {
+    const [row]: { amount: number; currency: AnyCurrency }[] = await em.query(
+      `SELECT sum(l.amount)::float8 AS amount, min(a.currency) AS currency
+       FROM ledger_lines l
+       JOIN ledger_entries e ON e.id = l.entry_id
+       JOIN accounts a ON a.id = l.account_id
+       WHERE e.document_type = $1 AND e.document_id = $2 AND e.kind = $1 AND a.kind = 'partner'
+       HAVING count(*) > 0`,
+      [SUPPLIER_RETURN, documentId],
+    )
+    return row ?? null
+  }
 
   /**
    * Takes every line's quantity out of the document's place, oldest batch
@@ -619,6 +751,8 @@ export class StockDocsService {
       products.flatMap((product) => product.variants.map((variant) => variant.id)),
     )
 
+    const receipt = doc.receiptId ? await em.findOneBy(Receipt, { id: doc.receiptId }) : null
+    const supplier = receipt?.supplierId ? await em.findOneBy(Partner, { id: receipt.supplierId }) : null
     const seesCost = can(actor, 'stock.cost')
     // Whoever counts should count, not copy: what the books say is for those who approve the count.
     const seesBooks = doc.kind !== 'count' || doc.status !== 'draft' || can(actor, 'counts.post')
@@ -633,6 +767,15 @@ export class StockDocsService {
       toLocationName: nameOf(doc.toLocationId),
       docDate: doc.docDate,
       reason: doc.reason,
+      receiptId: doc.receiptId,
+      receiptNumber: receipt?.number ?? null,
+      partnerId: supplier?.id ?? null,
+      partnerName: supplier?.name ?? null,
+      // What the business owes is for those who may see debts.
+      credited:
+        doc.kind === 'supplier_return' && doc.status === 'posted' && can(actor, 'partners.debts')
+          ? await this.credited(em, doc.id)
+          : null,
       fullCount: doc.fullCount,
       note: doc.note,
       lines: lines.map((line) => ({
@@ -715,6 +858,21 @@ export class StockDocsService {
       fields.toLocationId = 'Faol do‘kon yoki skladni tanlang'
     }
 
+    if (input.kind === 'supplier_return' && input.receiptId) {
+      // Goods go back against a receipt that brought them in, and only what it brought.
+      const receipt = await em.findOneBy(Receipt, { id: input.receiptId })
+      if (!receipt || receipt.status !== 'posted') {
+        fields.receiptId = 'O‘tkazilgan kirimni tanlang'
+      } else {
+        const brought = new Set((await em.findBy(ReceiptLine, { receiptId: receipt.id })).map((line) => line.variantId))
+        input.lines.forEach((line, index) => {
+          if (!brought.has(line.variantId)) {
+            fields[`lines.${index}.variantId`] = 'Bu tovar shu kirimda yo‘q'
+          }
+        })
+      }
+    }
+
     const variantIds = input.lines.map((line) => line.variantId)
     const found = new Set(
       (variantIds.length ? await em.findBy(ProductVariant, { id: In(variantIds) }) : []).map((variant) => variant.id),
@@ -742,10 +900,19 @@ export class StockDocsService {
       )
     }
     const places = await em.findBy(Location, { id: In(placeIds(doc)) })
+    const receipt = doc.receiptId ? await em.findOneBy(Receipt, { id: doc.receiptId }) : null
+    const supplier = receipt?.supplierId ? await em.findOneBy(Partner, { id: receipt.supplierId }) : null
     await em.update(StockDocument, doc.id, {
       totalQty: unscaled(input.lines.reduce((sum, line) => sum + scaled(line.qty), 0)),
       searchKey: searchKey(
-        [doc.number, STOCK_DOC_KIND_LABELS[doc.kind], ...places.map((place) => place.name), doc.note ?? ''].join(' '),
+        [
+          doc.number,
+          STOCK_DOC_KIND_LABELS[doc.kind],
+          ...places.map((place) => place.name),
+          receipt?.number ?? '',
+          supplier?.name ?? '',
+          doc.note ?? '',
+        ].join(' '),
       ),
     })
   }
@@ -760,6 +927,7 @@ function header(input: StockDocInput) {
     toLocationId: input.kind === 'transfer' ? input.toLocationId : null,
     docDate: input.docDate,
     reason: input.kind === 'writeoff' ? input.reason : null,
+    receiptId: input.kind === 'supplier_return' ? input.receiptId : null,
     fullCount: input.kind === 'count' && input.fullCount,
     note: input.note,
   }

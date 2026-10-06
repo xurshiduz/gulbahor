@@ -158,6 +158,15 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'supplier_returns',
+    title: 'Yetkazib beruvchiga qaytarish',
+    permissions: [
+      { key: 'supplier_returns.view', title: 'Ko‘rish' },
+      { key: 'supplier_returns.manage', title: 'Qoralama yaratish va tahrirlash' },
+      { key: 'supplier_returns.post', title: 'Tasdiqlash (o‘tkazish) va bekor qilish' },
+    ],
+  },
+  {
     key: 'counts',
     title: 'Inventarizatsiya',
     permissions: [
@@ -319,6 +328,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'stock.*',
       'transfers.*',
       'writeoffs.*',
+      'supplier_returns.*',
       'counts.*',
       'labels.*',
       'devices.*',
@@ -409,6 +419,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'transfers.*',
       'writeoffs.view',
       'writeoffs.manage',
+      'supplier_returns.view',
+      'supplier_returns.manage',
       'counts.view',
       'counts.manage',
       'labels.print',

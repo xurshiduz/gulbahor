@@ -1196,6 +1196,10 @@ export class StockDocument {
   @Column('text', { nullable: true })
   reason: WriteoffReason | null
 
+  /** A return to a supplier: the receipt the goods came on. */
+  @Column('uuid', { nullable: true })
+  receiptId: string | null
+
   @Column('boolean')
   fullCount: boolean
 
@@ -2853,6 +2857,8 @@ export type StockMovementKind =
   | 'sale'
   | 'sale_void'
   | 'sale_return'
+  | 'supplier_return'
+  | 'supplier_return_cancel'
 
 /** A currency a business switched on beside its base, and how its rate is written. */
 @Entity('org_currencies')
