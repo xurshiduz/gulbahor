@@ -406,7 +406,7 @@ Yuqoridagi dastlabki taklifdan farq qiladigan joylarda shu bo'lim ustun.
 - Kurs oxirgi kiritilganidan keyingisi kiritilguncha ishlaydi; uzoq yangilanmasa ogohlantiradi, to'xtatmaydi.
 - Oldingisidan keskin farq qiladigan kurs (xato terish: 12 650 o'rniga 1 265) tasdiq so'raydi.
 
-**Hamkor va mijoz.**
+**Hamkor va mijoz.** (2026-10-06 dagi 16-bo'lim bilan **bekor qilingan**: hammasi bitta "Mijozlar", bitta odam — bitta hisob.)
 - Ular alohida qoladi: hamkor — hisob-kitob yuritiladigan (yetkazib beruvchi, ulgurji xaridor; bitta yuruvchi hisob), mijoz — chakana xaridor (chegirma, sodiqlik, chek bo'yicha qarz). To'liq birlashtirish xavfi yuqori, foydasi kichik.
 - Bitta hamkor — bitta valyuta (istalgan yoqilgan valyuta). Ko'p valyutali hamkor qilinmaydi: kerak bo'lsa ikkinchi yozuv ochiladi ("Elaris ($)", "Elaris (so'm)"). Chakana mijoz qarzi faqat asosiy valyutada.
 - **Kassada hamkor ham tanlanadi**: "Mijoz" maydoni hamkorni ham topadi, sotuv uning hisobiga yoziladi. Chek asosiy valyutada; hisobiga uning valyutasida tushadi (kun kursida yoki kelishilgan summa bilan, juft maydon qoidasi); chegirmadan keyingi summa yoziladi; qaytarishda o'sha sotuvda yozilgan summa ayriladi. Alohida ruxsat; kassirga hamkor qoldig'i ko'rsatilmaydi.
@@ -762,3 +762,295 @@ Bo'laklar:
    - **Kassada qaysi narx turida sotish**: har narx turida "kassada kim tanlay oladi" belgisi bo'ladi: *hamma kassir* (chakana), *ruxsati borlar* (ulgurji — yangi `pos.wholesale` ruxsati), *faqat tasdiq bilan* (oila — kassir tanlaydi, rahbar PIN'i bilan tasdiqlaydi). Tasdiq mexanizmi tayyor (chegirmada ishlayapti).
    - Mijoz guruhiga narx turi biriktirilgan bo'lsa ("Oila" guruhi), o'sha mijoz tanlanganda narx o'zi shu turga o'tadi va chekda yoziladi.
 4. **Dollarni kelishilgan qiymat bilan olishda chegara** — sozlamaga chiqarildi, boshlang'ich qiymati 2% (undan oshsa rahbar PIN'i). Odiljon aka boshqa foiz desa, Sozlamalar → Biznes bo'limida o'zgartiriladi.
+
+---
+
+## 16. Mijozlar: yagona ro'yxat, narx turlari va kassa (yakuniy taklif, 2026-10-06)
+
+Akaning qarori (2026-10-06): "kontragent ham emas, hamkor ham emas — hammasi Mijozlar, bitta ro'yxat. Mijozda narxi bo'ladi. Narx turlari dinamik qo'shiladi. Kirimda har narx turiga narxni foiz bilan, belgilangan summa bilan yoki tannarxga summa qo'shib oson qo'yish kerak. Kassadagi oldi-berdi ham bog'liq: mijoz kassadan ulgurji narxda ko'p tovar yoki qarzga olib ketishi mumkin." Oldinroq kelishilgan: bitta odam — bitta hisob (bizga ham sotsa, bizdan ham olsa — bitta balans); telefon hammaga ixtiyoriy va faqat +998 (chet raqam izohga); ismdan boshqa hamma maydon ixtiyoriy; tovar almashuv bo'ladi; yetkazib berish usullari hozir kerak emas.
+
+Bu bo'lim 8-bo'limdagi "Hamkor va mijoz alohida qoladi" qarorini **bekor qiladi**, 3-bo'limdagi "Qanday hisoblanadi" bandini va 5-bo'limdagi chakana qarz qoidasini yangilaydi. Uch qism (mijoz va hisob, narx, kassa holatlari) ikki marta tekshirildi; ular orasidagi qarama-qarshiliklar shu yerda bitta yechimga keltirilgan.
+
+### 16.1. Qarorlar
+
+**Mijoz**
+
+1. **Bitta ro'yxat — "Mijozlar".** Hamkorlar ro'yxati yo'qoladi, hamkorlar mijozlarga o'z raqamlari bilan ko'chadi, "Hamkor" so'zi ekrandan olib tashlanadi. Sabab: akaning talabi; bitta odam ikki ro'yxatda turmasin.
+2. **Majburiy faqat ism.** Ism takrorlanishi mumkin: forma "«Aziz» nomli 2 ta mijoz bor" deb ogohlantiradi, to'xtatmaydi. Sabab: chakanada bir xil ism ko'p.
+3. **Telefon ixtiyoriy, faqat +998, bitta raqam — bitta mijoz.** Chet raqam yozilsa, telefon bo'sh qoladi, raqam o'zi izohga tushadi ("Tel: +86 …") va bu maydon ostida aytiladi; izoh qidiruvda ishlaydi. Sabab: akaning qarori; kassir qo'lidagi raqamni yo'qotmaydi.
+4. **Bitta odam — bitta hisob, bitta valyutada** (standart so'm; kartada istalgan yoqilgan valyuta; birinchi yozuvdan keyin o'zgarmaydi). Musbat balans — **qarzi** (bizga qarzdor), manfiy — **haqi** (oldindan to'lagan yoki biz qarzdormiz). Hisob birinchi yozuvda o'zi ochiladi. Sabab: kirim, kassadan sotuv, to'lov va qaytarish bitta raqamga tushadi, tovar almashuv o'zi hisoblanadi.
+5. **Chakana qarz ham shu hisobga.** "Mijozlar qarzi" umumiy ichki hisobi va QZ- to'lovlari tugaydi. Sabab: bir odamga ikki balans bo'lmasin.
+6. **"Yetkazib beruvchi" — belgi.** U kirim tanlovidan yoki Excel importidan yaratilgan mijozga, kirimda nomi turgan mijozga kirim o'tkazilganda va qo'lda qo'yiladi (qoralamada nomi turishi belgi qo'ymaydi). Kirimda istalgan mijoz yetkazib beruvchi bo'la oladi. Belgi ikki joyda ishlaydi: kassir bunday mijozning summalarini ko'rmaydi va uning hisobiga kassadan tovar berish doim rahbar so'zi bilan. Sabab: ta'minotchiga qarzimiz kassirga ochilmaydi (hozirgi qoida); ta'minotchiga tovar berish — unga to'lov.
+7. **Arxivlash faqat qoldiq nol bo'lsa.** Umidsiz qarz "Hisob tuzatish" bilan yopiladi. Arxivdagi mijoz to'lay oladi, unga to'lanadi, tovar qaytara oladi, lekin qarzga ololmaydi. Sabab: arxivda balans yashirinib qolmasin (hozir arxivdagi hamkorga umuman to'lab bo'lmaydi).
+
+**Narx turi mijozda**
+
+8. **Narx turi majburiy emas.** Bo'sh — Chakana; formada birinchi variant "Chakana (odatiy)" bo'lib turadi. Tartib: mijozning o'z narxi → birinchi guruhining narxi → chakana. Chakana va Minimal turlari tanlanmaydi (chakana bo'sh deb saqlanadi). Sabab: majburiy tanlov har yangi xaridorga ortiqcha qadam qo'shadi va hech narsa bermaydi; chakanani alohida tur qilib saqlash hozir sodiqlik va aksiyani o'chirib qo'yadi (xato).
+9. **Mijozning narxi — "uniki".** Kassirga ruxsat ham, PIN ham kerak emas; narx turi "kassada tanlanmaydi" bo'lsa ham ishlaydi. Maxsus narxda aksiya, sodiqlik va guruh chegirmasi yo'q; qo'l chegirmasi chegarada (10%); minimal narx ishlaydi (narx turida "minimaldan past sotilishi mumkin" belgisi bo'lmasa). Sabab: narxning o'zi kelishuv.
+10. **Narx turida narxi qo'yilmagan tovar** kassada shu turning formulasi bilan hisoblanadi (16.4); formula bo'lmasa chakanada sotiladi va qator sariq "Chakana narxida" bilan belgilanadi — chekda ham. Sabab: kassa to'xtamasin, ulgurji xaridor jim aldanmasin (hozir jim chakanaga o'tadi).
+11. **Arxivlangan narx turi** mijozga ham, guruhga ham narx bermaydi — keyingisiga o'tiladi; arxivlashda "N ta mijoz va M ta guruh shu narxda" deb ogohlantiriladi. Sabab: hozir bunday mijozga kassa umuman sotmay qo'yadi.
+12. **Sodiqlik faqat chakana narxdagi xaridlarni sanaydi.** Sabab: ulgurji hajm chakana chegirmani ko'tarmasin.
+
+**Qarz va to'lov**
+
+13. **Muddat har qarzli sotuvda.** Standart — kartadagi kun yoki biznesniki (30 kun); kassir sanani surishi mumkin, olib tashlay olmaydi. "Muddatsiz" mijozni faqat rahbar kartada belgilaydi. Muddat keyin uzaytiriladi va tarixga yoziladi. Sabab: ikkala tur kerak; muddatsiz qarz — rahbar qarori.
+14. **Muddati o'tgan summa hisobdan hisoblanadi**, qo'lda taqsimlanmaydi: tushgan pul (kirim, umumiy qaytarish ham) avval muddati eng yaqin qarzni yopadi, qaytgan tovar avval o'z chekining qarzini. Faqat qarzli sotuv va muddatli boshlang'ich qoldiq "muddati o'tgan" bo'la oladi; ta'minotchiga oldindan to'lov, ta'minotchiga qaytarish, bekor qilingan kirim qarzni oshiradi, lekin hech qachon "muddati o'tgan" bo'lmaydi. Sabab: hisob va muddat hech qachon ajralib ketmaydi, ta'minotchi qizil bo'lib qolmaydi.
+15. **Kassada qarzga kassir o'zi beradi**, agar: taqiq yo'q, telefoni bor (yoki kartada o'z chegarasi bor), muddati o'tgani yo'q, chegaradan oshmaydi va mijoz yetkazib beruvchi emas. Aks holda — "qarzga sotish" ruxsati bor xodim yoki uning PIN'i. Hozirgi "hamkorga uning hisobiga sotish" ruxsati shu ruxsatga qo'shiladi. Sabab: chakana tez qoladi, ulgurjini chegara nazorat qiladi.
+16. **Chegara aniq so'z bilan, "0" ikki ma'no bermaydi.** Biznesda: "Kassir tasdiqsiz beradigan qarz (bir mijozga)"; 0 — kassir o'zi qarz bera olmaydi (har safar tasdiq). Kartada tanlov: biznes bo'yicha / qarzga berilmaydi / o'z chegarasi (summa) / cheklovsiz. Sabab: yangi tizim ishga tushganda kassir hech kimga cheksiz qarz yoza olmasin.
+17. **Haqi bor mijoz kassada shu haqidan oladi — tekshiruvsiz** (yetkazib beruvchidan boshqa). Xarid haqidan oshsa, oshgan qismi qarz bo'ladi va 15-qoida faqat shu qismga. Chekda va Z-hisobotda "Hisobidan" va "Qarzga" alohida. Sabab: bu uning o'z puli.
+18. **Bitta to'lov hujjati (TL-) hammaga**: olish, berish, boshlang'ich qoldiq, hisob tuzatish. Qarzidan ko'p to'lasa — avans ("Avans bo'ladi: 85 000" saqlashdan oldin aytiladi). Sabab: Billz'dagi "balans"; hamkor to'lovi buni hozir ham qiladi.
+19. **Kassada pul olish — har kassir**: shu kassaning tortmalari, do'konning so'm kartasi va **terminali** (Humo, Uzcard). Pul berish — "pul berish" ruxsati bilan; tortmadan berilgan pul haqidan oshmaydi (avansni qaytarish yoki biz qarzdor summani berish), oldindan to'lov — seyf, bank yoki kartadan. Oddiy mijozga avansini kassa tortmasidan do'kon menejeri qaytaradi yoki kassir uning PIN'i bilan. Sabab: tortma puli qarzga aylanmasin; mijoz qarzini karta bilan ham to'lay olsin.
+20. **Qaytarishda** qarzga (hisobga) sotilgan qism avval hisobga qaytadi — sotuvdagi qiymatda, bugungi kursda emas; keyin pul. Shundan keyin mijoz haqli bo'lib qolsa (so'mdagi hisob), kassir shu qaytarishning o'zida o'sha summagacha naqd bera oladi. "Pulni boshqa usulda qaytarish" ruxsati hisob qismini naqdga aylantira olmaydi. Sabab: to'lanmagan tovarga pul berilmaydi, to'lagan odam kutmaydi.
+21. **Almashtirishda** mijoz, uning narxi va "Qarzga" bloki saqlanadi; almashtirib olingan tovar keyin qaytsa, qiymati asl chekning hisob qismiga boradi. Sabab: hozirgi teshik yopiladi (qarzga olingan tovarga naqd pul olish mumkin edi).
+22. **Chekni bekor qilish**: chekka keyin to'lov tushgan bo'lsa ham, smena ochiq bo'lsa bekor qilinadi; tushgan pul hisobda avans bo'lib qoladi. Sabab: yuruvchi hisobda hech narsa yo'qolmaydi.
+23. **Takrorlarni birlashtirish — daftar orqali**: qoldiq yangi yozuv bilan qolgan mijozga o'tadi, eski yozuvlar o'zgartirilmaydi; valyutalar har xil bo'lsa — kun kursida yoki kelishilgan summada ("Elaris ($)" va "Elaris (so'm)" bitta bo'ladi). Sabab: bitta odam — bitta hisob, "pul ham daftar" qoidasi buzilmaydi.
+
+**Narx**
+
+24. **Bitta formula: asos + foiz + summa.** Asos — tannarx, chakana narx yoki belgilangan narx. Akaning uchala usuli (tannarx + %, belgilangan summa, tannarx + summa), ularning aralashi (tannarx + % + summa) va hozirgi "chakanadan 15% arzon" — shu bitta qoida. Foiz — ustama (tannarxga), marja emas. Sabab: kirim, qoidalar, ommaviy o'zgartirish va kassa bitta hisobni ishlatadi.
+25. **Formula to'rt joyda yoziladi, aniqrog'i yutadi:** tovarning o'z maydoni → shu kirim uchun → kategoriya, brend yoki sezon qoidasi → narx turining o'z formulasi. Sabab: eng oxirgi va eng aniq qaror ishlaydi.
+26. **Kirimda yangi tovar narxsiz qolmaydi**: narxi yo'q tovarga o'tkazishda formula narxi o'zi qo'yiladi; narxi bor tovarning narxi so'ralmasa o'zgarmaydi (hozirgi narx ko'rinib turadi, «=» formulani oladi, "Ularga ham qo'llash" hammasiga). Sabab: ulgurji va minimal narxsiz tovar kassaga chiqmasin, javondagi etiketka jim o'zgarmasin.
+27. **Formula natijasi doim yuqoriga yaxlitlanadi** (narx turining qadami va oxiri bilan); qo'lda yozilgan son va belgilangan narx yaxlitlanmaydi. Sabab: "tannarx + 0%" tannarxdan past chiqmasin.
+28. **Kirim qo'ygan narxlar narx tarixiga bitta yozuv bo'lib tushadi** va qaytarilishi mumkin. Keyin xarajat o'zgarsa narx o'zi o'zgarmaydi — "Narxlarni yangilash" taklif qilinadi. Sabab: javondagi narxni aka o'zi hal qiladi.
+29. **Kirimda narx qo'yish — alohida ruxsat** ("Kirimda narx qo'yish"; sklad mudirida standart). Ruxsatsiz kirimchi narxlarni faqat ko'radi; o'tkazishda narxi yo'q yangi tovarga qoida bilan narx qo'yiladi va bu oldindan aytiladi; "bu kirimda qo'yilmaydi" tanlovi doim hurmat qilinadi. Sabab: kirimni sklad qiladi; xato narx tarixdan qaytariladi.
+30. **Narx — narx turining valyutasida.** Narxi bor narx turining valyutasi o'zgarmaydi; tovar kartasida narxning valyutasini almashtirish olib tashlanadi. Sabab: hozir dollarda yozilgan narxni ommaviy o'zgartirish so'm deb o'qiydi (xato).
+31. **Minimal narx — formulali oddiy narx turi** (masalan tannarx + 5%); kassadagi chegara qoidasi o'zgarmaydi. Kirimdagi narx tannarxdan yoki minimaldan past bo'lsa ogohlantiradi, to'xtatmaydi. Sabab: aka ba'zan ataylab arzon sotadi.
+
+**Ulgurji**
+
+32. **Ulgurji kassadan, shu joyning qoldig'idan.** Skladdan katta ulgurji uchun hozirgi yo'l: skladni "Do'kon va sklad" turiga o'tkazib, u yerda kassa ochish (tizim bunga hozir ham ruxsat beradi); alohida "Ulgurji sotuv" hujjati — keyin. Miqdorga qarab ulgurji ("10 donadan ulgurji") qilinmaydi. Sabab: aka "kassadan" dedi; narx mijoz bilan keladi, chakana hajmga aksiyaning "miqdor" turi bor.
+
+### 16.2. Mijoz kartasi va forma
+
+| Maydon | Majburiymi | Qoidasi |
+| --- | --- | --- |
+| Ism | ha | takror bo'lsa ogohlantirish |
+| Telefon | yo'q | +998; bitta raqam bitta mijozda; chet raqam izohga o'zi tushadi |
+| Narx | yo'q | "Chakana (odatiy)" yoki faol ulgurji / boshqa narx turi |
+| Guruhlar, teglar | yo'q | hozirgidek: eslatma, taqiqlar, guruh narxi, chegirma |
+| Tug'ilgan kun, jins, izoh | yo'q | hozirgidek |
+| Yetkazib beruvchi | belgi | 6-qaror; qo'lda olib tashlanadi |
+| **Hisob-kitob** (yig'iq blok) | | |
+| Valyuta | standart so'm | birinchi yozuvdan keyin o'zgarmaydi |
+| Qarz | "biznes bo'yicha" | qarzga berilmaydi / o'z chegarasi: summa / cheklovsiz |
+| Qarz muddati | "biznes bo'yicha" (30 kun) | N kun / muddatsiz |
+| Qaytarish muddati | "biznes bo'yicha" (14 kun) | N kun — bir oydan keyin qaytaradigan ulgurji xaridor uchun |
+
+Qarz va muddat sozlamalarini faqat "Hisob tuzatish" ruxsati bor xodim (rahbar) o'zgartiradi; qolganini — mijozlarni tahrirlash ruxsati bilan.
+
+**Qayerda yaratiladi.**
+- Idorada — to'liq forma.
+- Kassada (Ctrl+M, topilmasa Enter) — "Yangi mijoz": ism va telefon. Yozilgan raqamlar telefonga, harflar ismga tushadi. Telefon band bo'lsa — o'sha mijoz taklif qilinadi. Shu ismli mijozlar bor bo'lsa, ular telefonlari bilan chiqadi: Enter borini tanlaydi, "Baribir yangi" faqat ↓ bilan.
+- Kirimda — yetkazib beruvchi tanlovida "Yangi: «…»" (faqat ism).
+- Excel kirim importida — yetkazib beruvchi faqat belgili mijozlar orasidan aniq ism bilan topiladi; topilmasa yangisi yaratiladi (shu ismli oddiy mijoz bo'lsa, oldindan ko'rishda aytiladi); belgili ikki mijoz bir ismda bo'lsa — xato: "«Ali» nomli yetkazib beruvchi 2 ta: kirimda tanlang".
+
+**Qidirish va farqlash.** Ism, telefon, izoh, teg bo'yicha. Kassa ro'yxatida ism yonida telefon, teglar, valyuta va belgi — ikki Aziz farqlanadi. Kirimdagi tanlovda yetkazib beruvchilar birinchi; telefon yashirin (oxirgi 4 raqami), izoh boshi, oxirgi kirim sanasi ko'rinadi.
+
+**"Mijozlar" sahifasi.** Varaqlar: Ro'yxat, Guruhlar, Sodiqlik, Qarzdorlar, To'lovlar. Ustunlar: ism, telefon, narx, guruhlar, teglar, xaridlar, oxirgi xarid, balans (qarzi / haqi, o'z valyutasida), muddati o'tgan, belgi. Filtrlar ustun ostida: narx, guruh, teg, balans (qarzdorlar / haqi borlar), muddati o'tgan, yetkazib beruvchi, holat. Ustidagi ko'rsatkichlar: jami, yangi, qaytmaganlar, tug'ilgan kun (sotuvi yo'q, faqat kirimi bor yetkazib beruvchilar sanalmaydi); qarz ruxsati bilan — jami qarz, muddati o'tgan, haqi (har valyuta alohida). Qatorga bosilsa: qarz ruxsati bor xodimga — hisob-kitob, boshqasiga — karta. "Hamkorlar" bo'limi menyudan olib tashlanadi, eski manzillar Mijozlarga yo'naltiriladi.
+
+### 16.3. Hisob: balans, qarz, avans, muddat, chegara
+
+**Balans.** Mijoz hisobiga tushadi: kassadan hisobga sotuv ("Qarzga" / "Hisobidan"), uning qaytarishi va bekor qilinishi; to'lov (olish, berish, boshlang'ich qoldiq, hisob tuzatish); kirim (biz qarzdor bo'lamiz) va uning bekor qilinishi; yetkazib beruvchiga qaytarish (YQ-); birlashtirish. Hammasi hisob-kitobda (akt-sverkada) ko'rinadi.
+
+**Muddat va muddati o'tgan.** Har qarzli sotuvning (va muddatli boshlang'ich qoldiqning) o'z muddati bor; hisob-kitobda har sotuv yonida turadi. "Muddatni o'zgartirish" — hisob-kitobda va Qarzdorlar qatorida, tarixga "05.11 → 20.11" deb yoziladi. Hisob 14-qaror bo'yicha: tushgan pul avval muddati eng yaqin qarzni yopadi; yopilmay qolganlardan muddati o'tganlari — "Muddati o'tgan". Bekor qilingan hujjat (va uning bekor yozuvi) hisobga umuman kirmaydi. Haqi hisobiga olingan tovar qarz emas.
+
+Misol (Aziz):
+
+| Sana | Nima bo'ldi | Balans |
+| --- | --- | --- |
+| 1 oktyabr | Qarzga 2 000 000, muddati 31 oktyabr | 2 000 000 |
+| 10 oktyabr | Qarzga 1 000 000, muddati 9 noyabr | 3 000 000 |
+| 20 oktyabr | To'ladi 1 500 000 | 1 500 000 |
+
+2 noyabrda: "Muddati o'tgan: 500 000 (31.10 dan)", "Keyingi muddat: 09.11 — 1 000 000". Shundan keyin 10-oktyabr chekidan 400 000 lik tovar qaytsa: balans 1 100 000, muddati o'tgan 500 000 bo'lib qoladi (qaytarish o'z chekidan ayirildi).
+
+Yetkazib beruvchi: kirim 30 000 $ → balans −30 000 $ (haqi). Kassadan 2 000 $ lik tovar oladi → −28 000 $. Muddati o'tgan yo'q. Kirim keyin bekor qilinsa, balans musbatga o'tadi — qarzdorlar ro'yxatiga chiqadi, lekin muddati o'tgan bo'lmaydi.
+
+**Haqidan olish.** Balans −500 000, xarid 800 000: 500 000 — "Hisobidan" (tekshiruvsiz), 300 000 — "Qarzga" (muddat bilan; to'siqlar faqat shu 300 000 ga).
+
+**To'siqlar.** Kassada hisobga yozishda tekshiriladi (mijoz qulflanadi — ikki kassa yoki kassa va idora bir vaqtda chegaradan o'tib keta olmaydi):
+1. Guruhida yoki kartada "qarzga berilmaydi".
+2. Telefoni yo'q va kartada o'z chegarasi yo'q.
+3. Muddati o'tgan qarzi bor.
+4. Sotuvdan keyingi qarzi chegaradan oshadi (kartadagi o'z chegarasi; bo'lmasa biznesniki; biznesniki 0 bo'lsa — kassir o'zi bera olmaydi).
+5. Mijoz yetkazib beruvchi — haqidan olsa ham.
+
+To'siqda: "qarzga sotish" ruxsati bor xodim o'zi o'tadi, kassir shu ruxsatli xodimning PIN'ini so'raydi; chekka kim tasdiqlagani yoziladi. Sababi kassirga F9 dan oldin aytiladi ("Qarz chegarasi oshadi: rahbar tasdig'i kerak"). Dollar yoki yuandagi hisobda qarz bugungi kursda so'mga aylantirib solishtiriladi; kurs kiritilmagan bo'lsa "Qarzga" bloki o'chiq turadi va qaysi kurs yetishmasligi yoziladi (pulga sotish ishlayveradi).
+
+**Hisob tuzatish** (TL-, rahbar ruxsati, sababi bilan, bekor qilinadi): umidsiz qarzni yopish (xarajat "Umidsiz qarzlar"), ta'minotchi bergan chegirma yoki bonus (boshqa kirim), qo'lda tuzatish. Kichik qoldiq — kassadagi qaytim yaxlitlash qadamigacha (1 000 so'm) — to'lov olishda "Qoldiqni kechish" bilan har kassir yopadi.
+
+### 16.4. Narx turlari va narx formulalari
+
+**Formula.**
+
+| Usul | Misol | Tannarx 100 000 bo'lsa |
+| --- | --- | --- |
+| Tannarx + foiz | Chakana: tannarx + 45% | 145 000 |
+| Tannarx + summa | Ulgurji: tannarx + 50 000 | 150 000 |
+| Tannarx + foiz + summa | tannarx + 20% + 5 000 | 125 000 |
+| Belgilangan narx | 180 000 | 180 000 |
+| Chakanadan ± foiz (bor, qoladi) | Ulgurji: chakana − 15% | chakana 145 000 → 124 000 (yuqoriga yaxlitlanganda) |
+| Qo'lda | formula yo'q | faqat yozilgani |
+
+Chakana faqat tannarxdan yoki qo'lda hisoblanadi; boshqa turlar chakanadan ham (agar chakana bilan bir valyutada bo'lsa). Boshqa turdan hisoblash ("Oila = Ulgurji − 5%") formulada yo'q — faqat ommaviy o'zgartirishda bir martalik amal.
+
+**Qayerda yoziladi** (aniqrog'i yutadi):
+1. Tovar maydoni — kirimda.
+2. "Shu kirim uchun" — kirim tepasidagi "Narxlar" qatori.
+3. Kategoriya, brend yoki sezon qoidasi — "Narxlar → Narx qoidalari" (hozirgi "Ustama qoidalari"; endi har narx turiga usul, foiz va summa).
+4. Narx turining o'zi — "Ma'lumotnomalar → Narx turlari" formasida yangi maydon **"Qanday hisoblanadi"**: Tannarxdan / Chakana narxdan / Qo'lda. Narx turining o'zida belgilangan narx bo'lmaydi (hamma tovarga bitta narx — xato).
+
+**Kirimda nima ko'rinadi.**
+- Bloklar ustida **"Narxlar"** qatori — har faol narx turiga bittadan: "Chakana: tannarx + 45% (odatiy)", "Ulgurji: chakana − 15% (qoida)", "Minimal: tannarx + 5%". Bosilsa "Ulgurji — shu kirim uchun": Qoidalar bo'yicha / Tannarxdan (+ %, + summa) / Chakana narxdan (arzon yoki qimmat, %, summa) / Belgilangan narx / Bu kirimda qo'yilmaydi. Ostida: "12 ta yangi tovarga narx qo'yiladi · 3 ta tovarda narx bor — o'zgarmaydi" va "Ularga ham qo'llash".
+- Har blokda har narx turining maydoni. Maydonga yoziladi:
+
+| Yozilgan | Ma'nosi |
+| --- | --- |
+| 30% | tannarx + 30% |
+| +50 000 (+50k) | tannarx + 50 000 |
+| 30% + 5 000 | tannarx + 30% + 5 000 |
+| ch −15% / ch +5% | chakanadan 15% arzon / 5% qimmat |
+| 250 000 (250k, 200000+10%) | narxning o'zi |
+| = | taklifni olish |
+| bo'sh | taklifga qaytish |
+
+"−5%" (tannarxdan past) qabul qilinmaydi: "Tannarxdan past narx. Chakanadan demoqchimisiz? «ch −15%» deb yozing". Maydonga kursor kirganda shu yo'riqnoma qisqa ko'rinadi (F1 da ham).
+
+- Maydon uch holatda bo'ladi:
+  1. **O'zi yozilgan** — oddiy rangda; formula bo'lsa ichida belgi ("+30%", "ch −15%"). Doim qo'yiladi.
+  2. **Yangi narx** — tovarda bu turdagi narx yo'q, formula topildi: qiymat oddiy rangda, yonida manbai ("odatiy", "qoida", "kirim"), izohi "Yangi narx: kirim o'tkazilganda qo'yiladi".
+  3. **Narx turadi** — tovarda narx bor: hozirgi narx xira ko'rinadi; formula boshqacha chiqsa ostida "Qoida bo'yicha: 270 000 («=»)".
+- Formula narxlari qoralama davomida tannarx bilan birga o'zgaradi (xarid narxi, xarajat, kurs); yozilgan son o'zgarmaydi.
+- Ogohlantirish (sariq, to'xtatmaydi): "Tannarxdan past", "Minimal narxdan past". O'tkazishda: "Kirim o'tkazilsinmi? 4 ta narx tannarxdan past."
+- O'tkazishda server formulalarni o'zi, o'sha tannarx va o'sha qoidalar bilan qayta hisoblaydi — ekranda ko'ringan narx qo'yiladi. Narx tarixiga bitta yozuv: "K-000123 kirimidan"; "Narxlar → Tarix" dan qaytariladi.
+- Qoralamadan etiketka chop etilsa, o'tkazishda qo'yiladigan narx chiqadi.
+- O'tkazilgan kirimning xarajati keyin o'zgarsa: "Tannarx o'zgardi: 5 ta narx qoida bo'yicha boshqacha chiqadi" va **"Narxlarni yangilash"** (oldindan ko'rish → tarixga yozuv). Faqat formula bilan qo'yilgan va o'shandan beri o'zgarmagan narxlarga tegadi.
+- Kirim bekor qilinsa narxlar joyida qoladi ("kerak bo'lsa Narxlar → Tarix'dan qaytaring").
+
+**Tannarx qaysi.** Kirimda — shu kirimning tannarxi (xarajat ulushi bilan, kirimning o'z kurslarida). Ommaviy o'zgartirishda va kassadagi formulada — qoldiqdagi o'rtacha tannarx (qoldiq bo'lmasa oxirgi partiya). Ekranda qaysi biri ekani yoziladi.
+
+**Yaxlitlash.** Formula natijasi narx turining qadami va oxiri bilan **yuqoriga**: tannarx 10 450 + 0%, qadam 1 000 → 11 000. Qo'lda yozilgan son va belgilangan narx yaxlitlanmaydi. Ommaviy "eski narx ± %" amali hozirgidek eng yaqiniga yaxlitlaydi.
+
+**Valyuta.** Narx va formuladagi summa — narx turining valyutasida; tannarx ham shu valyutada olinadi. Narxi bor narx turining valyutasi o'zgarmaydi ("Bu narx turida narxlar bor: valyutasi o'zgartirilmaydi. Boshqa valyutada yangi narx turi oching"). Narx turlari hozircha so'm yoki dollarda.
+
+**Kassada.** Mijoz narxida (yoki kassir tanlagan narx turida) tovarning shu turdagi narxi bo'lmasa: shu turning formulasi tovarning chakana narxidan yoki tannarxidan hisoblanadi (kassir tannarxni ko'rmaydi) va qator "qoida bo'yicha" deb belgilanadi; formula bo'lmasa — chakana va sariq "Chakana narxida" ("Bu tovarga «Ulgurji» narxi qo'yilmagan"). Belgi chekda saqlanadi va qayta chop etishda ham chiqadi.
+
+**Ommaviy o'zgartirish** ("Narxlar → Narxlarni o'zgartirish"): "Qoida yoki formula bo'yicha hisoblash" (qoidalar bo'yicha / tannarxdan / chakana narxdan / belgilangan narx); har narx turi ustuni ostida "Hammasi / Qo'yilgan / Qo'yilmagan" filtri. Billz'dan kelgan, ulgurji yoki minimal narxi yo'q tovarlar: filtr "Qo'yilmagan" → "Qoidalar bo'yicha" → oldindan ko'rish → bitta tarix yozuvi. Yangi narx turi yaratilganda: "1 240 ta tovarda bu narx yo'q — hozir to'ldirish".
+
+### 16.5. Kassa va idora: hamma holatlar
+
+Belgilar: **[bor]** — hozir ishlaydi; **[ko'chadi]** — hozir mijozda yoki hamkorda bor, birlashgach hammaga; **[yangi]** — quriladi.
+
+| Holat | Nima qilinadi | Nima tekshiriladi | Natija |
+| --- | --- | --- | --- |
+| **Kassa — sotuv** | | | |
+| 1. Mijozsiz chakana [bor] | skaner, RFID stol yoki qidiruv; F9; to'lov | narx serverda; chegirma chegarasi; minimal narx | hozirgidek |
+| 2. Tanish mijoz, chakana [bor] | Ctrl+M, tanlanadi; guruhlar, eslatma, balans chiqadi | guruh yoki sodiqlik foizi (kattasi), aksiya | chekda "Mijoz: …"; xaridlariga qo'shiladi |
+| 3. Kassada yangi mijoz [ko'chadi] | Ctrl+M → Enter → ism, telefon (ixtiyoriy) | telefon band bo'lsa o'sha mijoz; shu ismlilar ro'yxati | mijoz yaratiladi; hisob hali yo'q |
+| 4. Telefonsiz mijoz [yangi] | ism, izoh yoki teg bilan topiladi | qarzga — to'siq (kartada o'z chegarasi bo'lmasa) | qolgani odatdagidek |
+| 5. Ulgurji yoki "Oila" narxli mijoz ko'p tovar oladi, pul bilan [bor] | mijoz tanlanadi — savat o'zi uning narxiga o'tadi; tovarlar skaner yoki RFID stol bilan | ruxsat va PIN kerak emas; aksiya va sodiqlik yo'q; minimal narx | chekda "Narx: Ulgurji"; qaytarishda sotilgan narxda |
+| 6. Shu narx turida narxi yo'q tovar [yangi] | — | shu turning formulasi, bo'lmasa chakana | qator "qoida bo'yicha" yoki sariq "Chakana narxida"; chekda ham |
+| 7. Kassir o'zi narx turini tanlaydi [bor] | narx tanlovi | narx turining "Kassada" sozlamasi | tasdiq bilan bo'lsa chekka kim tasdiqlagani |
+| 8. Ulgurji narxga yana chegirma [bor] | chegirma maydoni | qo'l chegirmasi 10% gacha; minimal narx | oshsa — PIN |
+| 9. Qisman qarzga [ko'chadi] | naqd yoki karta + "Qarzga" bloki («=» qolganini oladi); muddat tayyor | 16.3 dagi to'siqlar | hisob oshadi, muddat yoziladi; chekda "Qarzga: 600 000 · muddati 05.11.2026", "Jami qarzi: 1 800 000", imzo qatori |
+| 10. Hammasi qarzga, muddatsiz mijoz [yangi] | to'lov qatorlari bo'sh | chegara | muddat "muddatsiz" (kassir sana qo'ya oladi) |
+| 11. Chegaradan oshadi yoki biznes chegarasi 0 [yangi] | ogohlantirish oldindan chiqadi | qarzga sotish ruxsati yoki PIN | yoki ko'proq pul olinadi, qarz kamayadi |
+| 12. Muddati o'tgan qarzi bor [ko'chadi] | chipda qizil "Muddati o'tgan: 300 000 (05.10 dan)" | pulga sotish to'xtamaydi; qarzga — PIN | — |
+| 13. Guruh yoki kartada "qarzga berilmaydi" [bor] | — | PIN | — |
+| 14. Haqi bor mijoz xarid qiladi [yangi] | o'sha blok: "Hisobidan (haqi 500 000)" | haqi qismi tekshiruvsiz; oshgan qismi — to'siqlar | chekda "Hisobidan: 500 000 · Qarzga: 300 000", "Qoldiq: …" |
+| 15. Yetkazib beruvchi kassadan tovar oladi (tovar almashuv) [ko'chadi] | mijoz tanlanadi, "Hisobiga" | har doim qarzga sotish ruxsati yoki PIN; kassir summani ko'rmaydi | hisob-kitobda "Kirim K-…" yonida "Kassadan sotuv CH-…"; chekda qoldiq chiqmaydi |
+| 16. Hisob dollar yoki yuanda [ko'chadi] | blokda juft maydon: so'm va hisob valyutasi; ikkinchisi yozilsa — kelishilgan summa | kun kursi; kelishilgan summa kursdan 2% dan uzoq bo'lsa — PIN | chekda "Hisobiga: 1 265 000 so'm (100,00 $)" |
+| 17. Hisob valyutasining kursi yo'q [yangi] | — | blok o'chiq: "Yuan kursi kiritilmagan" | pulga sotish ishlaydi |
+| 18. Mijozsiz "Qarzga" [bor] | blok ko'rinmaydi | server ham rad etadi | — |
+| 19. Arxivdagi mijoz [yangi] | tanlovda chiqmaydi | hisobga sotish rad etiladi | to'lov va qaytarish mumkin |
+| 20. Boshqa do'konda xarid yoki to'lov [ko'chadi] | mijoz butun biznesniki | chegara bitta | tovar va pul shu do'kon va kassada |
+| 21. Chekni qayta chop etish [yangi] | "Cheklar" | — | sotuv paytidagi qoldiq va "Chakana narxida" belgisi saqlangan |
+| **Kassa — pul** | | | |
+| 22. Qarzni to'laydi: naqd, dollar, karta, terminal [ko'chadi; terminal yangi] | chipdagi "To'lov olish" yoki Ctrl+K | ochiq smena; joy shu kassa yoki do'konniki; kurs; kelishilgan summa chegarada | TL-; hisob kamayadi; to'lov chekida "To'lovdan keyin: qarzi 200 000"; Z-hisobotda "Mijozlardan olindi"; terminal qismi terminal solishtiruviga kiradi |
+| 23. Qarzidan ko'p to'laydi [ko'chadi] | o'sha oyna | ruxsat kerak emas | "Avans bo'ladi: 85 000"; balans haqiga o'tadi |
+| 24. Qolgan 3 000 so'mni kechish [yangi] | "Qoldiqni kechish" | yaxlitlash qadamigacha | yaxlitlash hisobiga yoziladi |
+| 25. Avansini naqd qaytarib so'raydi [yangi] | Alt+C "To'lov berish" | do'kon menejeri yoki uning PIN'i; avansdan oshmaydi; pul tortmada bo'lishi kerak | TL-; Z-hisobotda "Mijozlarga berildi" |
+| 26. Yetkazib beruvchiga tortmadan pul (biz qarzdormiz) [ko'chadi] | Alt+C | "pul berish" ruxsati; ochiq smena; haqidan oshmaydi | oldindan to'lov — faqat seyf, bank, kartadan |
+| **Kassa — qaytarish va bekor qilish** | | | |
+| 27. Shu kuni bekor qilish [bor; o'zgaradi] | Cheklar → bekor | smena ochiq; qaytarilgan yoki almashtirilgan chek emas | hammasi orqaga; keyin tushgan to'lov avans bo'lib qoladi |
+| 28. Qarzga olingan tovarni qaytaradi [ko'chadi] | F4 | qaytarish muddati (kartadagi yoki 14 kun) yoki PIN | qiymat avval hisob qismiga (sotuvdagi qiymatda), keyin pul; o'sha chekning qarzi kamayadi |
+| 29. Qarzini to'lab bo'lgan, keyin qaytaradi [yangi] | F4 | — | qiymat hisobga; haqli bo'lib qolsa "Pulini berish: N" (so'm hisob, shu tortma, N haqidan oshmaydi) — kassir o'zi |
+| 30. Almashtirish, farq qarzga [yangi] | F4 + yangi tovar | mijoz narxi "uniki"; farq — to'siqlar; guruh "almashtirilmaydi" — PIN | — |
+| 31. Almashtirib olingan tovar qaytadi [yangi] | F4 | asl chek topiladi | qiymat asl chekning hisob qismiga; naqd faqat asl chek pul bilan to'langan bo'lsa |
+| 32. Ulgurji xaridor bir oydan keyin qaytaradi [yangi] | F4 | kartadagi qaytarish muddati | — |
+| 33. Noto'g'ri mijoz tanlangan, smena yopilgan [yangi] | Chek → "Mijozni almashtirish" | rahbar ruxsati; bir xil valyuta; qaytarishi yo'q chek | hisob yozuv bilan ko'chadi, tarixga yoziladi |
+| **Idora** | | | |
+| 34. Idorada to'lov: bank, seyf, karta, dollar, yuan [ko'chadi] | Ctrl+K / Alt+C, istalgan sahifadan | ruxsat; joy xodimniki; berishda joyda pul bor | TL- |
+| 35. Yetkazib beruvchidan kirim [bor] | kirimda mijoz tanlanadi (yangisi — ism bilan) | — | hisob haqiga (tovar qiymati, xarajatsiz); belgi qo'yiladi |
+| 36. Kirim paytida darhol to'lash [yangi] | o'tkazilgan kirimda "To'lov berish" | — | to'lov oynasi summa bilan ochiladi |
+| 37. Tovar almashuv [ko'chadi] | kirim + 15-holat | — | bitta balans; farq pul bilan yoki keyinga |
+| 38. Yetkazib beruvchiga qaytarish, YQ- [bor] | hozirgidek | — | haqi kamayadi (yoki qarzga o'tadi) |
+| 39. Kirim bekor qilindi, yetkazib beruvchi tovar olib bo'lgan [yangi] | — | — | balans qarzga o'tadi, "muddati o'tgan" bo'lmaydi |
+| 40. Ta'minotchiga oldindan to'lov [bor] | Alt+C | "pul berish" ruxsati | balans musbat, muddati o'tmaydi |
+| 41. Ta'minotchi chegirma yoki bonus berdi [yangi] | Hisob tuzatish | rahbar | haqi oshadi ("boshqa kirim") |
+| 42. Boshlang'ich qoldiq [bor; Excel yangi] | hisob-kitob ichida; Excel'dan (ism, telefon, valyuta, qoldiq, muddat, izoh) | rahbar; Excel oldindan ko'rish bilan | muddat ixtiyoriy |
+| 43. Muddatni uzaytirish [yangi] | hisob-kitob yoki Qarzdorlar qatori | qarzni ko'rish ruxsati yoki kassadagi qarzga sotish ruxsati | tarixda "05.11 → 20.11" |
+| 44. Ikki takror yozuv [yangi] | "Birlashtirish" | rahbar | qoldiq ko'chadi; valyuta har xil — kun kursida yoki kelishilgan summada |
+| 45. Umidsiz qarz va arxiv [yangi] | Hisob tuzatish, keyin arxiv | qoldiq nol | — |
+| 46. Akt-sverka [yangi: davr, Excel, chop] | davr tanlanadi | qarzni ko'rish ruxsati | boshlang'ich qoldiq, har hujjat (tovar soni bilan), oxirgi qoldiq, imzo joyi |
+| 47. Kim qancha qarz [ko'chadi] | Qarzdorlar | — | balans, muddati o'tgan, eng yaqin muddat, oxirgi to'lov; filtrlar |
+| 48. Smena yopish [ko'chadi] | — | — | Z-hisobot: "Qarzga", "Hisobidan", "Mijozlardan olindi", "Mijozlarga berildi", "Hisobga qaytdi" — har valyutaga bitta qator (mijoz nomi bilan emas) |
+| 49. Skladdan katta ulgurji [bor imkoniyat] | sklad "Do'kon va sklad" + kassa | sklad sahifalari, darvoza va ko'chirishga ta'siri tekshiriladi | alohida "Ulgurji sotuv" hujjati — keyin |
+
+Hozir qurilmaydi, lekin hisob bunga tayyor: otlojka (zaklad avans bo'lib hisobga tushadi; guruhdagi "olib qo'yilmaydi" taqiqi shunda ishlaydi), ikki mijoz orasida o'zaro hisob ("menga to'laysizmi — Y ga bering"), skladdan "Ulgurji sotuv" hujjati, muddat yaqinlashganda eslatma.
+
+### 16.6. Ruxsatlar va kassir nimani ko'radi
+
+| Ruxsat | Nima beradi | Standart |
+| --- | --- | --- |
+| Mijozlarni ko'rish | ro'yxat va karta (balanssiz) | boshqaruvchi, hisobchi, do'kon menejeri, ulgurji menejer |
+| Qo'shish, tahrirlash, arxivlash | karta, guruh, sodiqlik | boshqaruvchi, do'kon menejeri, ulgurji menejer |
+| Mijozlar qarzini ko'rish | yetkazib beruvchi bo'lmagan mijozlarning balansi, hisob-kitobi, Qarzdorlar, muddatni o'zgartirish | boshqaruvchi, hisobchi, do'kon menejeri, ulgurji menejer |
+| Yetkazib beruvchilar hisobini ko'rish | yetkazib beruvchilarning balansi, hisob-kitobi, YQ- dagi summa | boshqaruvchi, hisobchi, ulgurji menejer |
+| To'lov olish | istalgan ruxsat etilgan joyga to'lov olish va bekor qilish; kassa tortmasidan oddiy mijozga avansini qaytarish | boshqaruvchi, hisobchi, do'kon menejeri, ulgurji menejer |
+| Pul berish | istalgan mijozga pul berish va bekor qilish | boshqaruvchi, ulgurji menejer |
+| Hisob tuzatish | boshlang'ich qoldiq, umidsiz qarz, bonus, birlashtirish, chekning mijozini almashtirish, qarz sozlamalari (chegara, muddatsiz) | boshqaruvchi |
+| Kassa: sotish | mijozni topish va qo'shish, oddiy mijozning holatini ko'rish, to'siqsiz qarzga sotish, kassaga to'lov olish, kichik qoldiqni kechish | kassir va yuqori |
+| Kassa: qarzga sotish | to'siqdan o'tish, yetkazib beruvchi hisobiga sotish, kassirga PIN bilan tasdiq | do'kon menejeri, boshqaruvchi |
+| Kirimda narx qo'yish | kirimdagi narx maydonlari va "Narxlar" qatori | sklad mudiri, boshqaruvchi |
+
+"Hamkorlar menejeri" roli "Ulgurji menejer" deb ataladi va mijozlarning hamma ruxsatini oladi; kassada sotishi (sklad kassasida) 3-ochiq savolga bog'liq.
+
+**Kassir nimani ko'radi.**
+- Oddiy mijozda: qarzi, muddati o'tgani (qizil, qaysi kundan), eng yaqin muddat, haqi va tasdiqsiz qancha qarzga bera olishi.
+- Yetkazib beruvchida: hech qanday summa (faqat "rahbar tasdig'i kerak"), agar unda "Yetkazib beruvchilar hisobini ko'rish" ruxsati bo'lmasa. Chekdagi qoldiq qatori ham faqat kassir ko'ra oladigan mijozda chiqadi.
+- Hech qachon: tannarx, minimal narx (qator chegaradan o'tganda qizil yozuvdan boshqa), boshqa mijozlarning balansi.
+
+### 16.7. Ko'chirish (mavjud ma'lumot)
+
+1. **Oldin**: egasining bazasida tekshiruv so'rovlari (chakana qarz va QZ to'lovlari bormi; bir telefonda bir nechta hamkor; hamkor va mijoz bir telefonda; valyutasi narx turiga mos kelmagan narxlar; dollar kursi kiritilganmi) va bazaning to'liq nusxasi.
+2. **To'xtash sharti**: chakana qarz yoki QZ to'lov bo'lsa, ko'chirish ishlamaydi va sababini aytadi. Egasining bazasida sotuv yo'q — o'tadi.
+3. **Hamkorlar** mijozlarga o'z raqamlari bilan o'tadi: ismi, telefoni, izohi, valyutasi, narxi, yetkazib beruvchi belgisi. Hisoblari va kirim yozuvlari (K-000001 dagi qarz ham) o'zgarmaydi — faqat nomlanishi.
+4. **Telefon to'qnashuvi**: bitta hamkor va bitta mijoz bir telefonda — bitta yozuv bo'ladi (mijozniki qoladi, hamkorning ismi farq qilsa izohga). Bir telefonda bir nechta hamkor — telefon bittasida qoladi (hisobida yozuvi borida, bo'lmasa eskisida), boshqalarida izohga o'tadi. Hisoblar ko'chirishda birlashtirilmaydi: "Ehtimoliy takrorlar" ro'yxati chiqadi, aka keyin "Birlashtirish" bilan qiladi.
+5. **Hamkorga kassadan sotuvlar** muddatsiz qarz bo'lib qoladi; boshlang'ich qoldiqlar ham muddatsiz — hech kim birdan "muddati o'tgan" bo'lib qolmaydi. Muddatni keyin qo'yish mumkin.
+6. **Chakana narx turi** biriktirilgan guruh va mijozlarda narx bo'sh (chakana) qilinadi — sodiqlik va aksiya qaytadi.
+7. **Ruxsatlar**: "hamkorlarni ko'rish" → mijozlarni ko'rish; "tahrirlash" → tahrirlash; "hamkor qarzini ko'rish" → ikkala qarzni ko'rish; "hamkor to'lovi" → to'lov olish va pul berish; "boshlang'ich qoldiq" → hisob tuzatish; eski "mijozlar qarzi" → qarzni ko'rish va to'lov olish; "hamkorga sotish" → qarzga sotish. Do'kon menejerining "Mijozlar — hammasi" ruxsati aniq ro'yxatga ochiladi (yetkazib beruvchilar hisobi, pul berish va hisob tuzatish unga o'tib qolmaydi). Sklad mudiridan "hamkorlarni ko'rish" olinadi (kirimda yetkazib beruvchi tanlovi baribir ishlaydi).
+8. **Biznes qarz chegarasi**: hozir 0 ("chegara yo'q") — endi "kassir o'zi qarz bermaydi" ma'nosida. Aka summasini kiritmaguncha har qarz rahbar tasdig'i bilan.
+9. **Narxlar**: ustama qoidalari o'z holicha ("Tannarx + N%"); qoralama kirimlardagi narxlar yangi ko'rinishga o'tadi; valyutasi narx turiga mos kelmagan narxlar oxirgi dollar kursida o'tkaziladi va narx tarixiga "Valyuta tuzatildi" bo'lib yoziladi (kurs bo'lmasa — "narx yo'q" deb o'qiladi).
+10. **K-000001** narxlari o'zgarmaydi. "Cargo" xarajati tuzatilgach, shu kirim tovarlari "Narxlar" filtrida tanlanib "Qoidalar bo'yicha" qayta hisoblanadi.
+11. **Orqaga qaytarish** faqat mijoz hisoblarida pul yozuvi bo'lmagan bazada; bo'lsa — nusxadan tiklanadi.
+
+### 16.8. Bosqichlar
+
+| № | Bosqich | Kun | Nima tayyor bo'ladi |
+| --- | --- | --- | --- |
+| 1 | Narx formulalari | 9 | formula va maydon o'qish; narx turining "Qanday hisoblanadi"; "Narx qoidalari" (usul, foiz, summa); kirimda "Narxlar" qatori, uch holatli maydon, ogohlantirishlar; o'tkazishda narx va tarix; keyin xarajat o'zgarsa "Narxlarni yangilash"; ommaviy o'zgartirish va "Qo'yilmagan" filtri; valyuta qulfi; kassada formula yoki "Chakana narxida"; "Kirimda narx qo'yish" ruxsati; testlar |
+| 2 | Yagona mijoz: baza va hisob | 7 | ko'chirish; bitta mijoz va bitta hisob; muddat va muddati o'tgan hisobi; to'siqlar va chegara; haqidan olish; TL- (avans, kassada terminal, tortmadan berish chegarasi, tuzatish, kechish); qaytarish, bekor qilish, Z-hisobot; kirim, import va YQ- ulanishi; ruxsatlar; testlar |
+| 3 | Yagona mijoz: ekranlar | 5 | "Mijozlar" sahifasi, karta va Hisob-kitob bloki, hisob-kitob, Qarzdorlar, To'lovlar; to'lov oynasi; kassa tanlovi, chip va bitta "Qarzga / Hisobidan" bloki; chekdagi qoldiq va imzo; kirim va YQ- tanlovlari; menyu; o'zbek va rus matnlari; testlar |
+| 4 | Qo'shimcha holatlar | 7 | almashtirish hisobga va almashtirilgan tovar qaytishi; qaytarishda naqd berish; muddatni uzaytirish; birlashtirish (valyuta bilan); arxiv qoidasi; chekning mijozini almashtirish; akt-sverka (davr, Excel, chop); boshlang'ich qoldiqlar Excel'dan; kirimdan "To'lov berish"; kartadagi qaytarish muddati |
+| 5 | Hujjat va tekshiruv | 1 | CLAUDE.md, rejalar, ko'chirishni aka bazasining nusxasida oldinga va orqaga sinash |
+
+Jami — taxminan **29 kun**. 1-bosqich mustaqil va birinchi chiqadi (kirimdagi narx akaga hozir kerak); 2 va 3 birga chiqadi (ko'chirish ekranlarsiz chiqmaydi); 4 — bo'lak-bo'lak. Har bosqich tekshiruvlar va testlar yashil bo'lib tugaydi.
+
+### 16.9. Ochiq savollar
+
+1. **Narx turlarining odatiy formulalari** — bir marta kiritiladi: Chakana = tannarx + ?%, Ulgurji = tannarx + ?% (yoki chakana − ?%), Oila = tannarx + ?%, Minimal = tannarx + 5%? Va K-000001 dagi "cargo" 43 000 $ (tovar 32 472 $) — xatomi? Tuzatilmaguncha shu tovarlarning formula narxlariga ishonib bo'lmaydi.
+2. **Kassir tasdiqsiz beradigan qarz** — bitta mijozga necha so'm? 0 qolsa har qarz rahbar PIN'i bilan. Qaysi doimiy ulgurji xaridorlarga o'z chegarasi va qaysilariga "muddatsiz" berilsin (ro'yxat kerak)?
+3. **Katta ulgurji skladdan chiqadimi?** Ha bo'lsa: Sklad GB1 / GB2 ni "Do'kon va sklad" qilib kassa ochamizmi (Ulgurji menejer o'sha yerda sotadi) yoki alohida "Ulgurji sotuv" hujjatini kutamizmi?
+
+Texnik tafsilotlar (jadvallar, migratsiyalar, fayllar, testlar) — `docs/MIJOZLAR-TEXNIK.md`.
