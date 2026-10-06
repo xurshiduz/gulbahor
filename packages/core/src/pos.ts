@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { saleDebtSchema } from './debts'
 import type { ImageThumb } from './images'
-import { allocateExact, roundToStep, type CurrencyCode } from './money'
+import { ALL_CURRENCY_CODES, allocateExact, roundToStep, type AnyCurrency, type CurrencyCode } from './money'
 import type { PromoOffer } from './promotions'
 import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
 
@@ -25,7 +25,7 @@ export type AccountKind = (typeof ACCOUNT_KINDS)[number]
 export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   cash: 'Kassa (naqd)',
   // Cash that is in no till's drawer: a safe, or what somebody carries.
-  safe: 'Naqd (seyf yoki qo‘lda)',
+  safe: 'Naqd',
   card: 'Plastik karta',
   terminal: 'Bank terminali',
   bank: 'Bank hisob raqami',
@@ -85,8 +85,11 @@ export const accountInputSchema = z
   .object({
     kind: z.enum(PAYMENT_ACCOUNT_KINDS),
     name: requiredText(60),
-    /** What it holds. Anything but a terminal may hold dollars. */
-    currency: z.enum(['UZS', 'USD']).default('UZS'),
+    /**
+     * What it holds: any currency the business has switched on — whether it has is for the server to say.
+     * A terminal holds what the tills sell in.
+     */
+    currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).default('UZS'),
     /** The shop it belongs to; none for one shared by all. */
     locationId: idSchema.nullish().transform((value) => value ?? null),
     /**
@@ -147,7 +150,7 @@ export interface AccountDto {
   id: string
   kind: AccountKind
   name: string
-  currency: CurrencyCode
+  currency: AnyCurrency
   /** The one shop it belongs to; null when it serves every shop, or several. */
   locationId: string | null
   locationName: string | null
@@ -1142,7 +1145,7 @@ export interface MoneyTransferDto {
   id: string
   number: string
   status: MoneyTransferStatus
-  currency: CurrencyCode
+  currency: AnyCurrency
   amount: number
   fromAccountId: string
   fromAccountName: string

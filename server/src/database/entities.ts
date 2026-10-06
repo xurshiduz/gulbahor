@@ -1755,7 +1755,7 @@ export class Account {
   name: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('uuid', { nullable: true })
   locationId: string | null
@@ -2421,7 +2421,7 @@ export class PartnerPaymentLine {
   accountId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('bigint', { transformer: bigintAsNumber })
   amount: number
@@ -2548,7 +2548,7 @@ export class MoneyOpLine {
   accountId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('bigint', { transformer: bigintAsNumber })
   amount: number
@@ -2682,7 +2682,7 @@ export class DebtPaymentLine {
   accountId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('bigint', { transformer: bigintAsNumber })
   amount: number
@@ -2769,7 +2769,7 @@ export class MoneyTransfer {
   toAccountId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('bigint', { transformer: bigintAsNumber })
   amount: number

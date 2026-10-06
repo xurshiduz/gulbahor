@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
+import type { RateBook } from './currencies'
 import { accountInputSchema, formatCardNumber } from './pos'
 import {
   amountFor,
+  dayPairRate,
   defaultTill,
+  pairBook,
+  pairOf,
   pairRate,
   partnerPaymentInputSchema,
   rateGap,
@@ -157,6 +161,9 @@ describe('a pair of sums', () => {
       fx: 0,
       rate: RATE,
       agreed: false,
+      // The rate reads "1 $ = 11 800 so'm", and a cent is worth 118 tiyin: rounding can leave no more.
+      pair: { one: 'USD', of: 'UZS' },
+      slack: RATE,
     })
     // An agreed sum that is what the rate makes anyway is no agreement.
     expect(settleLine(usd(100), 'USD', 'UZS', RATE, som(1_180_000)).agreed).toBe(false)
@@ -182,6 +189,8 @@ describe('a pair of sums', () => {
       fx: -som(20_000),
       rate: 12_000,
       agreed: true,
+      pair: { one: 'USD', of: 'UZS' },
+      slack: RATE,
     })
     // 1 200 000 so'm for a hundred dollars of a dollar account: the so'm are all there, and are worth 20 000 more.
     expect(settleLine(som(1_200_000), 'UZS', 'USD', RATE, usd(100))).toEqual({
@@ -191,6 +200,8 @@ describe('a pair of sums', () => {
       fx: som(20_000),
       rate: 12_000,
       agreed: true,
+      pair: { one: 'USD', of: 'UZS' },
+      slack: RATE,
     })
   })
 
@@ -256,5 +267,92 @@ describe('a card', () => {
     expect(
       accountInputSchema.safeParse({ kind: 'safe', name: 'Seyf', cardNumber: '9860123456789012' }).data?.cardNumber,
     ).toBeNull()
+  })
+})
+
+describe('a line of money in any currency the business keeps', () => {
+  /** So'm the base, the dollar 12 650, the yuan named against the dollar, the rouble straight in so'm. */
+  const book: RateBook = {
+    base: 'UZS',
+    rates: {
+      USD: { against: 'UZS', way: 'in', value: 12_650 },
+      CNY: { against: 'USD', way: 'per', value: 7.25 },
+      RUB: { against: 'UZS', way: 'in', value: 135 },
+    },
+  }
+  const yuan = (value: number) => Math.round(value * 100)
+
+  it('is valued through the whole chain of rates, in one step', () => {
+    // 1 000 ¥ spent, counted in so'm: 1 000 × 12 650 / 7,25.
+    expect(settledFor(yuan(1000), 'CNY', 'UZS', book)).toEqual({
+      settled: som(1_744_827.59),
+      cashBase: som(1_744_827.59),
+      partnerBase: som(1_744_827.59),
+      fx: 0,
+    })
+    // 7 250 ¥ against a dollar account are 1 000 $ whatever the dollar costs; nothing is left over.
+    expect(settledFor(yuan(7250), 'CNY', 'USD', book)).toEqual({
+      settled: usd(1000),
+      cashBase: som(12_650_000),
+      partnerBase: som(12_650_000),
+      fx: 0,
+    })
+    // 100 ¥ are 13,79 $ to the cent; the 0,3 of a cent that is left is written down in so'm.
+    const odd = settledFor(yuan(100), 'CNY', 'USD', book)
+    expect(odd).toMatchObject({ settled: 1379, cashBase: som(174_482.76), partnerBase: som(174_443.5) })
+    expect(odd.fx).toBe(odd.cashBase - odd.partnerBase)
+  })
+
+  it('reads its rate as one of the dearer currency in so many of the cheaper', () => {
+    expect(pairOf('CNY', 'USD', book)).toEqual({ one: 'USD', of: 'CNY' })
+    expect(pairOf('USD', 'CNY', book)).toEqual({ one: 'USD', of: 'CNY' })
+    expect(pairOf('CNY', 'UZS', book)).toEqual({ one: 'CNY', of: 'UZS' })
+    expect(pairOf('RUB', 'CNY', book)).toEqual({ one: 'CNY', of: 'RUB' })
+    expect(pairOf('USD', 'USD', book)).toBeNull()
+    expect(pairOf('KZT', 'USD', book)).toBeNull()
+    expect(dayPairRate('CNY', 'USD', book)).toEqual({ one: 'USD', of: 'CNY', value: 7.25 })
+    expect(dayPairRate('UZS', 'USD', book)).toEqual({ one: 'USD', of: 'UZS', value: 12_650 })
+    // 12 650 / 7,25: to the tiyin where a rate runs to hundreds.
+    expect(dayPairRate('UZS', 'CNY', book)).toEqual({ one: 'CNY', of: 'UZS', value: 1744.83 })
+    // 1 744,83 / 135: to four places where it is a handful.
+    expect(dayPairRate('CNY', 'RUB', book)).toEqual({ one: 'CNY', of: 'RUB', value: 12.9246 })
+  })
+
+  it('stands as agreed between any two: "take these 7 300 yuan for a thousand dollars"', () => {
+    const worth = settleLine(yuan(7300), 'CNY', 'USD', book, usd(1000))
+    expect(worth).toMatchObject({
+      settled: usd(1000),
+      // The yuan are worth what the day says: 7 300 × 12 650 / 7,25.
+      cashBase: som(12_737_241.38),
+      partnerBase: som(12_650_000),
+      rate: 7.3,
+      agreed: true,
+      pair: { one: 'USD', of: 'CNY' },
+    })
+    expect(worth.fx).toBe(som(87_241.38))
+    // A cent is worth 127 tiyin, a fen 18: what rounding may leave is the dearer coin.
+    expect(worth.slack).toBe(12_650)
+    expect(rateGap(worth)).toBe(0.7)
+    expect(straysFromRate(worth, 2)).toBe(false)
+    expect(straysFromRate(settleLine(yuan(8000), 'CNY', 'USD', book, usd(1000)), 2)).toBe(true)
+  })
+
+  it('works the money back from what is to be settled, and a typed rate for one pair alone', () => {
+    expect(amountFor(usd(1000), 'CNY', 'USD', book)).toBe(yuan(7250))
+    expect(amountFor(som(1_744_827.59), 'CNY', 'UZS', book)).toBe(yuan(1000))
+    expect(amountFor(yuan(500), 'CNY', 'CNY', book)).toBe(yuan(500))
+    // "1 $ = 7,30 ¥" typed for a line: only what the one makes of the other is read from it.
+    const own = pairBook({ one: 'USD', of: 'CNY' }, 7.3)
+    expect(settledFor(yuan(7300), 'CNY', 'USD', own).settled).toBe(usd(1000))
+    expect(amountFor(usd(1000), 'CNY', 'USD', own)).toBe(yuan(7300))
+  })
+
+  it('cannot be valued while a rate it hangs on is wanting', () => {
+    const { USD: _gone, ...rest } = book.rates
+    const noDollar: RateBook = { base: 'UZS', rates: rest }
+    expect(() => settledFor(yuan(100), 'CNY', 'UZS', noDollar)).toThrow(RangeError)
+    expect(() => settleLine(usd(100), 'USD', 'UZS', null)).toThrow(RangeError)
+    // The rouble is written in so'm and asks nobody.
+    expect(settledFor(yuan(100), 'RUB', 'UZS', noDollar).settled).toBe(som(13_500))
   })
 })

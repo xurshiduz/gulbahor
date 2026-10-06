@@ -154,6 +154,17 @@ export function mayBeWrittenAgainst(
   return code !== base
 }
 
+/** The rates in force as a screen was given them: what it values money by without asking again. */
+export function bookOf(currencies: Pick<CurrenciesDto, 'base' | 'active'>): RateBook {
+  const book: RateBook = { base: currencies.base, rates: {} }
+  for (const { code, rate } of currencies.active) {
+    if (rate) {
+      book.rates[code] = { against: rate.against, way: rate.way, value: rate.value }
+    }
+  }
+  return book
+}
+
 /**
  * A rate this far from the one before it, in percent, is more often a slip
  * of the hand than the market: "1 265" for "12 650". It is asked about

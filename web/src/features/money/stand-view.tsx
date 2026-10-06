@@ -1,8 +1,11 @@
 import {
+  dayPairRate,
   formatMoney,
+  ratesOf,
   type AccountDto,
-  type CurrencyCode,
+  type AnyCurrency,
   type MoneyTransferDto,
+  type Rates,
   type RegisterDto,
 } from '@gulbahor/core'
 import { ArrowRight, Wallet } from 'lucide-react'
@@ -10,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/controls'
 import { Badge, EmptyState } from '@/components/ui/feedback'
-import { placeName, rateText } from '@/features/partners/payment-lines'
+import { currencyShort, placeName, rateText } from '@/features/partners/payment-lines'
 import { Stat } from '@/features/reports/parts'
 import { cn } from '@/lib/cn'
 
@@ -18,7 +21,7 @@ import { moneyStand, standWorth, type StandCurrency, type StandHalf, type StandP
 
 const EVERYWHERE = 'all'
 
-const money = (minor: number, currency: CurrencyCode) => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
 
 export interface StandShop {
   id: string
@@ -30,8 +33,8 @@ interface MoneyStandViewProps {
   registers: Pick<RegisterDto, 'id' | 'name'>[]
   /** Transfers sent and not yet confirmed. */
   waiting: MoneyTransferDto[]
-  /** The day's rate; null when none was ever set. */
-  rate: number | null
+  /** The day's rates: all of them, or the dollar's alone. */
+  rates: Rates
   /** The places that hold money of their own: the choice above the figures. */
   shops: StandShop[]
   shopId: string | null
@@ -44,10 +47,14 @@ interface MoneyStandViewProps {
  * number, a drawer by its till. Seen without a session, so that a test and a
  * page thrown together to look at it can show it.
  */
-export function MoneyStandView({ accounts, registers, waiting, rate, shops, shopId, onShop }: MoneyStandViewProps) {
+export function MoneyStandView({ accounts, registers, waiting, rates, shops, shopId, onShop }: MoneyStandViewProps) {
   const { t } = useTranslation()
+  const book = ratesOf(rates)
   const stand = moneyStand(accounts, registers, waiting, shopId)
-  const worth = standWorth(stand, rate)
+  const worth = standWorth(stand, book)
+  // With one currency beside the base its rate is said; with several there is no one rate to say.
+  const foreign = stand.filter((item) => item.currency !== book.base)
+  const single = foreign.length === 1 ? dayPairRate(foreign[0].currency, book.base, book) : null
 
   return (
     <div className="flex flex-col gap-4" data-stand>
@@ -71,7 +78,7 @@ export function MoneyStandView({ accounts, registers, waiting, rate, shops, shop
             {stand.map((item) => (
               <Stat
                 key={item.currency}
-                label={t(`stand.currency_${item.currency}`, { defaultValue: item.currency })}
+                label={currencyShort(item.currency, t)}
                 value={money(item.total, item.currency)}
                 // What the sum is made of, so that the parts add up to it: money on its way is said when there is any.
                 note={t(item.transit.total ? 'stand.splitTransit' : 'stand.split', {
@@ -87,7 +94,13 @@ export function MoneyStandView({ accounts, registers, waiting, rate, shops, shop
               <Stat
                 label={t('stand.allInSom')}
                 value={worth === null ? '—' : money(worth, 'UZS')}
-                note={rate ? t('stand.atRate', { rate: rateText(rate) }) : t('stand.noRate')}
+                note={
+                  worth === null
+                    ? t('stand.noRate')
+                    : single
+                      ? t('stand.atRate', { rate: rateText(single.value) })
+                      : t('stand.atRates')
+                }
               />
             ) : null}
           </div>
@@ -112,9 +125,7 @@ function CurrencyCard({ item, whole }: { item: StandCurrency; whole: boolean }) 
       data-currency={item.currency}
     >
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-base font-semibold">
-          {t(`stand.currency_${item.currency}`, { defaultValue: item.currency })}
-        </h2>
+        <h2 className="text-base font-semibold">{currencyShort(item.currency, t)}</h2>
         <p className={cn('tabular text-base font-semibold', item.total < 0 && 'text-bad')}>
           {money(item.total, item.currency)}
         </p>
@@ -167,7 +178,7 @@ function Half({
 }: {
   title: string
   half: StandHalf
-  currency: CurrencyCode
+  currency: AnyCurrency
   whole: boolean
 }) {
   const { t } = useTranslation()

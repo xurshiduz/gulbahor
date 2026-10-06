@@ -19,7 +19,7 @@ import { Account, ExchangeRate, Location, Register, Shift } from '../../database
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
-import { rateJumpError } from './currencies.service'
+import { CurrenciesService, rateJumpError } from './currencies.service'
 import { LedgerService } from './ledger.service'
 import { mayUse } from './places'
 
@@ -43,6 +43,7 @@ export class MoneyService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   // ───────────────────────────── Tills ─────────────────────────────
@@ -141,7 +142,7 @@ export class MoneyService {
 
   async createAccount(actor: Actor, input: AccountInput): Promise<AccountDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      await this.assertAccount(em, input)
+      await this.assertAccount(em, actor, input)
       const saved = await em.save(
         em.create(Account, { orgId: actor.orgId, ...placed(input), balance: 0, isActive: true }),
       )
@@ -167,7 +168,7 @@ export class MoneyService {
             : { currency: 'Pul o‘tgan hisobning valyutasini o‘zgartirib bo‘lmaydi' },
         )
       }
-      await this.assertAccount(em, input, id)
+      await this.assertAccount(em, actor, input, id)
       await em.update(Account, id, placed(input))
       const after = await this.findAccount(em, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -418,7 +419,11 @@ export class MoneyService {
     }
   }
 
-  private async assertAccount(em: EntityManager, input: AccountInput, exceptId?: string) {
+  private async assertAccount(em: EntityManager, actor: Actor, input: AccountInput, exceptId?: string) {
+    // Money is kept in a currency the business has switched on, and in no other.
+    if (!(await this.currencies.kept(em, actor)).includes(input.currency)) {
+      throw AppError.validation({ currency: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+    }
     const shops = accountShops(input)
     if (shops.length) {
       const [{ found }]: { found: number }[] = await em.query(

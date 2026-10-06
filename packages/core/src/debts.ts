@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { CurrencyCode } from './money'
+import type { AnyCurrency } from './money'
 import { idSchema, listQuerySchema, optionalText } from './schemas'
 
 /**
@@ -173,7 +173,7 @@ export interface DebtPaymentDto {
   createdByName: string | null
   note: string | null
   /** `fx`: what the rate gave the business (+) or cost it (−) on the line, in so'm. */
-  lines: { accountName: string; currency: CurrencyCode; amount: number; base: number; fx: number }[]
+  lines: { accountName: string; currency: AnyCurrency; amount: number; base: number; fx: number }[]
   /** The receipts whose debts it paid, and how much of each. */
   parts: { saleNumber: string; amount: number }[]
   cancelledAt: string | null

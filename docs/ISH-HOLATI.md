@@ -20,7 +20,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-06 (V1: valyutalar va kurslardan keyin) — core 194, agent 17, server 308, web 183; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-06 (V2: pul joylari istalgan valyutadan keyin) — core 199, agent 17, server 319, web 191; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -136,15 +136,13 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] Qidiruv Ctrl+Q ga ko'chdi, yuqori paneldagi qutisi olib tashlandi; Ctrl+K — hamkordan to'lov olish.
 
 12. **Valyuta va hamkor** (KEYINGI-REJA, 8-bo'lim: "Yakuniy qarorlar" va "Valyuta va hamkor ishining bosqichlari") — reja 2026-10-06 da kelishib olindi; **kod foydalanuvchi "boshla" deganda boshlanadi**:
-   - [ ] V1. Valyutalar va kurslar (katalog, yoqish, kurs va yozilish shakli, zanjirli hisob, "Kurslar" ekrani).
+   - [x] V1. Valyutalar va kurslar (katalog, yoqish, kurs va yozilish shakli, zanjirli hisob, "Kurslar" ekrani).
    - [ ] V2. Pul joylari istalgan valyutada.
    - [ ] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish.
    - [ ] V4. Ayirboshlash va komissiya.
    - [ ] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy va ikkinchi valyuta").
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
-
-   V1 ning eski model (ko'prik qat'iy dollar) bo'yicha boshlangan qoralamasi `git stash` da turibdi ("V1 valyuta qoralamasi"): yadro hisobi va testlari yangi modelga moslab qayta ishlatiladi.
 
 Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
@@ -164,3 +162,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `ab3af58f2131bed57313c824df8865d61db2e5a0` | 10a: savdo hisoboti (Hisobotlar → Savdo) va bosh sahifada bugungi savdo; Ctrl+L, Ctrl+M |
 | `3ffd62a21e0048fd893d051b495729f694f642bf` | 11: juft maydon va kurs farqi, pul joylarining nomi va karta raqami, "Pul holati", menyu akkordeoni; kirimda dona bo'yicha va yashirin yetkazib beruvchi maydoni; valyuta taklifi va rejasi |
 | `c043d1b528b33d4f3c70b1d124080811260355d2` | O‘ va g‘ imlosi (1107 ta matn, migratsiya bilan), qidiruv Ctrl+Q da va yuqori panelda qutisiz, Ctrl+K — to'lov olish |
+| `96fac49b6f29fd9f0c447d2671a2e0717e1d01d2` | V1: valyuta katalogi (16 ta), yoqish va o'chirib qo'yish, har valyutaga kurs va yozilish shakli, zanjirli hisob, "Pul → Kurslar" sahifasi; reja hujjatda |

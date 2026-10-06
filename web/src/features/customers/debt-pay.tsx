@@ -5,7 +5,6 @@ import {
   tillsOf,
   type DebtPaymentDto,
   type PaymentAccountDto,
-  type RateDto,
 } from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
@@ -40,6 +39,7 @@ import {
 import { api, ApiError } from '@/lib/api'
 import { formatPhone } from '@/lib/format'
 import { toast } from '@/lib/toast'
+import { useRateBook } from '@/features/money/rates'
 
 const uuid = () => crypto.randomUUID()
 const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
@@ -73,11 +73,8 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
     queryKey: ['customer-debts', 'accounts'],
     queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/customer-debts/accounts', undefined, signal),
   })
-  const rates = useQuery({
-    queryKey: ['money', 'rates'],
-    queryFn: ({ signal }) => api.get<{ current: RateDto | null }>('/money/rates', undefined, signal),
-  })
-  const dayRate = rates.data?.current?.uzsPerUsd ?? null
+  // The day's rates, all of them: a line may be in any currency the business keeps.
+  const dayRate = useRateBook()
   const places = useMemo(() => accounts.data ?? [], [accounts.data])
 
   // The till the money goes into: the one picked here, else the one that stands to reason.
@@ -91,7 +88,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
     setRows(switchTill(shown, places, id))
   }
   // A debt is in so'm: dollars are worth what the rate makes them.
-  const valued = valueLines(shown, places, 'UZS', dayRate, me.org.settings.maxRateLossPercent)
+  const valued = valueLines(shown, places, me.org.baseCurrency, dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
 

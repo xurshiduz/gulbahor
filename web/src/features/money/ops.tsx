@@ -11,7 +11,6 @@ import {
   type MoneyOpSums,
   type Page as PageOf,
   type PaymentAccountDto,
-  type RateDto,
   defaultTill,
   tillsOf,
 } from '@gulbahor/core'
@@ -62,6 +61,7 @@ import { formatDateTime } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
+import { useRateBook } from './rates'
 
 const route = getRouteApi('/money')
 
@@ -132,11 +132,8 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
     queryKey: ['money-ops', 'accounts'],
     queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/money/ops/accounts', undefined, signal),
   })
-  const rates = useQuery({
-    queryKey: ['money', 'rates'],
-    queryFn: ({ signal }) => api.get<{ current: RateDto | null }>('/money/rates', undefined, signal),
-  })
-  const dayRate = rates.data?.current?.uzsPerUsd ?? null
+  // The day's rates, all of them: a line may be in any currency the business keeps.
+  const dayRate = useRateBook()
   const setsRates = can('money.rates')
   const places = useMemo(() => accounts.data ?? [], [accounts.data])
   const kinds = (categories.data ?? []).filter((item) => item.kind === kind && item.isActive)
@@ -153,7 +150,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
     setRows(switchTill(shown, places, id))
   }
   // Everything is counted in so'm: dollars are worth what the rate makes them.
-  const valued = valueLines(shown, places, 'UZS', dayRate, me.org.settings.maxRateLossPercent)
+  const valued = valueLines(shown, places, me.org.baseCurrency, dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
 

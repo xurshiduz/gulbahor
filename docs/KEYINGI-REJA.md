@@ -434,10 +434,21 @@ Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini mas
 
 - **Katalog** — 16 ta valyuta (`core/money.ts` dagi `CURRENCIES`). Kirim hujjati ham shu ro'yxatdan oladi.
 - **"Pul → Kurslar"**: asosiy valyuta tepada (kursi yo'q); dollar — kassalar ishlatadigan kurs, hozirgidek har kuni kiritiladi; pastida yoqilgan har valyuta bitta qator: "1 $ = [7,25] ¥" va yonida tizim hisoblagan "1 ¥ ≈ 1 744,83 so'm". Qator ostida kim va qachon kiritgani; kursi yo'q bo'lsa — "bu valyutada amal bajarilmaydi"; bog'langan valyutaning kursi yo'q bo'lsa — qaysi biri yetishmasligi; uzoq yangilanmagan bo'lsa — ogohlantirish.
-- **Valyuta qo'shish** — sahifa pastidagi qidiruvli maydon ("lira" deb yozsa topadi). Qator menyusi: kurs qanday yozilishi (to'rt shakl), kurs tarixi, o'chirib qo'yish. O'chirib qo'yilgan valyutaning kurslari saqlanadi; unga boshqa valyuta bog'langan yoki unda pul turgan bo'lsa, o'chirib qo'yilmaydi.
+- **Valyuta qo'shish** — sahifa pastidagi qidiruvli maydon ("lira" deb yozsa topadi). Qator menyusi: kurs qanday yozilishi (to'rt shakl), o'chirib qo'yish. Kurslar tarixi ekranda hozircha yo'q (foydalanuvchi qarori, 2026-10-06: keyin qo'shiladi; kurslar bazada kuni bilan saqlanib boradi). O'chirib qo'yilgan valyutaning kurslari saqlanadi; unga boshqa valyuta bog'langan yoki unda pul turgan bo'lsa, o'chirib qo'yilmaydi.
 - **Keskin farq**: oldingisidan 15% dan ko'p farq qiladigan kurs (dollarniki ham) tasdiq so'raydi: "Kurs oldingisidan 90% farq qiladi: 12 650 → 1 265. Shu kurs qo'yilsinmi?".
 - Ruxsatlar: valyutani yoqish va o'chirib qo'yish — "Kassa va hisoblarni boshqarish", kurs — "Kurs qo'yish".
 - Hali hech bir hisob yoki hamkor bu valyutalarda ochilmaydi: bu 2- va 3-bosqich.
+
+### 2-bosqich qanday qurildi (2026-10-06)
+
+- **Hisob istalgan yoqilgan valyutada.** "Pul → Hisoblar → Hisob qo'shish"dagi valyuta ro'yxati — biznes yoqqan valyutalar (so'm, dollar, yuan…). Naqd (seyf yoki qo'ldagi pul), karta va bank hisobi istalgan valyutada ochiladi; terminal faqat asosiy valyutada; kassada sotuvga faqat asosiy valyutadagi karta chiqadi. Yoqilmagan valyutada hisob ochilmaydi.
+- **Nomlari**: "Yuan naqd (Yuan seyfi)", "Yuan karta (6200 …)", "Yuan bank (…)". Hisob turi endi shunchaki "Naqd" deb nomlanadi (avval "Naqd (seyf yoki qo'lda)").
+- **"Pul holati"**: har valyutaga o'z bloki; "Hammasi so'mda" — hamma valyuta kun kurslarida; biror valyutaning kursi yo'q bo'lsa jami ko'rsatilmaydi (teshigi bor yig'indi — yig'indi emas).
+- **Pul kirishi va chiqishi.** Xarajat va boshqa kirim, hamkor to'lovi, mijoz qarzi to'lovi — uchala oynada yuan hisobi oddiy qator bo'lib chiqadi. Qiymat zanjirli kursdan, bitta amalda hisoblanadi (1 000 ¥ = 1 744 827,59 so'm). Kelishilgan summa qoidasi o'sha: pul — langar, farq "Kurs farqi"ga. Dollar hisobli hamkorga yuanda to'lash mumkin ("7 300 ¥ ni 1 000 $ deb": "Kelishilgan kurs 7,3, kun kursi 7,25 (0,7% farq): 87 241,38 so'm zararimizga"). Kurs ustunida shu juftlikning o'z kursi turadi ("7,25"; ustiga borilsa "1 $ = 7,25 ¥").
+- **O'tkazma** — bir xil valyutadagi ikki joy orasida (yuan seyfidan yuan kartasiga). Boshqa valyutadagi joyga o'tkazma rad etiladi: bu ayirboshlash (4-bosqich).
+- **Kurs yo'q bo'lsa** amal rad etiladi va qaysi kurs yetishmasligi aytiladi ("Xitoy yuani kursi qo'yilmagan" yoki "Dollar kursi qo'yilmagan").
+- Pul turgan valyutani o'chirib qo'yib bo'lmaydi.
+- Hamkor hisobi hali so'm yoki dollarda (3-bosqich).
 
 ### Kurs sozlamasi (alohida sahifa)
 

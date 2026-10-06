@@ -24,7 +24,8 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
-import { rateLimit, valueLine } from './agreed'
+import { rateLimit, valueLine, wantingRate } from './agreed'
+import { CurrenciesService } from './currencies.service'
 import { LedgerService, type Posting } from './ledger.service'
 import { MoneyService } from './money.service'
 import { mayUse } from './places'
@@ -75,6 +76,7 @@ export class MoneyOpsService {
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
     private readonly money: MoneyService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   // ───────────────────────────── What the money was for ─────────────────────────────
@@ -183,7 +185,7 @@ export class MoneyOpsService {
         throw AppError.validation({ categoryId: 'Tur topilmadi' })
       }
       const today = await this.ledger.today(em, actor.orgId)
-      const dayRate = actor.modules.includes('usd') ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+      const book = await this.currencies.book(em, actor, today)
       const limit = await rateLimit(em, actor)
       // Money in adds to an account; an expense takes from it.
       const sign = input.kind === 'income' ? 1 : -1
@@ -221,8 +223,9 @@ export class MoneyOpsService {
           }
           shiftId = open.id
         }
-        if (account.currency === 'USD' && !dayRate) {
-          fields[`lines.${index}.amount`] = 'Dollar kursi qo‘yilmagan'
+        const wanting = wantingRate(book, account.currency)
+        if (wanting) {
+          fields[`lines.${index}.amount`] = wanting
           continue
         }
         if (input.kind === 'expense') {
@@ -233,8 +236,8 @@ export class MoneyOpsService {
             continue
           }
         }
-        // Dollars may be counted as an agreed sum of so'm, within what this person may agree to.
-        const worth = valueLine(line.amount, account.currency, 'UZS', dayRate, line.settled, limit)
+        // Money of another currency may be counted as an agreed sum of the base, within what this person may agree to.
+        const worth = valueLine(line.amount, account.currency, book.base, book, line.settled, limit)
         if (typeof worth === 'string') {
           fields[`lines.${index}.settled`] = worth
           continue

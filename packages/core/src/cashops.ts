@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { CurrencyCode } from './money'
+import type { AnyCurrency } from './money'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
 /**
@@ -109,7 +109,7 @@ export type MoneyOpListQuery = z.infer<typeof moneyOpListQuerySchema>
 export interface MoneyOpLineDto {
   accountId: string
   accountName: string
-  currency: CurrencyCode
+  currency: AnyCurrency
   amount: number
   /** So'm for a dollar; null for a line in so'm. */
   rate: number | null

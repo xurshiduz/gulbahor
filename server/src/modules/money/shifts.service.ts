@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import {
   formatMoney,
   toBase,
+  type AnyCurrency,
   type CurrencyCode,
   type MoneySentEvent,
   type Page,
@@ -119,7 +120,7 @@ export class ShiftsService {
       // What is handed over as the shift ends leaves the drawer now, while the shift is still its own;
       // it reaches the safe when whoever keeps it says so.
       const drawers = await em.findBy(Account, { registerId: register.id })
-      const handed: Record<CurrencyCode, number> = { UZS: 0, USD: 0 }
+      const handed: Partial<Record<AnyCurrency, number>> = {}
       const handedOver: MoneySentEvent[] = []
       for (const [index, handover] of input.handovers.entries()) {
         const to = await em.findOneBy(Account, { id: handover.toAccountId })
@@ -127,8 +128,9 @@ export class ShiftsService {
         if (!to || !from) {
           throw AppError.validation({ [`handovers.${index}.toAccountId`]: 'Hisob topilmadi' })
         }
-        handed[from.currency] += handover.amount
-        if (handed[from.currency] > (from.currency === 'USD' ? input.cashUsd : input.cashUzs)) {
+        const sum = (handed[from.currency] ?? 0) + handover.amount
+        handed[from.currency] = sum
+        if (sum > (from.currency === 'USD' ? input.cashUsd : input.cashUzs)) {
           throw AppError.validation({ [`handovers.${index}.amount`]: 'Sanalgan puldan ko‘p topshirib bo‘lmaydi' })
         }
         const sent = await this.transfers.sendIn(em, actor, {

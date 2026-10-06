@@ -209,6 +209,13 @@ export class CurrenciesService {
     return book
   }
 
+  /** The currencies money may be kept in: the base, the dollar where the business has dollars, and what it switched on. */
+  async kept(em: EntityManager, actor: Pick<Actor, 'orgId' | 'modules'>): Promise<AnyCurrency[]> {
+    const setup = await this.setup(em, actor)
+    const mine = await em.find(OrgCurrency, { where: { isActive: true }, order: { createdAt: 'ASC' } })
+    return [setup.base, ...(setup.dollars ? [DOLLAR] : []), ...mine.map((currency) => currency.code)]
+  }
+
   private async setup(em: EntityManager, actor: Pick<Actor, 'orgId' | 'modules'>): Promise<Setup> {
     const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
     return { base: org.baseCurrency, dollars: org.baseCurrency !== DOLLAR && actor.modules.includes('usd') }

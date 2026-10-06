@@ -6,6 +6,7 @@ import {
   PARTNER_PAYMENT_STATUSES,
   partnerOpeningInputSchema,
   partnerPaymentInputSchema,
+  type AnyCurrency,
   type CurrencyCode,
   type Page as PageOf,
   type PartnerDto,
@@ -13,7 +14,6 @@ import {
   type PartnerPaymentKind,
   type PartnerStatementDto,
   type PaymentAccountDto,
-  type RateDto,
   defaultTill,
   tillsOf,
 } from '@gulbahor/core'
@@ -41,6 +41,7 @@ import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
+import { useRateBook } from '@/features/money/rates'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
@@ -70,7 +71,7 @@ import {
 
 const route = getRouteApi('/payments')
 
-const money = (minor: number, currency: CurrencyCode) => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
 
 const refresh = (queryClient: ReturnType<typeof useQueryClient>) => {
   for (const key of ['partner-payments', 'partners', 'money', 'pos', 'shifts']) {
@@ -133,11 +134,8 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
     queryKey: ['partner-payments', 'accounts'],
     queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/partner-payments/accounts', undefined, signal),
   })
-  const rates = useQuery({
-    queryKey: ['money', 'rates'],
-    queryFn: ({ signal }) => api.get<{ current: RateDto | null }>('/money/rates', undefined, signal),
-  })
-  const dayRate = rates.data?.current?.uzsPerUsd ?? null
+  // The day's rates, all of them: a line may be in any currency the business keeps.
+  const dayRate = useRateBook()
   const setsRates = can('money.rates')
   const partner = partners.data?.items.find((item) => item.id === partnerId) ?? null
   const places = useMemo(() => accounts.data ?? [], [accounts.data])

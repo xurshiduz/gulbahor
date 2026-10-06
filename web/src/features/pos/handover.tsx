@@ -1,6 +1,7 @@
 import {
   formatMoney,
   type AccountDto,
+  type AnyCurrency,
   type CurrencyCode,
   type MoneyTransferDto,
   type PosContextDto,
@@ -22,7 +23,7 @@ import { api } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
-const money = (minor: number, currency: CurrencyCode) => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
 
 const CURRENCIES: CurrencyCode[] = ['UZS', 'USD']
 

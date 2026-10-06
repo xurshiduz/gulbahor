@@ -45,7 +45,7 @@ const currencies: CurrenciesDto = {
   available: ['EUR', 'TRY', 'GBP'],
 }
 
-const handlers = () => ({ onRate: vi.fn(), onEnable: vi.fn(), onDisable: vi.fn(), onHistory: vi.fn() })
+const handlers = () => ({ onRate: vi.fn(), onEnable: vi.fn(), onDisable: vi.fn() })
 
 const show = (part: Partial<Parameters<typeof CurrenciesView>[0]> = {}, data = currencies) => {
   const on = handlers()

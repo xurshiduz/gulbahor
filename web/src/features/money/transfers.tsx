@@ -4,7 +4,7 @@ import {
   MONEY_TRANSFER_STATUSES,
   moneyTransferInputSchema,
   type AccountDto,
-  type CurrencyCode,
+  type AnyCurrency,
   type MoneyTransferDto,
   type MoneyTransferStatus,
   type Page as PageOf,
@@ -36,7 +36,7 @@ import { uuid } from '@/lib/uuid'
 
 const route = getRouteApi('/money')
 
-const money = (minor: number, currency: CurrencyCode) => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
 
 const TONES: Record<MoneyTransferStatus, 'warn' | 'ok' | 'bad' | 'neutral'> = {
   sent: 'warn',

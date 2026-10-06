@@ -1,10 +1,12 @@
 import {
-  CURRENCY_CODES,
-  toBase,
+  ALL_CURRENCY_CODES,
+  ratesOf,
+  worthInBase,
   type AccountDto,
   type AccountKind,
-  type CurrencyCode,
+  type AnyCurrency,
   type MoneyTransferDto,
+  type Rates,
   type RegisterDto,
 } from '@gulbahor/core'
 
@@ -29,7 +31,7 @@ export interface StandHalf {
 }
 
 export interface StandCurrency {
-  currency: CurrencyCode
+  currency: AnyCurrency
   /** Everything of this currency the business holds: in hand, in figures and on its way. */
   total: number
   cash: StandHalf
@@ -64,8 +66,8 @@ export function moneyStand(
   )
 
   const currencies = [...new Set([...shown.map((account) => account.currency), ...moving.map((item) => item.currency)])]
-  const place = (code: CurrencyCode) => (CURRENCY_CODES.includes(code) ? CURRENCY_CODES.indexOf(code) : Infinity)
-  currencies.sort((a, b) => place(a) - place(b))
+  // In the order the list of currencies is kept in: so'm, the dollar, then the rest.
+  currencies.sort((a, b) => ALL_CURRENCY_CODES.indexOf(a) - ALL_CURRENCY_CODES.indexOf(b))
 
   return currencies.map((currency) => {
     const half = (holding: Holding): StandHalf => {
@@ -87,10 +89,19 @@ export function moneyStand(
   })
 }
 
-/** Every currency counted as so'm at the day's rate; null while there are dollars and no rate to value them by. */
-export function standWorth(stand: StandCurrency[], uzsPerUsd: number | null): number | null {
-  if (stand.some((item) => item.currency !== 'UZS') && !uzsPerUsd) {
-    return null
+/**
+ * Every currency counted in the base at the day's rates; null while one of them has no rate to be valued by —
+ * a sum with a hole in it is not a sum.
+ */
+export function standWorth(stand: StandCurrency[], rates: Rates): number | null {
+  const book = ratesOf(rates)
+  let sum = 0
+  for (const item of stand) {
+    const worth = worthInBase(item.total, item.currency, book)
+    if (worth === null) {
+      return null
+    }
+    sum += worth
   }
-  return stand.reduce((sum, item) => sum + toBase(item.total, item.currency, uzsPerUsd), 0)
+  return sum
 }

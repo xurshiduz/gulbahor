@@ -10,7 +10,7 @@ import {
   type RateForm,
 } from '@gulbahor/core'
 import type { TFunction } from 'i18next'
-import { Check, History, MoreHorizontal, PowerOff } from 'lucide-react'
+import { Check, MoreHorizontal, PowerOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -66,7 +66,6 @@ interface CurrenciesViewProps {
   onRate: (currency: CurrencyDto, value: number) => void
   onEnable: (code: AnyCurrency, form?: RateForm) => void
   onDisable: (currency: CurrencyDto) => void
-  onHistory: (currency: CurrencyDto) => void
 }
 
 /**
@@ -85,7 +84,6 @@ export function CurrenciesView({
   onRate,
   onEnable,
   onDisable,
-  onHistory,
 }: CurrenciesViewProps) {
   const { t } = useTranslation()
   return (
@@ -104,7 +102,6 @@ export function CurrenciesView({
             onRate={onRate}
             onEnable={onEnable}
             onDisable={onDisable}
-            onHistory={onHistory}
           />
         ))}
       </ul>
@@ -142,7 +139,6 @@ function CurrencyRow({
   onRate,
   onEnable,
   onDisable,
-  onHistory,
 }: CurrencyRowProps) {
   const { t } = useTranslation()
   const { code, form, rate } = currency
@@ -174,9 +170,6 @@ function CurrencyRow({
           'separator' as const,
         ]
       : []),
-    ...(currency.fixed
-      ? []
-      : [{ label: t('currencies.history'), icon: <History />, onSelect: () => onHistory(currency) }]),
     ...(canManage && !currency.fixed
       ? [
           {

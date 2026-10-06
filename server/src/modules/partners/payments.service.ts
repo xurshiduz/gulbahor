@@ -22,7 +22,8 @@ import { Account, Partner, PartnerPayment, PartnerPaymentLine, Shift } from '../
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
-import { rateLimit, valueLine } from '../money/agreed'
+import { rateLimit, valueLine, wantingRate } from '../money/agreed'
+import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { mayUse } from '../money/places'
@@ -52,6 +53,7 @@ export class PartnerPaymentsService {
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
     private readonly money: MoneyService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   /** The accounts a payment can go through, for the form: balances only for those who may see them. */
@@ -69,7 +71,7 @@ export class PartnerPaymentsService {
       }
       const partner = await this.partner(em, input.partnerId)
       const today = await this.ledger.today(em, actor.orgId)
-      const dayRate = actor.modules.includes('usd') ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+      const book = await this.currencies.book(em, actor, today)
       const limit = await rateLimit(em, actor)
       const sign = input.kind === 'in' ? 1 : -1
 
@@ -107,10 +109,11 @@ export class PartnerPaymentsService {
           }
           shiftId = open.id
         }
-        // Dollars are valued at the day's rate, whatever is agreed: without one there is nothing to value them by.
+        // Money is valued at the day's rate, whatever is agreed: without one there is nothing to value it by.
         const changes = account.currency !== partner.currency
-        if ((changes || account.currency === 'USD') && !dayRate) {
-          fields[`lines.${index}.amount`] = 'Dollar kursi qo‘yilmagan'
+        const wanting = wantingRate(book, account.currency, partner.currency)
+        if (wanting) {
+          fields[`lines.${index}.amount`] = wanting
           continue
         }
         if (input.kind === 'out') {
@@ -126,7 +129,7 @@ export class PartnerPaymentsService {
           line.amount,
           account.currency,
           partner.currency,
-          dayRate,
+          book,
           changes ? line.settled : null,
           limit,
         )

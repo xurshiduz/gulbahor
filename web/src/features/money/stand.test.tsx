@@ -1,4 +1,4 @@
-import type { AccountDto, MoneyTransferDto } from '@gulbahor/core'
+import type { AccountDto, MoneyTransferDto, RateBook } from '@gulbahor/core'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -161,7 +161,7 @@ describe('the stand on the screen', () => {
         accounts={accounts}
         registers={registers}
         waiting={[transfer({})]}
-        rate={12_650}
+        rates={12_650}
         shops={[
           { id: 'shop-1', name: 'Gulbahor 1' },
           { id: 'shop-2', name: 'Gulbahor 2' },
@@ -205,5 +205,55 @@ describe('the stand on the screen', () => {
     expect(line('uzcard')).not.toContain('umumiy')
     expect(document.querySelector('[data-place="drawer-1"]')).toBeNull()
     expect(screen.getByRole('combobox').textContent).toBe('Gulbahor 2')
+  })
+})
+
+describe('money kept in another currency', () => {
+  /** So'm the base, the dollar 12 650, the yuan named against the dollar. */
+  const book: RateBook = {
+    base: 'UZS',
+    rates: { USD: { against: 'UZS', way: 'in', value: 12_650 }, CNY: { against: 'USD', way: 'per', value: 7.25 } },
+  }
+  const withYuan = [
+    ...accounts,
+    account('yuan-safe', { kind: 'safe', name: 'Yuan seyfi', currency: 'CNY', balance: 725_000 }),
+    account('union', { kind: 'card', name: 'UnionPay', currency: 'CNY', cardNumber: '6200123456789012', balance: 0 }),
+  ]
+
+  it('stands in its own block, after so’m and dollars, and is counted in with the rest', () => {
+    const stand = moneyStand(withYuan, registers, [])
+    expect(stand.map((item) => item.currency)).toEqual(['UZS', 'USD', 'CNY'])
+    expect(stand[2]).toMatchObject({ total: 725_000 })
+    expect(stand[2].cash.places.map((place) => place.account.id)).toEqual(['yuan-safe'])
+    expect(stand[2].cashless.places.map((place) => place.account.id)).toEqual(['union'])
+    // 15 000 000 so'm, 1 000 $ at 12 650, and 7 250 ¥ — which are another thousand dollars.
+    expect(standWorth(stand, book)).toBe(som(15_000_000) + som(12_650_000) + som(12_650_000))
+    // The yuan's rate hangs on the dollar's: without it the whole cannot be said.
+    expect(standWorth(stand, { base: 'UZS', rates: { CNY: book.rates.CNY } })).toBeNull()
+  })
+
+  it('is named by its currency on the screen, and the sum of all says it is at the day’s rates', () => {
+    render(
+      <MoneyStandView
+        accounts={withYuan}
+        registers={registers}
+        waiting={[]}
+        rates={book}
+        shops={[]}
+        shopId={null}
+        onShop={() => undefined}
+      />,
+    )
+    const card = document.querySelector('[data-currency="CNY"]') as HTMLElement
+    expect(plain(card.querySelector('header')?.textContent ?? '')).toBe('Yuan7 250,00 ¥')
+    expect(plain(document.querySelector('[data-place="yuan-safe"]')?.textContent ?? '')).toBe(
+      'Yuan naqd (Yuan seyfi)Gulbahor 17 250,00 ¥',
+    )
+    expect(plain(document.querySelector('[data-place="union"]')?.textContent ?? '')).toContain(
+      'Yuan karta (6200 1234 5678 9012)',
+    )
+    expect(plain(screen.getByText('Hammasi so‘mda').parentElement?.textContent ?? '')).toBe(
+      'Hammasi so‘mda40 300 000 so‘mkun kurslarida',
+    )
   })
 })

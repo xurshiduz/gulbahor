@@ -1,4 +1,4 @@
-import type { CurrencyCode, PaymentAccountDto } from '@gulbahor/core'
+import type { AnyCurrency, PaymentAccountDto, RateBook } from '@gulbahor/core'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
@@ -29,7 +29,7 @@ import {
 const som = (amount: number) => Math.round(amount * 100)
 const usd = (amount: number) => Math.round(amount * 100)
 
-const account = (id: string, name: string, currency: CurrencyCode, more: Partial<PaymentAccountDto> = {}) =>
+const account = (id: string, name: string, currency: AnyCurrency, more: Partial<PaymentAccountDto> = {}) =>
   ({ id, name, currency, kind: 'cash', balance: null, registerId: null, open: true, ...more }) as PaymentAccountDto
 
 const ACCOUNTS = [account('uzs', 'Kassa (so‘m)', 'UZS'), account('usd', 'Kassa (dollar)', 'USD')]
@@ -171,7 +171,7 @@ interface LinesProps {
   accounts?: PaymentAccountDto[]
   owed?: number
   /** The currency of the account being settled, and which way the money goes. */
-  currency?: CurrencyCode
+  currency?: AnyCurrency
   kind?: 'in' | 'out'
   /** What the lines would send, for whoever wants to look. */
   onLines?: (lines: ValuedLine[]) => void
@@ -481,5 +481,106 @@ describe('the ready lines of an expense', () => {
     await userEvent.tab()
     await userEvent.type(worth, '253000{Tab}')
     expect(dollars.value).toBe('20,00')
+  })
+})
+
+describe('a line in another currency the business keeps', () => {
+  /** So'm the base, the dollar 12 650, the yuan named against the dollar. */
+  const book: RateBook = {
+    base: 'UZS',
+    rates: { USD: { against: 'UZS', way: 'in', value: 12_650 }, CNY: { against: 'USD', way: 'per', value: 7.25 } },
+  }
+  const yuan = (amount: number) => Math.round(amount * 100)
+  const places = [
+    ...ACCOUNTS,
+    account('cny', 'Yuan seyfi', 'CNY', { kind: 'safe' }),
+    account('union', 'UnionPay', 'CNY', { kind: 'card', cardNumber: '6200123456789012', last4: '9012' }),
+  ]
+
+  it('is named by its currency like any other place', () => {
+    const t = i18next.t.bind(i18next)
+    expect(placeName(places[2], t)).toBe('Yuan naqd (Yuan seyfi)')
+    expect(placeName(places[3], t)).toBe('Yuan karta (6200 1234 5678 9012)')
+  })
+
+  it('settles a dollar account through the yuan’s own rate, and so’m through the whole chain', () => {
+    const [toDollars] = valueLines([row('cny', yuan(7250))], places, 'USD', book)
+    // "1 $ = 7,25 ¥": 7 250 ¥ are a thousand dollars.
+    expect(toDollars).toMatchObject({
+      changes: true,
+      pair: { one: 'USD', of: 'CNY' },
+      dayRate: 7.25,
+      rate: 7.25,
+      settled: usd(1000),
+      agreed: false,
+    })
+    // Counted in so'm: 1 000 × 12 650 / 7,25, and the rate reads "1 ¥ = 1 744,83 so'm".
+    const [toSom] = valueLines([row('cny', yuan(1000))], places, 'UZS', book)
+    expect(toSom).toMatchObject({ pair: { one: 'CNY', of: 'UZS' }, dayRate: 1744.83, settled: som(1_744_827.59) })
+  })
+
+  it('stands as agreed, and says what that comes to in so’m', () => {
+    // "Take 7 300 yuan for a thousand dollars": the day would have asked 7 250.
+    const [line] = valueLines([{ ...row('cny', yuan(7300)), settled: usd(1000) }], places, 'USD', book, 2)
+    expect(line).toMatchObject({ settled: usd(1000), agreed: true, rate: 7.3, dayRate: 7.25, gap: 0.7, strays: false })
+    expect(line.fx).toBe(som(87_241.38))
+    expect(agreedOf(line)).toBe(usd(1000))
+    // 8 000 yuan for the same thousand is 9,4% off: past what anyone may agree to.
+    const [far] = valueLines([{ ...row('cny', yuan(8000)), settled: usd(1000) }], places, 'USD', book, 2)
+    expect(far).toMatchObject({ agreed: true, strays: true })
+  })
+
+  it('goes by a rate of its own where someone who sets rates typed one for the pair', () => {
+    // "1 $ = 7,30 ¥" for this line: 7 300 ¥ make the thousand, and that is an agreed sum against the day's 7,25.
+    const [line] = valueLines([row('cny', yuan(7300), 7.3)], places, 'USD', book, 2)
+    expect(line).toMatchObject({ rate: 7.3, settled: usd(1000), agreed: true })
+    // "=" on an empty line asks for what is still owed, at the line's rate.
+    const lines = valueLines([row('cny'), row('usd', usd(400))], places, 'USD', book)
+    expect(fillFor(lines[0], lines, usd(1000), 'USD')).toBe(yuan(4350))
+    // A total typed where yuan are the only line is made up in yuan.
+    const alone = valueLines([row('cny')], places, 'USD', book)
+    expect(spreadTotal(alone, usd(1000), 'USD')).toEqual({ accountId: 'cny', amount: yuan(7250) })
+  })
+
+  it('cannot be counted while a rate it hangs on is wanting', () => {
+    const noDollar: RateBook = { base: 'UZS', rates: { CNY: { against: 'USD', way: 'per', value: 7.25 } } }
+    const [line] = valueLines([row('cny', yuan(1000))], places, 'UZS', noDollar)
+    expect(line).toMatchObject({ changes: true, pair: null, dayRate: null, settled: null })
+  })
+
+  it('shows the pair’s own rate in its line, said whole to whoever points at it', async () => {
+    function Yuan() {
+      const [rows, setRows] = useState<PaymentRow[]>([row('cny'), row('usd')])
+      const lines = valueLines(rows, places, 'USD', book, 2)
+      return (
+        <PaymentLines
+          kind="out"
+          lines={lines}
+          spare={[]}
+          currency="USD"
+          owed={null}
+          onPatch={(accountId, change) => setRows((current) => patchRow(current, accountId, change))}
+          onAdd={() => undefined}
+          onRemove={() => undefined}
+          onTotal={() => false}
+          setsRates={false}
+          dayRate={book}
+        />
+      )
+    }
+    render(<Yuan />)
+    expect(screen.getByText('Yuan naqd (Yuan seyfi)')).toBeTruthy()
+    expect(screen.getByTitle(/^1 \$ = 7,25 ¥$/).textContent).toBe('7,25')
+
+    const [money, settled] = fields()
+    await userEvent.type(money, '7250{Tab}')
+    expect(plain(settled.value)).toBe('1 000,00')
+    // The second sum typed over: the yuan stay, and what the agreement costs is said in so'm.
+    await userEvent.clear(settled)
+    await userEvent.type(settled, '990{Tab}')
+    expect(plain(money.value)).toBe('7 250,00')
+    expect(plain(document.querySelector('[data-agreed="cny"]')?.textContent ?? '')).toBe(
+      'Kelishilgan kurs 7,3232, kun kursi 7,25 (1% farq): 126 500 so‘m zararimizga',
+    )
   })
 })

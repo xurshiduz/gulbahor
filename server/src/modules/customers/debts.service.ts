@@ -21,7 +21,8 @@ import { Account, Customer, DebtPayment, DebtPaymentLine, DebtPaymentPart, Shift
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
-import { rateLimit, valueLine } from '../money/agreed'
+import { rateLimit, valueLine, wantingRate } from '../money/agreed'
+import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { mayUse } from '../money/places'
@@ -90,6 +91,7 @@ export class CustomerDebtsService {
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
     private readonly money: MoneyService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   /** The places a debt can be paid into, for the form. */
@@ -181,7 +183,7 @@ export class CustomerDebtsService {
       }
 
       const today = await this.ledger.today(em, actor.orgId)
-      const dayRate = actor.modules.includes('usd') ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+      const book = await this.currencies.book(em, actor, today)
       const limit = await rateLimit(em, actor)
       const places = placesFor(actor)
       const ids = [...new Set(input.lines.map((line) => line.accountId))].sort()
@@ -215,12 +217,13 @@ export class CustomerDebtsService {
           }
           shiftId = open.id
         }
-        if (account.currency === 'USD' && !dayRate) {
-          fields[`lines.${index}.amount`] = 'Dollar kursi qo‘yilmagan'
+        const wanting = wantingRate(book, account.currency)
+        if (wanting) {
+          fields[`lines.${index}.amount`] = wanting
           continue
         }
-        // Dollars may be taken for an agreed sum of so'm, within what this person may agree to.
-        const worth = valueLine(line.amount, account.currency, 'UZS', dayRate, line.settled, limit)
+        // Money of another currency may be taken for an agreed sum of the base, within what this person may agree to.
+        const worth = valueLine(line.amount, account.currency, book.base, book, line.settled, limit)
         if (typeof worth === 'string') {
           fields[`lines.${index}.settled`] = worth
           continue

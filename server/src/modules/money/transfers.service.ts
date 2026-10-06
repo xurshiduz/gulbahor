@@ -1,7 +1,8 @@
 import {
+  CURRENCIES,
   formatMoney,
   searchKey,
-  toBase,
+  worthInBase,
   type CurrencyCode,
   type MoneySentEvent,
   type MoneyTransferDto,
@@ -20,6 +21,8 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
+import { wantingRate } from './agreed'
+import { CurrenciesService } from './currencies.service'
 import { LedgerService } from './ledger.service'
 import { mayUse } from './places'
 
@@ -48,6 +51,7 @@ export class MoneyTransfersService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async send(actor: Actor, input: MoneyTransferInput): Promise<MoneyTransferDto> {
@@ -96,7 +100,8 @@ export class MoneyTransfersService {
       fields.toAccountId = 'Hisob topilmadi'
     }
     if (from && to && !fields.fromAccountId && !fields.toAccountId && from.currency !== to.currency) {
-      fields.toAccountId = `Bu hisob ${to.currency === 'USD' ? 'dollarda' : 'so‘mda'}: valyutasi boshqa`
+      // One currency does not become another by being carried: that is an exchange, and has its own document.
+      fields.toAccountId = `Bu hisob boshqa valyutada: ${CURRENCIES[to.currency].name}`
     }
     const first = Object.values(fields)[0]
     if (!from || !to || first) {
@@ -112,11 +117,13 @@ export class MoneyTransfersService {
       throw AppError.validation({ amount: 'Hisobda buncha pul yo‘q' })
     }
     const today = await this.ledger.today(em, actor.orgId)
-    const rate = from.currency === 'USD' ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
-    if (from.currency === 'USD' && !rate) {
-      throw AppError.validation({ amount: 'Dollar kursi qo‘yilmagan' })
+    // What is on its way is worth what the day's rates make of it; money nobody can value does not move.
+    const book = await this.currencies.book(em, actor, today)
+    const wanting = wantingRate(book, from.currency)
+    if (wanting) {
+      throw AppError.validation({ amount: wanting })
     }
-    const base = toBase(input.amount, from.currency, rate)
+    const base = worthInBase(input.amount, from.currency, book) as number
 
     const number = `PO-${String(await nextNumbers(em, actor.orgId, 'money_transfer')).padStart(6, '0')}`
     const transfer = await em.save(

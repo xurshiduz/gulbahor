@@ -1,5 +1,6 @@
 import {
   ACCOUNT_KIND_LABELS,
+  CURRENCIES,
   DOLLAR,
   formatCardNumber,
   isRateJump,
@@ -16,12 +17,10 @@ import {
   type AnyCurrency,
   type CurrenciesDto,
   type CurrencyDto,
-  type CurrencyRateDto,
   type MoneyCategoryDto,
   type MoneyTransferDto,
   type Page as Paged,
   type PaymentAccountKind,
-  type RateDto,
   type RateForm,
   type RegisterDto,
   type RegisterInput,
@@ -43,16 +42,16 @@ import { Badge, EmptyState, Shortcut, Skeleton } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Card, Page } from '@/components/ui/page'
+import { Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { rateText } from '@/features/partners/payment-lines'
 import { api } from '@/lib/api'
-import { formatDay } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { LIST_DEFAULTS } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
-import { CurrenciesView, currencyName, rateSentence } from './currencies-view'
+import { CurrenciesView, currencyName } from './currencies-view'
+import { useCurrencies, useRateBook } from './rates'
 import { MoneyCategoriesTab, MoneyCategoryDialog, MoneyOpDialog, MoneyOpsTab } from './ops'
 import { MoneyStandView } from './stand-view'
 import { TransferDialog, TransfersTab } from './transfers'
@@ -83,11 +82,6 @@ const useAccounts = (enabled = true) =>
     queryFn: ({ signal }) => api.get<AccountDto[]>('/money/accounts', undefined, signal),
     enabled,
   })
-
-interface Rates {
-  current: RateDto | null
-  history: RateDto[]
-}
 
 /**
  * What a business sets up before it can sell: its tills, the cards and
@@ -222,7 +216,6 @@ export function MoneyPage() {
 
 /** The stand as the business has it now; every sale, payment and transfer refreshes it. */
 function StandTab() {
-  const { hasModule } = useSession()
   const [shopId, setShopId] = useState<string | null>(null)
   const accounts = useAccounts()
   const registers = useRegisters()
@@ -232,11 +225,7 @@ function StandTab() {
     queryFn: ({ signal }) =>
       api.get<Paged<MoneyTransferDto>>('/money/transfers', { status: 'sent', size: 200 }, signal),
   })
-  const rates = useQuery({
-    queryKey: ['money', 'rates'],
-    queryFn: ({ signal }) => api.get<Rates>('/money/rates', undefined, signal),
-    enabled: hasModule('usd'),
-  })
+  const rates = useRateBook()
 
   if (!accounts.data || !registers.data || !waiting.data) {
     return <Skeleton className="h-64" />
@@ -249,7 +238,7 @@ function StandTab() {
       accounts={accounts.data}
       registers={registers.data}
       waiting={waiting.data.items}
-      rate={rates.data?.current?.uzsPerUsd ?? null}
+      rates={rates}
       shops={shops}
       shopId={shops.some((shop) => shop.id === shopId) ? shopId : null}
       onShop={setShopId}
@@ -441,6 +430,7 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
 
 function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (account: AccountDto) => void }) {
   const { t } = useTranslation()
+  const base = useSession().me.org.baseCurrency
   const queryClient = useQueryClient()
   const accounts = useQuery({
     queryKey: ['money', 'accounts'],
@@ -462,8 +452,8 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
         cell: ({ row }) => (
           <span>
             <span className="font-medium">{row.original.name}</span>
-            {row.original.currency === 'USD' && row.original.kind !== 'cash' ? (
-              <span className="text-ink-3"> · $</span>
+            {row.original.currency !== base && row.original.kind !== 'cash' ? (
+              <span className="text-ink-3"> · {CURRENCIES[row.original.currency].symbol}</span>
             ) : null}
             {/* A card is told from another by its number: the whole of it where it is known. */}
             {row.original.cardNumber ? (
@@ -544,7 +534,7 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, canManage],
+    [t, canManage, base],
   )
 
   return (
@@ -563,7 +553,7 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
 interface AccountValues {
   kind: PaymentAccountKind
   name: string
-  currency: 'UZS' | 'USD'
+  currency: AnyCurrency
   /** The shops it serves; none for every shop. A terminal or a safe has at most one. */
   locationIds: string[]
   cardNumber: string
@@ -586,9 +576,11 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
   })
   const errors = form.formState.errors
   const kind = form.watch('kind')
-  const { hasModule } = useSession()
-  // Anything but a terminal may hold dollars: a safe, a bank account, a Visa card.
-  const holdsDollars = hasModule('usd') && kind !== 'terminal'
+  // Money is kept in any currency the business has switched on; a terminal takes what the tills sell in.
+  const currencies = useCurrencies()
+  const base = currencies.data?.base ?? 'UZS'
+  const kept = currencies.data?.active.map((currency) => currency.code) ?? [base]
+  const choosesCurrency = kind !== 'terminal' && kept.length > 1
   const shared = SHARED_ACCOUNT_KINDS.includes(kind)
 
   const mutation = useMutation({
@@ -604,7 +596,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
   const submit = form.handleSubmit((values) => {
     const input = zodCheck(form, accountInputSchema, {
       ...values,
-      currency: holdsDollars ? values.currency : 'UZS',
+      currency: choosesCurrency ? values.currency : base,
       // What was a card with several shops and is now a terminal keeps the first of them.
       locationIds: shared ? values.locationIds : values.locationIds.slice(0, 1),
       cardNumber: values.cardNumber || null,
@@ -695,7 +687,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
             />
           )}
         </Field>
-        {holdsDollars ? (
+        {choosesCurrency ? (
           <Field label={t('money.currency')} error={errors.currency?.message}>
             {(id) => (
               <Controller
@@ -706,11 +698,8 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
                     id={id}
                     value={field.value}
                     onChange={field.onChange}
-                    options={[
-                      { value: 'UZS', label: 'So‘m' },
-                      { value: 'USD', label: 'AQSH dollari' },
-                    ]}
-                    className="w-48"
+                    options={kept.map((code) => ({ value: code, label: currencyName(code, t) }))}
+                    className="w-56"
                   />
                 )}
               />
@@ -756,7 +745,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
 
 function RatesTab() {
   const { t } = useTranslation()
-  const { can, me, hasModule } = useSession()
+  const { can, me } = useSession()
   const confirm = useConfirm()
   const queryClient = useQueryClient()
   const today = toIsoDate(todayIn(me.org.timezone))
@@ -764,12 +753,6 @@ function RatesTab() {
     queryKey: ['money', 'currencies'],
     queryFn: ({ signal }) => api.get<CurrenciesDto>('/currencies', undefined, signal),
   })
-  const rates = useQuery({
-    queryKey: ['money', 'rates'],
-    queryFn: ({ signal }) => api.get<Rates>('/money/rates', undefined, signal),
-    enabled: hasModule('usd'),
-  })
-  const [historyOf, setHistoryOf] = useState<CurrencyDto | null>(null)
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['money'] })
@@ -836,65 +819,7 @@ function RatesTab() {
         onRate={(currency, value) => void rate(currency, value)}
         onEnable={(code, form) => enable.mutate({ code, form })}
         onDisable={(currency) => void putAway(currency)}
-        onHistory={setHistoryOf}
       />
-      {hasModule('usd') ? (
-        <Card title={t('money.rateHistory')}>
-          {rates.data?.history.length ? (
-            <table className="w-full text-[13px]">
-              <tbody>
-                {rates.data.history.map((item) => (
-                  <tr key={item.date} className="border-t border-line first:border-t-0">
-                    <td className="tabular py-1.5 text-ink-2">{formatDay(item.date)}</td>
-                    <td className="tabular py-1.5 text-right font-medium">
-                      {formatMoney(Math.round(item.uzsPerUsd * 100), 'UZS', { minor: 'auto' })}
-                    </td>
-                    <td className="py-1.5 pl-4 text-right text-xs text-ink-3">{item.setByName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-[13px] text-ink-3">{t('money.rateMissing')}</p>
-          )}
-        </Card>
-      ) : null}
-      {historyOf ? <RateHistoryDialog currency={historyOf} onClose={() => setHistoryOf(null)} /> : null}
     </div>
-  )
-}
-
-/** The rates a currency has had, the newest first, each as it was written on its day. */
-function RateHistoryDialog({ currency, onClose }: { currency: CurrencyDto; onClose: () => void }) {
-  const { t } = useTranslation()
-  const history = useQuery({
-    queryKey: ['money', 'currencies', currency.code, 'rates'],
-    queryFn: ({ signal }) => api.get<CurrencyRateDto[]>(`/currencies/${currency.code}/rates`, undefined, signal),
-  })
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={`${currencyName(currency.code, t)}: ${t('currencies.history')}`}
-      footer={<Button onClick={onClose}>{t('common.close')}</Button>}
-    >
-      {history.data?.length ? (
-        <table className="w-full text-[13px]">
-          <tbody>
-            {history.data.map((item) => (
-              <tr key={item.date} className="border-t border-line first:border-t-0">
-                <td className="tabular py-1.5 text-ink-2">{formatDay(item.date)}</td>
-                <td className="tabular py-1.5 text-right font-medium">
-                  {rateSentence(currency.code, item, item.value)}
-                </td>
-                <td className="py-1.5 pl-4 text-right text-xs text-ink-3">{item.setByName}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="text-[13px] text-ink-3">{history.data ? t('currencies.noRate') : ''}</p>
-      )}
-    </Dialog>
   )
 }
