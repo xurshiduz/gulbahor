@@ -26,6 +26,7 @@ import { CustomerDebts1790000024000 } from './1790000024000-customer-debts'
 import { Reports1790000025000 } from './1790000025000-reports'
 import { MoneyPlaces1790000026000 } from './1790000026000-money-places'
 import { UzbekLetters1790000027000 } from './1790000027000-uzbek-letters'
+import { Currencies1790000028000 } from './1790000028000-currencies'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -57,4 +58,5 @@ export const MIGRATIONS = [
   Reports1790000025000,
   MoneyPlaces1790000026000,
   UzbekLetters1790000027000,
+  Currencies1790000028000,
 ]

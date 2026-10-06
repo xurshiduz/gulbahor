@@ -121,6 +121,13 @@ const CURRENCY_HINTS: [AnyCurrency, RegExp][] = [
   ['KZT', /kzt|тенге|tenge|₸/],
   ['EUR', /eur|евро|€/],
   ['AED', /aed|дирхам|dirham/],
+  ['TJS', /tjs|сомони|somoni/],
+  ['TMT', /tmt/],
+  ['AZN', /azn|₼/],
+  ['GEL', /\bgel\b|лари|lari|₾/],
+  ['BYN', /byn/],
+  ['UAH', /uah|грив|griv|₴/],
+  ['GBP', /gbp|фунт|funt|£/],
   ['USD', /usd|\$|доллар|dollar/],
   ['UZS', /uzs|сум|сўм|so'm|som/],
 ]

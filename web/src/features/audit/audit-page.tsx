@@ -45,6 +45,7 @@ const ENTITIES = [
   'register',
   'account',
   'rate',
+  'currency',
   'agent',
   'printer',
   'reader',

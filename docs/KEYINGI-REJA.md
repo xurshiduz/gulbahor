@@ -378,6 +378,8 @@ Biznesning o'z puli — so'm va dollar. Kirim hujjati istalgan xarid valyutasida
 
 ### Taklif: dinamik valyuta, dollar orqali
 
+(Dastlabki taklif, 2026-10-05. O'zgargan joylari — pastdagi "Yakuniy qarorlar"da: ko'prik sozlamasi yo'q, asosiy valyuta tanlanadi.)
+
 1. **Valyutalar ro'yxati.** Rahbar kerakli valyutani yoqadi (yuan, yevro, rubl…). So'm va dollar doim bor.
 2. **Hamma kurs dollarga nisbatan kiritiladi:** "1 $ = 12 100 so'm", "1 $ = 7,1 yuan", "1 $ = 0,92 yevro". Sabab:
    - bozorda ham shunday aytiladi (yuan ham, lira ham dollarga nisbatan);
@@ -388,45 +390,54 @@ Biznesning o'z puli — so'm va dollar. Kirim hujjati istalgan xarid valyutasida
 5. **Hisob istalgan yoqilgan valyutada** bo'lishi mumkin: yuan seyfi, yuanda hisob yuritadigan yetkazib beruvchi.
 6. **Sotuv valyutasi** — biznes sozlamasi: so'm yoki dollar. Dollarda ishlaydigan do'konda kassa narxni dollarda ko'rsatadi.
 
-### Aniqlashtirish (2026-10-06, foydalanuvchi savollari)
+### Yakuniy qarorlar (2026-10-06, foydalanuvchi bilan kelishilgan)
 
-**Ro'yxat tayyor, biznes yoqadi.** Valyuta qo'lda yozib yaratilmaydi: tizimda tayyor katalog turadi (kod, nom, belgi) — dunyoning asosiy valyutalari va MDH valyutalari (so'm, dollar, yevro, yuan, rubl, tenge, qirg'iz somi, tojik somonisi, turk lirasi, dirham, funt va boshqalar). Rahbar "Sozlamalar → Valyutalar"da keraklisini yoqadi. Sabab: qo'lda yozilsa bitta valyuta ikki nom bilan ochiladi ("yuan", "CNY"), belgisi adashadi, bank xabarlari va Markaziy bank kursi bilan bog'lab bo'lmaydi. Katalogda yo'q valyuta kerak bo'lsa, katalogga bitta qator qo'shiladi.
+Yuqoridagi dastlabki taklifdan farq qiladigan joylarda shu bo'lim ustun.
 
-**O'chirish yo'q, o'chirib qo'yish bor.**
-- Hali ishlatilmagan valyuta (hisobi ham, hujjati ham yo'q) ro'yxatdan shunchaki olib tashlanadi.
-- Ishlatilgan valyuta o'chirilmaydi, **o'chirib qo'yiladi**: yangi hisob, hamkor va to'lovda taklif qilinmaydi; eski hujjat va hisobotlar o'z holicha o'qiladi.
-- O'chirib qo'yish sharti: shu valyutadagi hamma pul joyi bo'sh va shu valyutada hisob yuritadigan hamkorlarda qarz yo'q. Aks holda tizim qayerda qancha qolganini aytadi.
-- So'm (asosiy) va dollar (ko'prik) o'chirib qo'yilmaydi.
+**Valyutalar ro'yxati.** Katalog kodda turadi (enum kabi): so'm, dollar, yevro, yuan, rubl, tenge, qirg'iz somi, somoni, Turkmaniston va Ozarbayjon manati, lari, Belarus rubli, grivna, lira, dirham, funt. Qo'lda valyuta yaratilmaydi; yangisi katalogga bitta qator bilan qo'shiladi. Biznes keraklisini yoqadi. Ishlatilmagan valyuta olib tashlanadi; ishlatilgani faqat **o'chirib qo'yiladi**, sharti — shu valyutadagi hamma joy bo'sh va hamkorlarda qarz yo'q.
 
-**Bitta asosiy valyuta bor — so'm.** Daftar, foyda va hisobotlar shu valyutada yuritiladi: har yozuvning so'mdagi qiymati o'sha kungi kurs bilan qotadi. Asosiy valyuta biznes ochilganda tanlanadi va birinchi yozuvdan keyin o'zgarmaydi. Dollar — asosiy valyuta emas, **ko'prik**: boshqa valyutalar kursi u orqali yoziladi.
+**Asosiy valyuta.** Bitta va majburiy: daftar, foyda va hisobotlar shunda yuritiladi. Qoida: do'kon narxni qaysi valyutada qo'ysa va foydani qaysi valyutada sanasa, o'sha asosiy (O'zbekistonda so'm yoki dollar, Qozog'istonda tenge). Yangi biznes dollar bilan ochiladi; **birinchi pul yozuvigacha** (kirim, sotuv, to'lov, boshlang'ich qoldiq) o'zgartirsa bo'ladi; birinchi pul amali oldidan tizim bir marta so'raydi ("Hisob valyutasi: … To'g'rimi? Keyin o'zgartirib bo'lmaydi"); keyin qulflanadi. Pul yozuvlaridan keyin almashtirish hozir qurilmaydi; kerak bo'lsa "shu kundan boshlab" usulida alohida ish bo'ladi (hamma qoldiq o'sha kun kursida o'tadi, tarix eski valyutada qoladi). Valyuta nomini "tahrirlab" boshqa valyuta qilib ko'rsatish — yo'q: tizim o'zi haqida noto'g'ri ma'lumot saqlab qoladi.
 
-**Kurs — juftliklar jadvali emas, har valyutaga bitta son.**
-- Dollar: "1 $ = 12 650 so'm".
-- Qolgan valyuta standart holatda **dollarga nisbatan**: "1 $ = 7,25 ¥". So'mdagi qiymatini tizim o'zi chiqaradi: 1 ¥ = 12 650 / 7,25 ≈ 1 744,83 so'm. Dollar kursi o'zgarsa, yuanning so'mdagi qiymati o'zi o'zgaradi — qayta kiritilmaydi. Bozor ham shunday ishlaydi: avval dollar olinadi, keyin yuan.
-- To'g'ridan-to'g'ri so'mga olinadigan valyuta (rubl, tenge) uchun valyutaning sozlamasida "kursi so'mga nisbatan yoziladi" tanlanadi: "1 ₽ = 135 so'm".
-- Yevro va funt bozorda teskari aytiladi ("1 € = 1,08 $") — yozilish shakli katalogda tayyor turadi.
-- N ta valyuta uchun N−1 ta son. Ixtiyoriy ikki valyuta orasidagi kurs zanjirdan chiqadi (yuan → dollar → so'm), bitta hisobda, oraliq yaxlitlashsiz.
-- Kurs yo'q valyutada amal bajarilmaydi (1:1 deb olinmaydi).
-- Bir martalik kurs alohida kiritilmaydi: amalning o'zida ikkala summa yoziladi (juft maydon, 7-bo'lim), farq "Kurs farqi"ga tushadi.
+**"Ko'prik" degan sozlama yo'q.** Har valyutaga bitta kurs — "Pul → Kurslar" sahifasida bitta qator. Dollar bor biznesda yangi valyuta standart holatda **dollar bilan nisbatda** ochiladi ("1 $ = 7,25 ¥"; yevro va funt — "1 € = 1,08 $"): dollar kursi yangilansa, u o'zi ergashadi. Dollar ishlatilmaydigan biznesda — to'g'ridan-to'g'ri asosiy valyutada ("1 ₽ = 135 so'm"). Yozilish shakli qatorning menyusidan almashtiriladi; bu valyutaning o'z tanlovi, biznes sozlamasi emas. Asosiy valyutada kiritish majburiy bo'lgan yagona kurs — boshqalar bog'langan valyutaniki (dollarniki). Kurs "1 X = N Y" bo'lib, ikkala valyutasi bilan saqlanadi; qiymat zanjir bo'ylab asosiygacha hisoblanadi; aylana rad etiladi.
 
-**Pul joylari.** Yoqilgan har valyutada istalgancha joy ochiladi: naqd (seyf yoki kimningdir qo'lidagi pul — nomi bilan), karta (raqami bilan), bank hisobi. Kassa tortmasi standart holatda faqat so'm va dollarda; boshqa valyutani kassada qabul qilish — valyutaning alohida belgisi, kerak bo'lganda yoqiladi.
+**Hisob aniqligi.**
+- Ikki kursdan chiqqan yaxlit kurs ("1 ¥ ≈ 1 745 so'm") faqat ko'rsatiladi; hisob kiritilgan sonlardan bitta amalda qilinadi va oxirida bir marta yaxlitlanadi. Qolgan tiyin yoki sent "Kurs farqi"ga yoziladi.
+- Kurs kiritilmagan valyutada amal bajarilmaydi va qaysi kurs yetishmasligi aytiladi. Hech qachon 1:1 deb olinmaydi.
+- Kurs oxirgi kiritilganidan keyingisi kiritilguncha ishlaydi; uzoq yangilanmasa ogohlantiradi, to'xtatmaydi.
+- Oldingisidan keskin farq qiladigan kurs (xato terish: 12 650 o'rniga 1 265) tasdiq so'raydi.
 
-**Terminal nima va bank hisobidan nimasi bilan farq qiladi.** Bank hisobi — pul bankda turadigan joy. Terminal — kassadagi karta apparati: mijoz kartasini urganda pul bank hisobiga darhol tushmaydi, bank uni keyinroq (odatda ertasi kuni, komissiyasini ushlab) o'tkazadi. Shuning uchun terminal alohida yuritiladi: (1) smena yopilishida har terminalning o'z yakuniy cheki tizim bilan solishtiriladi; (2) terminaldagi qoldiq — "bankka tushishi kutilayotgan pul". **Hozirgi kamchilik:** terminaldan bankka tushim yozilmaydi, terminal qoldig'i faqat o'sib boradi. Tuzatish (V5): terminalga "qaysi bank hisobiga tushadi" maydoni va "Bankka tushdi" amali — tushgan summa yoziladi, farqi "Bank komissiyasi" xarajatiga o'zi tushadi.
+**Hamkor va mijoz.**
+- Ular alohida qoladi: hamkor — hisob-kitob yuritiladigan (yetkazib beruvchi, ulgurji xaridor; bitta yuruvchi hisob), mijoz — chakana xaridor (chegirma, sodiqlik, chek bo'yicha qarz). To'liq birlashtirish xavfi yuqori, foydasi kichik.
+- Bitta hamkor — bitta valyuta (istalgan yoqilgan valyuta). Ko'p valyutali hamkor qilinmaydi: kerak bo'lsa ikkinchi yozuv ochiladi ("Elaris ($)", "Elaris (so'm)"). Chakana mijoz qarzi faqat asosiy valyutada.
+- **Kassada hamkor ham tanlanadi**: "Mijoz" maydoni hamkorni ham topadi, sotuv uning hisobiga yoziladi. Chek asosiy valyutada; hisobiga uning valyutasida tushadi (kun kursida yoki kelishilgan summa bilan, juft maydon qoidasi); chegirmadan keyingi summa yoziladi; qaytarishda o'sha sotuvda yozilgan summa ayriladi. Alohida ruxsat; kassirga hamkor qoldig'i ko'rsatilmaydi.
+- Hamkor kassadan pul olsa — bu "Hamkorga to'lov berish" (tayyor): mijoz qilib ochish kerak emas.
 
-### Valyuta ishining bo'laklari
+**Terminal nima va bank hisobidan nimasi bilan farq qiladi.** Bank hisobi — pul bankda turadigan joy. Terminal — kassadagi karta apparati: pul bank hisobiga keyinroq va komissiyasi ushlangan holda tushadi. Shuning uchun terminal alohida yuritiladi: smena yopilishida o'z yakuniy cheki bilan solishtiriladi; qoldig'i — "bankka tushishi kutilayotgan pul". Hozirgi kamchilik: terminaldan bankka tushim yozilmaydi (6-bosqich).
 
-Har bo'lak o'zi tugallangan, testlari bilan; daftarga tegadiganlari foydalanuvchi bilan.
+### Valyuta va hamkor ishining bosqichlari
 
-| № | Bo'lak | Nima o'zgaradi |
-| --- | --- | --- |
-| V1 | Valyutalar ro'yxati va kurslar | Katalog; "Sozlamalar → Valyutalar" (yoqish, o'chirib qo'yish, kurs shakli); "Kurslar" sahifasida har yoqilgan valyutaga bitta son, tarixi, so'mdagi qiymati; zanjirli kurs hisobi. Bazadagi "faqat so'm yoki dollar" cheklovlari yoqilgan valyutalar ro'yxatiga almashtiriladi. Ko'rinadigan ish o'zgarmaydi. |
-| V2 | Pul joylari istalgan valyutada | Hisob formasida yoqilgan valyutalar; "Yuan naqd", "Yuan karta (…)"; "Pul holati" va o'tkazma yangi valyutalar bilan. |
-| V3 | Hamkor istalgan valyutada | Hamkor hisobi yuanda yoki rublda; to'lovda juft maydon ixtiyoriy ikki valyuta orasida; kirimdan yetkazib beruvchi qarzi o'z valyutasida yoziladi. |
-| V4 | Ayirboshlash va komissiya | so'm → dollar → yuan hujjati (ikkala summa yoziladi, kurs farqi qayd etiladi); o'tkazmada komissiya. |
-| V5 | Terminal → bank tushumi | Terminal qaysi bank hisobiga tushishi; "Bankka tushdi" amali, komissiya xarajatga. |
-| V6 | Kurs farqi hisoboti | Amalga oshgan farq (kelishilgan summalar, ayirboshlash) va qayta baholash (qo'ldagi valyutaning bugungi kursdagi qiymati). |
-| V7 | Kassada boshqa valyuta | Faqat so'ralsa: kassada yuan yoki rubl qabul qilish. |
-| V8 | Markaziy bank kursi | Faqat so'ralsa: kurs yonida maslahat sifatida ko'rinadi, o'zi qo'yilmaydi. |
+Har bosqich o'zi tugallangan, testlari bilan. Gulbahor uchun 1–4 yetarli; 5 — tizimni boshqa asosiy valyutali bizneslarga ochish.
+
+| № | Bosqich | Nima qilinadi | Daftarga tegadimi |
+| --- | --- | --- | --- |
+| 1 | Valyutalar va kurslar | Katalog; yoqish va o'chirib qo'yish; har valyutaga kurs va uning yozilish shakli; kurs tarixi; zanjirli hisob; keskin farqda tasdiq (dollar kursida ham); "Pul → Kurslar" ekrani | Yo'q |
+| 2 | Pul joylari istalgan valyutada | Naqd (seyf yoki qo'lda), karta, bank hisobi yoqilgan har valyutada; "Yuan naqd", "Yuan karta (raqami)"; "Pul holati" va o'tkazma yangi valyutalar bilan | Ha |
+| 3 | Hamkor | Hisob istalgan yoqilgan valyutada; to'lovda juft maydon ixtiyoriy ikki valyuta orasida; kirim qarzi o'z valyutasida; **kassadan hamkorga sotuv**; hamkorga narx turi (ulgurji); **yetkazib beruvchiga tovar qaytarish** hujjati | Ha |
+| 4 | Ayirboshlash va komissiya | so'm → dollar → yuan hujjati (ikkala summa yoziladi, kurs farqi qayd etiladi); o'tkazmada komissiya | Ha |
+| 5 | Asosiy valyutani tanlash | Koddagi "so'm va dollar" → "asosiy va ikkinchi valyuta" (kassa, narx, daftar, hisobotlar); yangi biznes dollar bilan ochiladi, birinchi pul amaligacha o'zgaradi, keyin qulf; testlardagi ikkinchi biznes tenge asosli | Ha, eng kattasi |
+| 6 | Terminal → bank tushumi | Terminal qaysi bank hisobiga tushishi; "Bankka tushdi" amali, komissiya xarajatga | Ha |
+| 7 | Kurs farqi hisoboti | Kursdan yutilgan va yo'qotilgan (kelishilgan summalar, ayirboshlash); qo'ldagi valyutaning bugungi qiymati | Yo'q |
+
+Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini maslahat sifatida ko'rsatish; hamkorga ikkinchi hisob; hamkor va mijozlarni bitta ekranda ko'rsatadigan umumiy ro'yxat; asosiy valyutani "shu kundan boshlab" almashtirish.
+
+### 1-bosqich qanday qurildi (2026-10-06)
+
+- **Katalog** — 16 ta valyuta (`core/money.ts` dagi `CURRENCIES`). Kirim hujjati ham shu ro'yxatdan oladi.
+- **"Pul → Kurslar"**: asosiy valyuta tepada (kursi yo'q); dollar — kassalar ishlatadigan kurs, hozirgidek har kuni kiritiladi; pastida yoqilgan har valyuta bitta qator: "1 $ = [7,25] ¥" va yonida tizim hisoblagan "1 ¥ ≈ 1 744,83 so'm". Qator ostida kim va qachon kiritgani; kursi yo'q bo'lsa — "bu valyutada amal bajarilmaydi"; bog'langan valyutaning kursi yo'q bo'lsa — qaysi biri yetishmasligi; uzoq yangilanmagan bo'lsa — ogohlantirish.
+- **Valyuta qo'shish** — sahifa pastidagi qidiruvli maydon ("lira" deb yozsa topadi). Qator menyusi: kurs qanday yozilishi (to'rt shakl), kurs tarixi, o'chirib qo'yish. O'chirib qo'yilgan valyutaning kurslari saqlanadi; unga boshqa valyuta bog'langan yoki unda pul turgan bo'lsa, o'chirib qo'yilmaydi.
+- **Keskin farq**: oldingisidan 15% dan ko'p farq qiladigan kurs (dollarniki ham) tasdiq so'raydi: "Kurs oldingisidan 90% farq qiladi: 12 650 → 1 265. Shu kurs qo'yilsinmi?".
+- Ruxsatlar: valyutani yoqish va o'chirib qo'yish — "Kassa va hisoblarni boshqarish", kurs — "Kurs qo'yish".
+- Hali hech bir hisob yoki hamkor bu valyutalarda ochilmaydi: bu 2- va 3-bosqich.
 
 ### Kurs sozlamasi (alohida sahifa)
 

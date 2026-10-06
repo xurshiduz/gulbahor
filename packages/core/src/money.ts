@@ -8,8 +8,27 @@ import { Fraction } from './fraction'
 /** What the business keeps its own money and prices in. */
 export type CurrencyCode = 'UZS' | 'USD'
 
-/** Those, and what suppliers abroad are paid in. A purchase is converted to dollars and so'm when it is received. */
-export type AnyCurrency = CurrencyCode | 'CNY' | 'KGS' | 'TRY' | 'RUB' | 'KZT' | 'EUR' | 'AED'
+/**
+ * The currencies the system knows: a list that is given, never typed in by a business — so that none comes
+ * to be there twice under two names, and each has a sign of its own. A business switches on those it uses.
+ * A new one is a line here.
+ */
+export type AnyCurrency =
+  | CurrencyCode
+  | 'EUR'
+  | 'CNY'
+  | 'RUB'
+  | 'KZT'
+  | 'KGS'
+  | 'TJS'
+  | 'TMT'
+  | 'AZN'
+  | 'GEL'
+  | 'BYN'
+  | 'UAH'
+  | 'TRY'
+  | 'AED'
+  | 'GBP'
 
 export interface CurrencyInfo {
   code: AnyCurrency
@@ -23,13 +42,20 @@ export interface CurrencyInfo {
 export const CURRENCIES: Record<AnyCurrency, CurrencyInfo> = {
   UZS: { code: 'UZS', minorDigits: 2, symbol: 'so‘m', name: 'O‘zbek so‘mi', alwaysShowMinor: false },
   USD: { code: 'USD', minorDigits: 2, symbol: '$', name: 'AQSH dollari', alwaysShowMinor: true },
+  EUR: { code: 'EUR', minorDigits: 2, symbol: '€', name: 'Yevro', alwaysShowMinor: true },
   CNY: { code: 'CNY', minorDigits: 2, symbol: '¥', name: 'Xitoy yuani', alwaysShowMinor: true },
-  KGS: { code: 'KGS', minorDigits: 2, symbol: 'KGS', name: 'Qirg‘iz somi', alwaysShowMinor: false },
-  TRY: { code: 'TRY', minorDigits: 2, symbol: '₺', name: 'Turk lirasi', alwaysShowMinor: true },
   RUB: { code: 'RUB', minorDigits: 2, symbol: '₽', name: 'Rossiya rubli', alwaysShowMinor: false },
   KZT: { code: 'KZT', minorDigits: 2, symbol: '₸', name: 'Qozog‘iston tengesi', alwaysShowMinor: false },
-  EUR: { code: 'EUR', minorDigits: 2, symbol: '€', name: 'Yevro', alwaysShowMinor: true },
+  KGS: { code: 'KGS', minorDigits: 2, symbol: 'KGS', name: 'Qirg‘iz somi', alwaysShowMinor: false },
+  TJS: { code: 'TJS', minorDigits: 2, symbol: 'SM', name: 'Tojik somonisi', alwaysShowMinor: false },
+  TMT: { code: 'TMT', minorDigits: 2, symbol: 'TMT', name: 'Turkman manati', alwaysShowMinor: true },
+  AZN: { code: 'AZN', minorDigits: 2, symbol: '₼', name: 'Ozarbayjon manati', alwaysShowMinor: true },
+  GEL: { code: 'GEL', minorDigits: 2, symbol: '₾', name: 'Gruziya larisi', alwaysShowMinor: true },
+  BYN: { code: 'BYN', minorDigits: 2, symbol: 'Br', name: 'Belarus rubli', alwaysShowMinor: true },
+  UAH: { code: 'UAH', minorDigits: 2, symbol: '₴', name: 'Ukraina grivnasi', alwaysShowMinor: false },
+  TRY: { code: 'TRY', minorDigits: 2, symbol: '₺', name: 'Turk lirasi', alwaysShowMinor: true },
   AED: { code: 'AED', minorDigits: 2, symbol: 'AED', name: 'BAA dirhami', alwaysShowMinor: true },
+  GBP: { code: 'GBP', minorDigits: 2, symbol: '£', name: 'Britaniya funti', alwaysShowMinor: true },
 }
 
 export const CURRENCY_CODES: CurrencyCode[] = ['UZS', 'USD']

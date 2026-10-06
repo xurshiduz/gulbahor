@@ -23,6 +23,7 @@ import type {
   PrinterDpi,
   PromotionKind,
   PrintJobStatus,
+  RateWay,
   ReaderKind,
   ReceiptStatus,
   SaleStatus,
@@ -2828,6 +2829,69 @@ export type StockMovementKind =
   | 'sale_void'
   | 'sale_return'
 
+/** A currency a business switched on beside its base, and how its rate is written. */
+@Entity('org_currencies')
+export class OrgCurrency {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  code: AnyCurrency
+
+  /** The currency its rate is written against: the base, or another the business has. */
+  @Column('text')
+  against: AnyCurrency
+
+  @Column('text')
+  way: RateWay
+
+  @Column('boolean', { default: true })
+  isActive: boolean
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+/** A currency's rate from a day on, whole: both currencies and the way round, as it was written that day. */
+@Entity('currency_rates')
+export class CurrencyRate {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  code: AnyCurrency
+
+  @Column('date')
+  rateDate: string
+
+  @Column('text')
+  against: AnyCurrency
+
+  @Column('text')
+  way: RateWay
+
+  @Column('numeric', { transformer: numericAsNumber })
+  value: number
+
+  @Column('uuid', { nullable: true })
+  setBy: string | null
+
+  @Column('text', { nullable: true })
+  setByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
 export const ENTITIES = [
   Organization,
   Location,
@@ -2866,6 +2930,8 @@ export const ENTITIES = [
   PriceRevision,
   PriceRevisionLine,
   ExchangeRate,
+  OrgCurrency,
+  CurrencyRate,
   Register,
   Account,
   LedgerEntry,

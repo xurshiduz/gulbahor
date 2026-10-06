@@ -16,7 +16,11 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-05 da foydalanuvchi aytgach, `84e8ac1` dan keyingi hamma ish `v2` ga commit qilindi: har bo'lak alohida commit (ish daraxti nusxalaridan yig'ildi). 7b, 8a, 8b, 9, UI tuzatishlar, 5d va PIN kataklari ham shu kuni alohida commit bo'ldi. Push qilinmagan. Bundan keyingi ish yana commit qilinmagan holda yig'iladi va nusxalari pastdagi ro'yxatga yoziladi.
 
-Oxirgi to'liq tekshiruv: 2026-10-06 (kirim-chiqim, Pul holati, o‘/g‘ imlosi va Ctrl+Q dan keyin) — core 178, agent 17, server 296, web 174; typecheck va lint toza.
+2026-10-06 da foydalanuvchi aytgach yana to'rtta commit qilindi (`58abc6f` PIN'ni o'chirish va parol ko'zi, `47f23ba` savdo hisoboti, `65ed5c7` juft maydon, pul joylari va "Pul holati", `2f50d01` o‘/g‘ imlosi va Ctrl+Q). Push qilinmagan.
+
+Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
+
+Oxirgi to'liq tekshiruv: 2026-10-06 (V1: valyutalar va kurslardan keyin) — core 194, agent 17, server 308, web 183; typecheck va lint toza.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
@@ -131,13 +135,16 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] O‘ va g‘ harflari: ekrandagi hamma o'zbekcha matn `‘` va `’` bilan (1107 ta matn, 112 fayl); etiketka printerga oddiy apostrof bilan ketadi; tizim yozgan nomlar migratsiya bilan o'tkazildi.
    - [x] Qidiruv Ctrl+Q ga ko'chdi, yuqori paneldagi qutisi olib tashlandi; Ctrl+K — hamkordan to'lov olish.
 
-12. **Dinamik valyuta** (KEYINGI-REJA, 8-bo'lim: "Aniqlashtirish" va "Valyuta ishining bo'laklari") — taklif va reja yozilgan, **foydalanuvchi "boshla" demaguncha boshlanmaydi**:
-   - [ ] V1. Valyutalar ro'yxati va kurslar.
+12. **Valyuta va hamkor** (KEYINGI-REJA, 8-bo'lim: "Yakuniy qarorlar" va "Valyuta va hamkor ishining bosqichlari") — reja 2026-10-06 da kelishib olindi; **kod foydalanuvchi "boshla" deganda boshlanadi**:
+   - [ ] V1. Valyutalar va kurslar (katalog, yoqish, kurs va yozilish shakli, zanjirli hisob, "Kurslar" ekrani).
    - [ ] V2. Pul joylari istalgan valyutada.
-   - [ ] V3. Hamkor istalgan valyutada.
+   - [ ] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish.
    - [ ] V4. Ayirboshlash va komissiya.
-   - [ ] V5. Terminal → bank tushumi.
-   - [ ] V6. Kurs farqi hisoboti.
+   - [ ] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy va ikkinchi valyuta").
+   - [ ] V6. Terminal → bank tushumi.
+   - [ ] V7. Kurs farqi hisoboti.
+
+   V1 ning eski model (ko'prik qat'iy dollar) bo'yicha boshlangan qoralamasi `git stash` da turibdi ("V1 valyuta qoralamasi"): yadro hisobi va testlari yangi modelga moslab qayta ishlatiladi.
 
 Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 

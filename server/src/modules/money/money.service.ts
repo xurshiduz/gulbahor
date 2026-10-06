@@ -1,6 +1,7 @@
 import {
   ACCOUNT_KIND_LABELS,
   accountShops,
+  isRateJump,
   type AccountDto,
   type AccountInput,
   type PaymentAccountDto,
@@ -18,6 +19,7 @@ import { Account, ExchangeRate, Location, Register, Shift } from '../../database
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
+import { rateJumpError } from './currencies.service'
 import { LedgerService } from './ledger.service'
 import { mayUse } from './places'
 
@@ -218,6 +220,11 @@ export class MoneyService {
         throw AppError.validation({ date: 'O‘tgan kunning kursi o‘zgartirilmaydi' })
       }
       const before = await em.findOneBy(ExchangeRate, { rateDate: input.date })
+      // "1 265" for "12 650" is a slip of the hand more often than a market: asked about before it is taken.
+      const inForce = await this.ledger.rate(em, input.date)
+      if (!input.confirmed && isRateJump(inForce?.uzsPerUsd, input.uzsPerUsd)) {
+        throw rateJumpError((inForce as RateDto).uzsPerUsd, input.uzsPerUsd)
+      }
       await em.query(
         `INSERT INTO exchange_rates (org_id, rate_date, uzs_per_usd, set_by, set_by_name) VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (org_id, rate_date)

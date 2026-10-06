@@ -187,7 +187,6 @@ export const NAVIGATION: NavGroup[] = [
         label: 'nav.moneyRates',
         icon: Coins,
         permission: [...MONEY, 'money.rates'],
-        module: 'usd',
       },
     ],
   },

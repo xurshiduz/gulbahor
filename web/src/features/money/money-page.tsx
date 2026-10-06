@@ -1,21 +1,28 @@
 import {
   ACCOUNT_KIND_LABELS,
+  DOLLAR,
   formatCardNumber,
+  isRateJump,
+  rateJump,
   accountInputSchema,
   formatMoney,
   PAYMENT_ACCOUNT_KINDS,
-  rateInputSchema,
   registerInputSchema,
   SHARED_ACCOUNT_KINDS,
   todayIn,
   toIsoDate,
   type AccountDto,
   type AccountInput,
+  type AnyCurrency,
+  type CurrenciesDto,
+  type CurrencyDto,
+  type CurrencyRateDto,
   type MoneyCategoryDto,
   type MoneyTransferDto,
   type Page as Paged,
   type PaymentAccountKind,
   type RateDto,
+  type RateForm,
   type RegisterDto,
   type RegisterInput,
 } from '@gulbahor/core'
@@ -31,20 +38,21 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog, useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut, Skeleton } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
+import { rateText } from '@/features/partners/payment-lines'
 import { api } from '@/lib/api'
 import { formatDay } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { LIST_DEFAULTS } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
+import { CurrenciesView, currencyName, rateSentence } from './currencies-view'
 import { MoneyCategoriesTab, MoneyCategoryDialog, MoneyOpDialog, MoneyOpsTab } from './ops'
 import { MoneyStandView } from './stand-view'
 import { TransferDialog, TransfersTab } from './transfers'
@@ -87,7 +95,7 @@ interface Rates {
  */
 export function MoneyPage() {
   const { t } = useTranslation()
-  const { can, hasModule } = useSession()
+  const { can } = useSession()
   const { tab } = route.useSearch()
   const navigate = route.useNavigate()
   const canManage = can('money.manage')
@@ -171,7 +179,7 @@ export function MoneyPage() {
           ...(seesAccounts ? [{ value: 'transfers', label: t('money.tabTransfers') }] : []),
           ...(seesOps ? [{ value: 'ops', label: t('ops.title') }] : []),
           ...(seesOps || canName ? [{ value: 'categories', label: t('ops.categories') }] : []),
-          ...(hasModule('usd') ? [{ value: 'rates', label: t('money.tabRates') }] : []),
+          { value: 'rates', label: t('money.tabRates') },
         ]}
       >
         <TabPanel value="registers">
@@ -748,79 +756,145 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
 
 function RatesTab() {
   const { t } = useTranslation()
-  const { can, me } = useSession()
+  const { can, me, hasModule } = useSession()
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const today = toIsoDate(todayIn(me.org.timezone))
+  const currencies = useQuery({
+    queryKey: ['money', 'currencies'],
+    queryFn: ({ signal }) => api.get<CurrenciesDto>('/currencies', undefined, signal),
+  })
   const rates = useQuery({
     queryKey: ['money', 'rates'],
     queryFn: ({ signal }) => api.get<Rates>('/money/rates', undefined, signal),
+    enabled: hasModule('usd'),
   })
-  const [value, setValue] = useState<number | null>(null)
-  const current = rates.data?.current ?? null
+  const [historyOf, setHistoryOf] = useState<CurrencyDto | null>(null)
 
-  const save = useMutation({
-    mutationFn: (uzsPerUsd: number) => api.put<RateDto>('/money/rates', { date: today, uzsPerUsd }),
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['money'] })
+    void queryClient.invalidateQueries({ queryKey: ['pos'] })
+  }
+  const setRate = useMutation({
+    // The dollar's rate is the tills' own and is kept where it always was; the others have theirs beside it.
+    mutationFn: ({ code, value, confirmed }: { code: AnyCurrency; value: number; confirmed: boolean }) =>
+      code === DOLLAR
+        ? api.put('/money/rates', { date: today, uzsPerUsd: value, confirmed })
+        : api.put(`/currencies/${code}/rate`, { value, confirmed }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['money'] })
-      void queryClient.invalidateQueries({ queryKey: ['pos'] })
-      setValue(null)
+      refresh()
       toast.success(t('common.saved'))
     },
   })
+  const enable = useMutation({
+    mutationFn: (input: { code: AnyCurrency; form?: RateForm }) => api.post('/currencies', input),
+    onSuccess: refresh,
+  })
+  const disable = useMutation({
+    mutationFn: (code: AnyCurrency) => api.post(`/currencies/${code}/archive`),
+    onSuccess: refresh,
+  })
 
-  const submit = () => {
-    const parsed = rateInputSchema.safeParse({ date: today, uzsPerUsd: value })
-    if (!parsed.success) {
-      toast.error(t('money.rateInvalid'))
-      return
+  const rate = async (currency: CurrencyDto, value: number) => {
+    const { rate: last, form } = currency
+    // Only a rate written the same way is a number to hold the new one against.
+    const before = last && form && last.against === form.against && last.way === form.way ? last.value : null
+    let confirmed = false
+    if (before !== null && isRateJump(before, value)) {
+      confirmed = await confirm({
+        title: t('currencies.jumpConfirm', {
+          percent: Math.round(rateJump(before, value)),
+          before: rateText(before),
+          next: rateText(value),
+        }),
+        confirmLabel: t('currencies.jumpYes'),
+      })
+      if (!confirmed) {
+        return
+      }
     }
-    save.mutate(parsed.data.uzsPerUsd)
+    setRate.mutate({ code: currency.code, value, confirmed })
+  }
+  const putAway = async (currency: CurrencyDto) => {
+    const name = currencyName(currency.code, t)
+    if (await confirm({ title: t('currencies.putAwayConfirm', { name }), confirmLabel: t('currencies.putAway') })) {
+      disable.mutate(currency.code)
+    }
   }
 
+  if (!currencies.data) {
+    return <Skeleton className="h-48" />
+  }
   return (
-    <div className="flex max-w-xl flex-col gap-4">
-      <Card>
-        <p className="text-xs text-ink-3">{t('money.rateToday')}</p>
-        <p className="tabular mt-1 text-2xl font-semibold">
-          {current ? `1 $ = ${formatMoney(Math.round(current.uzsPerUsd * 100), 'UZS', { minor: 'auto' })}` : '—'}
-        </p>
-        <p className="mt-1 text-xs text-ink-3">
-          {current
-            ? current.date === today
-              ? t('money.rateSetToday', { name: current.setByName })
-              : t('money.rateFrom', { date: formatDay(current.date) })
-            : t('money.rateMissing')}
-        </p>
-        {can('money.rates') ? (
-          <Form onSubmit={submit} className="mt-4 flex-row items-end gap-2">
-            <Field label={t('money.rateNew')} className="w-44">
-              {(id) => <NumberInput id={id} value={value} onChange={setValue} decimals={2} max={1_000_000} />}
-            </Field>
-            <Button type="submit" variant="primary" loading={save.isPending}>
-              {t('common.save')}
-            </Button>
-          </Form>
-        ) : null}
-      </Card>
-      <Card title={t('money.rateHistory')}>
-        {rates.data?.history.length ? (
-          <table className="w-full text-[13px]">
-            <tbody>
-              {rates.data.history.map((rate) => (
-                <tr key={rate.date} className="border-t border-line first:border-t-0">
-                  <td className="tabular py-1.5 text-ink-2">{formatDay(rate.date)}</td>
-                  <td className="tabular py-1.5 text-right font-medium">
-                    {formatMoney(Math.round(rate.uzsPerUsd * 100), 'UZS', { minor: 'auto' })}
-                  </td>
-                  <td className="py-1.5 pl-4 text-right text-xs text-ink-3">{rate.setByName}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-[13px] text-ink-3">{t('money.rateMissing')}</p>
-        )}
-      </Card>
+    <div className="flex max-w-3xl flex-col gap-4">
+      <CurrenciesView
+        currencies={currencies.data}
+        today={today}
+        canManage={can('money.manage')}
+        canRate={can('money.rates')}
+        saving={setRate.isPending ? setRate.variables.code : null}
+        onRate={(currency, value) => void rate(currency, value)}
+        onEnable={(code, form) => enable.mutate({ code, form })}
+        onDisable={(currency) => void putAway(currency)}
+        onHistory={setHistoryOf}
+      />
+      {hasModule('usd') ? (
+        <Card title={t('money.rateHistory')}>
+          {rates.data?.history.length ? (
+            <table className="w-full text-[13px]">
+              <tbody>
+                {rates.data.history.map((item) => (
+                  <tr key={item.date} className="border-t border-line first:border-t-0">
+                    <td className="tabular py-1.5 text-ink-2">{formatDay(item.date)}</td>
+                    <td className="tabular py-1.5 text-right font-medium">
+                      {formatMoney(Math.round(item.uzsPerUsd * 100), 'UZS', { minor: 'auto' })}
+                    </td>
+                    <td className="py-1.5 pl-4 text-right text-xs text-ink-3">{item.setByName}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-[13px] text-ink-3">{t('money.rateMissing')}</p>
+          )}
+        </Card>
+      ) : null}
+      {historyOf ? <RateHistoryDialog currency={historyOf} onClose={() => setHistoryOf(null)} /> : null}
     </div>
+  )
+}
+
+/** The rates a currency has had, the newest first, each as it was written on its day. */
+function RateHistoryDialog({ currency, onClose }: { currency: CurrencyDto; onClose: () => void }) {
+  const { t } = useTranslation()
+  const history = useQuery({
+    queryKey: ['money', 'currencies', currency.code, 'rates'],
+    queryFn: ({ signal }) => api.get<CurrencyRateDto[]>(`/currencies/${currency.code}/rates`, undefined, signal),
+  })
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`${currencyName(currency.code, t)}: ${t('currencies.history')}`}
+      footer={<Button onClick={onClose}>{t('common.close')}</Button>}
+    >
+      {history.data?.length ? (
+        <table className="w-full text-[13px]">
+          <tbody>
+            {history.data.map((item) => (
+              <tr key={item.date} className="border-t border-line first:border-t-0">
+                <td className="tabular py-1.5 text-ink-2">{formatDay(item.date)}</td>
+                <td className="tabular py-1.5 text-right font-medium">
+                  {rateSentence(currency.code, item, item.value)}
+                </td>
+                <td className="py-1.5 pl-4 text-right text-xs text-ink-3">{item.setByName}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-[13px] text-ink-3">{history.data ? t('currencies.noRate') : ''}</p>
+      )}
+    </Dialog>
   )
 }

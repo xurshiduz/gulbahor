@@ -189,7 +189,12 @@ export const rateSchema = z
     message: 'Kursda ko‘pi bilan 2 ta kasr xona bo‘ladi',
   })
 
-export const rateInputSchema = z.object({ date: z.iso.date(), uzsPerUsd: rateSchema })
+export const rateInputSchema = z.object({
+  date: z.iso.date(),
+  uzsPerUsd: rateSchema,
+  /** The screen asked, and the person said the rate is meant: one far from the last is taken only so. */
+  confirmed: z.boolean().default(false),
+})
 export type RateInput = z.infer<typeof rateInputSchema>
 
 export interface RateDto {
