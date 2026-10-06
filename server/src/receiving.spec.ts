@@ -417,6 +417,47 @@ describe('Receiving', () => {
       expect(await systemBalance('purchases')).toBe(before)
     })
 
+    it('owes a supplier in yuan exactly what a yuan receipt says, and another currency at the day’s rate', async () => {
+      const [{ day }] = await harness.dataSource.query(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
+      await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
+      const yiwu = (
+        await alpha.post('/api/partners').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201)
+      ).body.id
+      const receipt = (currency: string, usdRate: number, price: number) =>
+        alpha
+          .post('/api/receipts')
+          .send({
+            locationId: shopId,
+            supplierId: yiwu,
+            docDate: day,
+            currency,
+            usdRate,
+            uzsRate: 12_800,
+            lines: [{ variantId: coat.variants[0].id, qty: 10, price }],
+          })
+          .expect(201)
+
+      // Billed 500 ¥ at the receipt's 7,2 to the dollar: owed 500 ¥, whatever the day's rate says.
+      const inYuan = (await receipt('CNY', 7.2, 5000)).body
+      await alpha.post(`/api/receipts/${inYuan.id}/post`).expect(201)
+      expect((await statement(yiwu)).balance).toBe(-50_000)
+
+      // Billed in lira, the receipt's 340 ₺ are 10 $; yuan it has no rate for come from the day's rates.
+      const inLira = (await receipt('TRY', 34, 3400)).body
+      const none = await alpha.post(`/api/receipts/${inLira.id}/post`).expect(409)
+      expect(none.body.error.message).toContain('kursi qo‘yilmagan: yetkazib beruvchi qarzini hisoblab bo‘lmaydi')
+      await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 12_800 }).expect(200)
+      await alpha.put('/api/currencies/CNY/rate').send({ value: 7.25 }).expect(200)
+      await alpha.post(`/api/receipts/${inLira.id}/post`).expect(201)
+      expect((await statement(yiwu)).balance).toBe(-50_000 - 7250)
+
+      // Cancelled, exactly what was written comes off.
+      await alpha.post(`/api/receipts/${inLira.id}/cancel`).expect(201)
+      await alpha.put('/api/currencies/CNY/rate').send({ value: 7.1 }).expect(200)
+      await alpha.post(`/api/receipts/${inYuan.id}/cancel`).expect(201)
+      expect((await statement(yiwu)).balance).toBe(0)
+    })
+
     it('leaves out goods that name no supplier: those were paid for on the spot', async () => {
       const before = await systemBalance('purchases')
       const draft = await alpha

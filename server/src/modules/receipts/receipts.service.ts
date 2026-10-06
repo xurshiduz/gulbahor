@@ -1,9 +1,11 @@
 import {
   allocateExact,
   costReceipt,
+  exchange,
   formatMoney,
   RECEIPT_STATUS_LABELS,
   searchKey,
+  type AnyCurrency,
   type Costing,
   type Page,
   type ReceiptDto,
@@ -38,6 +40,8 @@ import { can, type Actor } from '../auth/actor'
 import { productFaces } from '../catalog/faces'
 import { nextNumbers } from '../catalog/counters'
 import { settleReceiptUnits, voidReceiptUnits } from '../labels/units'
+import { wantingRate } from '../money/agreed'
+import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, TRANSIT, type Movement } from '../stock/stock.service'
@@ -70,6 +74,7 @@ export class ReceiptsService {
     private readonly realtime: RealtimeService,
     private readonly stock: StockService,
     private readonly ledger: LedgerService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async list(actor: Actor, query: ReceiptListQuery): Promise<Page<ReceiptListItemDto>> {
@@ -305,6 +310,13 @@ export class ReceiptsService {
    * written to the supplier's account in the currency it is kept in. A line
    * names its own supplier when one shipment carries several; goods with no
    * supplier at all were paid for on the spot.
+   *
+   * An account in the receipt's own currency is owed exactly what the
+   * supplier billed, whatever any rate says; one in dollars or in so'm, what
+   * the receipt's own rates make of it; one in any other currency, the
+   * receipt's dollars at the day's rate. In the books it is worth what the
+   * receipt's rates make of it in so'm. A cancelled receipt takes back
+   * exactly what was written.
    */
   private async owe(
     em: EntityManager,
@@ -313,13 +325,14 @@ export class ReceiptsService {
     lines: ReceiptLine[],
     costing: Costing,
   ): Promise<void> {
-    const owed = new Map<string, { usd: number; uzs: number }>()
+    const owed = new Map<string, { goods: number; usd: number; uzs: number }>()
     lines.forEach((line, index) => {
       const supplierId = line.supplierId ?? receipt.supplierId
       if (!supplierId) {
         return
       }
-      const sum = owed.get(supplierId) ?? { usd: 0, uzs: 0 }
+      const sum = owed.get(supplierId) ?? { goods: 0, usd: 0, uzs: 0 }
+      sum.goods += costing.lines[index].goods
       sum.usd += costing.lines[index].goodsUsd
       sum.uzs += costing.lines[index].goodsUzs
       owed.set(supplierId, sum)
@@ -334,10 +347,17 @@ export class ReceiptsService {
     // One supplier after another in the same order every time: two receipts never wait on each other's accounts.
     for (const supplierId of ids) {
       const supplier = suppliers.find((item) => item.id === supplierId) as Partner
-      const { usd, uzs } = owed.get(supplierId) as { usd: number; uzs: number }
+      const { goods, usd, uzs } = owed.get(supplierId) as { goods: number; usd: number; uzs: number }
       const account = await this.ledger.partnerAccount(em, supplier)
-      // Dollars stay dollars on a dollar account; their worth in so'm is the receipt's own rate.
-      postings.push({ accountId: account.id, amount: -(account.currency === 'USD' ? usd : uzs), base: -uzs })
+      const amount =
+        account.currency === receipt.currency
+          ? goods
+          : account.currency === 'USD'
+            ? usd
+            : account.currency === 'UZS'
+              ? uzs
+              : await this.dayWorth(em, actor, receipt, usd, account.currency)
+      postings.push({ accountId: account.id, amount: -amount, base: -uzs })
       worth += uzs
     }
     const purchases = await this.ledger.systemAccount(em, actor.orgId, 'purchases')
@@ -348,6 +368,26 @@ export class ReceiptsService {
       { date: receipt.docDate, kind: 'receipt', documentType: DOCUMENT, documentId: receipt.id },
       postings,
     )
+  }
+
+  /** Dollars of a receipt in a currency it has no rate of: the rates of the receipt's day say. */
+  private async dayWorth(
+    em: EntityManager,
+    actor: Actor,
+    receipt: Receipt,
+    usd: number,
+    currency: AnyCurrency,
+  ): Promise<number> {
+    const book = await this.currencies.book(em, actor, receipt.docDate)
+    const wanting = wantingRate(book, 'USD', currency)
+    const amount = wanting ? null : exchange(usd, 'USD', currency, book)
+    if (amount === null) {
+      throw AppError.conflict(
+        'RATE_MISSING',
+        `${wanting ?? 'Kurs qo‘yilmagan'}: yetkazib beruvchi qarzini hisoblab bo‘lmaydi`,
+      )
+    }
+    return amount
   }
 
   /** Takes the goods back off hand. Possible only while every piece is still where the receipt put it. */
