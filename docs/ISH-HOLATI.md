@@ -189,6 +189,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
 
+0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: P1 (xodimga qo'shimcha ruxsat), keyin M1.
+
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula (~9 kun).
    - [ ] M2. Yagona mijoz: baza, ko'chirish, bitta hisob, muddat va chegara, to'lovlar, qaytarish (~7 kun).

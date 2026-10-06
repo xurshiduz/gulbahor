@@ -1053,4 +1053,9 @@ Jami — taxminan **29 kun**. 1-bosqich mustaqil va birinchi chiqadi (kirimdagi 
 2. **Kassir tasdiqsiz beradigan qarz** — bitta mijozga necha so'm? 0 qolsa har qarz rahbar PIN'i bilan. Qaysi doimiy ulgurji xaridorlarga o'z chegarasi va qaysilariga "muddatsiz" berilsin (ro'yxat kerak)?
 3. **Katta ulgurji skladdan chiqadimi?** Ha bo'lsa: Sklad GB1 / GB2 ni "Do'kon va sklad" qilib kassa ochamizmi (Ulgurji menejer o'sha yerda sotadi) yoki alohida "Ulgurji sotuv" hujjatini kutamizmi?
 
+**Egasining javoblari (2026-10-06):**
+- *1-savol.* Odatiy foizlar oldindan qo'yilmaydi: har narx turining formulasini aka o'zi "Narx turlari → Qanday hisoblanadi" da kiritadi; kiritilmaguncha tur "Qo'lda" bo'lib turadi (hech narsa o'zi hisoblanmaydi). K-000001 dagi "cargo" xato kiritilgan; lokal baza tozalangan — bu kirim haqida tashvishlanish shart emas.
+- *2-savol.* Ruxsat **istalgan xodimga rolidan tashqari alohida** berilishi kerak (xohlasa rolga ham qo'shadi). Hozir ruxsat faqat rol orqali beriladi — bu yangi ish: "Xodimga qo'shimcha ruxsat" (`YOL-XARITA.md`, platforma bo'limi). Shu bilan ishonchli kassirga "Qarzga sotish" ruxsati alohida beriladi va u PIN'siz qarzga sota oladi. Biznesning "kassir tasdiqsiz beradigan qarz" chegarasi 0 bo'lib turadi (ruxsatsiz kassir har qarzda PIN so'raydi), aka xohlasa summa kiritadi.
+- *3-savol.* Tushunarsiz bo'lgan — oddiyroq qilib qayta so'raldi (javob kutilmoqda).
+
 Texnik tafsilotlar (jadvallar, migratsiyalar, fayllar, testlar) — `docs/MIJOZLAR-TEXNIK.md`.
