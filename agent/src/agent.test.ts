@@ -3,7 +3,7 @@ import { createServer, type AddressInfo, type Server } from 'node:net'
 
 import { Server as IoServer, type Socket as ServerSocket } from 'socket.io'
 import type { Socket } from 'socket.io-client'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { startAgent } from './agent'
 import { isLocalHost, sendToPrinter } from './printer'
@@ -69,7 +69,8 @@ describe('agent', () => {
 
     const zpl = "^XA^CI28^FDKo'ylak · Қора^FS^XZ"
     expect(await order(line, { data: zpl })).toEqual({ ok: true })
-    expect(printed).toBe(zpl)
+    // The agent is done once the bytes leave it; the printer's end reads them a moment later.
+    await vi.waitFor(() => expect(printed).toBe(zpl))
   })
 
   it('reports a printer that does not answer', async () => {
