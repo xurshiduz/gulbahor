@@ -23,6 +23,50 @@ Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yoz
 
 Oxirgi to'liq tekshiruv: 2026-10-06 (bulut, V4 va V3 dan keyin) — core 199, agent 17, server 354, web 204; typecheck va lint toza.
 
+## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
+
+### Qilindi
+
+- **Muhit.** Agent testidagi poyga tuzatildi: printer baytlarni agent "tugatdim" deganidan bir lahza keyin o'qiydi — test endi shuni kutadi (`vi.waitFor`). Bulutda uch marta ketma-ket qizil edi.
+- **A. Ayirboshlash (V4).** "Pul o'tkazish" oynasida boshqa valyutadagi joy ham tanlanadi; valyuta har xil bo'lsa ikki summa — "Chiqadi" va "Kiradi", ostida kun kursi. Juft qoida to'lov oynasidagidek: chiqadigan summa langar, kiradigan summa ustidan yozilsa kelishilgan summa ("… foydamizga / zararimizga" izohi), chiqadigan bo'sh bo'lsa kursdan chiqadi. Kun kursidan 2% dan uzoq kelishuv faqat kurs qo'yish ruxsati bilan. Kurs yuborilganda qotadi; qabulda farq "Kurs farqi"ga, rad etilsa yoki qaytarib olinsa pul aynan qaytadi. Kassadagi "Inkassatsiya"da do'konning hamma seyfi (boshqa valyutadagisi ham) — tanlansa xuddi shu juft maydon; smena yopilishidagi topshirish o'z valyutasida qoladi. Ro'yxatda, kassada va "Pul holati"da "1 000 $ → 7 250 ¥".
+- **B1. Hamkor istalgan valyutada.** Hamkor formasidagi valyuta — biznes yoqqan valyutalar; boshlang'ich qoldiq zanjirli kurs bilan; kurs yo'q bo'lsa qaysi biri yetishmasligi aytiladi.
+- **B2. Kirim qarzi o'z valyutasida.** Kirim hamkor valyutasida bo'lsa — aynan yozilgan summa; dollar/so'm hamkorga — kirim kurslarida (avvalgidek); boshqa valyutada — kirimdagi dollar summasi kirim kunining kursi bilan. Bekor qilinsa aynan qaytadi.
+- **B3. Kassadan hamkorga sotuv.** "Mijoz" maydoni hamkorni ham topadi ("hamkor · USD"); to'lov bo'limida "Hisobiga · Elaris" qatori (summalardan alohida, «=» bilan); boshqa valyutadagi hamkorga ikkinchi maydon (kun kursi yoki kelishilgan summa). Ruxsat `pos.partner_sale` (kassirda yo'q — rahbar PIN'i). Chegirmadan keyingi summa yoziladi. Chekda "Hamkor: …" va "Hamkor hisobiga: 1 265 000 so'm (100,00 $)"; smena hisobotida alohida qator. Qaytarishda o'sha sotuvda yozilgan ulush ayiriladi (bugungi kurs emas), kurs farqining ulushi ham qaytadi. Hisob-kitobda "Kassadan sotuv CH-…", "Tovar qaytarildi", "Chek bekor qilindi".
+- **B4. Hamkorga narx turi.** Hamkor formasida "Narx"; kassada hamkor tanlansa savat o'zi shu narxga o'tadi, ruxsat va PIN so'ralmaydi.
+- **B5. Yetkazib beruvchiga qaytarish.** "Sklad → Yetkazib beruvchiga qaytarish" (YQ-…): kirim tanlanadi, tovar faqat shu kirim partiyalaridan chiqadi, qarzimiz kirim narxida hamkor valyutasida kamayadi; bekor qilinsa ikkalasi qaytadi. Yangi ruxsat guruhi `supplier_returns`.
+
+### Tekshiruv
+
+Oxirgi to'liq yurish (B5 dan keyin): **core 199, agent 17, server 354, web 204** — hammasi yashil; `typecheck`, `lint` toza; `check_i18n`: only uz/ru bo'sh, missing 13. Server testlari bulutdagi haqiqiy PostgreSQL'da yurdi. Yangi spec'lar: `money-exchange.spec.ts`, `partner-sales.spec.ts`, `supplier-returns.spec.ts`; qo'shimchalar `money-currencies`, `receiving`, `money-transfers`, `returns`, `customer-debts`, `till-controls`, `till-prices` spec'larida. Veb: `exchange.test.tsx`, `partner-sale.test.tsx`, `handover.test.tsx`, `payment-lines.test.tsx`.
+
+Testsiz qolgan (sessiyaga bog'liq sahifalar, jsdom'da yurmaydi): `TransferDialog` va `HandoverDialog` ning o'zi (ichidagi `ReceivedField`/`HandoverFields` sinalgan), kassa sahifasining hamkor bilan to'liq oqimi (`pos-page.tsx`; `TenderPanel` va `CustomerPicker` alohida sinalgan), hamkor formasidagi "Narx" maydoni (B4 veb), "Yetkazib beruvchiga qaytarish" sahifalari (B5 veb). Server tomoni har birida testlangan.
+
+### Qarorlar
+
+1. **Branch.** Sessiya `v2` da ishlashga sozlangan edi, lekin `docs/BULUT-SESSIYA.md` `v2` ga to'g'ridan-to'g'ri push qilmaslikni aytadi — ish `cloud/exchange-partners` branchida, `v2` ga PR bilan.
+2. **O'tkazmada `received`** faqat kelishilgan summa bo'lsa yuboriladi; aks holda server kun kursidan o'zi hisoblaydi (ekran bilan server orasida kurs o'zgarsa, server kursi ustun — natija toast va ro'yxatda ko'rinadi). `RATE_CHANGED` qo'shilmadi: o'tkazmada jami summa yo'q.
+3. **Inkassatsiyada chegara** — `money.rates` egasi uchun yo'q, boshqalarga `maxRateLossPercent` (to'lov oynalari bilan bir xil). Hamkorga sotuvda esa chegara `pos.discount` bilan (kassadagi dollarni kelishilgan qiymatda olish kabi) — BULUT-SESSIYA B3 shuni aytadi.
+4. **B2, uchinchi valyuta.** Kirim liroda, hamkor yuanda bo'lsa — kirimdagi **dollar** summasi kirim sanasining kitobi bilan yuanga o'tkaziladi (yuan kursi odatda dollarga nisbatan). Kurs yo'q bo'lsa kirim o'tkazilmaydi (`RATE_MISSING`, nima yetishmasligi aytiladi).
+5. **B3.** Hamkorni tanlashning o'zi ruxsat talab qilmaydi — faqat "Hisobiga" summa yozilganda. Mijoz va hamkor bir chekda birga bo'lmaydi (bazada ham cheklov). Qaytarishda tartib: avval mijoz qarzi, keyin hamkor hisobi, keyin pul. Hamkor chekidan almashtirishdagi yangi tovar hamkorga avtomatik yozilmaydi (oddiy sotuv). Qaytarishda kurs farqining ulushi proporsional qaytadi, oxirgi qaytarish qoldiqni oladi.
+6. **B4.** Hamkorga faqat kassa narx turlari (ulgurji, boshqa) beriladi — mijoz guruhlaridagidek; minimal narx emas.
+7. **B5.** Qaytarish bitta kirimga bog'lanadi; yetkazib beruvchi — kirimning (qatorda alohida yetkazib beruvchi bo'lsa, o'shaniki). Kirim tanlash ro'yxati — oxirgi 200 ta o'tkazilgan kirim (`receipts.view` kerak). Yangi ruxsat guruhi: boshqaruvchida hammasi, sklad mudirida ko'rish va qoralama, buxgalterda ko'rish (migratsiya mavjud rollarga qo'shadi).
+8. Ishlatilmay qolgan `partners.currencyUzs/Usd` tarjimalari olib tashlandi.
+
+### Lokal tekshiruvga
+
+Migratsiyalar (lokal bazaga qo'llab ko'rish): `1790000030000-money-exchange` (mavjud o'tkazmalar: `to_currency = currency`, `to_amount = amount`, `to_base = base`, `fx = 0`; CHECK `fx = to_base − base`), `…31000-partners-in-any-currency`, `…32000-partner-sales` (sotuv to'lovlari va qaytarish to'lovlarining usul/valyuta cheklovlari), `…33000-partner-price-type`, `…34000-supplier-returns` (sklad hujjati turi, harakat turlari, rollarga ruxsat). Har biri `down` bilan qaytariladimi — ham tekshirilsin.
+
+Ekranda:
+1. **Pul → O'tkazmalar → Pul o'tkazish**: so'm seyfidan dollar seyfiga — "Chiqadi (So'm)" 1 000 000 → "Kiradi (Dollar)" 77,82 va "Kun kursi: 1 $ = …"; "Kiradi"ni 78 qilib — "Chiqadi" o'zgarmasin, yashil izoh; 80 (2% dan ortiq) — kurs ruxsatisiz xodimda qizil izoh va server xatosi "Kiradi" ostida; bir xil valyutada bitta "Summa".
+2. O'tkazmalar ro'yxati va "Pul holati"dagi "yo'lda" qatori: "1 000 000 so'm → 77,82 $".
+3. **Kassa → Inkassatsiya**: seyf tanlovida boshqa valyutadagi seyf "(…$)" belgisi bilan; tanlansa juft maydon. Smena yopilishida faqat o'z valyutasidagi seyflar.
+4. **Hamkor formasi**: valyuta ro'yxati yoqilgan valyutalar; "Narx" maydoni.
+5. **Kassa, hamkor bilan**: "Mijoz" maydoniga hamkor nomi — "hamkor · USD" qatori; tanlangach karta; narx turi bo'lsa narx tanlagichi o'zi o'zgaradi. F9 → "Hisobiga · …" bloki, «=» bilan qolgani; dollar hamkorda "Hisobiga (USD)" va izoh; kassirda PIN oynasi ("… hisobiga sotish"). Chek oynasi va qog'oz chekda "Hamkor: …", "Hamkor hisobiga: … so'm (… $)". Smena hisobotida "Hamkor hisobiga · …" qatori.
+6. **Qaytarish (F4)** hamkor chekidan: "Hamkor hisobidan ayiriladi" qatori, pul so'ralmasligi.
+7. **Hamkorlar → hisob-kitob**: "Kassadan sotuv", "Tovar qaytarildi", "Chek bekor qilindi", "Tovar qaytarildi (yetkazib beruvchiga)" qatorlari.
+8. **Sklad → Yetkazib beruvchiga qaytarish**: ro'yxat (yetkazib beruvchi va kirim ustunlari), yangi hujjat (kirim tanlovi, ostida yetkazib beruvchi), tasdiqlash, "… hisobidan qarzimiz kamaydi", bekor qilish. Menyuda yangi band.
+9. Haqiqiy bazada: yuan kirimi + yuan hamkor + qaytarish; dollar kursi o'zgargandan keyin hamkor chekini qaytarish.
+
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
 Brauzerda, egasining hisobi bilan, haqiqiy ma'lumotda ko'rildi (hech narsa saqlanmadi, sotuv qilinmadi):
@@ -139,8 +183,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 12. **Valyuta va hamkor** (KEYINGI-REJA, 8-bo'lim: "Yakuniy qarorlar" va "Valyuta va hamkor ishining bosqichlari") — reja 2026-10-06 da kelishib olindi; **kod foydalanuvchi "boshla" deganda boshlanadi**:
    - [x] V1. Valyutalar va kurslar (katalog, yoqish, kurs va yozilish shakli, zanjirli hisob, "Kurslar" ekrani).
    - [x] V2. Pul joylari istalgan valyutada.
-   - [x] V4. Ayirboshlash: o'tkazmada va kassadan pul olishda juft maydon (foydalanuvchi so'rovi, 2026-10-06) — **navbatdagi ish**; talabi `docs/BULUT-SESSIYA.md`, 4-bo'lim, A. Komissiya keyin.
-   - [x] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish — V4 dan keyin; talabi o'sha yerda, B (B1–B5).
+   - [x] V4. Ayirboshlash: o'tkazmada va kassadan pul olishda juft maydon (foydalanuvchi so'rovi, 2026-10-06); talabi `docs/BULUT-SESSIYA.md`, 4-bo'lim, A. Komissiya keyin.
+   - [x] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish; talabi o'sha yerda, B (B1–B5).
    - [ ] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy va ikkinchi valyuta").
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
