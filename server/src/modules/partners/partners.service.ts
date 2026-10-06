@@ -1,4 +1,11 @@
-import { searchKey, type Page, type PartnerDto, type PartnerInput, type PartnerListQuery } from '@gulbahor/core'
+import {
+  searchKey,
+  type AnyCurrency,
+  type Page,
+  type PartnerDto,
+  type PartnerInput,
+  type PartnerListQuery,
+} from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 
@@ -8,6 +15,7 @@ import { Db } from '../../database/db.service'
 import { Account, Partner } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
+import { CurrenciesService } from '../money/currencies.service'
 import { RealtimeService } from '../realtime/realtime.service'
 
 const SORTABLE = { name: 'p.name', createdAt: 'p.createdAt' }
@@ -16,7 +24,7 @@ const AUDITED: (keyof Partner & string)[] = ['name', 'phone', 'isSupplier', 'isB
 
 /**
  * The people and firms the business trades with. Each has an account in the
- * money ledger, in so'm or in dollars: its balance is what they owe the
+ * money ledger, in any currency the business has switched on: its balance is what they owe the
  * business, and is shown only to those who may see debts.
  */
 @Injectable()
@@ -25,6 +33,7 @@ export class PartnersService {
     private readonly db: Db,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async list(actor: Actor, query: PartnerListQuery): Promise<Page<PartnerDto>> {
@@ -80,6 +89,7 @@ export class PartnersService {
   async create(actor: Actor, input: PartnerInput): Promise<PartnerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertNameFree(em, input.name)
+      await this.assertCurrency(em, actor, input.currency)
       const saved = await em.save(
         em.create(Partner, { orgId: actor.orgId, ...input, isActive: true, searchKey: keyOf(input) }),
       )
@@ -98,6 +108,9 @@ export class PartnersService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
       await this.assertNameFree(em, input.name, id)
+      if (before.currency !== input.currency) {
+        await this.assertCurrency(em, actor, input.currency)
+      }
       // Once anything has been owed either way, the account stays in the currency it was kept in.
       const account = await em.findOneBy(Account, { partnerId: id })
       if (before.currency !== input.currency && account) {
@@ -148,6 +161,13 @@ export class PartnersService {
       throw AppError.notFound('Hamkor topilmadi')
     }
     return partner
+  }
+
+  /** A partner's account is kept in a currency the business has switched on, and in no other. */
+  private async assertCurrency(em: EntityManager, actor: Actor, currency: AnyCurrency) {
+    if (!(await this.currencies.kept(em, actor)).includes(currency)) {
+      throw AppError.validation({ currency: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+    }
   }
 
   private async assertNameFree(em: EntityManager, name: string, exceptId?: string) {

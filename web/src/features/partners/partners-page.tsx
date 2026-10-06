@@ -1,6 +1,6 @@
 import {
   partnerInputSchema,
-  type CurrencyCode,
+  type AnyCurrency,
   type Page as PageOf,
   type PartnerDto,
   type PartnerInput,
@@ -36,6 +36,8 @@ import { Input, Textarea } from '@/components/ui/input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { useSession } from '@/features/auth/session'
+import { currencyName } from '@/features/money/currencies-view'
+import { useCurrencies } from '@/features/money/rates'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { fetchAll, moneyCell } from '@/lib/excel'
@@ -386,7 +388,7 @@ interface Values {
   phone: string
   isSupplier: boolean
   isBuyer: boolean
-  currency: CurrencyCode
+  currency: AnyCurrency
   note: string
 }
 
@@ -412,6 +414,8 @@ function PartnerDialog({
     },
   })
   const errors = form.formState.errors
+  const currencies = useCurrencies()
+  const kept = currencies.data?.active.map((currency) => currency.code) ?? ['UZS', 'USD']
 
   const mutation = useMutation({
     mutationFn: (input: PartnerInput) =>
@@ -473,10 +477,11 @@ function PartnerDialog({
                     value={field.value}
                     onChange={field.onChange}
                     invalid={!!errors.currency}
-                    options={[
-                      { value: 'UZS', label: t('partners.currencyUzs') },
-                      { value: 'USD', label: t('partners.currencyUsd') },
-                    ]}
+                    // Any currency the business has switched on; the one already kept stays offered even if put away.
+                    options={[...new Set([...kept, field.value])].map((code) => ({
+                      value: code,
+                      label: currencyName(code, t),
+                    }))}
                   />
                 )}
               />

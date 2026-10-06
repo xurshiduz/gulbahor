@@ -1,7 +1,7 @@
 import {
   formatMoney,
   searchKey,
-  toBase,
+  worthInBase,
   type Page,
   type PaymentAccountDto,
   type PartnerOpeningInput,
@@ -233,12 +233,14 @@ export class PartnerPaymentsService {
       }
       const partner = await this.partner(em, input.partnerId)
       const today = await this.ledger.today(em, actor.orgId)
-      const rate = partner.currency === 'USD' ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
-      if (partner.currency === 'USD' && !rate) {
-        throw AppError.validation({ amount: 'Dollar kursi qo‘yilmagan' })
+      // What stood before is worth in the books what the day's rates make of it, along the chain where it must.
+      const book = await this.currencies.book(em, actor, today)
+      const wanting = wantingRate(book, partner.currency)
+      if (wanting) {
+        throw AppError.validation({ amount: wanting })
       }
       const change = input.owes === 'partner' ? input.amount : -input.amount
-      const base = toBase(change, partner.currency, rate)
+      const base = worthInBase(change, partner.currency, book) as number
       const payment = await this.save(em, actor, {
         clientKey: input.clientKey,
         kind: 'opening',

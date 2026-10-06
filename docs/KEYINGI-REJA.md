@@ -460,6 +460,11 @@ Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini mas
 - Ro'yxatda, kassadagi kutilayotgan pullarda va "Pul holati"dagi "yo'lda" qatorida ayirboshlash "1 000 $ → 7 250 ¥" deb ko'rinadi. Excel'ga kirgan summa va valyuta ham chiqadi.
 - Komissiya keyin.
 
+### 3-bosqich qanday qurildi (2026-10-06, bulut sessiyasi)
+
+- **B1. Hamkor hisobi istalgan valyutada.** Hamkor formasidagi "Valyuta" ro'yxati — biznes yoqqan valyutalar (so'm, dollar, yuan…). Yoqilmagan valyutada hamkor ochilmaydi. Boshlang'ich qoldiq kun kurslari zanjiri bilan baholanadi; valyutaning kursi yo'q bo'lsa rad etiladi va qaysi kurs yetishmasligi aytiladi. To'lov oynasi o'zgarmadi: yuan hisobli hamkorga so'm, dollar yoki yuanda to'lanadi, har qator yuanni yopadi.
+- **B2. Kirimdan qarz o'z valyutasida.** Yuan hisobli yetkazib beruvchiga yuanda yozilgan kirim aynan o'sha summani qarz qiladi (kurs nima bo'lishidan qat'i nazar). Dollar yoki so'm hisobli hamkorga — kirimning o'z kurslari bilan (avvalgidek). Kirim boshqa valyutada (masalan, lira) va hamkor yuanda bo'lsa — kirimdagi dollar summasi kirim kunining kursi bilan yuanga o'tadi; kurs yo'q bo'lsa kirim o'tkazilmaydi. Kirim bekor qilinsa, aynan yozilgan summa qaytadi.
+
 ### Kurs sozlamasi (alohida sahifa)
 
 - Bugungi kurslar jadvali: har yoqilgan valyuta uchun bitta son; yonida kechagi va o'zgarish foizi.

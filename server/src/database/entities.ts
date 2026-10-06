@@ -674,7 +674,7 @@ export class Partner {
 
   /** The currency their account is kept in. */
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   @Column('text', { nullable: true })
   note: string | null
@@ -2363,7 +2363,7 @@ export class PartnerPayment {
   partnerId: string
 
   @Column('text')
-  currency: CurrencyCode
+  currency: AnyCurrency
 
   /** How the partner's debt changed, in the currency of their account. */
   @Column('bigint', { transformer: bigintAsNumber })

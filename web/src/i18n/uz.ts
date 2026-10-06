@@ -341,8 +341,6 @@ export const uz = {
   partners: {
     title: 'Hamkorlar',
     currency: 'Hisob valyutasi',
-    currencyUzs: 'So‘m',
-    currencyUsd: 'Dollar',
     balance: 'Hisob-kitob',
     owes: 'Qarzdorlar',
     owed: 'Biz qarzdormiz',

@@ -542,6 +542,22 @@ describe('a line in another currency the business keeps', () => {
     expect(spreadTotal(alone, usd(1000), 'USD')).toEqual({ accountId: 'cny', amount: yuan(7250) })
   })
 
+  it('settles a partner kept in yuan from so’m, dollars and yuan alike', () => {
+    const lines = valueLines(
+      [row('uzs', som(1_744_827.59)), row('usd', usd(100)), row('cny', yuan(50))],
+      places,
+      'CNY',
+      book,
+    )
+    expect(lines.map((line) => [line.changes, line.settled])).toEqual([
+      [true, yuan(1000)],
+      [true, yuan(725)],
+      [false, yuan(50)],
+    ])
+    // 2 500 ¥ owed, 1 050 ¥ of it brought otherwise: the other 1 450 ¥ are 200 $ at the day's rate.
+    expect(fillFor(lines[1], lines, yuan(2500), 'CNY')).toBe(usd(200))
+  })
+
   it('cannot be counted while a rate it hangs on is wanting', () => {
     const noDollar: RateBook = { base: 'UZS', rates: { CNY: { against: 'USD', way: 'per', value: 7.25 } } }
     const [line] = valueLines([row('cny', yuan(1000))], places, 'UZS', noDollar)

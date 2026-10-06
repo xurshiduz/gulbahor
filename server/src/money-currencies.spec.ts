@@ -261,6 +261,76 @@ describe('Money in any currency', () => {
     })
   })
 
+  describe('a partner kept in yuan', () => {
+    let yiwu: string
+    const payYiwu = (lines: Record<string, unknown>[], settled: number) =>
+      alpha
+        .post('/api/partner-payments')
+        .send({ clientKey: randomUUID(), partnerId: yiwu, kind: 'out', lines, settled })
+
+    it('is opened only in a currency the business has switched on', async () => {
+      const refused = await alpha
+        .post('/api/partners')
+        .send({ name: 'Almaty Trade', isSupplier: true, currency: 'KZT' })
+        .expect(400)
+      expect(refused.body.error.fields.currency).toBeDefined()
+      const made = (
+        await alpha.post('/api/partners').send({ name: 'Yiwu Market', isSupplier: true, currency: 'CNY' }).expect(201)
+      ).body
+      expect(made).toMatchObject({ currency: 'CNY', balance: 0 })
+      yiwu = made.id
+    })
+
+    it('has what stood before the books valued along the chain of rates', async () => {
+      const before = await balances()
+      await alpha
+        .post('/api/partner-payments/opening')
+        .send({ clientKey: randomUUID(), partnerId: yiwu, owes: 'us', amount: yuan(10_000) })
+        .expect(201)
+      // The business owes 10 000 ¥, worth 17 448 275,86 so'm today.
+      expect(moved(before, await balances())).toEqual({
+        'Yiwu Market': -yuan(10_000),
+        opening: som(17_448_275.86),
+      })
+    })
+
+    it('is paid in yuan, in dollars and in so’m, each settling yuan', async () => {
+      const before = await balances()
+      await payYiwu([{ accountId: yuanSafe, amount: yuan(1000) }], yuan(1000)).expect(201)
+      await alpha
+        .post('/api/money/ops')
+        .send({
+          clientKey: randomUUID(),
+          kind: 'income',
+          categoryId: categories.find((item) => item.name === 'Egasi qo‘shdi' && item.kind === 'income')!.id,
+          lines: [{ accountId: dollarSafe, amount: usd(100) }],
+          total: som(1_265_000),
+        })
+        .expect(201)
+      // 100 $ at 7,25 yuan to the dollar are 725 ¥.
+      const paid = (await payYiwu([{ accountId: dollarSafe, amount: usd(100) }], yuan(725)).expect(201)).body
+      expect(paid.lines[0]).toMatchObject({ currency: 'USD', settled: yuan(725), rate: 7.25 })
+      expect(moved(before, await balances())).toMatchObject({
+        'Yuan seyfi': -yuan(1000),
+        'Yiwu Market': yuan(1725),
+      })
+      const statement = (await alpha.get(`/api/partners/${yiwu}/statement`).expect(200)).body
+      expect(statement.balance).toBe(-yuan(10_000) + yuan(1725))
+    })
+
+    it('is not counted while its currency has no rate', async () => {
+      await alpha.post('/api/currencies').send({ code: 'EUR' }).expect(200)
+      const paris = (
+        await alpha.post('/api/partners').send({ name: 'Paris Mode', isSupplier: true, currency: 'EUR' }).expect(201)
+      ).body.id
+      const none = await alpha
+        .post('/api/partner-payments/opening')
+        .send({ clientKey: randomUUID(), partnerId: paris, owes: 'us', amount: 100_000 })
+        .expect(400)
+      expect(none.body.error.fields.amount).toBe('Yevro kursi qo‘yilmagan')
+    })
+  })
+
   describe('the books', () => {
     it('add up to nothing after all of it', async () => {
       const [{ total }] = await sql<{ total: string }[]>(

@@ -7,7 +7,6 @@ import {
   partnerOpeningInputSchema,
   partnerPaymentInputSchema,
   type AnyCurrency,
-  type CurrencyCode,
   type Page as PageOf,
   type PartnerDto,
   type PartnerPaymentDto,
@@ -82,7 +81,7 @@ const refresh = (queryClient: ReturnType<typeof useQueryClient>) => {
 /** What stands between the business and a partner, in words: "qarzi 570,95 $" when they owe, "haqi …" when they are owed. */
 export function useDebtText() {
   const { t } = useTranslation()
-  return (balance: number, currency: CurrencyCode) =>
+  return (balance: number, currency: AnyCurrency) =>
     balance > 0
       ? t('payments.owes', { amount: money(balance, currency) })
       : balance < 0

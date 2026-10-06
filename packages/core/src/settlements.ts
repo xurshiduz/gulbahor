@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { baseWorth, exchange, worthInBase, type RateBook } from './currencies'
-import type { AnyCurrency, CurrencyCode } from './money'
+import type { AnyCurrency } from './money'
 import type { AccountDto } from './pos'
 import type { PartnerDto } from './purchasing'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
@@ -395,7 +395,7 @@ export interface PartnerPaymentDto {
   partnerId: string
   partnerName: string
   /** The currency of the partner's account. */
-  currency: CurrencyCode
+  currency: AnyCurrency
   /** How the partner's debt changed: less after they paid, more after they were paid; an opening balance either way. */
   change: number
   paidAt: string

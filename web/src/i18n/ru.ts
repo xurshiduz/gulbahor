@@ -341,8 +341,6 @@ export const ru: Dictionary = {
   partners: {
     title: 'Партнёры',
     currency: 'Валюта счёта',
-    currencyUzs: 'Сум',
-    currencyUsd: 'Доллар',
     balance: 'Взаиморасчёты',
     owes: 'Должники',
     owed: 'Мы должны',

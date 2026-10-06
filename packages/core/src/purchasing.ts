@@ -21,7 +21,7 @@ export const partnerInputSchema = z
     isSupplier: z.boolean().default(false),
     isBuyer: z.boolean().default(false),
     /** The currency their account is kept in: what they owe, or are owed, is always said in it. */
-    currency: z.enum(['UZS', 'USD']).default('UZS'),
+    currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).default('UZS'),
     note: optionalText(500),
   })
   .refine((partner) => partner.isSupplier || partner.isBuyer, {
@@ -44,7 +44,8 @@ export interface PartnerDto {
   phone: string | null
   isSupplier: boolean
   isBuyer: boolean
-  currency: CurrencyCode
+  /** Any currency the business has switched on: one partner, one currency. */
+  currency: AnyCurrency
   /** What they owe the business, in their currency; negative when the business owes them. Null for a person who may not see debts. */
   balance: number | null
   note: string | null
