@@ -16,7 +16,7 @@ import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { toast } from '@/lib/toast'
 
-import { emptyHandings, HandoverFields, handoversOf } from './handover'
+import { emptyHandings, HandoverFields, handoversOf, ownSafes } from './handover'
 
 const refreshTill = (queryClient: ReturnType<typeof useQueryClient>) => {
   void queryClient.invalidateQueries({ queryKey: ['pos'] })
@@ -82,7 +82,9 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
   const [cashUzs, setCashUzs] = useState<number | null>(null)
   const [cashUsd, setCashUsd] = useState<number | null>(null)
   const [note, setNote] = useState('')
-  const [handings, setHandings] = useState(() => emptyHandings(context.safes))
+  // What the end of a shift hands over stays in its currency: an exchange is for the middle of one.
+  const safes = ownSafes(context)
+  const [handings, setHandings] = useState(() => emptyHandings(safes))
   /** What each terminal's end-of-day slip says, as far as the cashier typed it. */
   const [slips, setSlips] = useState<Record<string, number | null>>({})
 
@@ -143,12 +145,7 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
           ) : null}
         </div>
         {/* What of the counted cash goes to the safe now; the rest stays in the drawer for the next shift. */}
-        <HandoverFields
-          safes={context.safes}
-          value={handings}
-          onChange={setHandings}
-          limits={{ UZS: cashUzs, USD: cashUsd }}
-        />
+        <HandoverFields safes={safes} value={handings} onChange={setHandings} limits={{ UZS: cashUzs, USD: cashUsd }} />
         {context.terminals.length ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {context.terminals.map((terminal) => (

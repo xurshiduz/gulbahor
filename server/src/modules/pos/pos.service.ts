@@ -67,10 +67,8 @@ export class PosService {
           UZS: drawers.find((account) => account.currency === 'UZS')?.id ?? null,
           USD: drawers.find((account) => account.currency === 'USD')?.id ?? null,
         },
-        // A safe is offered only for the currency this till has a drawer of: there is nothing else to hand over.
-        safes: accounts.filter(
-          (account) => account.kind === 'safe' && drawers.some((drawer) => drawer.currency === account.currency),
-        ),
+        // Cash goes to a safe of its own currency, or — changed on the way — to one of another.
+        safes: drawers.length ? accounts.filter((account) => account.kind === 'safe') : [],
         transfers: await this.transfers.waitingAt(em, actor, registerId),
         changeRoundStep: settings.changeRoundStep,
         maxDiscountPercent: settings.maxDiscountPercent,

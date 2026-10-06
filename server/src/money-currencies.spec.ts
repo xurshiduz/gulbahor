@@ -254,9 +254,10 @@ describe('Money in any currency', () => {
       // 10 000 − 1 000 − 1 000 − 2 900 − 2 190 − 1 500.
       expect(places.find((place) => place.id === yuanSafe)?.balance).toBe(yuan(1410))
       expect(places.find((place) => place.id === yuanCard)?.balance).toBe(yuan(1500))
-      // One currency does not become another by being carried.
-      const across = await move(yuanSafe, dollarSafe, yuan(100)).expect(400)
-      expect(across.body.error.fields.toAccountId).toContain('AQSH dollari')
+      // Into another currency it is an exchange: 100 ¥ at 7,25 to the dollar are 13,79 $.
+      const across = (await move(yuanSafe, dollarSafe, yuan(100)).expect(201)).body
+      expect(across).toMatchObject({ currency: 'CNY', toCurrency: 'USD', toAmount: usd(13.79) })
+      await alpha.post(`/api/money/transfers/${across.id}/cancel`).expect(200)
     })
   })
 

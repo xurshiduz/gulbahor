@@ -17,6 +17,7 @@ import { currencyShort, placeName, rateText } from '@/features/partners/payment-
 import { Stat } from '@/features/reports/parts'
 import { cn } from '@/lib/cn'
 
+import { transferSums } from './exchange'
 import { moneyStand, standWorth, type StandCurrency, type StandHalf, type StandPlace } from './stand'
 
 const EVERYWHERE = 'all'
@@ -148,7 +149,7 @@ function CurrencyCard({ item, whole }: { item: StandCurrency; whole: boolean }) 
                   <ArrowRight className="size-3.5 shrink-0 text-ink-3" />
                   <span className="truncate">{transfer.toAccountName}</span>
                 </span>
-                <span className="tabular whitespace-nowrap text-warn">{money(transfer.amount, item.currency)}</span>
+                <span className="tabular whitespace-nowrap text-warn">{transferSums(transfer)}</span>
               </li>
             ))}
           </ul>

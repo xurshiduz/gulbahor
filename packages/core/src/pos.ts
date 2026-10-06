@@ -973,7 +973,7 @@ export interface PosContextDto {
   promoCodes: boolean
   /** The till's own cash accounts by currency; one that has never held money does not exist yet. */
   drawers: Record<CurrencyCode, string | null>
-  /** Where cash from this till can be handed over to: the shop's safes, without their balances. */
+  /** Where cash from this till can be handed over to: the shop's safes in any currency, without their balances. */
   safes: AccountDto[]
   /** Money on its way from this till or to it, waiting to be confirmed. */
   transfers: MoneyTransferDto[]
@@ -1121,8 +1121,14 @@ export const moneyTransferInputSchema = z
     clientKey: z.uuid(),
     fromAccountId: idSchema,
     toAccountId: idSchema,
-    /** In the currency both accounts hold. */
+    /** What leaves, in the currency of the account it leaves. */
     amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
+    /**
+     * What enters, in the currency of the account it goes to: an agreed sum
+     * where the two currencies differ. Left out, the day's rate makes it; where
+     * the currencies are one, it is the amount and this is not read.
+     */
+    received: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }).nullish(),
     note: optionalText(200),
   })
   .refine((transfer) => transfer.fromAccountId !== transfer.toAccountId, {
@@ -1145,8 +1151,14 @@ export interface MoneyTransferDto {
   id: string
   number: string
   status: MoneyTransferStatus
+  /** What left, in the currency of the account it left. */
   currency: AnyCurrency
   amount: number
+  /** What enters (or entered), in the currency of the account it goes to: another currency makes it an exchange. */
+  toCurrency: AnyCurrency
+  toAmount: number
+  /** What the exchange made for the business against the day's rates, in the base: a gain when more than nothing. */
+  fx: number
   fromAccountId: string
   fromAccountName: string
   toAccountId: string

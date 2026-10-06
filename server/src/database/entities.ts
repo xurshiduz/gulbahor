@@ -2778,6 +2778,21 @@ export class MoneyTransfer {
   @Column('bigint', { transformer: bigintAsNumber })
   base: number
 
+  /** What enters the other place, in its currency: another than `currency` makes the transfer an exchange. */
+  @Column('text')
+  toCurrency: AnyCurrency
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  toAmount: number
+
+  /** What enters is worth this in the base, at the rates of the day it was sent. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  toBase: number
+
+  /** What the exchange made for the business against the day's rates: `toBase - base`, a gain when more than nothing. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  fx: number
+
   @Column('uuid', { nullable: true })
   fromShiftId: string | null
 

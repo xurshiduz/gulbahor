@@ -1397,7 +1397,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
         </HotkeyScope>
       ) : null}
       {closing ? <CloseShiftDialog context={context} onClose={() => setClosing(false)} /> : null}
-      {handing ? <HandoverDialog context={context} onClose={() => setHanding(false)} /> : null}
+      {handing ? (
+        <HandoverDialog
+          context={context}
+          limit={context.maxRateLossPercent}
+          setsRates={can('money.rates')}
+          onClose={() => setHanding(false)}
+        />
+      ) : null}
       {picking ? (
         <ReturnPicker
           code={picking.code}

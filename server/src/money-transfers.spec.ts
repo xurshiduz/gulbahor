@@ -219,9 +219,11 @@ describe('Money transfers', () => {
     })
 
     it('moves dollars as dollars, between accounts that hold them', async () => {
-      const wrong = await send({ fromAccountId: dollarDrawerId, toAccountId: safeId, amount: usd(20) })
-      expect(wrong.status).toBe(400)
-      expect(wrong.body.error.fields.toAccountId).toBeDefined()
+      // To a safe of so'm they would be changed on the way (an exchange): taken back, nothing moved.
+      const changed = (await send({ fromAccountId: dollarDrawerId, toAccountId: safeId, amount: usd(20) }).expect(201))
+        .body
+      expect(changed).toMatchObject({ currency: 'USD', toCurrency: 'UZS', toAmount: som(257_000) })
+      await cashier.post(`/api/money/transfers/${changed.id}/cancel`).expect(200)
 
       const sent = (
         await send({ fromAccountId: dollarDrawerId, toAccountId: dollarSafeId, amount: usd(20) }).expect(201)
@@ -317,7 +319,7 @@ describe('Money transfers', () => {
       await cashier.get('/api/money/transfers').expect(403)
       await seller.get('/api/money/transfers').expect(403)
       const all = (await manager.get('/api/money/transfers').expect(200)).body
-      expect(all.total).toBe(7)
+      expect(all.total).toBe(8)
       const found = (await alpha.get('/api/money/transfers').query({ accountId: dollarSafeId }).expect(200)).body
       expect(found.items.map((item: { currency: string }) => item.currency)).toEqual(['USD', 'USD'])
     })

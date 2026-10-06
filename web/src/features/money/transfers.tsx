@@ -27,12 +27,15 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { SearchInput } from '@/components/ui/page'
-import { placeName } from '@/features/partners/payment-lines'
-import { api } from '@/lib/api'
+import { currencyShort, placeName } from '@/features/partners/payment-lines'
+import { api, ApiError } from '@/lib/api'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
+
+import { exchangeLine, ReceivedField, receivedOf, transferSums, type ExchangeSums } from './exchange'
+import { useRateBook } from './rates'
 
 const route = getRouteApi('/money')
 
@@ -121,7 +124,7 @@ export function TransferButtons({ transfer, size = 'sm' }: ActionsProps) {
           onClose={() => setRefusing(false)}
           size="sm"
           title={`${t('money.reject')} · ${transfer.number}`}
-          description={`${transfer.fromAccountName} → ${transfer.toAccountName} · ${money(transfer.amount, transfer.currency)}`}
+          description={`${transfer.fromAccountName} → ${transfer.toAccountName} · ${transferSums(transfer)}`}
           footer={
             <>
               <Button onClick={() => setRefusing(false)}>{t('common.no')}</Button>
@@ -217,9 +220,19 @@ export function TransfersTab() {
           className: 'tabular text-right font-medium whitespace-nowrap',
           headerClassName: 'text-right',
         },
-        cell: ({ row }) => money(row.original.amount, row.original.currency),
+        cell: ({ row }) => transferSums(row.original),
       },
       { id: 'currency', header: t('money.currency'), meta: { exportOnly: true, export: (row) => row.currency } },
+      {
+        id: 'toAmount',
+        header: t('money.exchangeReceived'),
+        meta: { exportOnly: true, export: (row) => moneyCell(row.toAmount, row.toCurrency) },
+      },
+      {
+        id: 'toCurrency',
+        header: t('money.exchangeCurrency'),
+        meta: { exportOnly: true, export: (row) => row.toCurrency },
+      },
       {
         id: 'sentBy',
         header: t('money.sentBy'),
@@ -307,13 +320,30 @@ export function TransfersTab() {
   )
 }
 
-/** Moving money from one account to another, by those who keep it. */
-export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; onClose: () => void }) {
+/**
+ * Moving money from one account to another, by those who keep it. Into a
+ * place of another currency it is an exchange: what enters is a second sum,
+ * paired with what leaves.
+ */
+export function TransferDialog({
+  accounts,
+  limit,
+  setsRates,
+  onClose,
+}: {
+  accounts: AccountDto[]
+  /** How far from the day's rate this person may agree what enters, in percent. */
+  limit: number
+  /** This person sets rates: an agreement however far from the day's is theirs to make. */
+  setsRates: boolean
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const book = useRateBook()
   const [fromId, setFromId] = useState<string | null>(null)
   const [toId, setToId] = useState<string | null>(null)
-  const [amount, setAmount] = useState<number | null>(null)
+  const [sums, setSums] = useState<ExchangeSums>({ amount: null, received: null })
   const [note, setNote] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   // One transfer, one key: sent twice, it is still made once.
@@ -322,6 +352,8 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
   // A terminal's money goes to the bank by itself; everything else can be carried.
   const movable = accounts.filter((account) => account.isActive && account.kind !== 'terminal')
   const from = movable.find((account) => account.id === fromId) ?? null
+  const to = movable.find((account) => account.id === toId) ?? null
+  const line = exchangeLine(from, to?.currency ?? null, sums, book, limit)
   // A card is told from another by its number, a drawer by its till: the till's name is the drawer's own.
   const option = (account: AccountDto) => ({
     value: account.id,
@@ -336,6 +368,11 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
       toast.success(t('money.transferSent', { number: transfer.number }))
       onClose()
     },
+    onError: (error) => {
+      if (error instanceof ApiError && error.fields) {
+        setErrors(error.fields)
+      }
+    },
   })
 
   const submit = () => {
@@ -343,7 +380,8 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
       clientKey,
       fromAccountId: fromId,
       toAccountId: toId,
-      amount,
+      amount: sums.amount,
+      received: receivedOf(line),
       note,
     })
     if (!parsed.success) {
@@ -379,6 +417,7 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
               onChange={(value) => {
                 setFromId(value)
                 setToId(null)
+                setSums({ amount: null, received: null })
               }}
               invalid={!!errors.fromAccountId}
             />
@@ -388,22 +427,30 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
           {(id) => (
             <Combobox
               id={id}
-              // Money stays what it is: so'm go to an account in so'm, dollars to one in dollars.
-              options={movable
-                .filter((account) => account.id !== fromId && (!from || account.currency === from.currency))
-                .map(option)}
+              // A place of another currency is offered too: the money is changed on the way.
+              options={movable.filter((account) => account.id !== fromId).map(option)}
               value={toId}
-              onChange={setToId}
+              onChange={(value) => {
+                setToId(value)
+                setSums((current) => ({ ...current, received: null }))
+              }}
               invalid={!!errors.toAccountId}
             />
           )}
         </Field>
-        <Field label={t('money.amount')} error={errors.amount} required>
+        <Field
+          label={
+            line && from ? t('money.exchangeOut', { currency: currencyShort(from.currency, t) }) : t('money.amount')
+          }
+          error={errors.amount}
+          required
+        >
           {(id) => (
             <MoneyInput
               id={id}
-              value={amount}
-              onChange={setAmount}
+              value={sums.amount}
+              // What leaves is the anchor: typed, what enters follows from the rate afresh.
+              onChange={(amount) => setSums({ amount, received: null })}
               currency={from?.currency ?? 'UZS'}
               fillValue={from?.balance ?? undefined}
               invalid={!!errors.amount}
@@ -411,6 +458,17 @@ export function TransferDialog({ accounts, onClose }: { accounts: AccountDto[]; 
             />
           )}
         </Field>
+        {line && to ? (
+          <ReceivedField
+            line={line}
+            sums={sums}
+            toCurrency={to.currency}
+            onChange={setSums}
+            book={book}
+            setsRates={setsRates}
+            error={errors.received}
+          />
+        ) : null}
         <Field label={t('receipts.note')}>
           {(id) => <Input id={id} value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} />}
         </Field>

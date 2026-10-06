@@ -450,6 +450,16 @@ Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini mas
 - Pul turgan valyutani o'chirib qo'yib bo'lmaydi.
 - Hamkor hisobi hali so'm yoki dollarda (3-bosqich).
 
+### Ayirboshlash qanday qurildi (V4, 2026-10-06)
+
+- **O'tkazma oynasi** ("Pul → O'tkazmalar → Pul o'tkazish"): "Qayerga" ro'yxatida endi boshqa valyutadagi joylar ham bor. Valyuta bir xil bo'lsa — avvalgidek bitta "Summa". Boshqa bo'lsa — ikkita: "Chiqadi (So'm)" va "Kiradi (Dollar)", ostida kun kursi ("Kun kursi: 1 $ = 12 850 so'm").
+- **Juft qoida** to'lov oynasidagi bilan bir xil: "Chiqadi" yozilsa, "Kiradi" kun kursidan chiqadi; "Kiradi" ustidan yozilsa — kelishilgan summa, "Chiqadi"ga tegilmaydi va ostida "Kelishilgan kurs 12 820,51, kun kursi 12 850 (0,2% farq): 2 300 so'm foydamizga" (yoki "zararimizga") yoziladi; "Chiqadi" bo'sh turib "Kiradi" yozilsa, "Chiqadi" kursdan chiqadi.
+- **Chegara**: kun kursidan sozlamadagi foizdan (2%) uzoq kelishuvni faqat kurs qo'yish ruxsati bor xodim saqlaydi; boshqalarga izoh qizil va "kurs qo'yish ruxsati kerak".
+- **Kurs yuborilganda qotadi**: qabul qiluvchi kursni emas, aniq summani tasdiqlaydi. Qabul qilinganda kurs farqi "Kurs farqi" hisobiga yoziladi; rad etilsa yoki qaytarib olinsa pul joyiga aynan qaytadi, hech qanday farq yozilmaydi.
+- **Kassada "Inkassatsiya"**: seyf tanlovida do'konning boshqa valyutadagi seyflari ham bor (masalan, so'm tortmasidan dollar seyfiga); tanlansa — xuddi shu juft maydon. Smena yopilishidagi topshirish o'z valyutasida qoladi.
+- Ro'yxatda, kassadagi kutilayotgan pullarda va "Pul holati"dagi "yo'lda" qatorida ayirboshlash "1 000 $ → 7 250 ¥" deb ko'rinadi. Excel'ga kirgan summa va valyuta ham chiqadi.
+- Komissiya keyin.
+
 ### Kurs sozlamasi (alohida sahifa)
 
 - Bugungi kurslar jadvali: har yoqilgan valyuta uchun bitta son; yonida kechagi va o'zgarish foizi.

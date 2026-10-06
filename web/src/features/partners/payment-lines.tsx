@@ -286,7 +286,7 @@ export function valueLines(
 }
 
 /** The money a line has to hold to settle so much, at the rate the line goes by; nothing where it has none. */
-function moneyFor(line: ValuedLine, settled: number, currency: AnyCurrency): number {
+export function moneyFor(line: ValuedLine, settled: number, currency: AnyCurrency): number {
   return line.rate && line.pair
     ? amountFor(settled, line.account.currency, currency, pairBook(line.pair, line.rate))
     : 0
@@ -346,7 +346,7 @@ const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, curre
 const typed = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { symbol: false, group: ' ' })
 
 /** A rate as its pair reads: "1 $ = 7,25 ¥". */
-const pairSentence = (pair: Pair, value: number) =>
+export const pairSentence = (pair: Pair, value: number) =>
   `1 ${CURRENCIES[pair.one].symbol} = ${rateText(value)} ${CURRENCIES[pair.of].symbol}`
 
 interface PaymentLinesProps {

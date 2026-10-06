@@ -1,8 +1,6 @@
 import {
-  CURRENCIES,
   formatMoney,
   searchKey,
-  worthInBase,
   type CurrencyCode,
   type MoneySentEvent,
   type MoneyTransferDto,
@@ -21,12 +19,17 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
-import { wantingRate } from './agreed'
+import { rateLimit, valueLine, wantingRate } from './agreed'
 import { CurrenciesService } from './currencies.service'
 import { LedgerService } from './ledger.service'
 import { mayUse } from './places'
 
 const DOCUMENT = 'money_transfer'
+
+/** What a transfer moves, as the history says it: "1 000 $", or "1 000 $ → 7 250 ¥" where it is an exchange. */
+const moved = (transfer: Pick<MoneyTransfer, 'amount' | 'currency' | 'toAmount' | 'toCurrency'>) =>
+  formatMoney(transfer.amount, transfer.currency) +
+  (transfer.toCurrency === transfer.currency ? '' : ` → ${formatMoney(transfer.toAmount, transfer.toCurrency)}`)
 
 /** Money moves between the places it is kept; a terminal's money goes to the bank by itself, and the ledger's own accounts are not places. */
 const MOVABLE = ['cash', 'safe', 'bank', 'card']
@@ -99,10 +102,6 @@ export class MoneyTransfersService {
     if (!to || !to.isActive || !MOVABLE.includes(to.kind)) {
       fields.toAccountId = 'Hisob topilmadi'
     }
-    if (from && to && !fields.fromAccountId && !fields.toAccountId && from.currency !== to.currency) {
-      // One currency does not become another by being carried: that is an exchange, and has its own document.
-      fields.toAccountId = `Bu hisob boshqa valyutada: ${CURRENCIES[to.currency].name}`
-    }
     const first = Object.values(fields)[0]
     if (!from || !to || first) {
       throw AppError.validation(fields, first)
@@ -119,11 +118,24 @@ export class MoneyTransfersService {
     const today = await this.ledger.today(em, actor.orgId)
     // What is on its way is worth what the day's rates make of it; money nobody can value does not move.
     const book = await this.currencies.book(em, actor, today)
-    const wanting = wantingRate(book, from.currency)
+    const wanting = wantingRate(book, from.currency, to.currency)
     if (wanting) {
       throw AppError.validation({ amount: wanting })
     }
-    const base = worthInBase(input.amount, from.currency, book) as number
+    // Into another currency it is an exchange, and the rate is fixed now: whoever takes it in confirms a sum, not a rate.
+    // What enters is a pair with what leaves, as in a payment: left alone, the day's rate makes it; typed, it was agreed.
+    const worth = valueLine(
+      input.amount,
+      from.currency,
+      to.currency,
+      book,
+      from.currency === to.currency ? null : input.received,
+      await rateLimit(em, actor),
+    )
+    if (typeof worth === 'string') {
+      throw AppError.validation({ received: worth })
+    }
+    const base = worth.cashBase
 
     const number = `PO-${String(await nextNumbers(em, actor.orgId, 'money_transfer')).padStart(6, '0')}`
     const transfer = await em.save(
@@ -137,6 +149,10 @@ export class MoneyTransfersService {
         currency: from.currency,
         amount: input.amount,
         base,
+        toCurrency: to.currency,
+        toAmount: worth.settled,
+        toBase: worth.partnerBase,
+        fx: worth.partnerBase - base,
         fromShiftId: fromShift,
         toShiftId: null,
         sentAt: new Date(),
@@ -161,7 +177,7 @@ export class MoneyTransfersService {
       action: 'money_transfer.send',
       entity: 'money_transfer',
       entityId: transfer.id,
-      summary: `${number}: ${from.name} → ${to.name}, ${formatMoney(input.amount, from.currency)}`,
+      summary: `${number}: ${from.name} → ${to.name}, ${moved(transfer)}`,
     })
     return transfer
   }
@@ -174,15 +190,21 @@ export class MoneyTransfersService {
       const toShift = await this.mayTake(em, actor, transfer, to)
       const today = await this.ledger.today(em, actor.orgId)
       const transit = await this.ledger.systemAccount(em, actor.orgId, 'transit')
-      // It arrives worth what it was sent at: the account for money on its way is left with nothing of it.
+      // It leaves the account for money on its way at what it was sent at, so nothing of it stays there; it enters at
+      // the sum and worth fixed when it was sent, and what an exchange made or cost goes to the exchange difference.
+      const postings = [
+        { accountId: transit.id, amount: -transfer.base, base: -transfer.base },
+        { accountId: to.id, amount: transfer.toAmount, base: transfer.toBase },
+      ]
+      if (transfer.fx) {
+        const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+        postings.push({ accountId: fx.id, amount: -transfer.fx, base: -transfer.fx })
+      }
       await this.ledger.post(
         em,
         actor,
         { date: today, kind: 'money_transfer_receive', documentType: DOCUMENT, documentId: id, shiftId: toShift },
-        [
-          { accountId: transit.id, amount: -transfer.base, base: -transfer.base },
-          { accountId: to.id, amount: transfer.amount, base: transfer.base },
-        ],
+        postings,
       )
       await em.update(MoneyTransfer, id, {
         status: 'received',
@@ -195,7 +217,7 @@ export class MoneyTransfersService {
         action: 'money_transfer.receive',
         entity: 'money_transfer',
         entityId: id,
-        summary: `${transfer.number}: ${to.name}, ${formatMoney(transfer.amount, transfer.currency)}`,
+        summary: `${transfer.number}: ${to.name}, ${moved(transfer)}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts']))
       return (await this.rows(em, actor, [await em.findOneByOrFail(MoneyTransfer, { id })]))[0]
@@ -263,12 +285,13 @@ export class MoneyTransfersService {
 
   /** What a shift's drawers gave out and took in, by currency: transfers refused or taken back moved nothing. */
   async ofShift(em: EntityManager, shiftId: string): Promise<Record<'out' | 'in', Record<CurrencyCode, number>>> {
+    // An exchange leaves a drawer in one currency and enters another in its own.
     const rows: { side: 'out' | 'in'; currency: CurrencyCode; amount: number }[] = await em.query(
       `SELECT 'out' AS side, currency, sum(amount)::float8 AS amount FROM money_transfers
        WHERE from_shift_id = $1 AND status IN ('sent', 'received') GROUP BY currency
        UNION ALL
-       SELECT 'in', currency, sum(amount)::float8 FROM money_transfers
-       WHERE to_shift_id = $1 AND status = 'received' GROUP BY currency`,
+       SELECT 'in', to_currency, sum(to_amount)::float8 FROM money_transfers
+       WHERE to_shift_id = $1 AND status = 'received' GROUP BY to_currency`,
       [shiftId],
     )
     const totals = { out: { UZS: 0, USD: 0 }, in: { UZS: 0, USD: 0 } }
@@ -385,7 +408,7 @@ export class MoneyTransfersService {
       action: status === 'rejected' ? 'money_transfer.reject' : 'money_transfer.cancel',
       entity: 'money_transfer',
       entityId: transfer.id,
-      summary: `${transfer.number}: ${formatMoney(transfer.amount, transfer.currency)}${reason ? `. ${reason}` : ''}`,
+      summary: `${transfer.number}: ${moved(transfer)}${reason ? `. ${reason}` : ''}`,
     })
   }
 
@@ -411,6 +434,9 @@ export class MoneyTransfersService {
         status: transfer.status,
         currency: transfer.currency,
         amount: transfer.amount,
+        toCurrency: transfer.toCurrency,
+        toAmount: transfer.toAmount,
+        fx: transfer.fx,
         fromAccountId: transfer.fromAccountId,
         fromAccountName: accountOf.get(transfer.fromAccountId)?.name ?? '',
         toAccountId: transfer.toAccountId,

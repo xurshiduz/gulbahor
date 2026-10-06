@@ -89,7 +89,7 @@ const useAccounts = (enabled = true) =>
  */
 export function MoneyPage() {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const { tab } = route.useSearch()
   const navigate = route.useNavigate()
   const canManage = can('money.manage')
@@ -203,7 +203,14 @@ export function MoneyPage() {
       {accountForm !== undefined ? (
         <AccountDialog account={accountForm} onClose={() => setAccountForm(undefined)} />
       ) : null}
-      {moving ? <TransferDialog accounts={accounts.data ?? []} onClose={() => setMoving(false)} /> : null}
+      {moving ? (
+        <TransferDialog
+          accounts={accounts.data ?? []}
+          limit={me.org.settings.maxRateLossPercent}
+          setsRates={can('money.rates')}
+          onClose={() => setMoving(false)}
+        />
+      ) : null}
       {spending ? <MoneyOpDialog onClose={() => setSpending(false)} /> : null}
       {categoryForm !== undefined ? (
         <MoneyCategoryDialog category={categoryForm} onClose={() => setCategoryForm(undefined)} />
