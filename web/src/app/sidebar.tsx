@@ -242,7 +242,10 @@ function Section({ group, active, open, onToggle, isActive }: SectionProps & { o
                 aria-current={here ? 'page' : undefined}
                 className={cn('group', ROW, 'h-8 px-2', here ? ACTIVE : IDLE)}
               >
-                <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
+                {/* A name longer than the column is cut; the whole of it shows on hover. */}
+                <span className="min-w-0 flex-1 truncate" title={t(item.label)}>
+                  {t(item.label)}
+                </span>
                 {item.shortcut ? <Shortcut combo={item.shortcut} className="hidden group-hover:inline-flex" /> : null}
               </Link>
             )

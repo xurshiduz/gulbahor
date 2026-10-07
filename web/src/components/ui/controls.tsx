@@ -182,17 +182,19 @@ export function Tabs({
   }, [value])
   return (
     <TabsPrimitive.Root value={value} onValueChange={onChange} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1.5 border-b border-line">
+      {/* The tabs are one control, in a track of their own; the row has no rule under it — the screen's
+          button beside them is not part of what the rule would underline. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
         {/* More tabs than a narrow window has room for are scrolled along, not pushed out of the page. */}
         <TabsPrimitive.List
           ref={listRef}
-          className="-mb-px flex max-w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]"
+          className="flex max-w-full min-w-0 gap-0.5 overflow-x-auto rounded-lg bg-sunken p-0.5 [scrollbar-width:none]"
         >
           {tabs.map((tab) => (
             <TabsPrimitive.Trigger
               key={tab.value}
               value={tab.value}
-              className="h-9 shrink-0 border-b-2 border-transparent px-3 text-[13px] font-medium whitespace-nowrap text-ink-3 transition-colors hover:text-ink focus-visible:-outline-offset-2 data-[state=active]:border-accent data-[state=active]:text-ink"
+              className="h-7.5 shrink-0 rounded-md px-3 text-[13px] font-medium whitespace-nowrap text-ink-2 transition-colors hover:text-ink focus-visible:-outline-offset-2 data-[state=active]:bg-surface data-[state=active]:text-ink data-[state=active]:shadow-card"
             >
               {tab.label}
             </TabsPrimitive.Trigger>
@@ -200,7 +202,7 @@ export function Tabs({
         </TabsPrimitive.List>
         {/* The buttons of the screen, or of the tab in view. */}
         {actionsRef ? (
-          <div ref={actionsRef} className="ml-auto flex flex-wrap items-center gap-2 pb-0.5 empty:hidden" />
+          <div ref={actionsRef} className="ml-auto flex flex-wrap items-center gap-2 empty:hidden" />
         ) : null}
       </div>
       {children}

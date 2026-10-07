@@ -19,14 +19,24 @@ import { DateInput } from '@/components/ui/date-input'
 import { Shortcut } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
-import { ReceivedField, type ExchangeSums } from '@/features/money/exchange'
-import type { ValuedLine } from '@/features/partners/payment-lines'
+import { ReceivedInput, ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
+import { pairSentence, rateText, type ValuedLine } from '@/features/partners/payment-lines'
 import { cn } from '@/lib/cn'
 
 import { changeText, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
-import { TakenFor } from './taken-for'
+import { TakenInput, TakenNote } from './taken-for'
 
 const money = (minor: number, currency: CurrencyCode = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+
+/**
+ * A row of the panel, as a row of the payment window: what is paid with, the sum, and — where the sum is in
+ * another currency than what it pays — the rate and the second sum of the pair. In a panel too narrow for
+ * four columns the second sum goes under the first.
+ */
+const ROW = 'grid grid-cols-[minmax(0,1fr)_11rem] items-center gap-2 @xl:grid-cols-[minmax(0,1fr)_11rem_6.5rem_11rem]'
+const RATE = 'tabular hidden pr-2.5 text-right text-xs text-ink-3 @xl:block'
+/** Says what the second sum is where there is no heading over it. */
+const UNDER = 'text-right text-xs text-ink-3 @xl:hidden'
 
 /** The four ways money changes hands at a till; each has its key. */
 export type TenderKind = 'cash' | 'usd' | 'card' | 'terminal'
@@ -174,6 +184,20 @@ export function TenderPanel({
     latest.current = state
   })
 
+  /** The second sum of the dollars' pair: what they are taken for, and what that makes of the rate. */
+  const takenFor = (row: TenderRow) => ({
+    dollars: row.amount,
+    value: row.value,
+    rate: rate as number,
+    rest: restFor(row),
+    limit: context.maxRateLossPercent,
+    mayAsk: context.approvers.some((approver) => approver.discount),
+    alone: context.mayOverDiscount,
+    onChange: (value: number | null) => onPatch(row.key, { value }),
+  })
+  // Somewhere on the panel a sum has a second one beside it: the columns are named then.
+  const paired = (!!rate && rows.some((row) => row.currency === 'USD')) || !!onAccount?.line
+
   /** Enter and ↓ go on to the next sum, ↑ back to the one before; Enter with nothing left to type ends the sale. */
   const walk = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target
@@ -233,7 +257,7 @@ export function TenderPanel({
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
+    <section className="@container flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
       <div>
         <div className="flex items-baseline justify-between">
           <span className="text-sm font-medium">{refunding ? t('pos.toRefund') : t('pos.toPay')}</span>
@@ -247,6 +271,14 @@ export function TenderPanel({
       </div>
 
       <div ref={sums} className="flex flex-col gap-2 border-t border-line pt-3" onKeyDown={walk}>
+        {paired ? (
+          <div className={cn(ROW, 'hidden text-[11px] font-semibold tracking-[0.04em] text-ink-3 uppercase @xl:grid')}>
+            <span>{t('pos.tenderWay')}</span>
+            <span className="text-right">{refunding ? t('pos.toRefund') : t('pos.tenderGiven')}</span>
+            <span className="text-right">{t('payments.rate')}</span>
+            <span className="text-right">{t('pos.tenderWorth')}</span>
+          </div>
+        ) : null}
         {rows.map((row) => {
           const kind = kindOf(row)
           const cap = returning?.found.caps.accounts.find((item) => item.accountId === row.accountId)
@@ -272,8 +304,8 @@ export function TenderPanel({
               onFocus={() => setWithin(row.key)}
               className="flex flex-col gap-1.5"
             >
-              <div className="flex items-center gap-2">
-                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-ink-2">
+              <div className={ROW}>
+                <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
                   <span className="truncate">
                     {account ? (
                       <>
@@ -310,8 +342,26 @@ export function TenderPanel({
                         ? formatMoney(suggested[row.key], row.currency, { minor: 'auto', symbol: false })
                         : undefined
                   }
-                  className="w-44"
                 />
+                {row.currency === 'USD' && rate ? (
+                  // The pair: the dollars, the day's rate, and what they are taken for in so'm.
+                  <>
+                    <span className={RATE} title={`1 $ = ${money(Math.round(rate * 100))}`}>
+                      {formatMoney(Math.round(rate * 100), 'UZS', { minor: 'auto', symbol: false })}
+                    </span>
+                    <span className={UNDER}>{t('pos.takenFor')}</span>
+                    {refunding ? (
+                      <span className="tabular pr-2.5 text-right text-[13px] text-ink-3">
+                        {row.amount ? money(toBase(row.amount, 'USD', rate)) : ''}
+                      </span>
+                    ) : (
+                      // Enter walks the sums given; what they are taken for is a Tab away.
+                      <div data-enter-skip>
+                        <TakenInput {...takenFor(row)} />
+                      </div>
+                    )}
+                  </>
+                ) : null}
               </div>
               {!refunding && row.method === 'terminal' && (row.amount || within === row.key) ? (
                 <div data-enter-skip className="flex items-center justify-end gap-2">
@@ -320,28 +370,11 @@ export function TenderPanel({
                     value={row.reference}
                     maxLength={12}
                     onChange={(event) => onPatch(row.key, { reference: event.target.value })}
-                    className="font-code w-44"
+                    className="font-code w-[11rem]"
                   />
                 </div>
               ) : null}
-              {row.currency === 'USD' && rate && (row.amount || (!refunding && within === row.key)) ? (
-                refunding ? (
-                  <p className="tabular text-right text-xs text-ink-3">
-                    = {money(toBase(row.amount as number, 'USD', rate))}
-                  </p>
-                ) : (
-                  <TakenFor
-                    dollars={row.amount}
-                    value={row.value}
-                    rate={rate}
-                    rest={restFor(row)}
-                    limit={context.maxRateLossPercent}
-                    mayAsk={context.approvers.some((approver) => approver.discount)}
-                    alone={context.mayOverDiscount}
-                    onChange={(value) => onPatch(row.key, { value })}
-                  />
-                )
-              ) : null}
+              {row.currency === 'USD' && rate && !refunding ? <TakenNote {...takenFor(row)} /> : null}
             </div>
           )
         })}
@@ -403,8 +436,8 @@ export function TenderPanel({
           className="flex flex-col gap-1.5 border-t border-line pt-3"
           onKeyDown={backToMoney}
         >
-          <div className="flex items-center gap-2">
-            <label htmlFor={lendId} className="min-w-0 flex-1 text-[13px] text-ink-2">
+          <div className={ROW}>
+            <label htmlFor={lendId} className="min-w-0 text-[13px] text-ink-2">
               {t('pos.debt')}
               {lend.owed ? (
                 <span className="text-xs text-ink-3"> · {t('pos.debtOwed', { amount: money(lend.owed) })}</span>
@@ -418,17 +451,16 @@ export function TenderPanel({
               currency="UZS"
               fillValue={Math.min(lend.max, (lend.amount ?? 0) + settlement.due)}
               invalid={(lend.amount ?? 0) > lend.max}
-              className="w-44"
             />
+            {lend.amount ? (
+              <>
+                <label htmlFor={dueId} className="text-right text-xs text-ink-3">
+                  {t('pos.debtDue')}
+                </label>
+                <DateInput id={dueId} value={lend.dueDate} onChange={lend.onDueDate} warnPast />
+              </>
+            ) : null}
           </div>
-          {lend.amount ? (
-            <div className="flex items-center justify-end gap-2">
-              <label htmlFor={dueId} className="text-xs text-ink-3">
-                {t('pos.debtDue')}
-              </label>
-              <DateInput id={dueId} value={lend.dueDate} onChange={lend.onDueDate} warnPast className="w-44" />
-            </div>
-          ) : null}
           {lend.amount && lend.warning ? <p className="text-xs text-warn">{lend.warning}</p> : null}
         </div>
       ) : null}
@@ -440,8 +472,8 @@ export function TenderPanel({
           className="flex flex-col gap-1.5 border-t border-line pt-3"
           onKeyDown={backToMoney}
         >
-          <div className="flex items-center gap-2">
-            <label htmlFor={accountId} className="min-w-0 flex-1 truncate text-[13px] text-ink-2">
+          <div className={ROW}>
+            <label htmlFor={accountId} className="min-w-0 truncate text-[13px] text-ink-2">
               {t('pos.onAccount')} · {onAccount.name}
             </label>
             {/* "=" puts on the account whatever the money typed above has not covered. */}
@@ -453,18 +485,39 @@ export function TenderPanel({
               currency="UZS"
               fillValue={Math.min(onAccount.max, (onAccount.sums.amount ?? 0) + settlement.due)}
               invalid={(onAccount.sums.amount ?? 0) > onAccount.max}
-              className="w-44"
             />
+            {onAccount.line ? (
+              // The pair: what goes on the account in the sale's money, the rate, and what the partner's
+              // account takes for it in its own.
+              <>
+                <span
+                  className={RATE}
+                  title={
+                    onAccount.line.pair && onAccount.line.dayRate
+                      ? pairSentence(onAccount.line.pair, onAccount.line.dayRate)
+                      : undefined
+                  }
+                >
+                  {onAccount.line.dayRate ? rateText(onAccount.line.dayRate) : '—'}
+                </span>
+                <span className={UNDER}>{t('pos.onAccountIn', { currency: onAccount.currency })}</span>
+                <ReceivedInput
+                  line={onAccount.line}
+                  sums={onAccount.sums}
+                  toCurrency={onAccount.currency}
+                  onChange={onAccount.onChange}
+                  setsRates={onAccount.setsRates}
+                  label={t('pos.onAccountIn', { currency: onAccount.currency })}
+                />
+              </>
+            ) : null}
           </div>
-          {onAccount.line && onAccount.sums.amount ? (
-            <ReceivedField
+          {onAccount.line ? (
+            <ReceivedNote
               line={onAccount.line}
-              sums={onAccount.sums}
-              toCurrency={onAccount.currency}
-              onChange={onAccount.onChange}
               book={onAccount.book}
               setsRates={onAccount.setsRates}
-              label={t('pos.onAccountIn', { currency: onAccount.currency })}
+              className="text-right"
             />
           ) : null}
           {onAccount.sums.amount && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}

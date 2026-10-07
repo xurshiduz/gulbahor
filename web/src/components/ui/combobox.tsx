@@ -284,7 +284,9 @@ export function Combobox(props: SingleProps | MultiProps) {
               event.preventDefault()
             }
           }}
-          className="z-50 w-(--radix-popover-trigger-width) min-w-52 rounded-lg border border-line bg-surface p-1 shadow-float data-[state=open]:animate-pop-in"
+          // As wide as the field at least, wider when a name and its hint need it — a place's name cut to "So‘m naqd …"
+          // beside its balance could not be told from the next one.
+          className="z-50 w-max max-w-[min(28rem,calc(100vw-2rem))] min-w-[max(13rem,var(--radix-popover-trigger-width))] rounded-lg border border-line bg-surface p-1 shadow-float data-[state=open]:animate-pop-in"
         >
           <div ref={listRef} role="listbox" className="max-h-64 overflow-y-auto">
             {rows.length === 0 ? (

@@ -12,13 +12,14 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowRight, ArrowRightLeft, Check, Undo2, X } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, Check, MoreHorizontal, Undo2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { Combobox } from '@/components/ui/combobox'
+import { Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, EmptyState } from '@/components/ui/feedback'
@@ -93,8 +94,11 @@ export function TransferButtons({ transfer, size = 'sm' }: ActionsProps) {
   if (!transfer.mayReceive && !transfer.mayCancel) {
     return transfer.status === 'sent' ? <span className="text-xs text-ink-3">{t('money.waiting')}</span> : null
   }
+  const takeBack = () => act.mutate({ id: transfer.id, action: 'cancel' })
   return (
     <span className="flex items-center justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
+      {/* One button, the one usually pressed; refusing, and taking back what one sent oneself, wait in the menu
+          beside it — three buttons side by side pushed the table, and the till's narrow column, out sideways. */}
       {transfer.mayReceive ? (
         <>
           <Button
@@ -106,18 +110,29 @@ export function TransferButtons({ transfer, size = 'sm' }: ActionsProps) {
             <Check />
             {t('money.receive')}
           </Button>
-          <Button size={size} disabled={act.isPending} onClick={() => setRefusing(true)}>
-            <X />
-            {t('money.reject')}
-          </Button>
+          <Menu
+            trigger={
+              <Button
+                variant="ghost"
+                size={size === 'sm' ? 'iconSm' : 'icon'}
+                disabled={act.isPending}
+                aria-label={t('common.actions')}
+              >
+                <MoreHorizontal />
+              </Button>
+            }
+            items={[
+              { label: t('money.reject'), icon: <X />, tone: 'danger', onSelect: () => setRefusing(true) },
+              ...(transfer.mayCancel ? [{ label: t('money.takeBack'), icon: <Undo2 />, onSelect: takeBack }] : []),
+            ]}
+          />
         </>
-      ) : null}
-      {transfer.mayCancel ? (
-        <Button size={size} disabled={act.isPending} onClick={() => act.mutate({ id: transfer.id, action: 'cancel' })}>
+      ) : (
+        <Button size={size} disabled={act.isPending} onClick={takeBack}>
           <Undo2 />
           {t('money.takeBack')}
         </Button>
-      ) : null}
+      )}
       {refusing ? (
         <Dialog
           open
@@ -203,7 +218,7 @@ export function TransfersTab() {
       {
         id: 'route',
         header: t('money.transferRoute'),
-        meta: { export: (row) => `${row.fromAccountName} → ${row.toAccountName}` },
+        meta: { export: (row) => `${row.fromAccountName} → ${row.toAccountName}`, className: 'whitespace-nowrap' },
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-1.5">
             {row.original.fromAccountName}
@@ -407,68 +422,72 @@ export function TransferDialog({
       }
     >
       <Form id="transfer-form" onSubmit={submit}>
-        <Field label={t('money.transferFrom')} error={errors.fromAccountId} required>
-          {(id) => (
-            <Combobox
-              id={id}
-              autoFocus
-              options={movable.map(option)}
-              value={fromId}
-              onChange={(value) => {
-                setFromId(value)
-                setToId(null)
-                setSums({ amount: null, received: null })
-              }}
-              invalid={!!errors.fromAccountId}
+        {/* A pair, as in a payment: where the money leaves and what leaves on the left, where it goes and what
+            enters on the right. */}
+        <div className="grid items-start gap-x-3 gap-y-4 sm:grid-cols-2">
+          <Field label={t('money.transferFrom')} error={errors.fromAccountId} required>
+            {(id) => (
+              <Combobox
+                id={id}
+                autoFocus
+                options={movable.map(option)}
+                value={fromId}
+                onChange={(value) => {
+                  setFromId(value)
+                  setToId(null)
+                  setSums({ amount: null, received: null })
+                }}
+                invalid={!!errors.fromAccountId}
+              />
+            )}
+          </Field>
+          <Field label={t('money.transferTo')} error={errors.toAccountId} required>
+            {(id) => (
+              <Combobox
+                id={id}
+                // A place of another currency is offered too: the money is changed on the way.
+                options={movable.filter((account) => account.id !== fromId).map(option)}
+                value={toId}
+                onChange={(value) => {
+                  setToId(value)
+                  setSums((current) => ({ ...current, received: null }))
+                }}
+                invalid={!!errors.toAccountId}
+              />
+            )}
+          </Field>
+          <Field
+            label={
+              line && from ? t('money.exchangeOut', { currency: currencyShort(from.currency, t) }) : t('money.amount')
+            }
+            error={errors.amount}
+            required
+          >
+            {(id) => (
+              <MoneyInput
+                id={id}
+                value={sums.amount}
+                // What leaves is the anchor: typed, what enters follows from the rate afresh.
+                onChange={(amount) => setSums({ amount, received: null })}
+                currency={from?.currency ?? 'UZS'}
+                fillValue={from?.balance ?? undefined}
+                invalid={!!errors.amount}
+              />
+            )}
+          </Field>
+          {line && to ? (
+            <ReceivedField
+              line={line}
+              sums={sums}
+              toCurrency={to.currency}
+              onChange={setSums}
+              book={book}
+              setsRates={setsRates}
+              error={errors.received}
+              className="w-full"
             />
-          )}
-        </Field>
-        <Field label={t('money.transferTo')} error={errors.toAccountId} required>
-          {(id) => (
-            <Combobox
-              id={id}
-              // A place of another currency is offered too: the money is changed on the way.
-              options={movable.filter((account) => account.id !== fromId).map(option)}
-              value={toId}
-              onChange={(value) => {
-                setToId(value)
-                setSums((current) => ({ ...current, received: null }))
-              }}
-              invalid={!!errors.toAccountId}
-            />
-          )}
-        </Field>
-        <Field
-          label={
-            line && from ? t('money.exchangeOut', { currency: currencyShort(from.currency, t) }) : t('money.amount')
-          }
-          error={errors.amount}
-          required
-        >
-          {(id) => (
-            <MoneyInput
-              id={id}
-              value={sums.amount}
-              // What leaves is the anchor: typed, what enters follows from the rate afresh.
-              onChange={(amount) => setSums({ amount, received: null })}
-              currency={from?.currency ?? 'UZS'}
-              fillValue={from?.balance ?? undefined}
-              invalid={!!errors.amount}
-              className="w-48"
-            />
-          )}
-        </Field>
-        {line && to ? (
-          <ReceivedField
-            line={line}
-            sums={sums}
-            toCurrency={to.currency}
-            onChange={setSums}
-            book={book}
-            setsRates={setsRates}
-            error={errors.received}
-          />
-        ) : null}
+          ) : null}
+        </div>
         <Field label={t('receipts.note')}>
           {(id) => <Input id={id} value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} />}
         </Field>

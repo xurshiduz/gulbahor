@@ -35,6 +35,8 @@ export interface MoneyInputProps {
   placeholder?: string
   autoFocus?: boolean
   className?: string
+  /** A name for a field that stands in a row with no label of its own. */
+  'aria-label'?: string
 }
 
 const ERROR_KEYS: Record<AmountError, string> = {
@@ -72,6 +74,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     placeholder,
     autoFocus,
     className,
+    'aria-label': ariaLabel,
   },
   forwardedRef,
 ) {
@@ -93,13 +96,26 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     }
   }
 
+  // The field before this one works a sum out for it as the cursor leaves — after the cursor is already
+  // here, on an empty field with nothing to select. The sum is selected when it comes, as the text found
+  // on arriving is: typed over, it is replaced, not added to.
+  const [arrived, setArrived] = useState(0)
+
   useEffect(() => {
     if (value !== emitted.current) {
       emitted.current = value
       setText(display(value, currency))
       setError(null)
+      // Whether the cursor is here is asked when the text is written, not now: it may still be on its way.
+      setArrived((count) => count + 1)
     }
   }, [value, currency])
+
+  useLayoutEffect(() => {
+    if (arrived && document.activeElement === ref.current) {
+      ref.current?.select()
+    }
+  }, [arrived])
 
   // A new currency changes how the same amount is written.
   useEffect(() => {
@@ -196,6 +212,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
           disabled={disabled}
           placeholder={placeholder ?? '0'}
           aria-invalid={bad || undefined}
+          aria-label={ariaLabel}
           value={text}
           onChange={(event) => handleChange(event.target.value, event.target.selectionStart)}
           onFocus={(event) => {

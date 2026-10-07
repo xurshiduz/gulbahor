@@ -46,7 +46,8 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
         <Primitive.Overlay className="fixed inset-0 z-40 bg-overlay data-[state=open]:animate-fade-in" />
         <Primitive.Content
           className={cn(
-            'fixed top-[8vh] left-1/2 z-40 flex max-h-[84vh] w-[calc(100vw-2rem)] -translate-x-1/2 flex-col',
+            // In the middle of the screen, both ways; the opening animation moves `transform`, not `translate`.
+            'fixed top-1/2 left-1/2 z-40 flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
             'rounded-xl border border-line bg-surface shadow-float outline-none data-[state=open]:animate-pop-in',
             SIZES[size],
           )}
@@ -139,7 +140,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         <Primitive.Portal>
           <Primitive.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-fade-in" />
           <Primitive.Content
-            className="fixed top-[22vh] left-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-line bg-surface p-5 shadow-float outline-none data-[state=open]:animate-pop-in"
+            className="fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-line bg-surface p-5 shadow-float outline-none data-[state=open]:animate-pop-in"
             onInteractOutside={keepOpenForMessages}
             onOpenAutoFocus={(event) => {
               // Enter should confirm, so the confirm button takes the focus.

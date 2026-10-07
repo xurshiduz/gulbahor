@@ -22,6 +22,7 @@ import { exchangeLine, ReceivedField, receivedOf, transferSums } from '@/feature
 import { useRateBook } from '@/features/money/rates'
 import { TransferButtons } from '@/features/money/transfers'
 import { api } from '@/lib/api'
+import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
@@ -87,7 +88,10 @@ interface HandoverFieldsProps {
   changing?: Changing
 }
 
-/** The sums handed over, one field for each currency; to a safe of another currency, a second sum under it. */
+/**
+ * The sums handed over, a row for each currency: what leaves the drawer, the safe it goes to and — to a safe of
+ * another currency — the second sum of the pair beside them, as in a payment.
+ */
 export function HandoverFields({
   safes,
   value,
@@ -103,7 +107,7 @@ export function HandoverFields({
     onChange({ ...value, [currency]: { ...value[currency], ...change } })
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="flex flex-col gap-4">
       {currencies.map((currency, index) => {
         // A safe of the drawer's own currency first; those of another only where money may change on the way.
         const options = [
@@ -115,43 +119,46 @@ export function HandoverFields({
         const line = changing ? handingLine(currency, value[currency], safes, changing) : null
         const to = safes.find((safe) => safe.id === value[currency].toAccountId)
         return (
-          <div key={currency} className="flex flex-col gap-3">
+          <div key={currency} className={cn('grid items-start gap-3', changing ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <Field
               label={currency === 'USD' ? t('pos.handoverUsd') : t('pos.handoverUzs')}
               error={over ? t('pos.handoverOver') : undefined}
             >
               {(id) => (
-                <div className="flex flex-col gap-1.5">
-                  <MoneyInput
-                    id={id}
-                    autoFocus={autoFocus && index === 0}
-                    value={value[currency].amount}
-                    // What leaves is the anchor: typed, what enters follows from the rate afresh.
-                    onChange={(amount) => patch(currency, { amount, received: null })}
-                    currency={currency}
-                    fillValue={limit ?? undefined}
-                    invalid={over}
-                  />
-                  {options.length > 1 ? (
-                    <Select
-                      value={value[currency].toAccountId ?? ''}
-                      onChange={(toAccountId) => patch(currency, { toAccountId, received: null })}
-                      options={options.map((safe) => ({
-                        value: safe.id,
-                        label:
-                          safe.currency === currency
-                            ? safe.name
-                            : `${safe.name} (${CURRENCY_LIST[safe.currency].symbol})`,
-                      }))}
-                    />
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-ink-3">
-                      <ArrowRight className="size-3" />
-                      {options[0]?.name}
-                    </span>
-                  )}
-                </div>
+                <MoneyInput
+                  id={id}
+                  autoFocus={autoFocus && index === 0}
+                  value={value[currency].amount}
+                  // What leaves is the anchor: typed, what enters follows from the rate afresh.
+                  onChange={(amount) => patch(currency, { amount, received: null })}
+                  currency={currency}
+                  fillValue={limit ?? undefined}
+                  invalid={over}
+                />
               )}
+            </Field>
+            <Field label={t('money.transferTo')}>
+              {(id) =>
+                options.length > 1 ? (
+                  <Select
+                    id={id}
+                    value={value[currency].toAccountId ?? ''}
+                    onChange={(toAccountId) => patch(currency, { toAccountId, received: null })}
+                    options={options.map((safe) => ({
+                      value: safe.id,
+                      label:
+                        safe.currency === currency
+                          ? safe.name
+                          : `${safe.name} (${CURRENCY_LIST[safe.currency].symbol})`,
+                    }))}
+                  />
+                ) : (
+                  <span id={id} className="flex h-8.5 items-center gap-1 text-[13px] text-ink-2">
+                    <ArrowRight className="size-3.5 text-ink-3" />
+                    {options[0]?.name}
+                  </span>
+                )
+              }
             </Field>
             {line && to && changing ? (
               <ReceivedField
@@ -161,6 +168,7 @@ export function HandoverFields({
                 onChange={(sums) => patch(currency, sums)}
                 book={changing.book}
                 setsRates={changing.setsRates}
+                className="w-full"
               />
             ) : null}
           </div>
@@ -242,6 +250,7 @@ export function HandoverDialog({
       open
       onClose={onClose}
       title={t('pos.handoverTitle')}
+      size="lg"
       footer={
         <>
           <Button onClick={onClose}>{t('common.cancel')}</Button>

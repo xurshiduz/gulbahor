@@ -1007,7 +1007,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
         .join(' · ')}
     >
       <div
-        className={cn('grid min-h-0 flex-1 gap-4', paying ? 'lg:grid-cols-[1fr_26rem]' : 'lg:grid-cols-[1fr_22rem]')}
+        // While it is paid the receipt is the narrow side, like the slip of paper it will be, and the money
+        // has the room: its sums stand in pairs, as in the payment window.
+        className={cn(
+          'grid min-h-0 flex-1 gap-4',
+          paying ? 'lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]' : 'lg:grid-cols-[1fr_22rem]',
+        )}
       >
         {/* ── The cart; while it is being paid, the receipt it makes ── */}
         {paying ? (
