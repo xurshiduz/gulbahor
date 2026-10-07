@@ -19,6 +19,8 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-06 da foydalanuvchi aytgach yana to'rtta commit qilindi (`58abc6f` PIN'ni o'chirish va parol ko'zi, `47f23ba` savdo hisoboti, `65ed5c7` juft maydon, pul joylari va "Pul holati", `2f50d01` o‘/g‘ imlosi va Ctrl+Q). Shu kuni keyinroq V1 (valyutalar va kurslar), V2 (pul joylari istalgan valyutada) va bulut sessiyasiga tayyorgarlik ham commit qilindi va `v2` GitHub'ga chiqarildi (foydalanuvchi so'rovi: ish bulut sessiyasida davom etadi).
 
+2026-10-08 da foydalanuvchi aytgach bulut sessiyasining `cloud/exchange-partners` branchi (V4, V3) ekranda tekshirilgan UI tuzatishlar bilan birga commit qilindi va `v2` ga qo'shildi (fast-forward). Push qilinmagan.
+
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
 Oxirgi to'liq tekshiruv: 2026-10-06 (bulut, V4 va V3 dan keyin) — core 199, agent 17, server 354, web 204; typecheck va lint toza.
@@ -66,6 +68,13 @@ Ekranda:
 7. **Hamkorlar → hisob-kitob**: "Kassadan sotuv", "Tovar qaytarildi", "Chek bekor qilindi", "Tovar qaytarildi (yetkazib beruvchiga)" qatorlari.
 8. **Sklad → Yetkazib beruvchiga qaytarish**: ro'yxat (yetkazib beruvchi va kirim ustunlari), yangi hujjat (kirim tanlovi, ostida yetkazib beruvchi), tasdiqlash, "… hisobidan qarzimiz kamaydi", bekor qilish. Menyuda yangi band.
 9. Haqiqiy bazada: yuan kirimi + yuan hamkor + qaytarish; dollar kursi o'zgargandan keyin hamkor chekini qaytarish.
+
+### Lokal tekshiruv natijasi (2026-10-07 — 08)
+
+- Branch lokalda: typecheck, lint toza; core 199, agent 17, server 354, web 204 — bulut sonlari bilan bir xil. Beshta migratsiya test bazasida `down` bilan qaytarildi va qayta qo'llandi (deyarli bo'sh bazada).
+- Ekranda (test bazasida namunaviy biznes, alohida server 3101/5191; lokal baza toza qoldi): 1–8 bandlar ko'rildi. O'tkazma 1 000 000 so'm → 79,05 $, 80 $ kelishilganda "… 12 000 so'm foydamizga"; inkassatsiya 500 000 so'm → "Seyf $" 39,53 $; kassada hamkorga sotuv va uning chekidan qaytarish (hisob-kitobda +100 $ / −100 $); yuan kirimidan 5 dona qaytarish YQ-000001 — Yiwu qarzi 600 → 450 ¥, qiymati 261 724 so'm.
+- 9-band (haqiqiy ma'lumotda) qilinmadi: lokal bazada pul harakati yo'q.
+- Ko'rish paytida foydalanuvchi so'rovlari bilan tuzatildi (commit qilinmagan): o'tkazma, inkassatsiya va kassa to'lov paneli juft ustunli ko'rinishga o'tdi (Ctrl+K oynasidagidek); kassada to'lov paytida chek tor, pul qismi keng; modallar ekran o'rtasida; tablar alohida "yo'lak"da, ostidagi chiziq olib tashlandi; Tab bilan kelinganda hisoblangan summa belgilanadi; "yo'lda" turgan o'tkazmada bitta tugma ("Qabul qildim"), qolgani "…" menyusida — jadval va kassa ustuni endi yonga chiqmaydi; tanlov ro'yxati uzun nomlar uchun kengayadi; menyudagi qirqilgan nom ustiga kelganda to'liq ko'rinadi.
 
 ## Ekranda ko'rib chiqildi (2026-10-05, egasi tizimga kirib bergach)
 
