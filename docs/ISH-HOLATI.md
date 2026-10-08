@@ -23,7 +23,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-06 (bulut, V4 va V3 dan keyin) — core 199, agent 17, server 354, web 204; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-08 (V5 dan keyin) — core 209, agent 17, server 369, web 207; typecheck va lint toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -116,6 +116,13 @@ Egasiga aytiladigan (ma'lumotga oid, kod emas):
 - Bugungi dollar kursi kiritilmagan: kassada dollar qatori "kurs yo'q" deb turadi.
 - Sodiqlik pog'onalari hali kiritilmagan (jadval bo'sh).
 
+## V5 ekranda ko'rildi (2026-10-08, test bazasida, alohida server)
+
+- **Tenge asosli biznes** ("Almaty Style", dollar yonida): kassada "Naqd tenge" va "Naqd dollar", ustun "Tengeda", yuqorida "1 $ = 480 ₸"; 12 000 ₸ lik tovar 30 $ bilan sotildi — "30,00 $ = 14 400 ₸", qaytim 2 400 ₸; chekda kurs "1 $ = 480 ₸". "Pul holati": "Tenge naqd", "Dollar naqd", "Tenge naqd (Seyf)", "Hammasi tengeda — kun kursi 480". Sozlamalarda "Qozog'iston tengesi (KZT) — Pul yozuvi bor: endi o'zgarmaydi", qaytim qadami 10 ₸.
+- **Dollar asosli biznes**: kassada bitta "Naqd dollar" qatori, kurs ustuni yo'q; 37,60 $ ga 50 $ — qaytim 12,00 $; chekda "Naqd". Kirim formasida "1 $ = ? dollar" maydoni yo'q (ko'rib chiqishda topildi va tuzatildi; "Narxlar" sahifasidagi kurs maydoni ham).
+- **Birinchi sozlash**: "Hisob valyutasi" maydoni (standart — dollar; dollar tanlansa "Dollar bilan ham ishlaymiz" savoli yashiriladi). Qirg'iz somi tanlab yakunlandi: "Kurslar"da KGS asosiy, dollar qatori kurssiz. Ko'rib chiqishda topildi va tuzatildi: yangi biznesda eski "so'm" kurssiz yoqilgan valyuta bo'lib qolardi — endi eski asosiy valyuta faqat kursi ma'lum bo'lsa yoki unda hisob/hamkor bo'lsa qoladi.
+- **Almashtirish** (pul yozuvi yo'q biznesda): KGS → KZT → USD, tasdiq oynasi matni to'g'ri, qaytim qadami har safar yangi valyutaniki. Ko'rib chiqishda topildi va tuzatildi: almashtirgandan keyin pastdagi biznes formasi eski qadamni ushlab qolardi (saqlansa yangisini bosib ketardi) — endi forma asosiy valyuta bilan qayta ochiladi.
+
 ## Kichik o'zgarishlar (navbatdan tashqari, foydalanuvchi so'rovi bilan)
 
 - 2026-10-05: PIN kod aynan 4 ta raqam, har raqamga alohida katak (`PinInput`): bloklangan ekranda 4-raqam terilishi bilan o'zi tekshiriladi, xato bo'lsa kataklar qizarib silkinadi (telefonda titraydi); kassadagi rahbar tasdig'i va profildagi "Yangi PIN" ham shu kataklarda. **Eski PIN 4 raqamdan uzun bo'lsa, endi terib bo'lmaydi** — parol bilan kirib, Profil → Xavfsizlikda yangisini o'rnatish kerak.
@@ -194,7 +201,12 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] V2. Pul joylari istalgan valyutada.
    - [x] V4. Ayirboshlash: o'tkazmada va kassadan pul olishda juft maydon (foydalanuvchi so'rovi, 2026-10-06); talabi `docs/BULUT-SESSIYA.md`, 4-bo'lim, A. Komissiya keyin.
    - [x] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish; talabi o'sha yerda, B (B1–B5).
-   - [ ] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy va ikkinchi valyuta").
+   - [x] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy valyuta va dollar"); reja, qarorlar va qanday qurilgani — KEYINGI-REJA, 8-bo'lim, "5-bosqich rejasi" va "5-bosqich qanday qurildi". 2026-10-08 da tugadi, commit qilinmagan.
+     - [x] 5a. Asos: bazadagi uchta cheklov, core'dagi kassa, kirim va juft hisob funksiyalari asosiy valyuta bilan.
+     - [x] 5b. Server: har `'UZS'` → biznesning asosiy valyutasi; dollar asosli biznesda dollar roli yo'q; `base-currency.spec.ts`.
+     - [x] 5c. Veb: asosiy valyuta sessiyadan, "so'm" so'zlari valyuta nomi bilan.
+     - [x] 5d. Tanlash: API, qulf, narxlarni o'tkazish, sozlamalar va yangi biznes formasi.
+     - [x] 5e. Tekshiruv: to'liq testlar, ekranda tenge va dollar asosli biznes, hujjatlar.
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
 
@@ -229,3 +241,6 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `be4867c78de6ebbb896d2d917dd1b2b5d9e04354` | V2: hisob istalgan yoqilgan valyutada (naqd, karta, bank); to'lov, xarajat va qarz oynalarida boshqa valyutadagi qator; zanjirli kurs bilan baholash; "Pul holati"da har valyuta; kurs tarixi ekrandan olib turildi; hisob turi "Naqd" |
 | `71a6070098fa2009c7795775a94ecc3cd6916fc9` | V4: ayirboshlash — o'tkazmada va inkassatsiyada juft maydon, kurs yuborilganda qotadi |
 | `a3386593c172ac0a2253f16d7f3551a9446656c4` | V3 (B1–B5): hamkor istalgan valyutada, kirim qarzi o'z valyutasida, kassadan hamkorga sotuv, hamkorga narx turi, yetkazib beruvchiga qaytarish |
+| `213c32050b2a27b5e065a92282c55c6917cadfc3` | V5 5a–5c: asosiy valyuta core, server va vebda (kassa, kirim, narx, smena, hisobot, so'zlar); tenge va dollar asosli biznes testlari |
+| `af876161ed0b702d6f73d1d2a352d1cd68ff03a4` | V5 5d: asosiy valyutani tanlash — /currencies/base (qulf, narx va sozlamalarni o'tkazish, rebase), Sozlamalar → Biznes kartasi, birinchi sozlashda tanlov |
+| `f8a7080312893e871922f90c32be17741da9ea42` | V5 5e: ekranda tenge, dollar va qirg'iz somi asosli biznes, almashtirish; topilgan uchta kamchilik tuzatildi; hujjatlar |
