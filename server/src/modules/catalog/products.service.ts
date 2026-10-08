@@ -1,6 +1,5 @@
 import {
   formatMoney,
-  tillCurrencies,
   internalBarcode,
   normalizeEpc,
   variantLabel,
@@ -34,6 +33,7 @@ import {
 } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
+import { PRICE_CURRENCY, pricedIn } from '../money/base'
 import { RealtimeService } from '../realtime/realtime.service'
 import { nextNumbers } from './counters'
 import { ProductImagesService } from './product-images.service'
@@ -917,9 +917,8 @@ export class ProductsService {
       })
     }
 
-    // Prices are what the till sells at: in the base, or in dollars beside it.
-    if (wanted.some((item) => !tillCurrencies(actor.base).includes(item.currency))) {
-      throw AppError.validation({ prices: 'Narx asosiy valyuta yoki dollarda bo‘ladi' })
+    if (wanted.some((item) => !pricedIn(item.currency, actor))) {
+      throw AppError.validation({ prices: PRICE_CURRENCY })
     }
     for (const item of wanted) {
       const existing = current.find((price) => price.priceTypeId === item.priceTypeId)

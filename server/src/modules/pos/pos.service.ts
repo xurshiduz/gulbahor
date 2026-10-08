@@ -2,10 +2,10 @@ import {
   DEFAULT_ORG_SETTINGS,
   normalizeEpc,
   tillCurrencies,
-  type AnyCurrency,
   type PosContextDto,
   type PosItemDto,
   type PosPartnerDto,
+  type RateBook,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
@@ -19,6 +19,7 @@ import { takesDollars } from '../money/base'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { servesShop } from '../money/places'
+import { bookToday } from '../money/rate-book'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
 import { priceTypeNames } from '../partners/partners.service'
@@ -172,7 +173,7 @@ export class PosService {
         em,
         { search: q, limit: 20 },
         register.locationId,
-        await this.rateNow(em, actor),
+        await this.rateNow(em),
         priceTypeId,
         await this.running(em, actor, register, promoCode),
       )
@@ -193,7 +194,7 @@ export class PosService {
         em,
         { ids: [...new Set(variantIds)] },
         register.locationId,
-        await this.rateNow(em, actor),
+        await this.rateNow(em),
         priceTypeId,
         await this.running(em, actor, register, promoCode),
       )
@@ -248,7 +249,7 @@ export class PosService {
             em,
             { ids: [variantId] },
             register.locationId,
-            await this.rateNow(em, actor),
+            await this.rateNow(em),
             priceTypeId,
             await this.running(em, actor, register, promoCode),
           )
@@ -260,13 +261,9 @@ export class PosService {
     })
   }
 
-  /** The base, and the dollar's rate in it where the business takes dollars: what the till's prices are shown by. */
-  private async rateNow(em: EntityManager, actor: Actor): Promise<{ base: AnyCurrency; uzsPerUsd: number | null }> {
-    if (!takesDollars(actor)) {
-      return { base: actor.base, uzsPerUsd: null }
-    }
-    const rate = await this.ledger.rate(em, await this.ledger.today(em, actor.orgId))
-    return { base: actor.base, uzsPerUsd: rate?.uzsPerUsd ?? null }
+  /** Today's rates: what the till's prices in other currencies are shown by. */
+  private async rateNow(em: EntityManager): Promise<RateBook> {
+    return bookToday(em)
   }
 
   /** The till a person is working at, when they may work there. */

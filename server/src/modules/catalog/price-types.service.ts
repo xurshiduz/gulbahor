@@ -1,4 +1,4 @@
-import { tillCurrencies, type AnyCurrency, type PriceTypeDto, type PriceTypeInput } from '@erp/core'
+import type { PriceTypeDto, PriceTypeInput } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
@@ -7,6 +7,7 @@ import { Db } from '../../database/db.service'
 import { Price, PriceType } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
+import { PRICE_CURRENCY, pricedIn } from '../money/base'
 import { RealtimeService } from '../realtime/realtime.service'
 
 /**
@@ -31,7 +32,7 @@ export class PriceTypesService {
 
   async create(actor: Actor, input: PriceTypeInput): Promise<PriceTypeDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      await this.assertValid(em, input, actor.base)
+      await this.assertValid(em, input, actor)
       const [{ next }] = await em.query(`SELECT coalesce(max(sort_order), 0) + 1 AS next FROM price_types`)
       const saved = await em.save(
         em.create(PriceType, {
@@ -64,7 +65,7 @@ export class PriceTypesService {
       if (before.kind === 'retail' && input.kind !== 'retail') {
         throw AppError.validation({ kind: 'Chakana narx turi doim bo‘lishi kerak' })
       }
-      await this.assertValid(em, input, actor.base, id)
+      await this.assertValid(em, input, actor, id)
       await em.update(PriceType, id, {
         name: input.name,
         kind: input.kind,
@@ -145,7 +146,12 @@ export class PriceTypesService {
     return type
   }
 
-  private async assertValid(em: EntityManager, input: PriceTypeInput, base: AnyCurrency, exceptId?: string) {
+  private async assertValid(
+    em: EntityManager,
+    input: PriceTypeInput,
+    actor: Pick<Actor, 'base' | 'currencies'>,
+    exceptId?: string,
+  ) {
     const others = await em
       .createQueryBuilder(PriceType, 't')
       .where(exceptId ? 't.id <> :exceptId' : '1 = 1', { exceptId })
@@ -157,9 +163,8 @@ export class PriceTypesService {
     if ((input.kind === 'retail' || input.kind === 'min') && others.some((other) => other.kind === input.kind)) {
       fields.kind = input.kind === 'retail' ? 'Chakana narx turi bitta bo‘ladi' : 'Minimal narx turi bitta bo‘ladi'
     }
-    // Prices are what the till sells at: in the base, or in dollars beside it.
-    if (!tillCurrencies(base).includes(input.currency)) {
-      fields.currency = 'Narx asosiy valyuta yoki dollarda bo‘ladi'
+    if (!pricedIn(input.currency, actor)) {
+      fields.currency = PRICE_CURRENCY
     }
     if (Object.keys(fields).length) {
       throw AppError.validation(fields)

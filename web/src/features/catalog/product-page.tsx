@@ -10,6 +10,7 @@ import {
   type AttributeDto,
   type BrandDto,
   type CategoryDto,
+  type CurrencyCode,
   type Gender,
   type PriceTypeDto,
   type ProductDto,
@@ -36,6 +37,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
@@ -173,7 +175,8 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
   const canManage = can('products.manage')
   const canPrice = can('products.prices')
   const canReference = can('products.references')
-  const canUseUsd = me.org.currencies.includes('USD')
+  // A price may be in the base or any currency the business has.
+  const priceCurrencies: CurrencyCode[] = [base(), ...me.org.currencies]
 
   // A draft is only good while the lists it was built from are still there.
   const draft = useMemo(() => {
@@ -604,7 +607,10 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                             value={price.amount}
                             onChange={(amount) => setPrice({ ...price, amount })}
                             currency={price.currency}
-                            onCurrencyChange={canUseUsd ? (currency) => setPrice({ ...price, currency }) : undefined}
+                            currencies={priceCurrencies}
+                            onCurrencyChange={
+                              priceCurrencies.length > 1 ? (currency) => setPrice({ ...price, currency }) : undefined
+                            }
                             disabled={!canPrice}
                           />
                         )}
@@ -658,7 +664,7 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                   priceTypes={activePriceTypes}
                   modelPrices={prices}
                   canPrice={canPrice}
-                  canUseUsd={canUseUsd}
+                  priceCurrencies={priceCurrencies}
                   errors={variantErrors}
                 />
               </Disclosure>

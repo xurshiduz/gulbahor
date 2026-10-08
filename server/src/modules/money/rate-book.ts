@@ -33,6 +33,19 @@ export function bookFrom(base: AnyCurrency, rates: Map<AnyCurrency, CurrencyRate
   return book
 }
 
+/** The business's day, in its own time zone. */
+export async function businessToday(em: EntityManager): Promise<string> {
+  const [row]: { day: string }[] = await em.query(
+    `SELECT (now() AT TIME ZONE timezone)::date::text AS day FROM organizations WHERE id = current_setting('app.org_id')::uuid`,
+  )
+  return row.day
+}
+
+/** Today's rates: what a price in another currency is worth in the base right now. */
+export async function bookToday(em: EntityManager): Promise<RateBook> {
+  return bookFrom(await baseOf(em), await ratesInForce(em, await businessToday(em)))
+}
+
 /** The base of the business whose transaction this is. */
 export async function baseOf(em: EntityManager): Promise<AnyCurrency> {
   const [row]: { base: AnyCurrency }[] = await em.query(

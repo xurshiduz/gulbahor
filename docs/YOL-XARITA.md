@@ -46,6 +46,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 | 17 | V5. Asosiy valyutani tanlash | Pul | 10 | M2 | tayyor (2026-10-08; foydalanuvchi so'rovi bilan M2 dan oldin) |
 | 18 | P2–P5. Superadmin, loglar, Telegram, deploy | Platforma | 8 | — | foydalanuvchi bilan |
 | 19 | V9. Hamma valyuta teng (dollarning alohida o'rni yo'q) | Pul | 11–12 | — | boshlandi (2026-10-08, egasi so'radi; M1 dan oldin) |
+| 20 | T1. To'rt til: o'zbek (lotin va kirill), rus, ingliz | Platforma | 5 (+3 server xabarlari) | — | egasi so'radi (2026-10-08); V9 dan keyin |
 
 Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz birlashuvi (u kassa, otlojka va hisobotlarga asos), keyin pul va sklad mayda paketlari, eng oxirida katta va kam so'ralgan ishlar. Jami ~80 kun.
 
@@ -58,6 +59,15 @@ Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz bir
 - **Nima quriladi:** `users.extra_permissions text[]`; xodim formasida "Qo'shimcha ruxsatlar" — rol bergan ruxsatlar belgilangan va o'chiq, qolganlari qo'shiladi; xohlasa "Rolga qo'shish". Ruxsatlar rol + qo'shimcha birlashmasi; rahbar tasdig'i ro'yxati (`approvals.service.ts` dagi `PERMISSIONS`) ham shuni o'qiydi. O'zgarishdan keyin `ActorService.invalidate()`, tarixga yoziladi.
 - **Qayerda:** `server/src/modules/auth/actor.service.ts`, `users` moduli, `approvals.service.ts`, `web/src/features/users`.
 - **Tayyor degani:** spec: rolsiz ruxsat ishlaydi, olib tashlansa darhol yo'qoladi, tasdiqlovchilar ro'yxatida chiqadi; boshqa biznesga ta'sir yo'q.
+
+#### T1. To'rt til — ~5 kun (+3 kun server xabarlari)
+- **Nima uchun:** egasi (2026-10-08): interfeys to'rt tilda — `uz` (o'zbek, lotin), o'zbek kirill (egasi "uzb" dedi; kodda `uz-Cyrl`), `ru`, `en`.
+- **Nima quriladi:**
+  - **T1a. Asos (~1,5 kun):** `LANGUAGES` = uz, uz-Cyrl, ru, en (core, foydalanuvchi sozlamasi, kirish oynasi va profilda tanlash, `html lang`, sana va son formati tilga qarab). **Kirill — lotindan avtomatik** (`lib/cyrillic.ts`: o‘→ў, g‘→ғ, sh→ш, ch→ч, ye/yo/yu/ya, tutuq → ъ, so'z boshidagi e → э; `{{…}}`, kodlar, qisqartmalar — RFID, PIN, Excel, Humo — tegilmaydi): lug'at ham, server xabarlari ham ekranda o'giriladi, alohida kirill lug'at yuritilmaydi.
+  - **T1b. Core'dagi o'zbekcha yorliqlar lug'atga (~1,5 kun):** fasl, joy turi, modul, ruxsat va rol nomlari, to'lov usuli, birlik, hisob turi va boshqalar — hozir rus tilida ham o'zbekcha chiqadi.
+  - **T1c. Ingliz lug'ati (~2 kun):** `en.ts` — hamma kalit; `check_i18n.py` to'rtta lug'atni solishtiradi.
+  - **T1d. Server xabarlari (~3 kun, keyin):** hozir faqat o'zbekcha; xato `code` + parametrlar bilan keladi, matnni ekran tanlangan tilda yozadi. Ungacha rus va ingliz tilida server xabari o'zbekcha (kirillda — o'girilgan).
+- **Tayyor degani:** to'rt tilda har ekran; kirill o'girish testlari; `check_i18n` to'rtta lug'at bilan.
 
 #### P2–P5 — foydalanuvchi bilan (KEYINGI-REJA 13b, 12)
 - P2. Superadmin va ko'p biznes (biznes yaratish, tarif) — ~3 kun.

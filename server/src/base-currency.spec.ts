@@ -115,13 +115,13 @@ describe('A base other than the so’m', () => {
       expect(me.org.settings.changeRoundStep).toBe(minor(10))
     })
 
-    it('prices in tenge or dollars, and in nothing else', async () => {
+    it('prices in tenge or the currencies it switched on, and in nothing else', async () => {
       const type = (
         await gamma.agent
           .post('/api/price-types')
           .send({ name: 'So‘mda', kind: 'other', currency: 'UZS', roundStep: 0, roundEnding: 0 })
       ).body
-      expect(type.error.fields.currency).toBe('Narx asosiy valyuta yoki dollarda bo‘ladi')
+      expect(type.error.fields.currency).toBe('Narx asosiy valyuta yoki yoqilgan valyutada bo‘ladi')
       const product = await gamma.agent.post('/api/products').send({
         name: 'Sharf',
         axisIds: [],
@@ -129,7 +129,7 @@ describe('A base other than the so’m', () => {
         prices: [{ priceTypeId: gamma.retail.id, amount: minor(150_000), currency: 'UZS' }],
       })
       expect(product.status).toBe(400)
-      expect(product.body.error.fields.prices).toBe('Narx asosiy valyuta yoki dollarda bo‘ladi')
+      expect(product.body.error.fields.prices).toBe('Narx asosiy valyuta yoki yoqilgan valyutada bo‘ladi')
     })
 
     it('buys in yuan and costs the goods in tenge and dollars', async () => {

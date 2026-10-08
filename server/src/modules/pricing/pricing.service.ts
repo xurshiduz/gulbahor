@@ -1,4 +1,6 @@
 import {
+  DOLLAR,
+  exchange,
   formatMoney,
   NO_ROUNDING,
   pickMarkup,
@@ -35,6 +37,7 @@ import { Brand, Category, PriceRevision, PriceRule, PriceRuleMarkup, PriceType, 
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
+import { bookToday } from '../money/rate-book'
 import { RealtimeService } from '../realtime/realtime.service'
 
 const SORTABLE = { name: 'p.name', sku: 'p.sku' }
@@ -181,6 +184,8 @@ export class PricingService {
 
       const rate = operation.kind === 'markup' && type.currency === actor.base ? operation.uzsRate : null
       const costs = await this.unitCosts(em, ids, rate, actor.base)
+      // A price in another currency is marked up on the cost in it, at today's rates.
+      const book = type.currency === actor.base || type.currency === DOLLAR ? null : await bookToday(em)
       const rows = await this.prices(em, ids)
       const priceOf = (productId: string, priceTypeId: string | undefined) =>
         rows.find(
@@ -200,7 +205,14 @@ export class PricingService {
       for (const subject of subjects) {
         const old = priceOf(subject.id, type.id)
         const cost = costs.get(subject.id)
-        const unitCost = (type.currency === actor.base ? cost?.uzs : cost?.usd) ?? null
+        const unitCost =
+          (type.currency === actor.base
+            ? cost?.uzs
+            : type.currency === DOLLAR
+              ? cost?.usd
+              : cost?.uzs != null && book
+                ? exchange(cost.uzs, actor.base, type.currency, book)
+                : null) ?? null
         const worked = this.work(operation, {
           old,
           unitCost,

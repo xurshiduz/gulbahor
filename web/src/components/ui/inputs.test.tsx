@@ -40,6 +40,34 @@ function Money({
 }
 
 describe('MoneyInput', () => {
+  it('goes round the currencies it is given, and takes only those when one is typed', async () => {
+    function Priced() {
+      const [value, setValue] = useState<number | null>(null)
+      const [currency, setCurrency] = useState<CurrencyCode>('UZS')
+      return (
+        <MoneyInput
+          value={value}
+          currency={currency}
+          currencies={['UZS', 'USD', 'CNY']}
+          onCurrencyChange={setCurrency}
+          onChange={setValue}
+        />
+      )
+    }
+    render(<Priced />)
+    const button = screen.getByRole('button')
+    expect(button.textContent).toBe('so‘m')
+    await userEvent.click(button)
+    expect(button.textContent).toBe('$')
+    await userEvent.click(button)
+    expect(button.textContent).toBe('¥')
+    await userEvent.click(button)
+    expect(button.textContent).toBe('so‘m')
+    // A currency the field was not given is not switched to.
+    await userEvent.type(screen.getByRole('textbox'), '100€{Enter}')
+    expect(button.textContent).toBe('so‘m')
+  })
+
   it('groups thousands while typing and reports minor units', async () => {
     const onValue = vi.fn()
     render(<Money onValue={onValue} />)

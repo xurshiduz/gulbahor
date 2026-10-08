@@ -348,7 +348,8 @@ interface DetailsProps {
   /** The model's own prices, shown where a variant has none of its own. */
   modelPrices: PriceDrafts
   canPrice: boolean
-  canUseUsd: boolean
+  /** What a price may be in: the base and the currencies the business has. */
+  priceCurrencies: CurrencyCode[]
   errors: VariantErrors
 }
 
@@ -365,7 +366,7 @@ export function VariantDetails({
   priceTypes,
   modelPrices,
   canPrice,
-  canUseUsd,
+  priceCurrencies,
   errors,
 }: DetailsProps) {
   const { t } = useTranslation()
@@ -407,7 +408,7 @@ export function VariantDetails({
               priceTypes={priceTypes}
               modelPrices={modelPrices}
               canPrice={canPrice}
-              canUseUsd={canUseUsd}
+              priceCurrencies={priceCurrencies}
               error={errors[key]}
             />
           ))}
@@ -417,7 +418,10 @@ export function VariantDetails({
   )
 }
 
-interface RowProps extends Pick<DetailsProps, 'onPatch' | 'priceTypes' | 'modelPrices' | 'canPrice' | 'canUseUsd'> {
+interface RowProps extends Pick<
+  DetailsProps,
+  'onPatch' | 'priceTypes' | 'modelPrices' | 'canPrice' | 'priceCurrencies'
+> {
   variantKey: string
   draft: VariantDraft
   values: Map<string, AttributeValueDto>
@@ -433,7 +437,7 @@ const VariantRow = memo(function VariantRow({
   priceTypes,
   modelPrices,
   canPrice,
-  canUseUsd,
+  priceCurrencies,
   error,
 }: RowProps) {
   const { t } = useTranslation()
@@ -489,7 +493,10 @@ const VariantRow = memo(function VariantRow({
                   value={own?.amount ?? null}
                   onChange={(amount) => setPrice(amount, currency)}
                   currency={currency}
-                  onCurrencyChange={canUseUsd ? (next) => setPrice(own?.amount ?? null, next) : undefined}
+                  currencies={priceCurrencies}
+                  onCurrencyChange={
+                    priceCurrencies.length > 1 ? (next) => setPrice(own?.amount ?? null, next) : undefined
+                  }
                   placeholder={inherited?.amount != null ? t('products.asModel') : '0'}
                 />
               </td>

@@ -198,7 +198,7 @@ export class SalesService {
       em,
       { ids: [...new Set(input.lines.map((line) => line.variantId))] },
       register.locationId,
-      { base, uzsPerUsd: rate },
+      await this.currencies.book(em, actor, today),
       priceType?.id ?? null,
       running,
     )

@@ -261,7 +261,7 @@ export const priceTypeInputSchema = z
   .object({
     name: requiredText(60),
     kind: z.enum(PRICE_KINDS),
-    /** The base or the dollar (`tillCurrencies`): the server, which knows the base, refuses any other. */
+    /** The base or a currency the business has switched on: the server, which knows them, refuses any other. */
     currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]),
     /** Prices worked out by rule move in steps of this (minor units); 0 leaves them as worked out. */
     roundStep: z.number().int().min(0).max(1_000_000_000_00).default(0),

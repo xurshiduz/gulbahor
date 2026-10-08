@@ -532,6 +532,14 @@ Egasi (2026-10-08): dollarning alohida o'rni eskirgan qoida. Shu bo'lim yuqorida
 - **Kassa hali "asosiy + dollar"** (9d gacha): `LedgerService.rate` dollarning qiymatini kitobdan hisoblab, tiyingacha yaxlitlab beradi (dollar boshqa valyutaga bog'lansa ham).
 - **Testlar**: `currencies.spec.ts` (yangi standart, dollar menyusi va o'chirib qo'yish, `CURRENCY_PRICED`), `base-currency.spec.ts` (sessiyadagi valyutalar, kurs qaytib o'tishda yozilgan son bilan), core'da `usualRateForm`, `rateFormChoices`, yangi `rebase`; vebda dollar menyusi.
 
+### 9b qanday qurildi (2026-10-08)
+
+- **Narx istalgan yoqilgan valyutada**: narx turi va narx — asosiy valyuta yoki biznes yoqqan valyuta (`money/base.ts` dagi `pricedIn`, xabar `PRICE_CURRENCY`: "Narx asosiy valyuta yoki yoqilgan valyutada bo'ladi"). Narx turidagi valyuta o'chirib qo'yilmaydi (`CURRENCY_PRICED`, 9a).
+- **Kassa** narxni bugungi kurslar kitobi bilan asosiy valyutaga o'giradi (`pos/items.ts` dagi `sellables(..., book)`, `worthInBase`; `money/rate-book.ts` dagi `bookToday`); kursi yo'q valyutadagi narx kassada yo'q (`null`). Sotuvda server xuddi shu kitobni oladi — kurs orada o'zgargan bo'lsa `PRICE_CHANGED`.
+- **Ustama (reprice markup)**: asosiy valyutadagi narx turi — tannarx asosiy valyutada (dollar bilan "bugungi kursda" qayta baholash ham), dollardagi — dollar tannarx, boshqa valyutadagi — asosiy valyutadagi tannarx bugungi kursda shu valyutaga o'girilib (`exchange`).
+- **Ekran**: narx turida valyuta — asosiy va yoqilgan valyutalar; tovar va variant narxida `MoneyInput` ning valyuta tugmasi `currencies` ro'yxati bo'ylab aylanadi ("100$" kabi yozilgani ham faqat ro'yxatdagisiga o'tadi).
+- **Testlar**: `price-currencies.spec.ts` (yuandagi narx turi, dollardagi narx, kursi yo'q lira, kurs o'zgarsa `PRICE_CHANGED`, yuandagi ustama, `CURRENCY_PRICED`), vebda `MoneyInput` valyutalar bo'ylab.
+
 ### Kurs sozlamasi (alohida sahifa)
 
 - Bugungi kurslar jadvali: har yoqilgan valyuta uchun bitta son; yonida kechagi va o'zgarish foizi.

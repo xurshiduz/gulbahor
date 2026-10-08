@@ -8,7 +8,6 @@ import {
   TILL_ACCESS,
   TILL_ACCESS_LABELS,
   TILL_PRICE_KINDS,
-  tillCurrencies,
   type CurrencyCode,
   type PriceKind,
   type PriceTypeDto,
@@ -365,7 +364,7 @@ function PriceTypeDialog({
             ) : null}
           </>
         ) : null}
-        {me.org.currencies.includes('USD') || type?.currency === 'USD' ? (
+        {me.org.currencies.length || (type && type.currency !== base()) ? (
           <Field label={t('references.currency')} hint={t('references.currencyHint')} error={errors.currency?.message}>
             {(id) => (
               <Controller
@@ -376,7 +375,12 @@ function PriceTypeDialog({
                     id={id}
                     value={field.value}
                     onChange={field.onChange}
-                    options={tillCurrencies(base()).map((code) => ({ value: code, label: CURRENCIES[code].symbol }))}
+                    options={[...new Set([base(), ...me.org.currencies, ...(type ? [type.currency] : [])])].map(
+                      (code) => ({
+                        value: code,
+                        label: `${CURRENCIES[code].symbol} · ${code}`,
+                      }),
+                    )}
                   />
                 )}
               />

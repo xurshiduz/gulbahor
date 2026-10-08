@@ -24,7 +24,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-08, P1 dan keyin: core 209, web 209, agent 17, server 374 (31 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-08, 9a dan keyin: core 208, web 214, agent 17, server 375 (31 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -209,12 +209,13 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 5d. Tanlash: API, qulf, narxlarni o'tkazish, sozlamalar va yangi biznes formasi.
      - [x] 5e. Tekshiruv: to'liq testlar, ekranda tenge va dollar asosli biznes, hujjatlar.
    - [ ] V9. Hamma valyuta teng: dollarning alohida o'rni yo'q (egasi, 2026-10-08); reja — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
-     - [ ] 9a. Valyutalar va kurslar: dollar oddiy valyuta, `usd` moduli va `exchange_rates` yo'q, kurs istalgan valyutaga nisbatan, yangi biznes so'm bilan.
+     - [x] 9a. Valyutalar va kurslar: dollar oddiy valyuta, `usd` moduli va `exchange_rates` yo'q, kurs istalgan valyutaga nisbatan, yangi biznes so'm bilan.
      - [ ] 9b. Narx istalgan yoqilgan valyutada.
      - [ ] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
      - [ ] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
      - [ ] 9e. Smena va inkassatsiya: har tortma sanog'i.
      - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
+   - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
 
@@ -234,7 +235,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-V9 / 9a: dollar oddiy valyuta — kurslar, ro'yxat, modul yo'q, yangi biznes so'm bilan.
+V9 / 9b: narx istalgan yoqilgan valyutada.
 
 ## Ish daraxti nusxalari
 
@@ -256,3 +257,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `af876161ed0b702d6f73d1d2a352d1cd68ff03a4` | V5 5d: asosiy valyutani tanlash — /currencies/base (qulf, narx va sozlamalarni o'tkazish, rebase), Sozlamalar → Biznes kartasi, birinchi sozlashda tanlov |
 | `f8a7080312893e871922f90c32be17741da9ea42` | V5 5e: ekranda tenge, dollar va qirg'iz somi asosli biznes, almashtirish; topilgan uchta kamchilik tuzatildi; hujjatlar |
 | `61468d60cf6df40df75852b17e5297edda5448f8` | P1: xodimga rolidan tashqari qo'shimcha ruxsat (users.extra_permissions, USER_PERMISSIONS, ESCALATION; formada yig'iladigan bo'lim, ro'yxatda "+N ruxsat") |
+| `c1015db1b48825e679f0f8aa912d72d92ba144ea` | V9 / 9a: dollar oddiy valyuta (org_currencies, currency_rates; usd moduli va exchange_rates yo'q), Actor.currencies, kurs asosiyda va istalgan valyutaga nisbatan, CURRENCY_PRICED, yangi biznes so'm bilan |

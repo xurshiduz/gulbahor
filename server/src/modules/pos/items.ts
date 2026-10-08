@@ -1,13 +1,12 @@
 import {
   imageUrl,
-  isDollar,
-  toBase,
   UNIT_INFO,
   variantLabel,
-  type AnyCurrency,
+  worthInBase,
   type CurrencyCode,
   type ImageFormat,
   type PosItemDto,
+  type RateBook,
   type Unit,
 } from '@erp/core'
 import type { EntityManager } from 'typeorm'
@@ -95,8 +94,8 @@ export async function sellables(
   em: EntityManager,
   what: { ids: string[] } | { search: string; limit: number },
   locationId: string,
-  /** Prices are in the base or in dollars; a dollar price is shown in the base at the day's rate. */
-  money: { base: AnyCurrency; uzsPerUsd: number | null },
+  /** Today's rates: a price in another currency is shown in the base at them, or not at all while one is wanting. */
+  book: RateBook,
   priceTypeId: string | null = null,
   running: RunningPromotions | null = null,
 ): Promise<PosItemDto[]> {
@@ -142,15 +141,12 @@ export async function sellables(
       .setParameter('exact', what.search.trim())
   }
 
-  const { base, uzsPerUsd } = money
   const inSom = (priced: Priced | null): number | null =>
     !priced
       ? null
-      : priced.currency === base
+      : priced.currency === book.base
         ? Number(priced.amount)
-        : isDollar(priced.currency, base) && uzsPerUsd
-          ? toBase(Number(priced.amount), priced.currency, uzsPerUsd, base)
-          : null
+        : worthInBase(Number(priced.amount), priced.currency, book)
 
   const rows: Row[] = await qb.getRawMany()
   return rows.map((row) => {

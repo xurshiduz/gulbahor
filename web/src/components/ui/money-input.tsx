@@ -1,11 +1,4 @@
-import {
-  CURRENCIES,
-  formatMoney,
-  parseAmount,
-  type AmountError,
-  type AnyCurrency,
-  type CurrencyCode,
-} from '@erp/core'
+import { CURRENCIES, formatMoney, parseAmount, type AmountError, type AnyCurrency, type CurrencyCode } from '@erp/core'
 import {
   forwardRef,
   useEffect,
@@ -25,10 +18,12 @@ export interface MoneyInputProps {
   /** Minor units: tiyin or cents. */
   value: number | null
   onChange: (value: number | null) => void
-  /** Any currency can be shown; only so'm and dollars can be switched between. */
+  /** Any currency can be shown. */
   currency?: AnyCurrency
-  /** When given, typing "100$" or "100 so'm" switches the currency. */
+  /** When given, typing "100$" or "100 so'm" switches the currency, and so does its button. */
   onCurrencyChange?: (currency: CurrencyCode) => void
+  /** What it may be switched between, in order; the base and dollars unless said. */
+  currencies?: CurrencyCode[]
   /** What "=" fills in: usually the amount still to be paid. */
   fillValue?: number
   invalid?: boolean
@@ -69,6 +64,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     onChange,
     currency = base(),
     onCurrencyChange,
+    currencies,
     fillValue,
     invalid,
     disabled,
@@ -79,6 +75,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
   },
   forwardedRef,
 ) {
+  const switchable = (): CurrencyCode[] => currencies ?? [base(), 'USD']
   const { t } = useTranslation()
   const ref = useRef<HTMLInputElement>(null)
   useImperativeHandle(forwardedRef, () => ref.current as HTMLInputElement)
@@ -146,7 +143,10 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     }
     setError(null)
     // "100$" typed into a so'm field switches it to dollars, where the field can be switched at all.
-    const typed = result.currency && result.currency !== currency && onCurrencyChange ? result.currency : null
+    const typed =
+      result.currency && result.currency !== currency && onCurrencyChange && switchable().includes(result.currency)
+        ? result.currency
+        : null
     if (typed) {
       onCurrencyChange?.(typed)
     }
@@ -232,7 +232,10 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
             type="button"
             tabIndex={-1}
             disabled={disabled}
-            onClick={() => onCurrencyChange(currency === 'USD' ? base() : 'USD')}
+            onClick={() => {
+              const list = switchable()
+              onCurrencyChange(list[(list.indexOf(currency) + 1) % list.length])
+            }}
             className="mr-1 flex h-6 shrink-0 items-center rounded px-1.5 text-xs font-medium text-ink-2 hover:bg-sunken"
           >
             {symbol}

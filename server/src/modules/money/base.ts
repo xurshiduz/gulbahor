@@ -9,8 +9,14 @@ import type { Actor } from '../auth/actor'
 export const takesDollars = (actor: Pick<Actor, 'base' | 'currencies'>): boolean =>
   actor.base !== DOLLAR && actor.currencies.includes(DOLLAR)
 
+/** Prices may be in the base or in any currency the business has switched on: the till counts them in the base. */
+export const pricedIn = (currency: AnyCurrency, actor: Pick<Actor, 'base' | 'currencies'>): boolean =>
+  currency === actor.base || actor.currencies.includes(currency)
+
+export const PRICE_CURRENCY = 'Narx asosiy valyuta yoki yoqilgan valyutada bo‘ladi'
+
 /**
- * What a till or a price may be in: the base, or dollars beside it where the business takes them. Anything
+ * What a till may be paid in: the base, or dollars beside it where the business takes them. Anything
  * else is refused with the reason, worded for the field it was in; null when it may.
  */
 export function tillCurrencyProblem(
