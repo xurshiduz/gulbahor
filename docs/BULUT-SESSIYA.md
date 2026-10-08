@@ -1,6 +1,6 @@
 # Bulut sessiyasida ishlash
 
-Bu hujjat — Claude'ning bulut sessiyasi (claude.ai/code) uchun ko'rsatma. Ish GitHub'dagi shu repodan davom etadi; tugagach, natijani lokal sessiya tekshiradi (u yerda haqiqiy baza, brauzer va egasi bor), keyin `v2` ga qo'shadi.
+Bu hujjat — Claude'ning bulut sessiyasi (claude.ai/code) uchun ko'rsatma. Ish GitHub'dagi shu repodan davom etadi; tugagach, natijani lokal sessiya tekshiradi (u yerda haqiqiy baza, brauzer va egasi bor), keyin `main` ga qo'shadi.
 
 ## 1. Avval o'qiladi
 
@@ -27,7 +27,7 @@ Server testlarini umuman ishga tushirib bo'lmasa, ishni to'xtatmang, lekin hisob
 
 ## 3. Qanday ishlanadi
 
-- **Branch.** Sessiyaning o'z branchida ishlang (`v2` dan). `v2` va `main` ga to'g'ridan-to'g'ri push qilinmaydi, merge qilinmaydi. Oxirida `v2` ga PR oching.
+- **Branch.** Sessiyaning o'z branchida ishlang (`main` dan). `main` ga to'g'ridan-to'g'ri push qilinmaydi, merge qilinmaydi. Oxirida `main` ga PR oching.
 - **Commit.** Har tugagan bo'lak — alohida commit (bu yerda commit qilish mumkin va kerak: ish GitHub orqali topshiriladi). Xabar ingliz tilida, repodagi commitlar uslubida (`git log --oneline -20`).
 - **Har commitdan oldin:** `npm run typecheck`, `npm run lint`, `npm test` — yashil; `python tools/check_i18n.py` — "only uz" va "only ru" bo'sh, "missing" 13 ta (ro'yxati skript boshida).
 - **Prettier** faqat o'zingiz tegingan fayllarga. Bu fayllar HEAD'da formatlanmagan — ularga prettier yurgizilmaydi, faqat kerakli qatorlar o'zgartiriladi: `web/src/app/shell.tsx`, `web/src/app/command-palette.tsx`, `web/src/main.tsx`, `web/src/styles/index.css`, `web/src/features/settings/settings-page.tsx`, `web/src/features/profile/profile-page.tsx`, `web/src/features/dashboard/home-page.tsx`, `web/src/features/auth/login-page.tsx`, `web/src/features/auth/change-password-page.tsx`, `web/src/features/dev/inputs-demo-page.tsx`, `web/src/features/setup/setup-page.tsx`, `web/src/components/ui/number-input.tsx`, `web/src/components/ui/input.tsx`, `server/src/modules/auth/auth.service.ts`.
@@ -110,4 +110,4 @@ PR tavsifida (va `docs/ISH-HOLATI.md` da) shu to'rt narsa bo'lsin:
 
 ## 6. Lokal tekshiruv (bulut sessiyasidan keyin)
 
-Lokal sessiya branchni oladi va: to'liq testlarni haqiqiy PostgreSQL bilan yurgizadi; migratsiyalarni lokal bazaga qo'llaydi; "Lokal tekshiruvga" ro'yxatidagi har oynani brauzerda ko'radi; kodni shu hujjatdagi talab bilan solishtiradi; topilgan kamchilikni tuzatadi yoki qaytaradi; keyin `v2` ga qo'shadi.
+Lokal sessiya branchni oladi va: to'liq testlarni haqiqiy PostgreSQL bilan yurgizadi; migratsiyalarni lokal bazaga qo'llaydi; "Lokal tekshiruvga" ro'yxatidagi har oynani brauzerda ko'radi; kodni shu hujjatdagi talab bilan solishtiradi; topilgan kamchilikni tuzatadi yoki qaytaradi; keyin `main` ga qo'shadi.

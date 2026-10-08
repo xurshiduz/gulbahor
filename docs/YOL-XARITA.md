@@ -7,7 +7,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 1. **Kodni olish:**
    ```bash
    git fetch origin
-   git checkout cloud/exchange-partners      # PR #1 (v2 ga) birlashtirilgach: git checkout v2 && git pull
+   git checkout main && git pull             # eski tizim (backend/, frontend/) — v1 branchida
    npm install
    npm run build:core && npm run build:agent
    ```

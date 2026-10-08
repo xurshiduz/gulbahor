@@ -4,7 +4,8 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 ## Qoidalar (foydalanuvchi bilan kelishilgan)
 
-- **Bulut sessiyasi** (claude.ai/code) uchun alohida tartib bor — `docs/BULUT-SESSIYA.md`: u o'z branchida ishlaydi, har bo'lakni commit qiladi va `v2` ga PR ochadi; natijani lokal sessiya tekshiradi.
+- **Bulut sessiyasi** (claude.ai/code) uchun alohida tartib bor — `docs/BULUT-SESSIYA.md`: u o'z branchida ishlaydi, har bo'lakni commit qiladi va `main` ga PR ochadi; natijani lokal sessiya tekshiradi.
+- **Branchlar** (2026-10-08, foydalanuvchi so'rovi): ish `main` da. Eski tizimning kodi (`backend/`, `frontend/`) — `v1` branchida; `v2` `main` ga birlashtirilgan.
 - **Commit ham, push ham faqat foydalanuvchi aytganda qilinadi** (lokal sessiyada). Oradagi har tugagan bo'lakdan keyin ish daraxtining nusxasi olinadi va pastdagi ro'yxatga yoziladi: `git add -A && git write-tree && git reset -q` (bu commit emas, hech narsani o'zgartirmaydi).
 - Parol va kalitlar chatga ham, hujjatga ham yozilmaydi (`server/.env`, `server/.env.test-users`).
 - Billz'ga kirilmaydi: tahlil tugagan.
