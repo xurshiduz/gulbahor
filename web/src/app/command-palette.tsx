@@ -1,4 +1,4 @@
-import { matchScore, queryKeys, searchKey, type MoneyOpKind } from '@gulbahor/core'
+import { matchScore, queryKeys, searchKey, type MoneyOpKind } from '@erp/core'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowDownLeft, ArrowUpRight, BellRing, HandCoins, Keyboard, Lock, LogOut, ReceiptText, Search, SunMoon, type LucideIcon } from 'lucide-react'
 import { Dialog } from 'radix-ui'

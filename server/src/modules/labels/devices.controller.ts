@@ -8,7 +8,7 @@ import {
   type PrinterDto,
   type PrinterInput,
   type PrintJobDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

@@ -1,4 +1,4 @@
-import { changePasswordSchema, type ChangePasswordInput } from '@gulbahor/core'
+import { changePasswordSchema, type ChangePasswordInput } from '@erp/core'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'

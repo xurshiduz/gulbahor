@@ -1,4 +1,4 @@
-import { hasPermission, type ApprovalInput, type PosContextDto } from '@gulbahor/core'
+import { hasPermission, type ApprovalInput, type PosContextDto } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

@@ -1,4 +1,4 @@
-import { idSchema, roleInputSchema, type RoleDto, type RoleInput } from '@gulbahor/core'
+import { idSchema, roleInputSchema, type RoleDto, type RoleInput } from '@erp/core'
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

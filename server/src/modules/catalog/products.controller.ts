@@ -9,7 +9,7 @@ import {
   type ProductListItemDto,
   type ProductListQuery,
   type VariantLookupDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

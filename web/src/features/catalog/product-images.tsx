@@ -1,4 +1,4 @@
-import { MAX_PRODUCT_IMAGES, type ProductDto, type ProductImageDto } from '@gulbahor/core'
+import { MAX_PRODUCT_IMAGES, type ProductDto, type ProductImageDto } from '@erp/core'
 import { useQueryClient } from '@tanstack/react-query'
 import { ImagePlus, RotateCw, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'

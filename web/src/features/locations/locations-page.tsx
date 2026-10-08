@@ -1,4 +1,4 @@
-import { LOCATION_KIND_LABELS, LOCATION_KINDS, type LocationDto, type Page as PageOf } from '@gulbahor/core'
+import { LOCATION_KIND_LABELS, LOCATION_KINDS, type LocationDto, type Page as PageOf } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

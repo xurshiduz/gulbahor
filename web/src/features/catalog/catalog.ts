@@ -1,4 +1,4 @@
-import type { AttributeDto, BrandDto, CategoryDto, PriceTypeDto } from '@gulbahor/core'
+import type { AttributeDto, BrandDto, CategoryDto, PriceTypeDto } from '@erp/core'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 

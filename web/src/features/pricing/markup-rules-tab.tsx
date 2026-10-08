@@ -7,7 +7,7 @@ import {
   type PriceRuleInput,
   type PriceTypeDto,
   type Season,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { MoreHorizontal, Pencil, Percent, Plus, Trash2 } from 'lucide-react'

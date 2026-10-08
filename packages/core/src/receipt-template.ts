@@ -47,7 +47,7 @@ export const receiptTemplateSchema = z.object({
   showSavings: z.boolean().default(true),
   /** A few lines at the bottom: thanks, how long goods are taken back for. */
   footer: optionalText(400),
-  /** Where to find the shop: "Instagram: @gulbahor". */
+  /** Where to find the shop: "Instagram: @dokon_uz". */
   socials: optionalText(200),
   /** The receipt's number as a barcode at the bottom: scanned at the till, it opens the return. */
   showBarcode: z.boolean().default(true),

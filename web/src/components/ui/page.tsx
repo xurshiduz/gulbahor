@@ -1,3 +1,4 @@
+import { APP_NAME } from '@erp/core'
 import { Search, X } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -87,7 +88,7 @@ export function Page({ title, note, actions, children, width = 'full', flow = fa
   const bar = useMemo(() => ({ slot, claim }), [slot, claim])
 
   useEffect(() => {
-    document.title = `${title} · Gulbahor`
+    document.title = `${title} · ${APP_NAME}`
   }, [title])
 
   const heading = (

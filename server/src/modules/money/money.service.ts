@@ -12,7 +12,7 @@ import {
   type RateInput,
   type RegisterDto,
   type RegisterInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

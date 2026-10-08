@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "tsBuildInfoFile": "../node_modules/.tmp/web/tsconfig.app.tsbuildinfo",
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
@@ -19,7 +19,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@gulbahor/core": ["../packages/core/src/index.ts"]
+      "@erp/core": ["../packages/core/src/index.ts"]
     }
   },
   "include": ["src", "../packages/core/src"],

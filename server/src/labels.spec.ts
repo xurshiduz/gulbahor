@@ -1,6 +1,6 @@
 import { createServer, type AddressInfo, type Server } from 'node:net'
 
-import { startAgent } from '@gulbahor/agent'
+import { startAgent } from '@erp/agent'
 import type { Socket } from 'socket.io-client'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'

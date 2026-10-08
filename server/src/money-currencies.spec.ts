@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { AccountDto, CurrenciesDto } from '@gulbahor/core'
+import type { AccountDto, CurrenciesDto } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

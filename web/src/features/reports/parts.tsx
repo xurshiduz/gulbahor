@@ -5,7 +5,7 @@ import {
   type DateRange,
   type ReportBucket,
   type ReportPeriod,
-} from '@gulbahor/core'
+} from '@erp/core'
 import type { TFunction } from 'i18next'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { useState, type ReactNode } from 'react'

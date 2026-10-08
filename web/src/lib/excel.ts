@@ -1,4 +1,4 @@
-import type { AnyCurrency, Page } from '@gulbahor/core'
+import type { AnyCurrency, Page } from '@erp/core'
 import type { SheetData } from 'write-excel-file/browser'
 
 import { api } from './api'

@@ -1,4 +1,4 @@
-import { PERMISSION_KEYS } from '@gulbahor/core'
+import { PERMISSION_KEYS } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

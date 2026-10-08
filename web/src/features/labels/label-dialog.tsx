@@ -13,7 +13,7 @@ import {
   type ReceiptLabelsDto,
   type ReceiptProductDto,
   type VariantLookupDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Download, Printer as PrinterIcon, X } from 'lucide-react'

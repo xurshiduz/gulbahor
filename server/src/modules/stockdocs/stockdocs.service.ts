@@ -16,7 +16,7 @@ import {
   type StockDocListQuery,
   type StockDocReceiveInput,
   type StockDocStatus,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

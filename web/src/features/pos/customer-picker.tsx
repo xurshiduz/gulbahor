@@ -1,4 +1,4 @@
-import { customerInputSchema, formatMoney, type PosCustomerDto, type PosPartnerDto } from '@gulbahor/core'
+import { customerInputSchema, formatMoney, type PosCustomerDto, type PosPartnerDto } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { BellRing, Handshake, UserRound, UserRoundPlus, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'

@@ -20,7 +20,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 4. **Ishga tushirish:** `npm run dev:server` (3100) va `npm run dev:web` (5190).
 5. **Commitdan oldin har safar:** `npm run typecheck`, `npm run lint`, `npm test`, `python tools/check_i18n.py` (only uz/ru bo'sh, missing 13).
 6. **Lokal Claude sessiyasiga birinchi gap:** "CLAUDE.md, docs/ISH-HOLATI.md va docs/YOL-XARITA.md ni o'qi. Keyingi paket — <id>. Shu paketni qil, testlar yashil bo'lsin."
-7. **Git'da yo'q (o'zingizda turadi):** `server/.env`, `server/.env.test-users`, `agent/bridge/lib/` (Chainway SDK), `store/billz-seed/`.
+7. **Git'da yo'q (o'zingizda turadi):** `server/.env`, `server/.env.test-users`, `agent/bridge/lib/` (Chainway SDK), `local/` (Billz'dan seed skriptlari `local/billz-seed/`, eski dastur tahlili, namuna fayllar).
 8. **PR #1 ni ekranda tekshirish ro'yxati** — `docs/ISH-HOLATI.md`, "Bulut sessiyasi hisoboti" → "Lokal tekshiruvga".
 
 ## 2. Umumiy ketma-ketlik

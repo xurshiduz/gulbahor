@@ -1,4 +1,4 @@
-import { queryKeys } from '@gulbahor/core'
+import { queryKeys } from '@erp/core'
 import { Brackets, ObjectLiteral, SelectQueryBuilder } from 'typeorm'
 
 /**

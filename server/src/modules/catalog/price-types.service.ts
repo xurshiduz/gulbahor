@@ -1,4 +1,4 @@
-import { tillCurrencies, type AnyCurrency, type PriceTypeDto, type PriceTypeInput } from '@gulbahor/core'
+import { tillCurrencies, type AnyCurrency, type PriceTypeDto, type PriceTypeInput } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

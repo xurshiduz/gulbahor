@@ -1,4 +1,4 @@
-import type { AnyCurrency, PaymentAccountDto, RateBook } from '@gulbahor/core'
+import type { AnyCurrency, PaymentAccountDto, RateBook } from '@erp/core'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'

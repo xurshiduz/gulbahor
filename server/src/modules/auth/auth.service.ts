@@ -7,7 +7,7 @@ import {
   type SessionDto,
   type RemovePinInput,
   type SetPinInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 
 import { AppError } from '../../common/errors'

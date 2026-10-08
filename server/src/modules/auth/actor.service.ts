@@ -1,4 +1,4 @@
-import { OWNER_ROLE_KEY, type AnyCurrency } from '@gulbahor/core'
+import { OWNER_ROLE_KEY, type AnyCurrency } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 

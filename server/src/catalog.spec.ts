@@ -1,4 +1,4 @@
-import { formatMoney, isValidEan13 } from '@gulbahor/core'
+import { formatMoney, isValidEan13 } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

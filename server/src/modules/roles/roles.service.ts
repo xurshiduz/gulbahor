@@ -1,4 +1,4 @@
-import { ALL_PERMISSIONS, hasPermission, PERMISSION_GROUPS, PERMISSION_KEYS, type RoleDto, type RoleInput } from '@gulbahor/core'
+import { ALL_PERMISSIONS, hasPermission, PERMISSION_GROUPS, PERMISSION_KEYS, type RoleDto, type RoleInput } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

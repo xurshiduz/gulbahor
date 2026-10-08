@@ -2,7 +2,7 @@
   "name": "server",
   "version": "0.1.0",
   "private": true,
-  "description": "Gulbahor API: NestJS, TypeORM, PostgreSQL",
+  "description": "ERP API: NestJS, TypeORM, PostgreSQL",
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
@@ -15,7 +15,7 @@
     "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {
-    "@gulbahor/core": "*",
+    "@erp/core": "*",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
-    "@gulbahor/agent": "*",
+    "@erp/agent": "*",
     "@nestjs/cli": "^11.0.10",
     "@nestjs/testing": "^11.1.6",
     "@types/cookie-parser": "^1.4.9",

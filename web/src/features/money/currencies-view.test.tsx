@@ -1,4 +1,4 @@
-import type { CurrenciesDto, CurrencyDto } from '@gulbahor/core'
+import type { CurrenciesDto, CurrencyDto } from '@erp/core'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'

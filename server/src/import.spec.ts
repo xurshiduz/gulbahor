@@ -1,4 +1,4 @@
-import { guessMapping, readImportRow, type ImportRow } from '@gulbahor/core'
+import { guessMapping, readImportRow, type ImportRow } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

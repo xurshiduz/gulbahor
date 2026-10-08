@@ -1,4 +1,4 @@
-import { reportQuerySchema, type ReportQuery, type SalesReportDto } from '@gulbahor/core'
+import { reportQuerySchema, type ReportQuery, type SalesReportDto } from '@erp/core'
 import { Controller, Get, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

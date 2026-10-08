@@ -1,4 +1,4 @@
-import { fitWithin, IMAGE_SIZES } from '@gulbahor/core'
+import { fitWithin, IMAGE_SIZES } from '@erp/core'
 
 /**
  * A picture chosen from the computer, made small enough to keep with a

@@ -13,7 +13,7 @@ import {
   type PaymentAccountDto,
   defaultTill,
   tillsOf,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

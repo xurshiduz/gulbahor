@@ -10,7 +10,7 @@ import {
   type AnyCurrency,
   type BaseCurrencyDto,
   type BaseLock,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

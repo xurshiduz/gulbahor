@@ -1,4 +1,4 @@
-import { EPC_PREFIX } from '@gulbahor/core'
+import { EPC_PREFIX } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 /**

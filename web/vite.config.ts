@@ -8,11 +8,13 @@ const API = process.env.VITE_API_TARGET ?? 'http://localhost:3100'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Caches go to the one node_modules at the root, not to one of this package's own.
+  cacheDir: '../node_modules/.vite/web',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       // The web reads the shared rules straight from source; the server uses the built package.
-      '@gulbahor/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
+      '@erp/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
     },
   },
   server: {

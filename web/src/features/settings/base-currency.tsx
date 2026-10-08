@@ -1,4 +1,4 @@
-import { ALL_CURRENCY_CODES, CURRENCIES, type AnyCurrency, type BaseCurrencyDto } from '@gulbahor/core'
+import { ALL_CURRENCY_CODES, CURRENCIES, type AnyCurrency, type BaseCurrencyDto } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Lock } from 'lucide-react'
 import { useState } from 'react'

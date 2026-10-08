@@ -1,4 +1,4 @@
-import { imageUrl, type ImageFormat, type ImageThumb } from '@gulbahor/core'
+import { imageUrl, type ImageFormat, type ImageThumb } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 /**

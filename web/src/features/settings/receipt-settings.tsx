@@ -5,7 +5,7 @@ import {
   receiptTemplateSchema,
   type OrgDto,
   type ReceiptTemplate,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'

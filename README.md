@@ -1,4 +1,4 @@
-# Gulbahor
+# ERP
 
 Kiyim savdosi uchun ERP: do'konlar va skladlar, RFID bilan donalab hisob, kassa, pul va hamkorlar bilan hisob-kitob. To'liq reja va qarorlar: [docs/REJA.md](docs/REJA.md).
 
@@ -12,6 +12,8 @@ server          NestJS 11, TypeORM, PostgreSQL, Socket.IO
 web             React 19, Vite, TanStack Router/Query/Table, Tailwind 4, Radix
 agent           do'kon kompyuterida ishlaydigan kichik dastur: printerlarni serverga bog'laydi (agent/README.md)
 docs            reja va qarorlar
+tools, scripts  tekshiruv va ish holati skriptlari, bulut muhitini tayyorlash
+local           faqat shu kompyuterda (git'ga tushmaydi): Billz'dan seed skriptlari, eski dastur tahlili, namunalar
 ```
 
 ## Talablar
@@ -30,9 +32,9 @@ docs            reja va qarorlar
 2. Baza. Ilova **superuser bo'lmagan** rol bilan ulanadi: superuser qator darajasidagi himoyani (RLS) chetlab o'tadi. `psql` da superuser sifatida:
 
    ```sql
-   CREATE ROLE gulbahor_app LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '<parol>';
-   CREATE DATABASE gulbahor OWNER gulbahor_app ENCODING 'UTF8' TEMPLATE template0;
-   CREATE DATABASE gulbahor_test OWNER gulbahor_app ENCODING 'UTF8' TEMPLATE template0;
+   CREATE ROLE erp_app LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '<parol>';
+   CREATE DATABASE erp OWNER erp_app ENCODING 'UTF8' TEMPLATE template0;
+   CREATE DATABASE erp_test OWNER erp_app ENCODING 'UTF8' TEMPLATE template0;
    ```
 
 3. Sozlamalar: `server/.env.example` dan `server/.env` yarating, `DB_PASSWORD` va `JWT_SECRET` (kamida 32 belgi) ni to'ldiring.

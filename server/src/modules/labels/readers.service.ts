@@ -14,7 +14,7 @@ import {
   type ReaderDto,
   type ReaderInput,
   type ReaderTagEvent,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

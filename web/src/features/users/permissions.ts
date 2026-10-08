@@ -1,4 +1,4 @@
-import { hasPermission, PERMISSION_GROUPS, type RoleDto } from '@gulbahor/core'
+import { hasPermission, PERMISSION_GROUPS, type RoleDto } from '@erp/core'
 
 // Kept apart from the form: these are read by tests, which have no session.
 

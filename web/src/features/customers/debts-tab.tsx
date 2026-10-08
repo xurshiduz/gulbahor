@@ -5,7 +5,7 @@ import {
   type DebtState,
   type DebtSummary,
   type Page as PageOf,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

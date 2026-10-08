@@ -1,4 +1,4 @@
-import type { Page, ProductListItemDto } from '@gulbahor/core'
+import type { Page, ProductListItemDto } from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { Popover } from 'radix-ui'

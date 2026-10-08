@@ -13,7 +13,7 @@ import {
   type LoyaltyInput,
   type LoyaltyTier,
   type Page,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

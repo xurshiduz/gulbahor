@@ -27,7 +27,7 @@ Aloqa doim do'kon tomondan ochiladi. Shuning uchun do'konga doimiy (statik) IP h
    { "url": "https://sizning-domen.uz", "key": "…" }
    ```
 
-   Bu fayl git'ga tushmaydi. O'rniga `GULBAHOR_URL` va `GULBAHOR_KEY` muhit o'zgaruvchilarini ham ishlatsa bo'ladi.
+   Bu fayl git'ga tushmaydi. O'rniga `ERP_URL` va `ERP_KEY` muhit o'zgaruvchilarini ham ishlatsa bo'ladi.
 4. Ishga tushiring:
 
    ```bash

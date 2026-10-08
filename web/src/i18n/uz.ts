@@ -1,6 +1,6 @@
 /** O'zbek tili: asosiy til. Boshqa tillar shu kalitlarni takrorlaydi. */
 export const uz = {
-  app: { name: 'Gulbahor' },
+  app: { name: 'ERP' },
   common: {
     save: 'Saqlash',
     cancel: 'Bekor qilish',
@@ -1317,10 +1317,10 @@ export const uz = {
     footer: 'Pastki matn',
     footerHint: 'Har qator alohida chiqadi. Masalan: rahmat, qaytarish muddati.',
     socials: 'Ijtimoiy tarmoqlar',
-    socialsHint: 'Masalan: Instagram: @gulbahor',
+    socialsHint: 'Masalan: Instagram: @dokon_uz',
     revert: 'Qaytarish',
     bad: 'Shablonni tekshiring',
-    sampleShop: 'Gulbahor 1',
+    sampleShop: 'Do‘kon 1',
     sampleAddress: 'Toshkent sh., Chilonzor, 12-uy',
   },
   reports: {

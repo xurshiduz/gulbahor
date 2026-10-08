@@ -6,7 +6,7 @@ import {
   type AnyCurrency,
   type PosContextDto,
   type ShiftDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LockOpen } from 'lucide-react'
 import { useState } from 'react'

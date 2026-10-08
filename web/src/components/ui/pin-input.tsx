@@ -1,4 +1,4 @@
-import { PIN_LENGTH } from '@gulbahor/core'
+import { PIN_LENGTH } from '@erp/core'
 import { forwardRef, useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/cn'

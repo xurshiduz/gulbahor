@@ -1,7 +1,7 @@
 import type { Dictionary } from './uz'
 
 export const ru: Dictionary = {
-  app: { name: 'Gulbahor' },
+  app: { name: 'ERP' },
   common: {
     save: 'Сохранить',
     cancel: 'Отмена',
@@ -1317,10 +1317,10 @@ export const ru: Dictionary = {
     footer: 'Текст внизу',
     footerHint: 'Каждая строка печатается отдельно. Например: благодарность, срок возврата.',
     socials: 'Соцсети',
-    socialsHint: 'Например: Instagram: @gulbahor',
+    socialsHint: 'Например: Instagram: @dokon_uz',
     revert: 'Вернуть',
     bad: 'Проверьте шаблон',
-    sampleShop: 'Gulbahor 1',
+    sampleShop: 'Магазин 1',
     sampleAddress: 'г. Ташкент, Чиланзар, д. 12',
   },
   reports: {

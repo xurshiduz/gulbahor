@@ -1,4 +1,4 @@
-import { STARTER_MONEY_CATEGORIES } from '@gulbahor/core'
+import { STARTER_MONEY_CATEGORIES } from '@erp/core'
 import { MigrationInterface, QueryRunner } from 'typeorm'
 
 import { tenantPolicy } from './rls'

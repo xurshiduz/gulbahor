@@ -1,4 +1,4 @@
-import type { PosContextDto, PosItemDto, ReturnableDto, SaleLineDto } from '@gulbahor/core'
+import type { PosContextDto, PosItemDto, ReturnableDto, SaleLineDto } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
 import {

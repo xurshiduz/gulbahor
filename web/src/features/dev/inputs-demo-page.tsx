@@ -1,4 +1,4 @@
-import { formatMoney, type CurrencyCode } from '@gulbahor/core'
+import { formatMoney, type CurrencyCode } from '@erp/core'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

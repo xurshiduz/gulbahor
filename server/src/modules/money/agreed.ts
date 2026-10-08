@@ -9,7 +9,7 @@ import {
   type AnyCurrency,
   type LineWorth,
   type RateBook,
-} from '@gulbahor/core'
+} from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 import { Organization } from '../../database/entities'

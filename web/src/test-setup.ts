@@ -1,6 +1,6 @@
 import './i18n'
 
-import { configureValidationMessages } from '@gulbahor/core'
+import { configureValidationMessages } from '@erp/core'
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 

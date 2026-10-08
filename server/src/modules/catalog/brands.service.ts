@@ -1,4 +1,4 @@
-import type { BrandDto, BrandInput } from '@gulbahor/core'
+import type { BrandDto, BrandInput } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

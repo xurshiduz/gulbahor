@@ -1,4 +1,4 @@
-import type { Page as PageOf, UserDto } from '@gulbahor/core'
+import type { Page as PageOf, UserDto } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

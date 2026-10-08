@@ -1,4 +1,4 @@
-import { formatPhoneTyping, parsePhone } from '@gulbahor/core'
+import { formatPhoneTyping, parsePhone } from '@erp/core'
 import { forwardRef, useEffect, useState, type ClipboardEvent } from 'react'
 
 import { Input } from './input'

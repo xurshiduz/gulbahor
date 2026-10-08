@@ -19,7 +19,7 @@ import {
   type ReaderTagEvent,
   type ReturnDto,
   type SaleDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import { HandCoins, Lock, Receipt, ScanLine, Search, Store, Undo2, X } from 'lucide-react'

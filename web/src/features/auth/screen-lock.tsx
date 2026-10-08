@@ -1,4 +1,4 @@
-import { PIN_LENGTH } from '@gulbahor/core'
+import { PIN_LENGTH } from '@erp/core'
 import { Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'

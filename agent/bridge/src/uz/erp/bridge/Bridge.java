@@ -1,4 +1,4 @@
-package uz.gulbahor.bridge;
+package uz.erp.bridge;
 
 import com.rscja.deviceapi.ConnectionState;
 import com.rscja.deviceapi.RFIDWithUHFNetworkUR4;
@@ -408,7 +408,7 @@ public final class Bridge {
     }
 
     private static void usage() {
-        System.err.println("Gulbahor: Chainway o'quvchisi bilan do'kon agenti orasidagi ko'prik");
+        System.err.println("ERP: Chainway o'quvchisi bilan do'kon agenti orasidagi ko'prik");
         System.err.println();
         System.err.println("  Bridge r3  [--listen 8891] [--power 10]");
         System.err.println("  Bridge ur4 [--listen 8892] [--reader 192.168.99.202:8888] [--power 30]");

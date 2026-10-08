@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { APP_NAME } from './app'
 import { code128Width } from './barcode'
 import { isValidEan13 } from './catalog'
 import { idSchema, listQuerySchema, requiredText } from './schemas'
@@ -333,7 +334,7 @@ export function buildLabelZpl(
 export function buildTestLabelZpl(printerName: string, format: LabelFormat): string {
   return buildLabelZpl(
     {
-      name: 'Gulbahor',
+      name: APP_NAME,
       details: `Sinov: ${printerName}`,
       sku: 'TEST',
       barcode: '2000000000008',

@@ -1,4 +1,4 @@
-import { MODULES, type AuditDto, type LocationDto, type Page as PageOf, type UserDto } from '@gulbahor/core'
+import { MODULES, type AuditDto, type LocationDto, type Page as PageOf, type UserDto } from '@erp/core'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Building2, KeyRound, ShieldCheck, Users } from 'lucide-react'

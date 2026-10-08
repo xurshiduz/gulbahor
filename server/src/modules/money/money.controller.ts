@@ -23,7 +23,7 @@ import {
   type ShiftDto,
   type ShiftListQuery,
   type ShiftOpenInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 
 import { AppError } from '../../common/errors'

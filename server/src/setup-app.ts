@@ -1,4 +1,4 @@
-import { configureValidationMessages } from '@gulbahor/core'
+import { configureValidationMessages } from '@erp/core'
 import { ConfigService } from '@nestjs/config'
 import type { NestExpressApplication } from '@nestjs/platform-express'
 import cookieParser from 'cookie-parser'

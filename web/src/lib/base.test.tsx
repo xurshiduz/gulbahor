@@ -1,4 +1,4 @@
-import { formatMoney, type PosContextDto } from '@gulbahor/core'
+import { formatMoney, type PosContextDto } from '@erp/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { kindOf } from '@/features/pos/tender-panel'

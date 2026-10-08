@@ -1,4 +1,4 @@
-import { cashSteps, type AnyCurrency, type AttributeKind, type PriceKind } from '@gulbahor/core'
+import { cashSteps, type AnyCurrency, type AttributeKind, type PriceKind } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 import { Attribute, AttributeValue, Category, PriceType } from '../../database/entities'

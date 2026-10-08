@@ -15,7 +15,7 @@ import {
   type ProductImageInput,
   type ProductImageOrder,
   type ProductImageUpdate,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

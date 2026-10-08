@@ -8,7 +8,7 @@ import {
   type ReceiptTemplate,
   type SaleDto,
   type SalePaymentDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

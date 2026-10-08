@@ -1,4 +1,4 @@
-import { bookOf, type CurrenciesDto, type RateBook } from '@gulbahor/core'
+import { bookOf, type CurrenciesDto, type RateBook } from '@erp/core'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 

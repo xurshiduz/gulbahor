@@ -1,4 +1,4 @@
-import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@gulbahor/core'
+import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@erp/core'
 import { Outlet, useNavigate } from '@tanstack/react-router'
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Sun, UserRound } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -171,7 +171,7 @@ export function Shell() {
 
   return (
     <div className="flex h-full bg-canvas">
-      <Sidebar name={me.org.name} groups={groups} collapsed={collapsed} />
+      <Sidebar business={me.org.name} groups={groups} collapsed={collapsed} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">

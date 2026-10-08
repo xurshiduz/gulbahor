@@ -30,7 +30,7 @@ import {
   type SaleListQuery,
   type SaleVoidInput,
   type TenderMethod,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

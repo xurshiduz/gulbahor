@@ -6,7 +6,7 @@ import {
   type PosContextDto,
   type PosItemDto,
   type PosPartnerDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

@@ -21,7 +21,7 @@ import {
   type StockProductDto,
   type VariantLookupDto,
   type WriteoffReason,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Ban, CheckCheck, MoreHorizontal, PackageCheck, Send, Trash2, X } from 'lucide-react'

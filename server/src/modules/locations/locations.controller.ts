@@ -6,7 +6,7 @@ import {
   type LocationInput,
   type LocationListQuery,
   type Page,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

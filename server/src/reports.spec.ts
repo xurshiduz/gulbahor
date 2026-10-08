@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { SalesReportDto } from '@gulbahor/core'
+import type { SalesReportDto } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

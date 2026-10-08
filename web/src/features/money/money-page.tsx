@@ -24,7 +24,7 @@ import {
   type RateForm,
   type RegisterDto,
   type RegisterInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

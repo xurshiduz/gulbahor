@@ -11,7 +11,7 @@ import {
   type PrinterDto,
   type PrinterInput,
   type PrintJobDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

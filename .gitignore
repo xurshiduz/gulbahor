@@ -25,3 +25,7 @@ Thumbs.db
 # Tahrirlagich sozlamalari
 .vscode/
 .idea/
+.claude/settings.local.json
+
+# Faqat shu kompyuterda turadi: Billz'dan seed skriptlari, eski dastur tahlili, namuna fayllar
+/local/

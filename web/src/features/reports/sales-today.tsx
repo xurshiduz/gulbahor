@@ -1,4 +1,4 @@
-import { addDays, averageReceipt, periodRange, todayIn, toIsoDate, type SalesReportDto } from '@gulbahor/core'
+import { addDays, averageReceipt, periodRange, todayIn, toIsoDate, type SalesReportDto } from '@erp/core'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

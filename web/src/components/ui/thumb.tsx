@@ -1,4 +1,4 @@
-import type { ImageThumb } from '@gulbahor/core'
+import type { ImageThumb } from '@erp/core'
 import { Image as ImageIcon } from 'lucide-react'
 import { useState } from 'react'
 

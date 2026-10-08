@@ -12,7 +12,7 @@ import {
   SALE_STATUSES,
   SEASONS,
   SHIFT_STATUSES,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { createRootRoute, createRoute, createRouter, redirect, stripSearchParams } from '@tanstack/react-router'
 import { z } from 'zod'
 

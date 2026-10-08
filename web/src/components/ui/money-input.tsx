@@ -5,7 +5,7 @@ import {
   type AmountError,
   type AnyCurrency,
   type CurrencyCode,
-} from '@gulbahor/core'
+} from '@erp/core'
 import {
   forwardRef,
   useEffect,

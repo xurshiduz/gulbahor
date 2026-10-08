@@ -8,7 +8,7 @@ import {
   type CurrenciesDto,
   type CurrencyDto,
   type RateForm,
-} from '@gulbahor/core'
+} from '@erp/core'
 import type { TFunction } from 'i18next'
 import { Check, MoreHorizontal, PowerOff } from 'lucide-react'
 import { useState } from 'react'

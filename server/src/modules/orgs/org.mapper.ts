@@ -1,4 +1,4 @@
-import { DEFAULT_ORG_SETTINGS, type OrgDto } from '@gulbahor/core'
+import { DEFAULT_ORG_SETTINGS, type OrgDto } from '@erp/core'
 
 import type { Organization } from '../../database/entities'
 

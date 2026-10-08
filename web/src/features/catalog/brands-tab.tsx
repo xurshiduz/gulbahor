@@ -1,4 +1,4 @@
-import { brandInputSchema, matchScore, queryKeys, searchKey, type BrandDto, type BrandInput } from '@gulbahor/core'
+import { brandInputSchema, matchScore, queryKeys, searchKey, type BrandDto, type BrandInput } from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Plus, Tag, Trash2 } from 'lucide-react'

@@ -1,4 +1,4 @@
-import { approvalSchema, type ApprovalInput } from '@gulbahor/core'
+import { approvalSchema, type ApprovalInput } from '@erp/core'
 import { ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'

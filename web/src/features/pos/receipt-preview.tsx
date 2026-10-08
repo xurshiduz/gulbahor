@@ -1,4 +1,4 @@
-import { formatMoney, gross } from '@gulbahor/core'
+import { formatMoney, gross } from '@erp/core'
 import { Undo2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

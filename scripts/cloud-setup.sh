@@ -46,10 +46,10 @@ PORT=3100
 WEB_ORIGIN=http://localhost:5190
 DB_HOST=localhost
 DB_PORT=5432
-DB_USERNAME=gulbahor_app
+DB_USERNAME=erp_app
 DB_PASSWORD=$(openssl rand -hex 16)
-DB_NAME=gulbahor
-DB_TEST_NAME=gulbahor_test
+DB_NAME=erp
+DB_TEST_NAME=erp_test
 JWT_SECRET=$(openssl rand -hex 32)
 SEED_OWNER_LOGIN=admin
 SEED_OWNER_PASSWORD=$(openssl rand -hex 8)
@@ -69,15 +69,15 @@ done
 if pg_isready -q; then
   run_sql postgres <<SQL
 DO \$\$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gulbahor_app') THEN
-    CREATE ROLE gulbahor_app LOGIN;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'erp_app') THEN
+    CREATE ROLE erp_app LOGIN;
   END IF;
 END \$\$;
-ALTER ROLE gulbahor_app PASSWORD '$DB_PASSWORD';
+ALTER ROLE erp_app PASSWORD '$DB_PASSWORD';
 SQL
-  for database in gulbahor gulbahor_test; do
+  for database in erp erp_test; do
     run_sql postgres <<SQL
-SELECT 'CREATE DATABASE $database OWNER gulbahor_app'
+SELECT 'CREATE DATABASE $database OWNER erp_app'
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$database') \gexec
 SQL
     # The first migration asks for this extension; made here so that it never depends on what the role may do.
@@ -85,7 +85,7 @@ SQL
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 SQL
   done
-  log "database ready: gulbahor, gulbahor_test"
+  log "database ready: erp, erp_test"
 else
   log "PostgreSQL did not start: the server tests will not run until it does (service postgresql start)"
 fi

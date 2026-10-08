@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type AddressInfo, type Server, type Socket as NetSocket } from 'node:net'
 
-import { startAgent } from '@gulbahor/agent'
+import { startAgent } from '@erp/agent'
 import type { Socket } from 'socket.io-client'
 
 import { RealtimeService } from './modules/realtime/realtime.service'

@@ -1,4 +1,4 @@
-import { MODULES, orgUpdateSchema, type OrgDto } from '@gulbahor/core'
+import { MODULES, orgUpdateSchema, type OrgDto } from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Controller, useForm } from 'react-hook-form'

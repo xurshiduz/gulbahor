@@ -16,7 +16,7 @@ import {
   type PaymentAccountDto,
   type PayTill,
   type Rates,
-} from '@gulbahor/core'
+} from '@erp/core'
 import type { TFunction } from 'i18next'
 import { X } from 'lucide-react'
 import { useState } from 'react'

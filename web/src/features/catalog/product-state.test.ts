@@ -1,4 +1,4 @@
-import type { AttributeDto, ProductDto } from '@gulbahor/core'
+import type { AttributeDto, ProductDto } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
 import {

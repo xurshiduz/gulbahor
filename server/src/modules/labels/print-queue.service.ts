@@ -1,4 +1,4 @@
-import type { Page, PrintJobDto, PrintJobListQuery } from '@gulbahor/core'
+import type { Page, PrintJobDto, PrintJobListQuery } from '@erp/core'
 import { Injectable, Logger } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

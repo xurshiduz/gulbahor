@@ -7,7 +7,7 @@ import {
   type ProductImageInput,
   type ProductImageOrder,
   type ProductImageUpdate,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Delete, HttpCode, Param, Patch, Post, Put } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

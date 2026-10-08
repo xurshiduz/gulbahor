@@ -8,7 +8,7 @@ import {
   type StockListItemDto,
   type StockLocationDto,
   type StockProductDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

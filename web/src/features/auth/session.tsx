@@ -1,4 +1,4 @@
-import { hasPermission, type MeDto } from '@gulbahor/core'
+import { hasPermission, type MeDto } from '@erp/core'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'

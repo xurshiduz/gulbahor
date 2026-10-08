@@ -1,4 +1,4 @@
-import { formatMoney, settle, settleRefund, type AccountDto, type PosContextDto, type PosItemDto } from '@gulbahor/core'
+import { formatMoney, settle, settleRefund, type AccountDto, type PosContextDto, type PosItemDto } from '@erp/core'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'

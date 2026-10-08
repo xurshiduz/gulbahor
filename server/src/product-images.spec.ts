@@ -72,7 +72,7 @@ describe('Product photographs', () => {
     alpha.post(`/api/products/${productId}/images`).send(body)
   /** Asked for the way an `<img>` asks: with nothing but the address. */
   const fetched = (address: string) => request(harness.app.getHttpServer()).get(address)
-  const onDisk = (image: Photo) => existsSync(join(tmpdir(), 'gulbahor-test-uploads', alphaId, image.id, 's.jpg'))
+  const onDisk = (image: Photo) => existsSync(join(tmpdir(), 'erp-test-uploads', alphaId, image.id, 's.jpg'))
 
   beforeAll(async () => {
     harness = await startApp()
@@ -279,10 +279,10 @@ describe('Product photographs', () => {
 
   it('throws the files away with a model that is deleted', async () => {
     const images: Photo[] = (await alpha.get(`/api/products/${scarfId}`).expect(200)).body.images
-    expect(existsSync(join(tmpdir(), 'gulbahor-test-uploads', alphaId, images[0].id))).toBe(true)
+    expect(existsSync(join(tmpdir(), 'erp-test-uploads', alphaId, images[0].id))).toBe(true)
     await alpha.delete(`/api/products/${scarfId}`).expect(204)
     for (const image of images) {
-      expect(existsSync(join(tmpdir(), 'gulbahor-test-uploads', alphaId, image.id))).toBe(false)
+      expect(existsSync(join(tmpdir(), 'erp-test-uploads', alphaId, image.id))).toBe(false)
     }
   })
 

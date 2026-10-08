@@ -8,7 +8,7 @@ import {
   todayIn,
   toIsoDate,
   type LocalDate,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'

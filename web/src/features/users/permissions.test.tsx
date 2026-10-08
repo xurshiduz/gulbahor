@@ -1,4 +1,4 @@
-import type { RoleDto } from '@gulbahor/core'
+import type { RoleDto } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
 import { extrasBeyond, permissionNames } from './permissions'

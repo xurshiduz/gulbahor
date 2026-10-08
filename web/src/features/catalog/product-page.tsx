@@ -15,7 +15,7 @@ import {
   type ProductDto,
   type Season,
   type Unit,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react'

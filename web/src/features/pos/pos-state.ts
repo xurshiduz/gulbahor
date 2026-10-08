@@ -20,7 +20,7 @@ import {
   type SaleTotals,
   type Tender,
   type TenderMethod,
-} from '@gulbahor/core'
+} from '@erp/core'
 
 import { base } from '@/lib/base'
 import { uuid } from '@/lib/uuid'

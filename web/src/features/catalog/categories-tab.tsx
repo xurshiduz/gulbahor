@@ -1,4 +1,4 @@
-import { categoryInputSchema, MAX_AXES, type AttributeDto, type CategoryDto, type CategoryInput } from '@gulbahor/core'
+import { categoryInputSchema, MAX_AXES, type AttributeDto, type CategoryDto, type CategoryInput } from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, FolderPlus, FolderTree, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'

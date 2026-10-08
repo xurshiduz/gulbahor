@@ -24,7 +24,7 @@ import {
   type RepriceSkip,
   type Season,
   type AnyCurrency,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager, type SelectQueryBuilder } from 'typeorm'
 

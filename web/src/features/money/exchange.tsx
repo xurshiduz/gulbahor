@@ -6,7 +6,7 @@ import {
   type MoneyTransferDto,
   type PaymentAccountDto,
   type RateBook,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useTranslation } from 'react-i18next'
 
 import { Field } from '@/components/ui/field'

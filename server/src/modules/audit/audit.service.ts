@@ -1,4 +1,4 @@
-import type { AuditDto, AuditListQuery, Page } from '@gulbahor/core'
+import type { AuditDto, AuditListQuery, Page } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

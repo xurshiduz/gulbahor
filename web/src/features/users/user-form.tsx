@@ -8,7 +8,7 @@ import {
   type RoleDto,
   type SessionDto,
   type UserDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { MonitorSmartphone } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'

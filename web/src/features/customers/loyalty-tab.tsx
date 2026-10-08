@@ -1,4 +1,4 @@
-import { formatMoney, loyaltyInputSchema, type LoyaltyTier } from '@gulbahor/core'
+import { formatMoney, loyaltyInputSchema, type LoyaltyTier } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'

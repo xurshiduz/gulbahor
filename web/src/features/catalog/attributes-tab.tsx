@@ -8,7 +8,7 @@ import {
   type AttributeKind,
   type AttributeValueDto,
   type AttributeValueInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Archive,

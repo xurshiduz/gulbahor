@@ -8,7 +8,7 @@ import {
   type MoneyTransferDto,
   type Rates,
   type RegisterDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 
 import { base } from '@/lib/base'
 

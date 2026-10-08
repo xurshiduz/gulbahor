@@ -1,4 +1,4 @@
-import { CARD_NUMBER_DIGITS, formatCardNumber } from '@gulbahor/core'
+import { CARD_NUMBER_DIGITS, formatCardNumber } from '@erp/core'
 import { forwardRef, type ChangeEvent } from 'react'
 
 import { Input, type InputProps } from './input'

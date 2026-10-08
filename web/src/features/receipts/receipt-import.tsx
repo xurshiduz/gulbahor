@@ -16,7 +16,7 @@ import {
   type ImportRowResult,
   type Page as PageOf,
   type PartnerDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { CircleCheck, Download, FileSpreadsheet, TriangleAlert, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'

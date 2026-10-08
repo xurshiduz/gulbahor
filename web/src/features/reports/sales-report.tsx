@@ -1,4 +1,4 @@
-import { averageReceipt, marginPercent, PAYMENT_METHOD_LABELS, rangeDays, type SalesReportDto } from '@gulbahor/core'
+import { averageReceipt, marginPercent, PAYMENT_METHOD_LABELS, rangeDays, type SalesReportDto } from '@erp/core'
 import { ChartNoAxesColumn } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

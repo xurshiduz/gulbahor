@@ -6,7 +6,7 @@ import {
   type PriceInput,
   type ProductDto,
   type VariantInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 
 /**
  * The part of the model form that is not plain fields: which values of each

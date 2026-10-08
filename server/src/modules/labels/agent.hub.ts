@@ -1,4 +1,4 @@
-import type { AgentPrintAnswer, AgentPrintOrder } from '@gulbahor/core'
+import type { AgentPrintAnswer, AgentPrintOrder } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { Socket } from 'socket.io'
 

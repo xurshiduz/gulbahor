@@ -1,4 +1,4 @@
-import type { CurrenciesDto, CurrencyDto } from '@gulbahor/core'
+import type { CurrenciesDto, CurrencyDto } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

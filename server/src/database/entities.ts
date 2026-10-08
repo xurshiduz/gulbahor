@@ -35,7 +35,7 @@ import type {
   Unit,
   UnitStatus,
   WriteoffReason,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Column, CreateDateColumn, Entity, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
 
 /**

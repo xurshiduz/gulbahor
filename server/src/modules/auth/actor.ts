@@ -1,4 +1,4 @@
-import { hasPermission, type AnyCurrency } from '@gulbahor/core'
+import { hasPermission, type AnyCurrency } from '@erp/core'
 import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common'
 import type { Request } from 'express'
 

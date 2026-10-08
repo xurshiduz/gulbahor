@@ -1,4 +1,4 @@
-import { DOLLAR, isDollar, type AnyCurrency } from '@gulbahor/core'
+import { DOLLAR, isDollar, type AnyCurrency } from '@erp/core'
 
 import type { Actor } from '../auth/actor'
 

@@ -1,4 +1,4 @@
-import { tierPercent, type LoyaltyTier, type PosCustomerDto } from '@gulbahor/core'
+import { tierPercent, type LoyaltyTier, type PosCustomerDto } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 import { LoyaltyTierRow, type Customer } from '../../database/entities'

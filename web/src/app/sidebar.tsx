@@ -1,3 +1,4 @@
+import { APP_NAME } from '@erp/core'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
@@ -49,7 +50,8 @@ export function isActive(item: NavItem, items: NavItem[], pathname: string, sear
 }
 
 interface SidebarProps {
-  name: string
+  /** The business signed in to: under the system's name, smaller. */
+  business: string
   groups: ShownGroup[]
   collapsed: boolean
 }
@@ -60,7 +62,7 @@ interface SidebarProps {
  * rail of icons, a section's screens come out beside it when it is pressed.
  * A section with one screen is that screen.
  */
-export function Sidebar({ name, groups, collapsed }: SidebarProps) {
+export function Sidebar({ business, groups, collapsed }: SidebarProps) {
   const { t } = useTranslation()
   const location = useRouterState({ select: (state) => state.location })
   const search = location.search as Record<string, unknown>
@@ -100,7 +102,14 @@ export function Sidebar({ name, groups, collapsed }: SidebarProps) {
         )}
       >
         <img src="/favicon.svg" alt="" className="size-6 shrink-0" />
-        {!collapsed ? <span className="truncate text-sm font-semibold">{name}</span> : null}
+        {!collapsed ? (
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-semibold">{APP_NAME}</p>
+            <p className="truncate text-[11px] text-ink-3" title={business}>
+              {business}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {/* A short window scrolls the menu: rows squeezed to fit would each come out a different height. */}

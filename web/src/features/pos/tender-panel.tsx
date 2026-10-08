@@ -9,7 +9,7 @@ import {
   type PosContextDto,
   type RefundSettlement,
   type Settlement,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { ArrowLeft } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'

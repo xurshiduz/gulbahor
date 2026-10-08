@@ -1,4 +1,4 @@
-import type { CategoryDto, CategoryInput } from '@gulbahor/core'
+import type { CategoryDto, CategoryInput } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

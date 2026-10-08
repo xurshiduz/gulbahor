@@ -13,7 +13,7 @@ import {
   type RemovePinInput,
   type SessionDto,
   type SetPinInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Throttle } from '@nestjs/throttler'

@@ -1,4 +1,4 @@
-import { NO_SALES, type SalesFigures, type SalesReportDto } from '@gulbahor/core'
+import { NO_SALES, type SalesFigures, type SalesReportDto } from '@erp/core'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'

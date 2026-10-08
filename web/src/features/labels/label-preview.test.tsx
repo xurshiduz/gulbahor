@@ -1,4 +1,4 @@
-import { DEFAULT_LABEL_TEMPLATE, type LabelData, type LabelTemplate } from '@gulbahor/core'
+import { DEFAULT_LABEL_TEMPLATE, type LabelData, type LabelTemplate } from '@erp/core'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 

@@ -1,4 +1,4 @@
-import { auditListQuerySchema, type AuditDto, type AuditListQuery, type Page } from '@gulbahor/core'
+import { auditListQuerySchema, type AuditDto, type AuditListQuery, type Page } from '@erp/core'
 import { Controller, Get, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

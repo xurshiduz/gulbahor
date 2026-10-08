@@ -9,7 +9,7 @@ import {
   type ImageFormat,
   type PosItemDto,
   type Unit,
-} from '@gulbahor/core'
+} from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 import { applySearch } from '../../common/listing'

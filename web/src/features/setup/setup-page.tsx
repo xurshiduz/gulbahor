@@ -1,4 +1,4 @@
-import { ALL_CURRENCY_CODES, LOCATION_KIND_LABELS, MODULES, setupSchema, type SetupInput } from '@gulbahor/core'
+import { ALL_CURRENCY_CODES, LOCATION_KIND_LABELS, MODULES, setupSchema, type SetupInput } from '@erp/core'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Plus, Trash2 } from 'lucide-react'

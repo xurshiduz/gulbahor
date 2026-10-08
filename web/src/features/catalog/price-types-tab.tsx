@@ -14,7 +14,7 @@ import {
   type PriceTypeDto,
   type PriceTypeInput,
   type TillAccess,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, Banknote, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'

@@ -1,4 +1,4 @@
-import { formatMoney, overRateLoss, rateGain, toBase, type Tender } from '@gulbahor/core'
+import { formatMoney, overRateLoss, rateGain, toBase, type Tender } from '@erp/core'
 import { useTranslation } from 'react-i18next'
 
 import { MoneyInput } from '@/components/ui/money-input'

@@ -1,4 +1,4 @@
-import { matchScore, queryKeys, searchKey } from '@gulbahor/core'
+import { matchScore, queryKeys, searchKey } from '@erp/core'
 import { Check, ChevronDown, Plus, X } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'

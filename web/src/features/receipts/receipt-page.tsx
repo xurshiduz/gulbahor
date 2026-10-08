@@ -26,7 +26,7 @@ import {
   type ReceiptProductDto,
   type ReceiptStatus,
   type VariantLookupDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Ban, CheckCheck, Copy, MoreHorizontal, Plus, Tags, Trash2, TriangleAlert, X } from 'lucide-react'

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { daysToBirthday } from '@gulbahor/core'
+import { daysToBirthday } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

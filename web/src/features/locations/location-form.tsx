@@ -1,4 +1,4 @@
-import { LOCATION_KIND_LABELS, LOCATION_KINDS, locationInputSchema, type LocationDto, type LocationInput, type LocationKind } from '@gulbahor/core'
+import { LOCATION_KIND_LABELS, LOCATION_KINDS, locationInputSchema, type LocationDto, type LocationInput, type LocationKind } from '@erp/core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'

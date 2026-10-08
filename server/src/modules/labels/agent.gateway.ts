@@ -4,7 +4,7 @@ import {
   agentTagSchema,
   agentUnitsRequestSchema,
   type AgentUnitsReply,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Logger } from '@nestjs/common'
 import {
   MessageBody,

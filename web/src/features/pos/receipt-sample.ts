@@ -1,4 +1,4 @@
-import type { SaleDto } from '@gulbahor/core'
+import type { SaleDto } from '@erp/core'
 
 const som = (amount: number) => amount * 100
 

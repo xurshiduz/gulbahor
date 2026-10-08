@@ -1,4 +1,4 @@
-import { DOLLAR, type AnyCurrency } from '@gulbahor/core'
+import { DOLLAR, type AnyCurrency } from '@erp/core'
 import type { TFunction } from 'i18next'
 
 /**

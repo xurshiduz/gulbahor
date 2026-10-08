@@ -6,7 +6,7 @@ import {
   type ReportPeriod,
   type SalesPoint,
   type SalesReportDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { FileSpreadsheet } from 'lucide-react'

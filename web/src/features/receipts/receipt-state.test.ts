@@ -1,4 +1,4 @@
-import type { AttributeDto, ReceiptDto, ReceiptProductDto } from '@gulbahor/core'
+import type { AttributeDto, ReceiptDto, ReceiptProductDto } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
 import { blocksOf, costOf, linesOf, matrixOf, newBlock, type Block, type Header } from './receipt-state'

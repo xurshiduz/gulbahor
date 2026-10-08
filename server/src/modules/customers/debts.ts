@@ -1,4 +1,4 @@
-import type { CustomerDebtBrief } from '@gulbahor/core'
+import type { CustomerDebtBrief } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 /** Today where the business is: a debt is late from the day after its day. `d` is the debt. */

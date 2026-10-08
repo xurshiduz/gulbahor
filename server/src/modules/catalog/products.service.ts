@@ -14,7 +14,7 @@ import {
   type ProductListQuery,
   type VariantInput,
   type VariantLookupDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, IsNull, type EntityManager } from 'typeorm'
 

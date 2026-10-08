@@ -1,4 +1,4 @@
-import { searchKey } from '@gulbahor/core'
+import { searchKey } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 interface IndexRow {

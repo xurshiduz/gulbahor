@@ -10,7 +10,7 @@ import {
   type PriceTypeDto,
   type RepriceKind,
   type RepriceResult,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Calculator, Check, TriangleAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'

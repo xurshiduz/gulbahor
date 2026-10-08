@@ -8,7 +8,7 @@ import {
   type LabelPrintInput,
   type LabelPrintResult,
   type ReceiptLabelsDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

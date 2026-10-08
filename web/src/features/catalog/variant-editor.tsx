@@ -8,7 +8,7 @@ import {
   type AttributeValueDto,
   type CurrencyCode,
   type PriceTypeDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Check, Plus, X } from 'lucide-react'
 import { memo, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -10,7 +10,7 @@ import {
   type CurrencyInput,
   type CurrencyRateDto,
   type CurrencyRateInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

@@ -1,4 +1,4 @@
-import { formatMoney } from '@gulbahor/core'
+import { formatMoney } from '@erp/core'
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

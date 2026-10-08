@@ -1,4 +1,4 @@
-import type { AccountDto, MoneyTransferDto, RateBook } from '@gulbahor/core'
+import type { AccountDto, MoneyTransferDto, RateBook } from '@erp/core'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 

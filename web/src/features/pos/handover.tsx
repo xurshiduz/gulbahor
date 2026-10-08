@@ -6,7 +6,7 @@ import {
   type MoneyTransferDto,
   type PosContextDto,
   type RateBook,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
 import { useState } from 'react'

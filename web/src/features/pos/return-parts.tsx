@@ -7,7 +7,7 @@ import {
   type ReturnDto,
   type SaleLineDto,
   type AnyCurrency,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useQuery } from '@tanstack/react-query'
 import { Printer, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'

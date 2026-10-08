@@ -1,4 +1,4 @@
-import { hasPermission, PERMISSION_GROUPS, type RoleDto } from '@gulbahor/core'
+import { hasPermission, PERMISSION_GROUPS, type RoleDto } from '@erp/core'
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -18,7 +18,7 @@ import {
   type ReceiptListQuery,
   type ReceiptProductDto,
   type ReceiptTotals,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

@@ -1,4 +1,4 @@
-import { ALL_PERMISSIONS, PERMISSION_GROUPS, roleInputSchema, type RoleDto } from '@gulbahor/core'
+import { ALL_PERMISSIONS, PERMISSION_GROUPS, roleInputSchema, type RoleDto } from '@erp/core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'

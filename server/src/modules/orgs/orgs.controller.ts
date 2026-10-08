@@ -10,7 +10,7 @@ import {
   type OrgUpdateInput,
   type ReceiptTemplate,
   type SetupInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, Post, Put } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { formatMoney } from '@gulbahor/core'
+import { formatMoney } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 

@@ -10,7 +10,7 @@ import {
   type LabelFormat,
   type LabelTemplate,
   type LabelText,
-} from '@gulbahor/core'
+} from '@erp/core'
 
 /** How large a millimetre of label is on screen. */
 const PX_PER_MM = 6

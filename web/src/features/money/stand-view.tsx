@@ -7,7 +7,7 @@ import {
   type MoneyTransferDto,
   type Rates,
   type RegisterDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { ArrowRight, Wallet } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

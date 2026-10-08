@@ -20,7 +20,7 @@ export class FileStore {
   private readonly root: string
 
   constructor(config: ConfigService<Env, true>) {
-    const fallback = config.get('NODE_ENV') === 'test' ? join(tmpdir(), 'gulbahor-test-uploads') : 'uploads'
+    const fallback = config.get('NODE_ENV') === 'test' ? join(tmpdir(), 'erp-test-uploads') : 'uploads'
     this.root = resolve(config.get('UPLOADS_DIR') ?? fallback)
   }
 

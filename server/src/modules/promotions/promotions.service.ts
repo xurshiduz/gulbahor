@@ -9,7 +9,7 @@ import {
   type PromotionDto,
   type PromotionInput,
   type PromotionListQuery,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

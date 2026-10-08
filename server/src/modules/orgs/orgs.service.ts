@@ -15,7 +15,7 @@ import {
   type OrgUpdateInput,
   type ReceiptTemplate,
   type SetupInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

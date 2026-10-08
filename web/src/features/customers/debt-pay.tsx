@@ -5,7 +5,7 @@ import {
   tillsOf,
   type DebtPaymentDto,
   type PaymentAccountDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

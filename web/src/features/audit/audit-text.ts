@@ -7,7 +7,7 @@ import {
   PRICE_KIND_LABELS,
   SEASON_LABELS,
   UNIT_INFO,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useTranslation } from 'react-i18next'
 
 const PERMISSION_TITLES = new Map(

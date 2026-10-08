@@ -1,4 +1,4 @@
-import { preferenceSchema } from '@gulbahor/core'
+import { preferenceSchema } from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Put } from '@nestjs/common'
 
 import { AppError } from '../../common/errors'

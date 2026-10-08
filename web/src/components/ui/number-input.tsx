@@ -1,4 +1,4 @@
-import { parseQuantity } from '@gulbahor/core'
+import { parseQuantity } from '@erp/core'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 

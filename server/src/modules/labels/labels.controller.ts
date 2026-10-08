@@ -9,7 +9,7 @@ import {
   type PrintJobDto,
   type PrintJobListQuery,
   type ReceiptLabelsDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'

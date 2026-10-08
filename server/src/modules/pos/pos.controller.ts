@@ -28,7 +28,7 @@ import {
   type SaleListItemDto,
   type SaleListQuery,
   type SaleVoidInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common'
 
 import { AppError } from '../../common/errors'

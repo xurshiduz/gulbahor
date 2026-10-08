@@ -14,8 +14,8 @@ function readConfig(): Config {
   const file = [join(process.cwd(), 'agent.json'), join(__dirname, '..', 'agent.json')].find((path) => existsSync(path))
   const fromFile = file ? (JSON.parse(readFileSync(file, 'utf8')) as Config) : {}
   return {
-    url: process.env.GULBAHOR_URL ?? fromFile.url,
-    key: process.env.GULBAHOR_KEY ?? fromFile.key,
+    url: process.env.ERP_URL ?? fromFile.url,
+    key: process.env.ERP_KEY ?? fromFile.key,
   }
 }
 
@@ -30,13 +30,13 @@ if (!config.url || !config.key) {
       '',
       '  { "url": "https://sizning-domen.uz", "key": "Qurilmalar sahifasida berilgan kalit" }',
       '',
-      "yoki GULBAHOR_URL va GULBAHOR_KEY muhit o'zgaruvchilari.",
+      "yoki ERP_URL va ERP_KEY muhit o'zgaruvchilari.",
     ].join('\n'),
   )
   process.exit(1)
 }
 
-log(`Gulbahor agenti ${VERSION}: ${config.url}`)
+log(`ERP agenti ${VERSION}: ${config.url}`)
 startAgent({
   url: config.url,
   key: config.key,

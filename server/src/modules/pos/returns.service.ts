@@ -21,7 +21,7 @@ import {
   type SaleInput,
   type TenderMethod,
   type Unit,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 

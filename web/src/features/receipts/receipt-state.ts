@@ -10,7 +10,7 @@ import {
   type ReceiptExpenseInput,
   type ReceiptLineInput,
   type ReceiptProductDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 
 import { base } from '@/lib/base'
 

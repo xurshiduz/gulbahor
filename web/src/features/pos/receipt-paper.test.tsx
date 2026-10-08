@@ -1,4 +1,4 @@
-import { DEFAULT_RECEIPT_TEMPLATE, type ReceiptTemplate, type SaleDto } from '@gulbahor/core'
+import { DEFAULT_RECEIPT_TEMPLATE, type ReceiptTemplate, type SaleDto } from '@erp/core'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 

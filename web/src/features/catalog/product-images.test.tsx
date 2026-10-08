@@ -1,4 +1,4 @@
-import type { ProductDto, ProductImageDto } from '@gulbahor/core'
+import type { ProductDto, ProductImageDto } from '@erp/core'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

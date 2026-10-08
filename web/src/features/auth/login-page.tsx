@@ -1,4 +1,4 @@
-import { loginSchema, type LoginInput } from '@gulbahor/core'
+import { APP_NAME, loginSchema, type LoginInput } from '@erp/core'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { Moon, Sun } from 'lucide-react'
@@ -33,7 +33,7 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
   })
 
   useEffect(() => {
-    document.title = `${t('auth.title')} · Gulbahor`
+    document.title = `${t('auth.title')} · ${APP_NAME}`
   }, [t])
 
   return (
@@ -60,7 +60,7 @@ export function AuthLayout({ title, subtitle, children, wide }: { title: string;
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-5">
       <div className="flex items-center gap-2.5">
         <img src="/favicon.svg" alt="" className="size-8" />
-        <span className="text-lg font-semibold tracking-tight">Gulbahor</span>
+        <span className="text-lg font-semibold tracking-tight">{APP_NAME}</span>
       </div>
       <div className={`w-full rounded-xl border border-line bg-surface p-6 shadow-card ${wide ? 'max-w-2xl' : 'max-w-sm'}`}>
         <h1 className="text-base font-semibold">{title}</h1>

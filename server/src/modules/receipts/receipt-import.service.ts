@@ -7,7 +7,7 @@ import {
   type ProductDto,
   type ReceiptImportInput,
   type ReceiptLineInput,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

@@ -5,7 +5,7 @@ import {
   SALE_STATUS_LABELS,
   type SaleDto,
   type AnyCurrency,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Ban, Printer, Undo2 } from 'lucide-react'

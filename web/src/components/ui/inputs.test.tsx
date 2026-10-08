@@ -1,4 +1,4 @@
-import type { CurrencyCode } from '@gulbahor/core'
+import type { CurrencyCode } from '@erp/core'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'

@@ -6,7 +6,7 @@ import {
   type StockListQuery,
   type StockLocationDto,
   type StockProductDto,
-} from '@gulbahor/core'
+} from '@erp/core'
 import { Controller, Get, Param, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'
