@@ -11,7 +11,7 @@ import {
   type RefundSettlement,
   type Settlement,
 } from '@erp/core'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,6 +47,18 @@ export const kindOf = (row: TenderRow): TenderKind =>
   row.method === 'cash' ? (row.currency !== base() ? 'other' : 'cash') : row.method
 const KIND_KEYS: Record<TenderKind, string> = { cash: 'f5', other: 'f6', card: 'f7', terminal: 'f8' }
 
+/** The key a row is hidden by (`placeKey`): cash of another currency by its currency, a card or terminal by itself. */
+export const tenderPlace = (row: TenderRow): string | null =>
+  row.method === 'cash' ? (row.currency === base() ? null : `cash:${row.currency}`) : row.accountId
+
+/** Rows a person keeps out of sight: back while they hold a sum, or while `peek` is on. */
+export interface Hiding {
+  hidden: string[]
+  onChange: (hidden: string[]) => void
+  peek: boolean
+  onPeek: (peek: boolean) => void
+}
+
 interface TenderPanelProps {
   context: PosContextDto
   /** A row for each way of paying, with what has been typed into it. */
@@ -77,6 +89,8 @@ interface TenderPanelProps {
   onAccount?: OnAccount | null
   /** Goods brought back on a receipt that put something on a partner's account: so much comes off it there. */
   offPartner?: number
+  /** Seldom used rows kept out of sight; none hidden without it. */
+  hiding?: Hiding | null
 }
 
 export interface OnAccount {
@@ -135,6 +149,7 @@ export function TenderPanel({
   offDebt = 0,
   onAccount = null,
   offPartner = 0,
+  hiding = null,
 }: TenderPanelProps) {
   const { t } = useTranslation()
   const lendId = useId()
@@ -147,6 +162,36 @@ export function TenderPanel({
   const foreign = (row: TenderRow) => row.currency !== base()
   const entered = enteredRows(rows)
   const typed = tendersOf(entered, refunding)
+  // A hidden row stays out of sight unless it holds a sum — typed, or what is meant when nothing is typed.
+  const tucked = (row: TenderRow) => {
+    const place = tenderPlace(row)
+    return (
+      !!hiding &&
+      !hiding.peek &&
+      place !== null &&
+      hiding.hidden.includes(place) &&
+      !row.amount &&
+      !(!entered.length && suggested[row.key])
+    )
+  }
+  const shown = rows.filter((row) => !tucked(row))
+  const away = rows.filter(tucked)
+  /** A row as the line under the sums names it when it is out of sight. */
+  const nameOf = (row: TenderRow): string => {
+    if (row.method === 'cash') {
+      return t('pos.payCash', currencyWords(t, row.currency))
+    }
+    const account =
+      [...context.cards, ...context.terminals].find((item) => item.id === row.accountId) ??
+      returning?.found.caps.accounts.find((item) => item.accountId === row.accountId)
+    return account
+      ? `${account.name}${account.last4 ? ` *${account.last4}` : ''}`
+      : t(row.method === 'card' ? 'pos.payCard' : 'pos.payTerminal')
+  }
+  const anyHidden = rows.some((row) => {
+    const place = tenderPlace(row)
+    return place !== null && !!hiding?.hidden.includes(place)
+  })
   // What stands beside a sum (an agreed worth, a slip's number) is there as soon as the cursor is in its
   // row: appearing only once the sum was typed, Tab would have gone past where it was about to be.
   const [within, setWithin] = useState<string | null>(null)
@@ -282,7 +327,7 @@ export function TenderPanel({
             <span className="text-right">{t('pos.tenderWorth', baseWords(t))}</span>
           </div>
         ) : null}
-        {rows.map((row) => {
+        {shown.map((row) => {
           const kind = kindOf(row)
           const cap = returning?.found.caps.accounts.find((item) => item.accountId === row.accountId)
           // Paying, a card is one of the shop's; handing back, it is the one the receipt was paid with.
@@ -298,14 +343,16 @@ export function TenderPanel({
                 : (cap?.left ?? 0)
               : null
           // The key takes the cursor to the first row of its kind; the rest are an arrow away.
-          const first = rows.find((item) => kindOf(item) === kind) === row
+          const first = shown.find((item) => kindOf(item) === kind) === row
+          const place = hiding ? tenderPlace(row) : null
+          const isHidden = place !== null && !!hiding?.hidden.includes(place)
           return (
             <div
               key={row.key}
               data-tender={row.key}
               data-kind={kind}
               onFocus={() => setWithin(row.key)}
-              className="flex flex-col gap-1.5"
+              className="group flex flex-col gap-1.5"
             >
               <div className={ROW}>
                 <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
@@ -331,6 +378,26 @@ export function TenderPanel({
                     <span className="shrink-0 text-xs text-ink-3">{t('pos.payTerminal')}</span>
                   ) : null}
                   {first ? <Shortcut combo={KIND_KEYS[kind]} /> : null}
+                  {place !== null && hiding ? (
+                    // Out of sight until it is wanted; a hidden one shown for now may be shown always again.
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title={isHidden ? t('pos.showRow') : t('pos.hideRow')}
+                      aria-label={isHidden ? t('pos.showRow') : t('pos.hideRow')}
+                      onClick={() =>
+                        hiding.onChange(
+                          isHidden ? hiding.hidden.filter((key) => key !== place) : [...hiding.hidden, place],
+                        )
+                      }
+                      className={cn(
+                        'ml-auto shrink-0 rounded p-0.5 text-ink-3 hover:bg-sunken hover:text-ink focus-visible:opacity-100',
+                        isHidden ? 'opacity-100' : 'opacity-40 group-hover:opacity-100',
+                      )}
+                    >
+                      {isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                    </button>
+                  ) : null}
                 </span>
                 <MoneyInput
                   value={row.amount}
@@ -386,6 +453,20 @@ export function TenderPanel({
             </div>
           )
         })}
+        {/* What is out of sight is named, and comes back with a click (or its key); then it folds away again. */}
+        {hiding && (away.length || (hiding.peek && anyHidden)) ? (
+          <div data-enter-skip className="flex justify-end">
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => hiding.onPeek(!hiding.peek)}
+              className="inline-flex items-center gap-1.5 text-xs text-ink-3 hover:text-ink"
+            >
+              {hiding.peek ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              {hiding.peek ? t('pos.foldHidden') : t('pos.hiddenRows', { names: away.map(nameOf).join(', ') })}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5 border-t border-line pt-3 text-[13px]">

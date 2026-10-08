@@ -281,7 +281,7 @@ describe('Money transfers', () => {
       // Both handovers are announced, once the shift is closed for good.
       expect(told('money.sent').slice(-2)).toMatchObject([
         { fromName: 'Kassa 1 (so‘m)', toName: 'Seyf' },
-        { fromName: 'Kassa 1 (dollar)', toKind: 'safe' },
+        { fromName: 'Kassa 1 ($)', toKind: 'safe' },
       ])
       const closed = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       expect(closed.status).toBe('closed')

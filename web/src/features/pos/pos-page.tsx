@@ -40,6 +40,7 @@ import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { DebtPayDialog } from '@/features/customers/debt-pay'
 import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/exchange'
+import { useHiddenPlaces } from '@/features/money/hidden-places'
 import { useRegisters } from '@/features/money/money-page'
 import { api, ApiError } from '@/lib/api'
 import { base, baseWords, currencyWords } from '@/lib/base'
@@ -264,6 +265,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const { book } = context
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
+  // Seldom used ways of paying this person keeps out of sight, and whether they are shown for now.
+  const [hiddenPlaces, setHiddenPlaces] = useHiddenPlaces()
+  const [peek, setPeek] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
   const wanted = useRef<TenderKind | 'agreed' | null>(null)
   const [changeCurrency, setChangeCurrency] = useState<CurrencyCode>(base)
@@ -642,9 +646,20 @@ function Till({ context, registers, onSwitch }: TillProps) {
   )
 
   const focusField = (kind: TenderKind) => {
-    const field = document.querySelector<HTMLInputElement>(`[data-kind="${kind}"] input`)
-    field?.focus()
-    field?.select()
+    const find = () => document.querySelector<HTMLInputElement>(`[data-kind="${kind}"] input`)
+    const field = find()
+    if (field) {
+      field.focus()
+      field.select()
+      return
+    }
+    // Every row of the kind is out of sight: they come out, and the cursor goes there.
+    setPeek(true)
+    window.setTimeout(() => {
+      const shown = find()
+      shown?.focus()
+      shown?.select()
+    })
   }
   // Into the payment the cursor goes to the way of paying that was asked for, so'm when none was; back
   // in the cart, to the search field or to the sum agreed on.
@@ -676,6 +691,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
     }
     wanted.current = kind
     setPaying(true)
+    // Each payment starts with what is hidden out of sight again.
+    setPeek(false)
   }
   /** Back to the cart; what was typed for the money stays. */
   const backToCart = (to: 'agreed' | null = null) => {
@@ -1313,6 +1330,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               busy={busy}
               onComplete={() => complete()}
               onBack={() => backToCart()}
+              hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces, peek, onPeek: setPeek }}
               lend={
                 lending && buyer
                   ? {

@@ -28,6 +28,7 @@ import { Select } from '@/components/ui/controls'
 import { Field } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
+import { placeKey } from '@/features/money/hidden-places'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
@@ -58,10 +59,6 @@ export interface PaymentRow {
   settled: number | null
 }
 
-/** More lines than this are not laid out unasked: the rest are a pick away. */
-export const READY_ROWS = 6
-
-const KEPT_KEY = 'gb.pay.accounts'
 const PICKED_KEY = 'gb.pay.till'
 /** The till this computer sells at, as the till screen keeps it. */
 const TILL_KEY = 'gb.pos.register'
@@ -72,20 +69,6 @@ function stored<T>(key: string, fallback: T): T {
     return raw ? (JSON.parse(raw) as T) : fallback
   } catch {
     return fallback
-  }
-}
-
-/** The places this computer pays through, in the order they were added. */
-export const keptAccounts = (): string[] => {
-  const kept = stored<unknown>(KEPT_KEY, [])
-  return Array.isArray(kept) ? kept.filter((id): id is string => typeof id === 'string') : []
-}
-
-export const keepAccounts = (rows: PaymentRow[]) => {
-  try {
-    localStorage.setItem(KEPT_KEY, JSON.stringify(rows.map((row) => row.accountId)))
-  } catch {
-    // The lines still stand for this payment.
   }
 }
 
@@ -104,7 +87,7 @@ export const keepTill = (tillId: string) => {
 
 const blank = (accountId: string): PaymentRow => ({ accountId, amount: null, rate: null, settled: null })
 
-/** The same order, but each till's so'm drawer before its dollar one. */
+/** The same order, but each till's drawer in the base before its others. */
 function somFirst(accounts: PaymentAccountDto[]): PaymentAccountDto[] {
   const place = (account: PaymentAccountDto, index: number) =>
     account.registerId ? accounts.findIndex((other) => other.registerId === account.registerId) : index
@@ -113,7 +96,7 @@ function somFirst(accounts: PaymentAccountDto[]): PaymentAccountDto[] {
     .sort(
       (a, b) =>
         place(a.account, a.index) - place(b.account, b.index) ||
-        Number(a.account.currency === 'USD') - Number(b.account.currency === 'USD') ||
+        Number(a.account.currency !== base()) - Number(b.account.currency !== base()) ||
         a.index - b.index,
     )
     .map((item) => item.account)
@@ -124,28 +107,52 @@ const apart = (account: PaymentAccountDto) => !account.registerId
 
 /**
  * The lines a payment opens with: the drawers of the till it goes through,
- * so'm before dollars, and after them the other places this computer paid
- * through before. The drawers of other tills are never among them: a
- * business with ten tills would open on twenty lines. With no till and
- * nothing remembered, the first few places there are.
+ * the base first, and every place that is no till's — a card, a safe, a bank
+ * account. What this person keeps out of sight is left out; it is a pick away
+ * under "another account". The drawers of other tills are never among them:
+ * a business with ten tills would open on twenty lines.
  */
-export function startRows(accounts: PaymentAccountDto[], kept: string[], tillId: string | null): PaymentRow[] {
+export function startRows(
+  accounts: PaymentAccountDto[],
+  tillId: string | null,
+  /** What this person keeps out of sight (`placeKey`). */
+  hidden: string[] = [],
+): PaymentRow[] {
   const drawers = somFirst(accounts.filter((account) => tillId !== null && account.registerId === tillId))
-  const others = kept.flatMap((id) => accounts.filter((account) => account.id === id && apart(account)))
-  const rows = [...drawers, ...others]
-  return (rows.length ? rows : accounts.filter(apart).slice(0, READY_ROWS)).map((account) => blank(account.id))
+  return [...drawers, ...accounts.filter(apart)]
+    .filter((account) => !hidden.includes(placeKey(account)))
+    .map((account) => blank(account.id))
 }
 
 /** The same lines for another till: its drawers in place of the ones that stood there, empty. */
-export function switchTill(rows: PaymentRow[], accounts: PaymentAccountDto[], tillId: string): PaymentRow[] {
+export function switchTill(
+  rows: PaymentRow[],
+  accounts: PaymentAccountDto[],
+  tillId: string,
+  hidden: string[] = [],
+): PaymentRow[] {
   const kept = rows.filter((row) => accounts.some((account) => account.id === row.accountId && apart(account)))
-  const drawers = somFirst(accounts.filter((account) => account.registerId === tillId))
+  const drawers = somFirst(
+    accounts.filter((account) => account.registerId === tillId && !hidden.includes(placeKey(account))),
+  )
   return [...drawers.map((account) => blank(account.id)), ...kept]
 }
 
-/** The places still to be offered under "another account": those with no line, and no till's drawer among them. */
-export const sparePlaces = (accounts: PaymentAccountDto[], rows: PaymentRow[]): PaymentAccountDto[] =>
-  accounts.filter((account) => apart(account) && !rows.some((row) => row.accountId === account.id))
+/**
+ * The places still to be offered under "another account": those with no line — no till's drawer among them,
+ * but for a drawer of the chosen till kept out of sight.
+ */
+export const sparePlaces = (
+  accounts: PaymentAccountDto[],
+  rows: PaymentRow[],
+  tillId: string | null = null,
+  hidden: string[] = [],
+): PaymentAccountDto[] =>
+  accounts.filter(
+    (account) =>
+      !rows.some((row) => row.accountId === account.id) &&
+      (apart(account) || (account.registerId === tillId && hidden.includes(placeKey(account)))),
+  )
 
 export const patchRow = (rows: PaymentRow[], accountId: string, change: Partial<PaymentRow>): PaymentRow[] =>
   rows.map((row) => (row.accountId === accountId ? { ...row, ...change } : row))
@@ -561,6 +568,7 @@ export function PaymentLines({
               size="iconSm"
               tabIndex={-1}
               aria-label={t('payments.removeLine')}
+              title={t('payments.removeLineHint')}
               onClick={() => onRemove(row.accountId)}
             >
               <X />

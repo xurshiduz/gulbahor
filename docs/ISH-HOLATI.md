@@ -214,7 +214,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
      - [x] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
      - [x] 9c′. Tannarx faqat asosiy valyutada: tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada, "bugungi kursda tannarx" (egasi tasdiqladi).
-     - [ ] 9e. Smena va inkassatsiya: har tortma sanog'i.
+     - [x] 9e. Smena va inkassatsiya: har tortma sanog'i.
+     - [ ] 9e+. Standart holatda hamma valyuta va hisob ko'rinadi, keraksizi xodimning o'zi uchun yashiriladi (egasi so'radi, 2026-10-09).
      - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
    - [ ] V6. Terminal → bank tushumi.
@@ -236,7 +237,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-V9 / 9e: smena va inkassatsiya har tortma valyutasida
+Kassa va to'lov oynalarida kam ishlatiladigan valyuta va hisob qatorlarini yashirish (foydalanuvchi so'radi)
 
 ## Ish daraxti nusxalari
 
@@ -263,3 +264,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `e4a9116b450695b73aee40f1a2b8204de3a8c3b1` | V9 / 9c: tannarx valyutasi (cost_currency, Actor.cost, COST_LOCKED, CURRENCY_COST), kirim tayanch valyuta orqali (pivotOf), sozlama va birinchi sozlashda tanlov, tovar sahifasida Kirimlar (kelgan valyuta va narx) |
 | `098398810a4fddf3d099ec19c5f9d25a19cc8f89` | V9 / 9d: kassa istalgan valyutada — registers.currencies (Naqd valyutalar), to'lov qatori har valyutaga, qaytim istalgan valyutada (change_other/change_currency/change_other_base), kelishilgan qiymat har chet valyutada, qaytarish, chek va hisobot; egasining qarori: tannarx faqat asosiyda (9c′ taklifi) |
 | `a49e88f36e064452bb7bf3165039f9d949667afb` | V9 / 9c′: tannarx faqat asosiy valyutada — cost_currency va 14 ta jadvaldagi …_usd tannarx ustunlari olib tashlandi, kirimda bitta kurs (rate, rate_way; kun kursi o'zi turadi), xarajat istalgan yoqilgan valyutada kirim sanasining kursida, bugungi kursda tannarx, /currencies/book |
+| `16d94e84b1e685186924a2a3ba549bc7247f60f8` | V9 / 9e: smena sanog'i har tortma valyutasida (shift_counts), ochish/yopish cash: {valyuta: summa}, Z-hisobot har valyuta (ShiftTotals.cash), topshirish kassa valyutalaridan, Smenalar ro'yxatida har valyuta farqi; valyuta yoqilganda hamma kassaga qo'shiladi |

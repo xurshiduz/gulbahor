@@ -1,4 +1,5 @@
 import {
+  CURRENCIES,
   dayPairRate,
   formatMoney,
   ratesOf,
@@ -41,6 +42,8 @@ interface MoneyStandViewProps {
   shops: StandShop[]
   shopId: string | null
   onShop: (shopId: string | null) => void
+  /** The currencies the business keeps, the base first: each has its block, money or not. */
+  currencies?: AnyCurrency[]
 }
 
 /**
@@ -49,14 +52,27 @@ interface MoneyStandViewProps {
  * number, a drawer by its till. Seen without a session, so that a test and a
  * page thrown together to look at it can show it.
  */
-export function MoneyStandView({ accounts, registers, waiting, rates, shops, shopId, onShop }: MoneyStandViewProps) {
+export function MoneyStandView({
+  accounts,
+  registers,
+  waiting,
+  rates,
+  shops,
+  shopId,
+  onShop,
+  currencies = [],
+}: MoneyStandViewProps) {
   const { t } = useTranslation()
   const book = ratesOf(rates, base())
-  const stand = moneyStand(accounts, registers, waiting, shopId)
+  const stand = moneyStand(accounts, registers, waiting, shopId, currencies)
   const worth = standWorth(stand, book)
-  // With one currency beside the base its rate is said; with several there is no one rate to say.
-  const foreign = stand.filter((item) => item.currency !== book.base)
-  const single = foreign.length === 1 ? dayPairRate(foreign[0].currency, book.base, book) : null
+  // The rate each other currency is counted in at: "1 $ = 12 650 so'm · 1 ¥ = 1 744,83 so'm".
+  const rateLine = stand
+    .filter((item) => item.currency !== book.base)
+    .map((item) => dayPairRate(item.currency, book.base, book))
+    .filter((pair) => pair !== null)
+    .map((pair) => `1 ${CURRENCIES[pair.one].symbol} = ${rateText(pair.value)} ${CURRENCIES[pair.of].symbol}`)
+    .join(' · ')
 
   return (
     <div className="flex flex-col gap-4" data-stand>
@@ -96,13 +112,7 @@ export function MoneyStandView({ accounts, registers, waiting, rates, shops, sho
               <Stat
                 label={t('stand.allInBase', baseWords(t))}
                 value={worth === null ? '—' : money(worth, book.base)}
-                note={
-                  worth === null
-                    ? t('stand.noRate')
-                    : single
-                      ? t('stand.atRate', { rate: rateText(single.value) })
-                      : t('stand.atRates')
-                }
+                note={worth === null ? t('stand.noRate') : rateLine}
               />
             ) : null}
           </div>

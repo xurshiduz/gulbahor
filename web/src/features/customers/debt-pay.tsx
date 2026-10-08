@@ -19,9 +19,7 @@ import { useSession } from '@/features/auth/session'
 import {
   addRow,
   agreedOf,
-  keepAccounts,
   keepTill,
-  keptAccounts,
   lastTill,
   patchRow,
   PaymentLines,
@@ -36,6 +34,7 @@ import {
   valueLines,
   type PaymentRow,
 } from '@/features/partners/payment-lines'
+import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { base, baseWords } from '@/lib/base'
 import { formatPhone } from '@/lib/format'
@@ -82,11 +81,13 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
   const tills = useMemo(() => tillsOf(places), [places])
   const [pickedTill, setPickedTill] = useState<string | null>(null)
   const tillId = tills.some((till) => till.id === pickedTill) ? pickedTill : defaultTill(tills, tillHere(), lastTill())
-  const shown = useMemo(() => rows ?? startRows(places, keptAccounts(), tillId), [rows, places, tillId])
+  // What this person keeps out of sight: a seldom used drawer or account, back from "another account" when wanted.
+  const [hidden, setHidden] = useHiddenPlaces()
+  const shown = useMemo(() => rows ?? startRows(places, tillId, hidden), [rows, places, tillId, hidden])
   const pickTill = (id: string) => {
     setPickedTill(id)
     keepTill(id)
-    setRows(switchTill(shown, places, id))
+    setRows(switchTill(shown, places, id, hidden))
   }
   // A debt is in so'm: dollars are worth what the rate makes them.
   const valued = valueLines(shown, places, me.org.baseCurrency, dayRate, me.org.settings.maxRateLossPercent)
@@ -103,9 +104,18 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
       return rest
     })
   }
-  const lay = (next: PaymentRow[]) => {
-    setRows(next)
-    keepAccounts(next)
+  // A place taken off the lines stays off for this person, on every device, until it is added again.
+  const hide = (accountId: string) => {
+    const place = places.find((account) => account.id === accountId)
+    if (place && !hidden.includes(placeKey(place))) {
+      setHidden([...hidden, placeKey(place)])
+    }
+  }
+  const unhide = (accountId: string) => {
+    const place = places.find((account) => account.id === accountId)
+    if (place && hidden.includes(placeKey(place))) {
+      setHidden(hidden.filter((key) => key !== placeKey(place)))
+    }
   }
 
   const save = useMutation({
@@ -226,15 +236,19 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
           <PaymentLines
             kind="in"
             lines={valued}
-            spare={sparePlaces(places, shown)}
+            spare={sparePlaces(places, shown, tillId, hidden)}
             currency={base()}
             owed={owed > 0 ? owed : null}
             onPatch={patch}
             onAdd={(accountId) => {
-              lay(addRow(shown, accountId))
+              setRows(addRow(shown, accountId))
+              unhide(accountId)
               setAdded(accountId)
             }}
-            onRemove={(accountId) => lay(removeRow(shown, accountId))}
+            onRemove={(accountId) => {
+              setRows(removeRow(shown, accountId))
+              hide(accountId)
+            }}
             onTotal={typeTotal}
             setsRates={can('money.rates')}
             dayRate={dayRate}

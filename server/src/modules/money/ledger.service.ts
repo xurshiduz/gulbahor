@@ -154,7 +154,7 @@ export class LedgerService {
       em.create(Account, {
         orgId: register.orgId,
         kind: 'cash',
-        name: `${register.name} (${currency === 'USD' ? 'dollar' : CURRENCIES[currency].symbol})`,
+        name: `${register.name} (${CURRENCIES[currency].symbol})`,
         currency,
         locationId: register.locationId,
         locationIds: [register.locationId],

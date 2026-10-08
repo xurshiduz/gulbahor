@@ -222,6 +222,7 @@ export function MoneyPage() {
 
 /** The stand as the business has it now; every sale, payment and transfer refreshes it. */
 function StandTab() {
+  const { me } = useSession()
   const [shopId, setShopId] = useState<string | null>(null)
   const accounts = useAccounts()
   const registers = useRegisters()
@@ -248,6 +249,7 @@ function StandTab() {
       shops={shops}
       shopId={shops.some((shop) => shop.id === shopId) ? shopId : null}
       onShop={setShopId}
+      currencies={[me.org.baseCurrency, ...me.org.currencies]}
     />
   )
 }

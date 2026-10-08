@@ -628,7 +628,7 @@ describe('Till', () => {
       })
       expect(closed.totals.payments).toEqual([
         { method: 'cash', accountName: 'Kassa 1 (so‘m)', currency: 'UZS', amount: som(337_000), base: som(337_000) },
-        { method: 'cash', accountName: 'Kassa 1 (dollar)', currency: 'USD', amount: usd(5), base: som(64_250) },
+        { method: 'cash', accountName: 'Kassa 1 ($)', currency: 'USD', amount: usd(5), base: som(64_250) },
         { method: 'card', accountName: 'Humo', currency: 'UZS', amount: som(30_000), base: som(30_000) },
       ])
       // The drawer now says what was counted; the missing 5 000 is a shortage on the books.

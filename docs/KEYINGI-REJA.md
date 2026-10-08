@@ -592,6 +592,15 @@ Egasi 9c ni qayta ko'rdi va tasdiqladi ("ha, rejaga yoz va boshla"). 9c dagi "ta
 - **Ekran**: smena ochish va yopishda har tortma valyutasiga maydon (`DrawerFields`, "Kassadagi naqd yuan"); topshirish maydonlari kassa valyutalaridan (`handover.tsx`: `emptyHandings(safes, valyutalar)`, `ownSafes` — `context.currencies` bo'yicha, "Topshiriladigan yuan"); Z-hisobotda har valyuta ustuni (biror narsa bo'lgan valyutalar, nomi bilan) va har valyutadagi qaytim; "Smenalar" ro'yxatida biznesning har valyutasiga "Farq" ustuni.
 - **Testlar**: core'da smena sxemasi; serverda `till-currencies.spec.ts` (yuan tortmasi yopilishi, yuan seyfga topshirish, kassa olmaydigan lira, keyin yoqilgan yevro hamma kassada), mavjud smena testlari `testing/shifts.ts` dagi `drawerOf` bilan; vebda topshirish maydonlari valyutalar ro'yxati bilan.
 
+### Standart holatda hammasi ko'rinadi, keraksizi yashiriladi (egasi so'radi, 2026-10-09)
+
+- **Hamma kassa hamma valyutada**: valyuta yoqilganda har kassaga qo'shiladi (`CurrenciesService.enableIn`); undan oldin ochilgan kassalar migratsiya `1790000042000-every-till-every-currency` bilan biznesdagi hamma valyutani oldi. Kassa sozlamasida ("Naqd valyutalar") olib tashlash mumkin — hamma uchun.
+- **To'lov olish va berish oynalarida** standart holatda tanlangan kassaning hamma tortmasi va kassaga tegishli bo'lmagan hamma hisob (karta, seyf, bank) chiqadi; shu kompyuterda eslab qolinadigan qatorlar (`gb.pay.accounts`, `keptAccounts`, `READY_ROWS`) olib tashlandi.
+- **Yashirish — xodimning o'zi uchun** (hamma qurilmada): naqd pul valyuta bo'yicha ("yuan naqd" — hamma kassada), karta, terminal, bank, seyf — hisob bo'yicha. Kassada qator yonidagi ko'z belgisi, ostida "Yashirilgan: Naqd yuan, Visa *9839" (bosilsa chiqadi, "Yashirilganlarni yig'ish"); to'lov oynalarida X va "Yana hisob…". Summa yozilgan yoki taklif qilingan qator (masalan, qaytarishda chek to'langan karta) doim ko'rinadi.
+- **Kassa tortmasi nomi** valyuta belgisi bilan: "Kassa 1 (so'm)", "Kassa 1 ($)", "Kassa 1 (¥)" (dollar endi alohida so'z bilan emas; eski nomlar migratsiyada o'zgardi).
+- **"Pul holati"da biznesning hamma valyutasi** o'z bloki bilan (puli bo'lmasa ham nol), asosiy birinchi (`moneyStand(…, kept)`); "Hammasi so'mda" ostida har valyutaning kursi ("1 $ = 12 000 so'm · 1 ¥ = 1 764,71 so'm").
+- **Kassa tortmasi va "Naqd" hisob har xil narsa**: tortma — kassaning o'z puli, kassa har valyutasiga avtomatik ochiladi, "Hisoblar"da "Kassa (naqd)" bo'lib turadi va kassa orqali boshqariladi (menyusi yo'q); "Naqd" turidagi hisob — kassadan tashqaridagi pul joyi (seyf, qo'ldagi pul), kassada chiqmaydi.
+
 ### Narx, mijoz hisobi va hisobot valyutasi (egasining qarori, 2026-10-08)
 
 ERP'lardagi amaliyot bilan solishtirib kelishildi (1C: narx turlari, boshqaruv valyutasi, shartnoma valyutasi; SAP: parallel valyuta; Odoo: pricelist). 16-bo'limning tegishli qarorlarini almashtiradi — ro'yxati 16.10 da.

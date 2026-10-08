@@ -14,7 +14,6 @@ import {
   PaymentLines,
   placeName,
   rateText,
-  READY_ROWS,
   removeRow,
   spreadTotal,
   sparePlaces,
@@ -56,22 +55,13 @@ describe('the lines a payment opens with', () => {
   ]
   const ids = (rows: PaymentRow[]) => rows.map((line) => line.accountId)
 
-  it("are the drawers of the till it goes through, so'm first, and no other till's", () => {
-    expect(ids(startRows(till, [], 'till-1'))).toEqual(['s1', 'd1'])
-    expect(ids(startRows(till, [], 'till-2'))).toEqual(['s2', 'd2'])
+  it("are the drawers of the till it goes through, so'm first, then every place that is no till's", () => {
+    expect(ids(startRows(till, 'till-1'))).toEqual(['s1', 'd1', 'safe', 'card'])
+    expect(ids(startRows(till, 'till-2'))).toEqual(['s2', 'd2', 'safe', 'card'])
   })
 
-  it('have after them the other places this computer paid through before', () => {
-    // A place that is no longer there is forgotten; a drawer remembered from before is not laid out twice,
-    // nor is another till's brought in by having been used once.
-    expect(ids(startRows(till, ['safe', 'gone', 's1', 'd2', 'card'], 'till-1'))).toEqual(['s1', 'd1', 'safe', 'card'])
-  })
-
-  it('are the first few places that are no till when there is no till to go through', () => {
-    expect(ids(startRows(till, [], null))).toEqual(['safe', 'card'])
-    expect(ids(startRows(till, ['card'], null))).toEqual(['card'])
-    const many = Array.from({ length: READY_ROWS + 4 }, (_, index) => account(`a${index}`, `Hisob ${index}`, 'UZS'))
-    expect(startRows(many, [], null)).toHaveLength(READY_ROWS)
+  it('are every place that is no till when there is no till to go through', () => {
+    expect(ids(startRows(till, null))).toEqual(['safe', 'card'])
   })
 
   it("change one till's drawers for another's and keep the rest, with what was typed there", () => {
@@ -81,6 +71,18 @@ describe('the lines a payment opens with', () => {
 
   it("offer under “another account” only what is no till's drawer and has no line yet", () => {
     expect(sparePlaces(till, [row('s1'), row('safe')]).map((place) => place.id)).toEqual(['card'])
+  })
+
+  it('leave out what this person keeps out of sight, and offer it again under “another account”', () => {
+    // Dollars in cash, at whichever till, and the safe: hidden.
+    const hidden = ['cash:USD', 'safe']
+    expect(ids(startRows(till, 'till-1', hidden))).toEqual(['s1', 'card'])
+    expect(ids(switchTill([row('s1'), row('card')], till, 'till-2', hidden))).toEqual(['s2', 'card'])
+    // The chosen till's hidden drawer comes back from the list; another till's never does.
+    expect(sparePlaces(till, [row('s1'), row('card')], 'till-1', hidden).map((place) => place.id)).toEqual([
+      'd1',
+      'safe',
+    ])
   })
 
   it('gain and lose a place, and are emptied for the next payment', () => {

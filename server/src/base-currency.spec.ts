@@ -210,7 +210,7 @@ describe('A base other than the so’m', () => {
       expect(drawers.map((row) => [row.name, row.currency, Number(row.balance)])).toEqual([
         ['Kassa 1 (¥)', 'CNY', 0],
         ['Kassa 1 (₸)', 'KZT', minor(20_000)],
-        ['Kassa 1 (dollar)', 'USD', minor(25)],
+        ['Kassa 1 ($)', 'USD', minor(25)],
       ])
       const books = await sql<{ currency: string }[]>(
         `SELECT DISTINCT a.currency FROM accounts a JOIN organizations o ON o.id = a.org_id

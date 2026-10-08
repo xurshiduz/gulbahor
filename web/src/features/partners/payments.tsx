@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
+import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
@@ -49,8 +50,6 @@ import {
   addRow,
   agreedOf,
   clearRows,
-  keepAccounts,
-  keptAccounts,
   patchRow,
   PaymentLines,
   rateText,
@@ -143,11 +142,13 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   const tills = useMemo(() => tillsOf(places), [places])
   const [pickedTill, setPickedTill] = useState<string | null>(null)
   const tillId = tills.some((till) => till.id === pickedTill) ? pickedTill : defaultTill(tills, tillHere(), lastTill())
-  const shown = useMemo(() => rows ?? startRows(places, keptAccounts(), tillId), [rows, places, tillId])
+  // What this person keeps out of sight: a seldom used drawer or account, back from "another account" when wanted.
+  const [hidden, setHidden] = useHiddenPlaces()
+  const shown = useMemo(() => rows ?? startRows(places, tillId, hidden), [rows, places, tillId, hidden])
   const pickTill = (id: string) => {
     setPickedTill(id)
     keepTill(id)
-    setRows(switchTill(shown, places, id))
+    setRows(switchTill(shown, places, id, hidden))
   }
   const valued = valueLines(shown, places, partner?.currency ?? null, dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
@@ -166,10 +167,18 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
       return rest
     })
   }
-  // Which places have a line is this computer's habit: it is kept for the next payment.
-  const lay = (next: PaymentRow[]) => {
-    setRows(next)
-    keepAccounts(next)
+  // A place taken off the lines stays off for this person, on every device, until it is added again.
+  const hide = (accountId: string) => {
+    const place = places.find((account) => account.id === accountId)
+    if (place && !hidden.includes(placeKey(place))) {
+      setHidden([...hidden, placeKey(place)])
+    }
+  }
+  const unhide = (accountId: string) => {
+    const place = places.find((account) => account.id === accountId)
+    if (place && hidden.includes(placeKey(place))) {
+      setHidden(hidden.filter((key) => key !== placeKey(place)))
+    }
   }
 
   // Ctrl+Shift+Enter saves and stays for the next payment; Ctrl+Enter saves and closes.
@@ -373,15 +382,19 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
           <PaymentLines
             kind={kind}
             lines={valued}
-            spare={sparePlaces(places, shown)}
+            spare={sparePlaces(places, shown, tillId, hidden)}
             currency={partner?.currency ?? null}
             owed={debt !== null && debt > 0 ? debt : null}
             onPatch={patch}
             onAdd={(accountId) => {
-              lay(addRow(shown, accountId))
+              setRows(addRow(shown, accountId))
+              unhide(accountId)
               setAdded(accountId)
             }}
-            onRemove={(accountId) => lay(removeRow(shown, accountId))}
+            onRemove={(accountId) => {
+              setRows(removeRow(shown, accountId))
+              hide(accountId)
+            }}
             onTotal={typeTotal}
             setsRates={setsRates}
             dayRate={dayRate}

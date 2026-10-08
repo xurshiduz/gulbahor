@@ -50,12 +50,16 @@ const serves = (account: AccountDto, shopId: string | null) =>
  * Where the business's money stands: each currency apart, in it the cash and
  * the cashless, in those every place by itself — the whole business, or what
  * one shop has to hand. A place put away is still shown while money is in it.
+ * Every currency the business keeps has its block, the base first, even with
+ * nothing in it yet; a currency put away, while money is still in it.
  */
 export function moneyStand(
   accounts: AccountDto[],
   registers: Pick<RegisterDto, 'id' | 'name'>[],
   waiting: MoneyTransferDto[],
   shopId: string | null = null,
+  /** The currencies the business keeps, in their order. */
+  kept: AnyCurrency[] = [],
 ): StandCurrency[] {
   const tillOf = new Map(registers.map((register) => [register.id, register.name]))
   const shown = accounts.filter(
@@ -67,9 +71,10 @@ export function moneyStand(
     (transfer) => transfer.status === 'sent' && (ids.has(transfer.fromAccountId) || ids.has(transfer.toAccountId)),
   )
 
-  const currencies = [...new Set([...shown.map((account) => account.currency), ...moving.map((item) => item.currency)])]
-  // In the order the list of currencies is kept in: so'm, the dollar, then the rest.
-  currencies.sort((a, b) => ALL_CURRENCY_CODES.indexOf(a) - ALL_CURRENCY_CODES.indexOf(b))
+  const held = [...new Set([...shown.map((account) => account.currency), ...moving.map((item) => item.currency)])]
+  // Any other in the order the list of currencies is kept in.
+  held.sort((a, b) => ALL_CURRENCY_CODES.indexOf(a) - ALL_CURRENCY_CODES.indexOf(b))
+  const currencies = [...new Set([...kept, ...held])]
 
   return currencies.map((currency) => {
     const half = (holding: Holding): StandHalf => {

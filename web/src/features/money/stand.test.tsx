@@ -149,6 +149,16 @@ describe('where the money stands', () => {
     expect(moneyStand([account('drawer', { balance: null })], registers, [])).toEqual([])
   })
 
+  it('has a block for every currency the business keeps, the base first, money or not', () => {
+    const stand = moneyStand(accounts, registers, [], null, ['UZS', 'CNY', 'USD'])
+    expect(stand.map((item) => [item.currency, item.total])).toEqual([
+      ['UZS', som(15_000_000)],
+      ['CNY', 0],
+      ['USD', usd(1000)],
+    ])
+    expect(stand[1].cash.places).toEqual([])
+  })
+
   it('values everything in so’m at the day’s rate, and says nothing without one', () => {
     const stand = moneyStand(accounts, registers, [])
     expect(standWorth(stand, 12_650)).toBe(som(15_000_000) + som(12_650_000))
@@ -198,7 +208,7 @@ describe('the stand on the screen', () => {
     expect(card('USD').querySelector('[data-half="transit"]')).toBeNull()
     // 17 000 000 so'm and 1 000 $ at 12 650.
     expect(plain(screen.getByText('Hammasi so‘mda').parentElement?.textContent ?? '')).toBe(
-      'Hammasi so‘mda29 650 000 so‘mkun kursi 12 650',
+      'Hammasi so‘mda29 650 000 so‘m1 $ = 12 650 so‘m',
     )
   })
 
@@ -256,7 +266,7 @@ describe('money kept in another currency', () => {
       'Yuan karta (6200 1234 5678 9012)',
     )
     expect(plain(screen.getByText('Hammasi so‘mda').parentElement?.textContent ?? '')).toBe(
-      'Hammasi so‘mda40 300 000 so‘mkun kurslarida',
+      'Hammasi so‘mda40 300 000 so‘m1 $ = 12 650 so‘m · 1 ¥ = 1 744,83 so‘m',
     )
   })
 })

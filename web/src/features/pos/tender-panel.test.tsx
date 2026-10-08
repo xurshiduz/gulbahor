@@ -333,3 +333,65 @@ describe('the receipt beside the money', () => {
     expect(text).toContain('Sotuvchi: Dilnoza')
   })
 })
+
+describe('rows kept out of sight', () => {
+  it('leave the till for a line that names them, come back with it, and are hidden or shown for good from the row', async () => {
+    const changes: string[][] = []
+    function Hidden() {
+      const [hidden, setHidden] = useState(['cash:USD', 'uzcard'])
+      const [peek, setPeek] = useState(false)
+      return (
+        <TenderPanel
+          context={context}
+          rows={tenderRows(context)}
+          onPatch={() => undefined}
+          returning={null}
+          refunding={false}
+          due={som(100_000)}
+          suggested={{ cash: som(100_000) }}
+          settlement={settle(som(100_000), [], { book, changeCurrency: 'UZS', roundStep: 0 })}
+          refund={settleRefund(0, [], { book, roundStep: 0 })}
+          changeCurrency="UZS"
+          onChangeCurrency={() => undefined}
+          action="Sotish"
+          busy={false}
+          onComplete={() => undefined}
+          onBack={() => undefined}
+          hiding={{
+            hidden,
+            onChange: (next) => {
+              changes.push(next)
+              setHidden(next)
+            },
+            peek,
+            onPeek: setPeek,
+          }}
+        />
+      )
+    }
+    render(<Hidden />)
+    const shown = () => [...document.querySelectorAll('[data-tender]')].map((row) => row.getAttribute('data-tender'))
+    expect(shown()).toEqual(['cash', 'account:humo', 'account:pos'])
+    const line = screen.getByRole('button', { name: /Yashirilgan/ })
+    expect(plain(line.textContent)).toBe('Yashirilgan: Naqd dollar, Uzcard *8841')
+
+    await userEvent.click(line)
+    expect(shown()).toEqual(['cash', 'cash:USD', 'account:humo', 'account:uzcard', 'account:pos'])
+    // The so'm in cash is never hidden: it has no button.
+    expect(within(document.querySelector('[data-tender="cash"]') as HTMLElement).queryByRole('button')).toBeNull()
+    await userEvent.click(
+      within(document.querySelector('[data-tender="cash:USD"]') as HTMLElement).getByRole('button', {
+        name: 'Doim ko‘rsatish',
+      }),
+    )
+    await userEvent.click(
+      within(document.querySelector('[data-tender="account:pos"]') as HTMLElement).getByRole('button', {
+        name: 'Yashirish',
+      }),
+    )
+    expect(changes).toEqual([['uzcard'], ['uzcard', 'pos']])
+
+    await userEvent.click(screen.getByRole('button', { name: /Yashirilganlarni yig‘ish/ }))
+    expect(shown()).toEqual(['cash', 'cash:USD', 'account:humo'])
+  })
+})

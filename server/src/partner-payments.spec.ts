@@ -168,7 +168,7 @@ describe('Partner payments', () => {
 
     it('takes money in any currency and settles the account to the cent', async () => {
       const accounts = (await dealer.get('/api/partner-payments/accounts').expect(200)).body as AccountRow[]
-      expect(accounts.map((account) => account.name)).toEqual(['Kassa 1 (dollar)', 'Kassa 1 (so‘m)', 'Seyf', 'Humo'])
+      expect(accounts.map((account) => account.name)).toEqual(['Kassa 1 ($)', 'Kassa 1 (so‘m)', 'Seyf', 'Humo'])
       // The till's shift is open: money can go through every one of them.
       expect(accounts.every((account) => account.open)).toBe(true)
 
@@ -198,7 +198,7 @@ describe('Partner payments', () => {
         currency: 'USD',
         change: -usd(1100),
         createdByName: 'Jasur Hamkorchi',
-        paidBy: 'Kassa 1 (dollar), Kassa 1 (so‘m), Humo',
+        paidBy: 'Kassa 1 ($), Kassa 1 (so‘m), Humo',
       })
       expect(
         payment.lines.map((line: { currency: string; amount: number; rate: number | null; settled: number }) => [
