@@ -182,19 +182,21 @@ export function Tabs({
   }, [value])
   return (
     <TabsPrimitive.Root value={value} onValueChange={onChange} className="flex min-h-0 flex-1 flex-col">
-      {/* The tabs are one control, in a track of their own; the row has no rule under it — the screen's
-          button beside them is not part of what the rule would underline. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
-        {/* More tabs than a narrow window has room for are scrolled along, not pushed out of the page. */}
+      {/* The rule runs under the whole row and the screen's buttons stand on it, centred on the tabs' names;
+          the row is tall enough that they keep clear of it. Short of room the buttons go up a line rather than
+          down (wrap-reverse), so the tabs stay on the rule. */}
+      <div className="flex shrink-0 flex-wrap-reverse items-center gap-x-4 border-b border-line">
+        {/* More tabs than a narrow window has room for are scrolled along, not pushed out of the page.
+            The first name starts where the content below does. */}
         <TabsPrimitive.List
           ref={listRef}
-          className="flex max-w-full min-w-0 gap-0.5 overflow-x-auto rounded-lg bg-sunken p-0.5 [scrollbar-width:none]"
+          className="-mb-px -ml-1 flex max-w-full min-w-0 gap-3 overflow-x-auto [scrollbar-width:none]"
         >
           {tabs.map((tab) => (
             <TabsPrimitive.Trigger
               key={tab.value}
               value={tab.value}
-              className="h-7.5 shrink-0 rounded-md px-3 text-[13px] font-medium whitespace-nowrap text-ink-2 transition-colors hover:text-ink focus-visible:-outline-offset-2 data-[state=active]:bg-surface data-[state=active]:text-ink data-[state=active]:shadow-card"
+              className="relative h-11 shrink-0 px-1 text-[13px] font-medium whitespace-nowrap text-ink-2 transition-colors after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full after:transition-colors hover:text-ink hover:after:bg-line-strong focus-visible:-outline-offset-2 data-[state=active]:text-ink data-[state=active]:after:bg-accent"
             >
               {tab.label}
             </TabsPrimitive.Trigger>
@@ -202,7 +204,7 @@ export function Tabs({
         </TabsPrimitive.List>
         {/* The buttons of the screen, or of the tab in view. */}
         {actionsRef ? (
-          <div ref={actionsRef} className="ml-auto flex flex-wrap items-center gap-2 empty:hidden" />
+          <div ref={actionsRef} className="ml-auto flex flex-wrap items-center gap-2 py-1 empty:hidden" />
         ) : null}
       </div>
       {children}

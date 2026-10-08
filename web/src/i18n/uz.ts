@@ -983,7 +983,7 @@ export const uz = {
     last4Hint: 'Bank xabarlarida va chekda karta shu raqam bilan taniladi.',
     cardNumber: 'Karta raqami',
     cardNumberHint:
-      'To‘liq raqam: kartalar bir-biridan shu bilan ajratiladi. Bank xabarlarida oxirgi 4 raqami bilan taniladi.',
+      '16 ta raqam: kartalar bir-biridan shu bilan ajratiladi. Bank xabarlarida oxirgi 4 raqami bilan taniladi.',
     cardNumberOld: 'Hozir faqat oxirgi 4 raqami ma’lum (*{{last4}}). To‘liq raqamni yozing.',
     bank: 'Bank',
     tabTransfers: 'O‘tkazmalar',

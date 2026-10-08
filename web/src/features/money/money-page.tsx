@@ -34,6 +34,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { CardNumberInput } from '@/components/ui/card-number-input'
 import { Combobox } from '@/components/ui/combobox'
 import { Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
@@ -727,14 +728,19 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
                 error={errors.cardNumber?.message}
               >
                 {(id) => (
-                  <Input
-                    id={id}
-                    className="font-code"
-                    inputMode="numeric"
-                    maxLength={23}
-                    placeholder="9860 1234 5678 9012"
-                    invalid={!!errors.cardNumber}
-                    {...form.register('cardNumber')}
+                  <Controller
+                    control={form.control}
+                    name="cardNumber"
+                    render={({ field }) => (
+                      <CardNumberInput
+                        id={id}
+                        ref={field.ref}
+                        value={field.value}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        invalid={!!errors.cardNumber}
+                      />
+                    )}
                   />
                 )}
               </Field>

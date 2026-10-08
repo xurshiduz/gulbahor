@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { useScanner } from '@/lib/scanner'
 
+import { CardNumberInput } from './card-number-input'
 import { Combobox } from './combobox'
 import { DateInput } from './date-input'
 import { Form } from './form'
@@ -147,6 +148,40 @@ describe('PhoneInput', () => {
     await userEvent.paste('8 (90) 123-45-67')
     expect(input).toHaveProperty('value', '90 123 45 67')
     expect(onChange).toHaveBeenLastCalledWith('+998901234567')
+  })
+})
+
+describe('CardNumberInput', () => {
+  function Card({ onChange }: { onChange: (value: string) => void }) {
+    const [value, setValue] = useState('')
+    return <CardNumberInput value={value} onChange={(next) => (setValue(next), onChange(next))} />
+  }
+
+  it('takes only digits and spaces them in fours as they are typed', async () => {
+    const onChange = vi.fn()
+    render(<Card onChange={onChange} />)
+    const input = screen.getByRole('textbox')
+    await userEvent.type(input, '9860ab12-34 5678x9012')
+    expect(input).toHaveProperty('value', '9860 1234 5678 9012')
+    expect(onChange).toHaveBeenLastCalledWith('9860 1234 5678 9012')
+  })
+
+  it('cleans a pasted number and stops at sixteen digits', async () => {
+    render(<Card onChange={vi.fn()} />)
+    const input = screen.getByRole('textbox')
+    input.focus()
+    await userEvent.paste('9860-1234-5678-9012-3456-78')
+    expect(input).toHaveProperty('value', '9860 1234 5678 9012')
+  })
+
+  it('takes the digit before a space when the space is deleted', async () => {
+    render(<Card onChange={vi.fn()} />)
+    const input = screen.getByRole('textbox')
+    await userEvent.type(input, '98601234')
+    // The cursor right after the space: "9860 |1234".
+    await userEvent.type(input, '{Backspace}', { initialSelectionStart: 5, initialSelectionEnd: 5 })
+    expect(input).toHaveProperty('value', '9861 234')
+    expect(input).toHaveProperty('selectionStart', 3)
   })
 })
 

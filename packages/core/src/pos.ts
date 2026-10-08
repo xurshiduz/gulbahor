@@ -79,8 +79,9 @@ export type PaymentAccountKind = (typeof PAYMENT_ACCOUNT_KINDS)[number]
 /** The kinds of account that may serve several shops at once. */
 export const SHARED_ACCOUNT_KINDS: readonly PaymentAccountKind[] = ['card', 'bank']
 
-/** A card's number: sixteen digits on most, a few more or fewer on some. */
-const CARD_NUMBER = /^\d{12,19}$/
+/** A card's number: Uzcard, Humo, Visa and Mastercard all have sixteen digits (the owner, 2026-10-08). */
+export const CARD_NUMBER_DIGITS = 16
+const CARD_NUMBER = new RegExp(`^\\d{${CARD_NUMBER_DIGITS}}$`)
 
 export const accountInputSchema = z
   .object({

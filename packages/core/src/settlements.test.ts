@@ -256,6 +256,7 @@ describe('a card', () => {
     expect(card({ last4: '3073' }).data).toMatchObject({ cardNumber: null, last4: '3073' })
     expect(card({ cardNumber: '' }).data?.cardNumber).toBeNull()
     expect(card({ cardNumber: '9860 12' }).success).toBe(false)
+    expect(card({ cardNumber: '9860 1234 5678 9012 345' }).success).toBe(false)
     expect(card({ cardNumber: '9860 1234 5678 901x' }).success).toBe(false)
     expect(formatCardNumber('9860123456789012')).toBe('9860 1234 5678 9012')
     expect(formatCardNumber('4000123412341234567')).toBe('4000 1234 1234 1234 567')
