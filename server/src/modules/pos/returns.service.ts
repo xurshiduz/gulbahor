@@ -8,7 +8,7 @@ import {
   returnShare,
   searchKey,
   settleRefund,
-  toBase,
+  tillWorth,
   type AnyCurrency,
   UNIT_INFO,
   variantLabel,
@@ -48,7 +48,8 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
-import { takesDollars, tillCurrencyProblem } from '../money/base'
+import { tillCurrenciesOf, tillCurrencyProblem } from '../money/base'
+import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
@@ -110,6 +111,7 @@ export class ReturnsService {
     private readonly ledger: LedgerService,
     private readonly sales: SalesService,
     private readonly approvals: ApprovalsService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   /** The receipt goods are brought back on: found by its number, or by the tag of a piece it sold. */
@@ -193,8 +195,7 @@ export class ReturnsService {
       const settings = await this.settings(em, actor.orgId)
       const today = await this.ledger.today(em, actor.orgId)
       const { base } = actor
-      const usd = takesDollars(actor)
-      const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+      const book = await this.currencies.book(em, actor, today)
       // What a cashier may not do alone goes through on their own right, or on a manager's PIN given with it.
       const own = can(actor, 'pos.return_any')
       const free = own || allows(approver, 'pos.return_any')
@@ -271,7 +272,7 @@ export class ReturnsService {
           exchangeTotal: 0,
           exchangeSaleId: null,
           rounding: 0,
-          uzsPerUsd: rate,
+          uzsPerUsd: null,
           late,
           reason: input.reason ?? null,
           searchKey: searchKey([number, sale.number, actor.name].join(' ')),
@@ -399,13 +400,13 @@ export class ReturnsService {
       }[] = []
       for (const [index, refund] of input.refunds.entries()) {
         const currency = refund.currency ?? base
-        const problem = tillCurrencyProblem(currency, actor, rate)
+        const problem = tillCurrencyProblem(currency, tillCurrenciesOf(actor, register), book)
         if (problem) {
           fields[`refunds.${index}.currency`] = problem
           continue
         }
-        if (refund.method !== 'cash' && currency !== base) {
-          fields[`refunds.${index}.currency`] = 'Karta va terminal faqat asosiy valyutada'
+        if (refund.method === 'terminal' && currency !== base) {
+          fields[`refunds.${index}.currency`] = 'Terminal faqat asosiy valyutada'
           continue
         }
         let account: Account | undefined
@@ -415,11 +416,11 @@ export class ReturnsService {
           account = accounts.find((item) => item.id === refund.accountId)
           const paidHere = caps.accounts.some((cap) => cap.accountId === account?.id)
           otherwise ||= !paidHere
-          // A sale is in the base: what is handed back for it goes to a card in the base, never a dollar one.
+          // Handed back to a card in the currency it is named in.
           const fits =
             account &&
             account.kind === refund.method &&
-            account.currency === base &&
+            account.currency === currency &&
             account.isActive &&
             (free || paidHere)
           if (!fits) {
@@ -433,13 +434,13 @@ export class ReturnsService {
           account: account as Account,
           currency,
           amount: refund.amount,
-          base: toBase(refund.amount, currency, rate, base),
+          base: tillWorth(refund.amount, currency, book) as number,
           reference: refund.reference ?? null,
         })
       }
       throwIfAny(fields)
 
-      const settlement = settleRefund(due, refunds, { uzsPerUsd: rate, roundStep: settings.changeRoundStep, base })
+      const settlement = settleRefund(due, refunds, { book, roundStep: settings.changeRoundStep })
       if (settlement.problem === 'over') {
         throw AppError.validation({ refunds: `Qaytariladigan pul ${formatMoney(due, base)} dan oshmasligi kerak` })
       }
@@ -771,7 +772,6 @@ export class ReturnsService {
       ...summary,
       shiftNumber: shift.number,
       rounding: row.rounding,
-      uzsPerUsd: row.uzsPerUsd,
       lines: lines.map((line) => ({
         id: line.id,
         productName: line.name,

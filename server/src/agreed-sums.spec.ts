@@ -390,10 +390,10 @@ describe('Agreed sums', () => {
         fx: som(40_000),
       })
 
-      // A sale at the till is in so'm: the dollar card is not among the cards it may be paid to.
+      // A till that takes dollars takes the dollar card too.
       const registers = (await alpha.get('/api/money/registers').expect(200)).body as { id: string }[]
       const context = (await alpha.get(`/api/pos/context/${registers[0].id}`).expect(200)).body
-      expect((context.cards as { name: string }[]).map((item) => item.name)).toEqual(['Humo'])
+      expect((context.cards as { name: string }[]).map((item) => item.name)).toEqual(['Humo', 'Visa'])
     })
   })
 

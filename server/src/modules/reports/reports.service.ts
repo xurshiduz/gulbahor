@@ -125,8 +125,8 @@ export class ReportsService {
              UNION ALL
              SELECT 'cash', $4::text, -s.change_uzs, -s.change_uzs FROM sales s WHERE ${SOLD} AND s.change_uzs > 0
              UNION ALL
-             SELECT 'cash', 'USD', -s.change_usd, -round(s.change_usd * coalesce(s.uzs_per_usd, 0))
-             FROM sales s WHERE ${SOLD} AND s.change_usd > 0
+             SELECT 'cash', s.change_currency, -s.change_other, -s.change_other_base
+             FROM sales s WHERE ${SOLD} AND s.change_other > 0
              UNION ALL
              SELECT p.method, p.currency, -p.amount, -p.base
              FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id

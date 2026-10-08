@@ -20,6 +20,7 @@ import {
   type SaleTotals,
   type Tender,
   type TenderMethod,
+  type AnyCurrency,
 } from '@erp/core'
 
 import { base } from '@/lib/base'
@@ -228,12 +229,12 @@ export function splitMultiplier(text: string): { qty: number | null; rest: strin
   return { qty: qty > 0 ? qty : null, rest: match[2].trim() }
 }
 
-/** The change in words: "3 $ + 10 000 so'm". Dollars come first: they are counted out first. */
-export function changeText(changeUzs: number, changeUsd: number): string {
+/** The change in words: "3 $ + 10 000 so'm". The other currency comes first: it is counted out first. */
+export function changeText(changeUzs: number, changeOther: number, changeCurrency: AnyCurrency | null): string {
   return [
-    // Whole dollars only, so no cents are shown.
-    changeUsd ? formatMoney(changeUsd, 'USD', { minor: 'never' }) : null,
-    changeUzs || !changeUsd ? formatMoney(changeUzs, base(), { minor: 'auto' }) : null,
+    // Whole notes only, so no cents are shown.
+    changeOther && changeCurrency ? formatMoney(changeOther, changeCurrency, { minor: 'never' }) : null,
+    changeUzs || !changeOther ? formatMoney(changeUzs, base(), { minor: 'auto' }) : null,
   ]
     .filter(Boolean)
     .join(' + ')
@@ -250,11 +251,11 @@ export function tenderRows(context: PosContextDto): TenderRow[] {
     value: null,
     reference: '',
   })
-  // Every card and every terminal of the shop has its own row: none is picked from a list.
+  // Cash in every currency the till takes, then every card and every terminal of the shop: none is picked from a list.
   return [
     row('cash', 'cash', base(), null),
-    ...(context.usd ? [row('usd', 'cash', 'USD', null)] : []),
-    ...context.cards.map((card) => row(`account:${card.id}`, 'card', base(), card.id)),
+    ...context.currencies.filter((code) => code !== base()).map((code) => row(`cash:${code}`, 'cash', code, null)),
+    ...context.cards.map((card) => row(`account:${card.id}`, 'card', card.currency, card.id)),
     ...context.terminals.map((terminal) => row(`account:${terminal.id}`, 'terminal', base(), terminal.id)),
   ]
 }

@@ -22,7 +22,7 @@ import { controlClass, Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
-import { base, dollarsBeside } from '@/lib/base'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
@@ -333,8 +333,8 @@ export function ReturnDialog({ returnId, onClose }: { returnId: string; onClose:
                 // What came off a debt was never money: it is not said to have been handed back.
                 label={refund.method === 'debt' ? t('pos.offDebt') : `${t('sales.refunded')}: ${paymentLabel(refund)}`}
                 value={
-                  dollarsBeside(refund.currency)
-                    ? `${money(refund.amount, 'USD')} = ${money(refund.base)}`
+                  refund.currency !== base()
+                    ? `${money(refund.amount, refund.currency)} = ${money(refund.base)}`
                     : money(refund.amount)
                 }
               />

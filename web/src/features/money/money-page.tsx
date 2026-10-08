@@ -285,6 +285,13 @@ function RegistersTab({ canManage, onEdit }: { canManage: boolean; onEdit: (regi
       },
       { id: 'location', header: t('money.shop'), cell: ({ row }) => row.original.locationName },
       {
+        id: 'currencies',
+        header: t('money.tillCurrencies'),
+        cell: ({ row }) => (
+          <span className="tabular-nums">{[baseCurrency(), ...row.original.currencies].join(' · ')}</span>
+        ),
+      },
+      {
         id: 'shift',
         header: t('money.shift'),
         cell: ({ row }) =>
@@ -368,10 +375,13 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
   const locations = useLocations()
   // A warehouse has no till: only places that sell are offered.
   const shops = (locations.data ?? []).filter((location) => location.kind !== 'warehouse' && location.kind !== 'zone')
-  const form = useForm<{ name: string; locationId: string | null }>({
+  // Cash beside the base: any currency the business keeps. A new till takes every one of them, as the server would.
+  const others = useSession().me.org.currencies.filter((code) => code !== baseCurrency())
+  const form = useForm<{ name: string; locationId: string | null; currencies: AnyCurrency[] }>({
     defaultValues: {
       name: register?.name ?? '',
       locationId: register?.locationId ?? (shops.length === 1 ? shops[0].id : null),
+      currencies: register?.currencies ?? others,
     },
   })
   const errors = form.formState.errors
@@ -427,6 +437,30 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
             />
           )}
         </Field>
+        {others.length ? (
+          <Field
+            label={t('money.tillCurrencies')}
+            hint={t('money.tillCurrenciesHint', { base: currencyName(baseCurrency(), t) })}
+            error={errors.currencies?.message}
+          >
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="currencies"
+                render={({ field }) => (
+                  <Combobox
+                    id={id}
+                    multiple
+                    value={field.value}
+                    onChange={(codes) => field.onChange(codes)}
+                    options={others.map((code) => ({ value: code, label: currencyName(code, t), hint: code }))}
+                    invalid={!!errors.currencies}
+                  />
+                )}
+              />
+            )}
+          </Field>
+        ) : null}
       </Form>
     </Dialog>
   )

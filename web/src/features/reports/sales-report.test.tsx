@@ -159,7 +159,7 @@ describe('the sales report', () => {
     expect(rows('To‘lov turlari')).toEqual([
       'Naqd so‘m11 000 000 so‘m58%',
       'Kartaga6 000 000 so‘m32%',
-      'Naqd dollar1 800 000 so‘m9%150 $',
+      'Naqd dollar1 800 000 so‘m9%150,00 $',
       'Qarzga200 000 so‘m1%',
     ])
     expect(rows('Kassirlar')).toEqual(['Dilnoza Karimova20 000 000 so‘m100%40 ta chek'])

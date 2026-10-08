@@ -252,12 +252,13 @@ describe('the search field', () => {
 })
 
 describe('change', () => {
-  it("is said dollars first, then so'm", () => {
+  it("is said in the other currency first, then so'm", () => {
     const plain = (text: string) => text.replace(/\s/g, ' ')
-    expect(plain(changeText(som(10_000), 0))).toBe('10 000 so‘m')
-    expect(plain(changeText(som(11_000), 600))).toBe('6 $ + 11 000 so‘m')
-    expect(plain(changeText(0, 600))).toBe('6 $')
-    expect(plain(changeText(0, 0))).toBe('0 so‘m')
+    expect(plain(changeText(som(10_000), 0, null))).toBe('10 000 so‘m')
+    expect(plain(changeText(som(11_000), 600, 'USD'))).toBe('6 $ + 11 000 so‘m')
+    expect(plain(changeText(0, 600, 'USD'))).toBe('6 $')
+    expect(plain(changeText(0, 7100, 'CNY'))).toBe('71 ¥')
+    expect(plain(changeText(0, 0, null))).toBe('0 so‘m')
   })
 })
 
@@ -299,11 +300,15 @@ describe('goods coming back', () => {
       cash: som(300_000),
     })
 
-    const context = { usd: true, cards: [{ id: 'other' }], terminals: [{ id: 'pos' }] } as PosContextDto
+    const context = {
+      currencies: ['UZS', 'USD'],
+      cards: [{ id: 'other' }],
+      terminals: [{ id: 'pos' }],
+    } as unknown as PosContextDto
     // The fields are cash, and the card the receipt was paid with: not the shop's other cards.
     expect(refundRows(context, mixed).map((row) => [row.key, row.method, row.currency, row.accountId])).toEqual([
       ['cash', 'cash', 'UZS', null],
-      ['usd', 'cash', 'USD', null],
+      ['cash:USD', 'cash', 'USD', null],
       ['account:humo', 'card', 'UZS', 'humo'],
     ])
   })

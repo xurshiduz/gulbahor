@@ -9,8 +9,8 @@ import { base, baseWords, dollarsBeside, setBase } from './base'
 import { moneyCell } from './excel'
 
 const t = i18n.t.bind(i18n)
-const context = (usd: boolean) =>
-  ({ usd, cards: [{ id: 'kaspi', kind: 'card', currency: 'KZT' }], terminals: [] }) as unknown as PosContextDto
+const context = (currencies: string[]) =>
+  ({ currencies, cards: [{ id: 'kaspi', kind: 'card', currency: 'KZT' }], terminals: [] }) as unknown as PosContextDto
 
 describe('the base currency on the screens', () => {
   afterEach(() => setBase('UZS'))
@@ -25,10 +25,10 @@ describe('the base currency on the screens', () => {
     expect(t('pos.payCash', baseWords(t))).toBe('Naqd tenge')
     expect(t('pos.takenFor', baseWords(t))).toBe('Tengeda hisoblanadi')
     expect(t('stand.allInBase', baseWords(t))).toBe('Hammasi tengeda')
-    const rows = tenderRows(context(true))
+    const rows = tenderRows(context(['KZT', 'USD']))
     expect(rows.map((row) => [row.key, row.currency, kindOf(row)])).toEqual([
       ['cash', 'KZT', 'cash'],
-      ['usd', 'USD', 'usd'],
+      ['cash:USD', 'USD', 'other'],
       ['account:kaspi', 'KZT', 'card'],
     ])
     expect(dollarsBeside('USD')).toBe(true)
@@ -40,7 +40,7 @@ describe('the base currency on the screens', () => {
   it('has nothing beside the dollar where the dollar is the base', () => {
     setBase('USD')
     expect(dollarsBeside('USD')).toBe(false)
-    const [cash] = tenderRows(context(false))
+    const [cash] = tenderRows(context(['USD']))
     expect([cash.currency, kindOf(cash)]).toEqual(['USD', 'cash'])
     expect(t('pos.payCash', baseWords(t))).toBe('Naqd dollar')
   })

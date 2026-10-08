@@ -24,7 +24,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-08, 9b dan keyin: core 208, web 215, agent 17, server 380 (32 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-08, 9c dan keyin: core 210, web 215, agent 17, server 386 (33 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -211,8 +211,9 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [ ] V9. Hamma valyuta teng: dollarning alohida o'rni yo'q (egasi, 2026-10-08); reja — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
      - [x] 9a. Valyutalar va kurslar: dollar oddiy valyuta, `usd` moduli va `exchange_rates` yo'q, kurs istalgan valyutaga nisbatan, yangi biznes so'm bilan.
      - [x] 9b. Narx istalgan yoqilgan valyutada.
-     - [ ] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
+     - [x] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
      - [ ] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
+     - [ ] 9c′. Tannarx faqat asosiy valyutada: tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada (taklif egasida).
      - [ ] 9e. Smena va inkassatsiya: har tortma sanog'i.
      - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
@@ -235,7 +236,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-V9 / 9c: tannarx valyutasi (cost_currency), kirim shu valyuta orqali, partiyaning kelgan valyutasi.
+V9 / 9d: kassa istalgan valyutada — kassa valyutalari, tortmalar, to'lov qatorlari, qaytim, qaytarish, chek.
 
 ## Ish daraxti nusxalari
 
@@ -259,3 +260,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `61468d60cf6df40df75852b17e5297edda5448f8` | P1: xodimga rolidan tashqari qo'shimcha ruxsat (users.extra_permissions, USER_PERMISSIONS, ESCALATION; formada yig'iladigan bo'lim, ro'yxatda "+N ruxsat") |
 | `c1015db1b48825e679f0f8aa912d72d92ba144ea` | V9 / 9a: dollar oddiy valyuta (org_currencies, currency_rates; usd moduli va exchange_rates yo'q), Actor.currencies, kurs asosiyda va istalgan valyutaga nisbatan, CURRENCY_PRICED, yangi biznes so'm bilan |
 | `2eecf33b22b93901d96712db1381f4479280ec4e` | V9 / 9b: narx turi va narx istalgan yoqilgan valyutada (pricedIn), kassa narxni kurslar kitobi bilan o'giradi, ustama boshqa valyutada, MoneyInput valyutalar bo'ylab; T1 (to'rt til) rejasi |
+| `e4a9116b450695b73aee40f1a2b8204de3a8c3b1` | V9 / 9c: tannarx valyutasi (cost_currency, Actor.cost, COST_LOCKED, CURRENCY_COST), kirim tayanch valyuta orqali (pivotOf), sozlama va birinchi sozlashda tanlov, tovar sahifasida Kirimlar (kelgan valyuta va narx) |

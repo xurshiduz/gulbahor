@@ -68,7 +68,7 @@ export function OpenShift({ context }: { context: PosContextDto }) {
           <Field label={t('pos.drawerUzs', baseWords(t))} required>
             {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency={base()} />}
           </Field>
-          {context.usd ? (
+          {context.currencies.includes('USD') ? (
             <Field label={t('pos.drawerUsd')}>
               {(id) => <MoneyInput id={id} value={cashUsd} onChange={setCashUsd} currency="USD" />}
             </Field>
@@ -150,7 +150,7 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
           <Field label={t('pos.drawerUzs', baseWords(t))} required>
             {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency={base()} />}
           </Field>
-          {context.usd ? (
+          {context.currencies.includes('USD') ? (
             <Field label={t('pos.drawerUsd')}>
               {(id) => <MoneyInput id={id} value={cashUsd} onChange={setCashUsd} currency="USD" />}
             </Field>

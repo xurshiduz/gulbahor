@@ -157,6 +157,8 @@ export class CurrenciesService {
         )
       }
       await em.update(OrgCurrency, mine.id, { isActive: false })
+      // No till takes it any more: their drawers of it are empty (see above).
+      await em.query(`UPDATE registers SET currencies = array_remove(currencies, $1) WHERE $1 = ANY (currencies)`, [code])
       await this.audit.record(em, actor.orgId, actor, {
         action: 'currency.disable',
         entity: 'currency',

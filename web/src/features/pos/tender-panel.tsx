@@ -1,7 +1,8 @@
 import {
   CURRENCIES,
+  dueIn,
   formatMoney,
-  toBase,
+  tillWorth,
   worthOf,
   type AnyCurrency,
   type CurrencyCode,
@@ -22,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { ReceivedInput, ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
 import { pairSentence, rateText, type ValuedLine } from '@/features/partners/payment-lines'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 import { changeText, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
@@ -40,17 +41,11 @@ const RATE = 'tabular hidden pr-2.5 text-right text-xs text-ink-3 @xl:block'
 /** Says what the second sum is where there is no heading over it. */
 const UNDER = 'text-right text-xs text-ink-3 @xl:hidden'
 
-/** The four ways money changes hands at a till; each has its key. */
-export type TenderKind = 'cash' | 'usd' | 'card' | 'terminal'
+/** The four ways money changes hands at a till: cash in the base, cash in another currency, a card, a terminal. */
+export type TenderKind = 'cash' | 'other' | 'card' | 'terminal'
 export const kindOf = (row: TenderRow): TenderKind =>
-  row.method === 'cash' ? (dollarsBeside(row.currency) ? 'usd' : 'cash') : row.method
-const KIND_LABELS: Record<TenderKind, string> = {
-  cash: 'pos.payCash',
-  usd: 'pos.payUsd',
-  card: 'pos.payCard',
-  terminal: 'pos.payTerminal',
-}
-const KIND_KEYS: Record<TenderKind, string> = { cash: 'f5', usd: 'f6', card: 'f7', terminal: 'f8' }
+  row.method === 'cash' ? (row.currency !== base() ? 'other' : 'cash') : row.method
+const KIND_KEYS: Record<TenderKind, string> = { cash: 'f5', other: 'f6', card: 'f7', terminal: 'f8' }
 
 interface TenderPanelProps {
   context: PosContextDto
@@ -116,8 +111,8 @@ export interface Lending {
 
 /**
  * The money, beside the receipt it pays. Every way of paying has its row,
- * ready to be typed into: so'm, dollars, each of the shop's cards, each
- * terminal. Enter walks the sums; once they cover the receipt, or when
+ * ready to be typed into: cash in each currency the till takes, each of the
+ * shop's cards, each terminal. Enter walks the sums; once they cover the receipt, or when
  * nothing was typed at all (cash, exactly), Enter ends the sale.
  */
 export function TenderPanel({
@@ -146,7 +141,10 @@ export function TenderPanel({
   const accountId = useId()
   const dueId = useId()
   const sums = useRef<HTMLDivElement>(null)
-  const rate = context.rate?.uzsPerUsd ?? null
+  const { book } = context
+  /** One of a currency in the base at the day's rate, in its smallest coin; null with no rate. */
+  const unit = (currency: AnyCurrency) => tillWorth(100, currency, book)
+  const foreign = (row: TenderRow) => row.currency !== base()
   const entered = enteredRows(rows)
   const typed = tendersOf(entered, refunding)
   // What stands beside a sum (an agreed worth, a slip's number) is there as soon as the cursor is in its
@@ -165,13 +163,13 @@ export function TenderPanel({
   const restFor = (row: TenderRow): number => {
     const others = typed
       .filter((_, index) => entered[index].key !== row.key)
-      .reduce((sum, item) => sum + worthOf(item, rate, base()), 0)
+      .reduce((sum, item) => sum + (worthOf(item, book) ?? 0), 0)
     return Math.max(0, due - owing - others)
   }
   /** What a row would have to hold to cover the rest: what "=" fills in. */
   const fillOf = (row: TenderRow): number => {
     const rest = restFor(row)
-    return dollarsBeside(row.currency) && rate ? Math.ceil((rest * 100) / Math.round(rate * 100)) : rest
+    return foreign(row) ? (dueIn(rest, row.currency, book) ?? rest) : rest
   }
 
   // A field gives up what was typed into it on the same Enter that asks what to do next. What the rows
@@ -186,11 +184,12 @@ export function TenderPanel({
     latest.current = state
   })
 
-  /** The second sum of the dollars' pair: what they are taken for, and what that makes of the rate. */
+  /** The second sum of the pair: what money of another currency is taken for, and what that makes of the rate. */
   const takenFor = (row: TenderRow) => ({
-    dollars: row.amount,
+    amount: row.amount,
+    currency: row.currency,
     value: row.value,
-    rate: rate as number,
+    book,
     rest: restFor(row),
     limit: context.maxRateLossPercent,
     mayAsk: context.approvers.some((approver) => approver.discount),
@@ -198,7 +197,9 @@ export function TenderPanel({
     onChange: (value: number | null) => onPatch(row.key, { value }),
   })
   // Somewhere on the panel a sum has a second one beside it: the columns are named then.
-  const paired = (!!rate && rows.some((row) => dollarsBeside(row.currency))) || !!onAccount?.line
+  const paired = rows.some((row) => foreign(row) && unit(row.currency) !== null) || !!onAccount?.line
+  // What is to pay, said in each other currency the till takes too.
+  const others = context.currencies.filter((code) => code !== base() && unit(code) !== null)
 
   /** Enter and ↓ go on to the next sum, ↑ back to the one before; Enter with nothing left to type ends the sale. */
   const walk = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -265,9 +266,9 @@ export function TenderPanel({
           <span className="text-sm font-medium">{refunding ? t('pos.toRefund') : t('pos.toPay')}</span>
           <span className={cn('tabular text-2xl font-semibold', refunding && 'text-warn')}>{money(due)}</span>
         </div>
-        {rate && due ? (
+        {others.length && due ? (
           <p className="tabular text-right text-xs text-ink-3">
-            ≈ {money(Math.ceil((due * 100) / Math.round(rate * 100)), 'USD')}
+            {others.map((code) => `≈ ${money(dueIn(due, code, book) as number, code)}`).join(' · ')}
           </p>
         ) : null}
       </div>
@@ -288,7 +289,7 @@ export function TenderPanel({
           const account = refunding
             ? cap
             : [...context.cards, ...context.terminals].find((item) => item.id === row.accountId)
-          const noRate = dollarsBeside(row.currency) && !rate
+          const noRate = foreign(row) && unit(row.currency) === null
           // How much may go back this way, for someone who must hand it back the way it was paid.
           const limit =
             refunding && returning && !returning.found.free
@@ -314,10 +315,12 @@ export function TenderPanel({
                         {account.name}
                         {account.last4 ? <span className="font-code text-ink-3"> *{account.last4}</span> : null}
                       </>
+                    ) : kind === 'cash' || kind === 'other' ? (
+                      t('pos.payCash', currencyWords(t, row.currency))
                     ) : (
-                      t(KIND_LABELS[kind], baseWords(t))
+                      t(kind === 'card' ? 'pos.payCard' : 'pos.payTerminal')
                     )}
-                    {limit !== null && kind !== 'usd' ? (
+                    {limit !== null && kind !== 'other' ? (
                       <span className="tabular text-ink-3">
                         {' ≤ '}
                         {formatMoney(limit, base(), { minor: 'auto', symbol: false })}
@@ -331,7 +334,7 @@ export function TenderPanel({
                 </span>
                 <MoneyInput
                   value={row.amount}
-                  // What dollars were agreed to be worth was agreed for that many of them.
+                  // What money was agreed to be worth was agreed for that much of it.
                   onChange={(amount) => onPatch(row.key, amount === row.amount ? { amount } : { amount, value: null })}
                   currency={row.currency}
                   fillValue={fillOf(row)}
@@ -345,16 +348,19 @@ export function TenderPanel({
                         : undefined
                   }
                 />
-                {dollarsBeside(row.currency) && rate ? (
-                  // The pair: the dollars, the day's rate, and what they are taken for in so'm.
+                {foreign(row) && unit(row.currency) !== null ? (
+                  // The pair: the money, the day's rate, and what it is taken for in the base.
                   <>
-                    <span className={RATE} title={`1 $ = ${money(Math.round(rate * 100))}`}>
-                      {formatMoney(Math.round(rate * 100), base(), { minor: 'auto', symbol: false })}
+                    <span
+                      className={RATE}
+                      title={`1 ${CURRENCIES[row.currency].symbol} = ${money(unit(row.currency) as number)}`}
+                    >
+                      {formatMoney(unit(row.currency) as number, base(), { minor: 'auto', symbol: false })}
                     </span>
                     <span className={UNDER}>{t('pos.takenFor', baseWords(t))}</span>
                     {refunding ? (
                       <span className="tabular pr-2.5 text-right text-[13px] text-ink-3">
-                        {row.amount ? money(toBase(row.amount, 'USD', rate, base())) : ''}
+                        {row.amount ? money(tillWorth(row.amount, row.currency, book) as number) : ''}
                       </span>
                     ) : (
                       // Enter walks the sums given; what they are taken for is a Tab away.
@@ -376,7 +382,7 @@ export function TenderPanel({
                   />
                 </div>
               ) : null}
-              {dollarsBeside(row.currency) && rate && !refunding ? <TakenNote {...takenFor(row)} /> : null}
+              {foreign(row) && unit(row.currency) !== null && !refunding ? <TakenNote {...takenFor(row)} /> : null}
             </div>
           )
         })}
@@ -404,26 +410,23 @@ export function TenderPanel({
             <span>{t('pos.due')}</span>
             <span className="tabular font-semibold">
               {money(settlement.due)}
-              {settlement.dueUsd ? ` · ${money(settlement.dueUsd, 'USD')}` : ''}
+              {others.length ? ` · ${money(dueIn(settlement.due, others[0], book) as number, others[0])}` : ''}
             </span>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-2">
             <span className="text-ink-3">{t('pos.change')}</span>
             <span className="flex items-center gap-2">
-              {context.usd && rate ? (
+              {others.length ? (
                 <Select
                   value={changeCurrency}
                   onChange={(value) => onChangeCurrency(value as CurrencyCode)}
-                  options={[
-                    { value: base(), label: CURRENCIES[base()].symbol },
-                    { value: 'USD', label: '$' },
-                  ]}
+                  options={[base(), ...others].map((code) => ({ value: code, label: CURRENCIES[code].symbol }))}
                   className="h-7 w-20 text-xs"
                 />
               ) : null}
               <span className="tabular text-lg font-semibold text-ok">
-                {changeText(settlement.changeUzs, settlement.changeUsd)}
+                {changeText(settlement.changeUzs, settlement.changeOther, settlement.changeCurrency)}
               </span>
             </span>
           </div>

@@ -207,8 +207,8 @@ describe('Till', () => {
 
       const context = (await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context).toMatchObject({
-        usd: true,
-        rate: { uzsPerUsd: 12_850 },
+        currencies: ['UZS', 'USD'],
+        book: { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: 12_850 } } },
         shift: { id: shiftId },
         changeRoundStep: som(1000),
         maxDiscountPercent: 10,
@@ -278,7 +278,7 @@ describe('Till', () => {
         discount: 0,
         total: som(230_000),
         changeUzs: som(20_000),
-        changeUsd: 0,
+        changeOther: 0,
         rounding: 0,
         // Two shirts at 48 000 and a scarf at 20 000.
         costUzs: som(116_000),
@@ -335,7 +335,7 @@ describe('Till', () => {
         }).expect(201)
       ).body
       // 5 $ = 64 250, + 30 000 + 1 000 = 95 250: 250 over, too little to hand back.
-      expect(sale).toMatchObject({ uzsPerUsd: 12_850, changeUzs: 0, changeUsd: 0, rounding: som(250) })
+      expect(sale).toMatchObject({ changeUzs: 0, changeOther: 0, changeCurrency: null, rounding: som(250) })
       expect(sale.payments.map((payment: { base: number }) => payment.base)).toEqual([
         som(64_250),
         som(30_000),
@@ -725,7 +725,12 @@ describe('Till', () => {
         }).expect(201)
       ).body
       // 10 $ = 128 500 against 40 000: 88 500 over is 6 $ (77 100) and 11 400 so'm, handed back as 11 000.
-      expect(sale).toMatchObject({ changeUsd: usd(6), changeUzs: som(11_000), rounding: som(400) })
+      expect(sale).toMatchObject({
+        changeOther: usd(6),
+        changeCurrency: 'USD',
+        changeUzs: som(11_000),
+        rounding: som(400),
+      })
 
       const after = await balances()
       expect(after.cash_USD - before.cash_USD).toBe(usd(4))

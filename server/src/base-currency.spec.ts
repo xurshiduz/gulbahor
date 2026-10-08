@@ -179,7 +179,7 @@ describe('A base other than the so’m', () => {
         })
       const inSom = await sell([{ method: 'cash', currency: 'UZS', amount: minor(1_000_000) }])
       expect(inSom.status).toBe(400)
-      expect(inSom.body.error.fields['payments.0.currency']).toBe('Bu valyuta qabul qilinmaydi')
+      expect(inSom.body.error.fields['payments.0.currency']).toBe('Bu valyuta bu kassada qabul qilinmaydi')
 
       // 2 000 ₸ and 25 $ (12 000 ₸): 2 000 ₸ over.
       const sale = (
@@ -191,7 +191,7 @@ describe('A base other than the so’m', () => {
       expect(sale).toMatchObject({
         total: minor(12_000),
         changeUzs: minor(2000),
-        changeUsd: 0,
+        changeOther: 0,
         rounding: 0,
         costUzs: minor(4800),
       })
@@ -286,7 +286,7 @@ describe('A base other than the so’m', () => {
           .expect(201)
       ).body
       // 12,40 $ over: 12 $ handed back, a dollar being the smallest the till gives.
-      expect(sale).toMatchObject({ changeUzs: minor(12), changeUsd: 0, rounding: minor(0.4) })
+      expect(sale).toMatchObject({ changeUzs: minor(12), changeOther: 0, rounding: minor(0.4) })
       expect(sale.payments).toEqual([expect.objectContaining({ currency: 'USD', amount: minor(50) })])
       const agreed = await delta.agent.post('/api/sales').send({
         clientKey: randomUUID(),
@@ -295,7 +295,7 @@ describe('A base other than the so’m', () => {
         payments: [{ method: 'cash', currency: 'USD', amount: minor(40), value: minor(38) }],
         total: minor(37.6),
       })
-      expect(agreed.body.error.fields['payments.0.value']).toBe('Kelishilgan qiymat faqat dollar uchun yoziladi')
+      expect(agreed.body.error.fields['payments.0.value']).toBe('Kelishilgan qiymat chet valyuta uchun yoziladi')
     })
   })
 

@@ -1,7 +1,6 @@
 import {
   DEFAULT_ORG_SETTINGS,
   normalizeEpc,
-  tillCurrencies,
   type PosContextDto,
   type PosItemDto,
   type PosPartnerDto,
@@ -15,11 +14,11 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import { Organization, Partner, PriceType, Register, Shift } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
-import { takesDollars } from '../money/base'
+import { tillCurrenciesOf } from '../money/base'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { servesShop } from '../money/places'
-import { bookToday } from '../money/rate-book'
+import { bookFrom, bookToday, ratesInForce } from '../money/rate-book'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
 import { priceTypeNames } from '../partners/partners.service'
@@ -48,7 +47,8 @@ export class PosService {
       const open = await em.findOneBy(Shift, { registerId, status: 'open' })
       const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
       const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
-      const usd = takesDollars(actor)
+      const till = tillCurrenciesOf(actor, register)
+      const rates = await ratesInForce(em, await this.ledger.today(em, actor.orgId))
       const accounts = (await this.money.accountRows(em, false)).filter(
         (account) => account.isActive && servesShop(account, register.locationId),
       )
@@ -66,19 +66,18 @@ export class PosService {
         register: await this.money.registerRow(em, registerId),
         // The till shows its own shift whoever opened it; what the books expect stays hidden while it is open.
         shift: open ? await this.shifts.load(em, actor, open.id) : null,
-        rate: usd ? await this.ledger.rate(em, await this.ledger.today(em, actor.orgId)) : null,
-        usd,
-        // A sale is in the base, and so is the card it is paid to; dollar cards are for the payment windows.
-        cards: accounts.filter((account) => account.kind === 'card' && account.currency === actor.base),
+        book: bookFrom(actor.base, rates),
+        rateDates: Object.fromEntries([...rates].map(([code, rate]) => [code, rate.date])),
+        currencies: till,
+        // A card in a currency the till takes: a dollar Visa where dollars are taken.
+        cards: accounts.filter((account) => account.kind === 'card' && till.includes(account.currency)),
         terminals: accounts.filter((account) => account.kind === 'terminal'),
         sellers,
         approvers: await this.approvals.approversAt(em, register.locationId, actor.userId),
         priceTypes: await this.priceTypes(em, actor),
         promoCodes: await this.takesCodes(em, actor, register),
         drawers: Object.fromEntries(
-          tillCurrencies(actor.base)
-            .filter((currency) => currency === actor.base || usd)
-            .map((currency) => [currency, drawers.find((account) => account.currency === currency)?.id ?? null]),
+          till.map((currency) => [currency, drawers.find((account) => account.currency === currency)?.id ?? null]),
         ),
         // Cash goes to a safe of its own currency, or — changed on the way — to one of another.
         safes: drawers.length ? accounts.filter((account) => account.kind === 'safe') : [],

@@ -1700,31 +1700,6 @@ export class PriceRevisionLine {
   currency: CurrencyCode
 }
 
-@Entity('exchange_rates')
-export class ExchangeRate {
-  @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column('uuid')
-  orgId: string
-
-  @Column('date')
-  rateDate: string
-
-  @Column('numeric', { transformer: numericAsNumber })
-  uzsPerUsd: number
-
-  @Column('uuid', { nullable: true })
-  setBy: string | null
-
-  @Column('text', { nullable: true })
-  setByName: string | null
-
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date
-}
-
-/** A till: a place in a shop where sales are rung up and cash is kept. */
 @Entity('registers')
 export class Register {
   @PrimaryGeneratedColumn('uuid')
@@ -1745,6 +1720,10 @@ export class Register {
   /** The shop's main till; one to a shop. */
   @Column('boolean')
   isMain: boolean
+
+  /** The currencies it takes cash in beside the base. */
+  @Column('text', { array: true })
+  currencies: AnyCurrency[]
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
@@ -1990,15 +1969,23 @@ export class Sale {
   @Column('bigint', { transformer: bigintAsNumber })
   total: number
 
+  /** What a dollar was worth when the sale was made; kept on sales made before every currency went by the book. */
   @Column('numeric', { nullable: true, transformer: numericAsNumber })
   uzsPerUsd: number | null
 
   @Column('bigint', { transformer: bigintAsNumber })
   changeUzs: number
 
-  /** In cents: whole dollars only. */
+  /** Change in another currency the customer asked for: whole notes of it, in its smallest coin. */
   @Column('bigint', { transformer: bigintAsNumber })
-  changeUsd: number
+  changeOther: number
+
+  @Column('text', { nullable: true })
+  changeCurrency: AnyCurrency | null
+
+  /** What `changeOther` was worth in the base when it was handed back. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  changeOtherBase: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   rounding: number

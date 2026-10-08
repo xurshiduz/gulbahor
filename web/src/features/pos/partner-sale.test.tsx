@@ -19,8 +19,8 @@ const plain = (text: string | null | undefined) => (text ?? '').replace(/\s/g, '
 
 const book: RateBook = { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: 12_650 } } }
 const context = {
-  usd: true,
-  rate: { uzsPerUsd: 12_650 },
+  book,
+  currencies: ['UZS', 'USD'],
   cards: [],
   terminals: [],
   approvers: [],
@@ -46,9 +46,8 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
     2,
   )
   const settlement = settle(due - onAccount, tendersOf(enteredRows(rows), false), {
-    uzsPerUsd: 12_650,
+    book,
     changeCurrency: 'UZS',
-    base: 'UZS',
     roundStep: 0,
   })
   return (
@@ -61,7 +60,7 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
       due={due}
       suggested={due - onAccount ? { cash: due - onAccount } : {}}
       settlement={settlement}
-      refund={settleRefund(0, [], { uzsPerUsd: 12_650, roundStep: 0, base: 'UZS' })}
+      refund={settleRefund(0, [], { book, roundStep: 0 })}
       changeCurrency="UZS"
       onChangeCurrency={() => undefined}
       action="Sotish"

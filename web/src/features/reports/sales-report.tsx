@@ -1,11 +1,18 @@
-import { averageReceipt, marginPercent, PAYMENT_METHOD_LABELS, rangeDays, type SalesReportDto } from '@erp/core'
+import {
+  averageReceipt,
+  formatMoney,
+  marginPercent,
+  PAYMENT_METHOD_LABELS,
+  rangeDays,
+  type SalesReportDto,
+} from '@erp/core'
 import { ChartNoAxesColumn } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@/components/ui/feedback'
 import { Card } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
-import { baseWords, dollarsBeside } from '@/lib/base'
+import { base, currencyWords } from '@/lib/base'
 import { formatNumber } from '@/lib/format'
 
 import { BarChart, bucketLabel, dayLabel, rangeLabel, ShareList, shortSom, som, Stat, type ChartBar } from './parts'
@@ -177,10 +184,13 @@ export function SalesReport({ data }: { data: SalesReportDto }) {
               key: `${payment.method}:${payment.currency}`,
               name:
                 payment.method === 'cash'
-                  ? t(dollarsBeside(payment.currency) ? 'pos.payUsd' : 'pos.payCash', baseWords(t))
+                  ? t('pos.payCash', currencyWords(t, payment.currency))
                   : PAYMENT_METHOD_LABELS[payment.method],
-              // Dollars are counted in so'm with the rest; how many of them there were stands beside.
-              note: dollarsBeside(payment.currency) ? `${formatNumber(payment.amount / 100)} $` : undefined,
+              // Other currencies are counted in the base with the rest; how much of them there was stands beside.
+              note:
+                payment.currency !== base()
+                  ? formatMoney(payment.amount, payment.currency, { minor: 'auto' })
+                  : undefined,
               value: payment.base,
             }))}
           />

@@ -376,7 +376,7 @@ describe('Returns', () => {
           refunds: [cash(usd(2), 'USD'), cash(som(14_000))],
         }).expect(201)
       ).body
-      expect(made).toMatchObject({ uzsPerUsd: 12_850, rounding: som(300) })
+      expect(made).toMatchObject({ rounding: som(300) })
       expect(moved(before, await balances())).toEqual({
         cash_USD: -usd(2),
         cash_UZS: -som(14_000),

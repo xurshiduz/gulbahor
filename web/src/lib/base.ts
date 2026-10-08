@@ -37,7 +37,12 @@ const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
  * with a capital for the start of a label. Given whole to `t`, which takes the words its text asks for.
  */
 export function baseWords(t: TFunction) {
-  const currency = t(`currencies.short.${current}`).toLowerCase()
-  const inIt = t(`currencies.in.${current}`)
+  return currencyWords(t, current)
+}
+
+/** The same for any currency: "dollar", "Dollar", "dollarda", "Dollarda". */
+export function currencyWords(t: TFunction, code: AnyCurrency) {
+  const currency = t(`currencies.short.${code}`).toLowerCase()
+  const inIt = t(`currencies.in.${code}`)
   return { currency, Currency: capital(currency), in: inIt, In: capital(inIt) }
 }

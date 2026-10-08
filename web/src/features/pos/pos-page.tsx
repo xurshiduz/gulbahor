@@ -1,13 +1,15 @@
 import {
   addDays,
+  CURRENCIES,
   debtBar,
+  dueIn,
   formatMoney,
   overDiscountLimit,
   overRateLoss,
   saleNumberOf,
   settle,
   settleRefund,
-  toBase,
+  tillWorth,
   todayIn,
   toIsoDate,
   type ApprovalInput,
@@ -39,9 +41,8 @@ import { useSession } from '@/features/auth/session'
 import { DebtPayDialog } from '@/features/customers/debt-pay'
 import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/exchange'
 import { useRegisters } from '@/features/money/money-page'
-import { useRateBook } from '@/features/money/rates'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { HotkeyScope, useCovered, useHotkey } from '@/lib/hotkeys'
@@ -259,8 +260,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [lent, setLent] = useState<{ amount: number | null; dueDate: string | null }>({ amount: null, dueDate: null })
   /** What of the sale goes on the partner's account: so much of it, and — agreed — what that is in their currency. */
   const [account, setAccount] = useState<ExchangeSums>({ amount: null, received: null })
-  // The day's rates: what goes on a partner's account in another currency is worth what they make of it.
-  const book = useRateBook()
+  // The day's rates: what every currency taken here is worth, and what goes on a partner's account in another.
+  const { book } = context
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
@@ -293,7 +294,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const priceTypeId = priceType?.id ?? null
   const promoCode = cart.promoCode ?? null
 
-  const rate = context.rate?.uzsPerUsd ?? null
+  // The other currencies the till takes that the day's rates can value.
+  const others = context.currencies.filter((code) => code !== base() && tillWorth(100, code, book) !== null)
   const mayReturn = can('pos.return')
   const { qty: multiplier, rest } = splitMultiplier(text)
 
@@ -619,20 +621,15 @@ function Till({ context, registers, onSwitch }: TillProps) {
   useEffect(() => setPaid({}), [refunding])
   const entered = enteredRows(tenders)
   const typed = tendersOf(entered, refunding)
-  /** Dollars taken for more over the rate than the shop lets a cashier give alone. */
-  const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent, base())
+  /** Money of another currency taken for more over the rate than the shop lets a cashier give alone. */
+  const overRate = !refunding && overRateLoss(typed, book, context.maxRateLossPercent)
   const rateAsk = overRate && !context.mayOverDiscount
   const settlement = settle(toPay - owedNow - onAccountNow, refunding ? [] : typed, {
-    uzsPerUsd: rate,
+    book,
     changeCurrency,
     roundStep: context.changeRoundStep,
-    base: base(),
   })
-  const refund = settleRefund(toRefund, refunding ? typed : [], {
-    uzsPerUsd: rate,
-    roundStep: context.changeRoundStep,
-    base: base(),
-  })
+  const refund = settleRefund(toRefund, refunding ? typed : [], { book, roundStep: context.changeRoundStep })
   /** What is taken as meant when the cashier types nothing: so'm cash for a sale, the way it was paid for a return. */
   const suggested = useMemo<Record<string, number>>(
     () =>
@@ -702,7 +699,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
       }
       return
     }
-    if (kind === 'usd' && !rate) {
+    const target = tenders.find((item) => kindOf(item) === kind)
+    if (kind === 'other' && target && tillWorth(100, target.currency, book) === null) {
       toast.error(t('pos.noRate'))
       return
     }
@@ -745,8 +743,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
       reset()
       setLast({ kind: 'sale', id: sale.id, number: sale.number })
       toast.success(
-        sale.changeUzs || sale.changeUsd
-          ? t('pos.soldWithChange', { number: sale.number, change: changeText(sale.changeUzs, sale.changeUsd) })
+        sale.changeUzs || sale.changeOther
+          ? t('pos.soldWithChange', {
+              number: sale.number,
+              change: changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency),
+            })
           : t('pos.sold', { number: sale.number }),
       )
     },
@@ -808,7 +809,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           accountId: row.accountId,
           currency: row.currency,
           amount: row.amount,
-          ...(!refunding && dollarsBeside(row.currency) && row.value ? { value: row.value } : {}),
+          ...(!refunding && row.currency !== base() && row.value ? { value: row.value } : {}),
           reference: row.reference || null,
         }))
       : tenders.flatMap((row) =>
@@ -823,7 +824,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       !returning.found.free &&
       (toRefund -
         amounts.reduce(
-          (sum, row) => sum + (row.method === 'cash' ? 0 : toBase(row.amount as number, row.currency, rate, base())),
+          (sum, row) => sum + (row.method === 'cash' ? 0 : (tillWorth(row.amount as number, row.currency, book) ?? 0)),
           0,
         ) >
         returning.found.caps.cash ||
@@ -889,12 +890,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
             : []),
           ...(rateAsk
             ? typed.flatMap((item) =>
-                item.value && overRateLoss([item], rate, context.maxRateLossPercent, base())
+                item.value && overRateLoss([item], book, context.maxRateLossPercent)
                   ? [
                       t('pos.approvalRate', {
-                        usd: money(item.amount, 'USD'),
+                        usd: money(item.amount, item.currency),
                         sum: money(item.value),
-                        book: money(toBase(item.amount, 'USD', rate, base())),
+                        book: money(tillWorth(item.amount, item.currency, book) ?? 0),
                       }),
                     ]
                   : [],
@@ -958,8 +959,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
         approval,
       },
       change:
-        !refunding && (settlement.changeUzs || settlement.changeUsd)
-          ? changeText(settlement.changeUzs, settlement.changeUsd)
+        !refunding && (settlement.changeUzs || settlement.changeOther)
+          ? changeText(settlement.changeUzs, settlement.changeOther, settlement.changeCurrency)
           : '',
     })
   }
@@ -981,7 +982,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // The key it had before: hands that learnt it still find it.
   useHotkey('alt+m', toCustomer, { enabled: idle })
   useHotkey('f5', () => focusTender('cash'), { label: t('pos.payCash', baseWords(t)), group, enabled: idle })
-  useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
+  // F6: cash in the first other currency the till takes; the rest are an arrow away.
+  const firstOther = context.currencies.find((code) => code !== base())
+  useHotkey('f6', () => focusTender('other'), {
+    label: t('pos.payCash', firstOther ? currencyWords(t, firstOther) : baseWords(t)),
+    group,
+    enabled: idle && !!firstOther,
+  })
   useHotkey('f7', () => focusTender('card'), { label: t('pos.payCard'), group, enabled: idle })
   useHotkey('f8', () => focusTender('terminal'), { label: t('pos.payTerminal'), group, enabled: idle })
   // F9 takes the till to the money, and from there ends the sale: twice, it is a sale for cash, exactly.
@@ -1004,7 +1011,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
         context.register.name,
         context.register.locationName,
         context.shift?.number,
-        rate ? `1 $ = ${money(Math.round(rate * 100))}` : null,
+        // The day's rate of each other currency the till takes; one set before today says from when.
+        ...others.map((code) => {
+          const rate = `1 ${CURRENCIES[code].symbol} = ${money(tillWorth(100, code, book) as number)}`
+          const day = context.rateDates[code]
+          return day && day < toIsoDate(todayIn()) ? `${rate} (${day.split('-').reverse().join('.')})` : rate
+        }),
       ]
         .filter(Boolean)
         .join(' · ')}
@@ -1432,9 +1444,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
                     {money(refunding ? toRefund : toPay)}
                   </span>
                 </div>
-                {rate && (toPay || toRefund) ? (
+                {others.length && (toPay || toRefund) ? (
                   <p className="tabular text-right text-xs text-ink-3">
-                    ≈ {money(Math.ceil(((toPay || toRefund) * 100) / Math.round(rate * 100)), 'USD')}
+                    {others
+                      .map((code) => `≈ ${money(dueIn(toPay || toRefund, code, book) as number, code)}`)
+                      .join(' · ')}
                   </p>
                 ) : null}
               </section>

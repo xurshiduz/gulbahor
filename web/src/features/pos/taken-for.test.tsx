@@ -26,9 +26,10 @@ function Dollars({
   return (
     <>
       <TakenFor
-        dollars={usd(50)}
+        amount={usd(50)}
+        currency="USD"
         value={value}
-        rate={rate}
+        book={{ base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: rate } } }}
         rest={rest}
         limit={2}
         mayAsk={mayAsk}

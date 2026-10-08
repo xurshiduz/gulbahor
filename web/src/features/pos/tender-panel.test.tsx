@@ -1,4 +1,12 @@
-import { formatMoney, settle, settleRefund, type AccountDto, type PosContextDto, type PosItemDto } from '@erp/core'
+import {
+  formatMoney,
+  settle,
+  settleRefund,
+  type AccountDto,
+  type PosContextDto,
+  type PosItemDto,
+  type RateBook,
+} from '@erp/core'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -15,9 +23,10 @@ const plain = (text: string | null | undefined) => (text ?? '').replace(/\s/g, '
 const account = (id: string, kind: 'card' | 'terminal', name: string, last4: string | null = null) =>
   ({ id, kind, name, last4, currency: 'UZS' }) as AccountDto
 
+const book: RateBook = { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: 12_100 } } }
 const context = {
-  usd: true,
-  rate: { uzsPerUsd: 12_100 },
+  book,
+  currencies: ['UZS', 'USD'],
   cards: [account('humo', 'card', 'Humo', '3073'), account('uzcard', 'card', 'Uzcard', '8841')],
   terminals: [account('pos', 'terminal', 'Ipak yo‘li')],
   approvers: [{ id: 'm', name: 'Anvar', discount: true, returns: true }],
@@ -49,9 +58,8 @@ function Money({
   const entered = enteredRows(rows)
   const owing = Math.min(lent ?? 0, due)
   const settlement = settle(due - owing, tendersOf(entered, false), {
-    uzsPerUsd: 12_100,
+    book,
     changeCurrency: 'UZS',
-    base: 'UZS',
     roundStep: 0,
   })
   return (
@@ -77,7 +85,7 @@ function Money({
             }
           : null
       }
-      refund={settleRefund(0, [], { uzsPerUsd: 12_100, roundStep: 0, base: 'UZS' })}
+      refund={settleRefund(0, [], { book, roundStep: 0 })}
       changeCurrency="UZS"
       onChangeCurrency={() => undefined}
       action="Sotish"
@@ -95,13 +103,13 @@ describe('the rows money is paid into', () => {
   it('are one for each way of paying, every card and terminal with its own', () => {
     expect(tenderRows(context).map((row) => [row.key, row.method, row.currency, row.accountId])).toEqual([
       ['cash', 'cash', 'UZS', null],
-      ['usd', 'cash', 'USD', null],
+      ['cash:USD', 'cash', 'USD', null],
       ['account:humo', 'card', 'UZS', 'humo'],
       ['account:uzcard', 'card', 'UZS', 'uzcard'],
       ['account:pos', 'terminal', 'UZS', 'pos'],
     ])
     // A till that takes neither dollars nor cards has so'm alone.
-    const bare = { usd: false, cards: [], terminals: [] } as unknown as PosContextDto
+    const bare = { currencies: ['UZS'], cards: [], terminals: [] } as unknown as PosContextDto
     expect(tenderRows(bare).map((row) => row.key)).toEqual(['cash'])
   })
 
@@ -133,7 +141,7 @@ describe('Enter in the money', () => {
     const sold = vi.fn()
     render(<Money due={som(200_000)} onComplete={sold} />)
     await userEvent.type(field('cash'), '50000{Enter}')
-    await waitFor(() => expect(document.activeElement).toBe(field('usd')))
+    await waitFor(() => expect(document.activeElement).toBe(field('cash:USD')))
     expect(plain(screen.getByText('Yana kerak').parentElement?.textContent)).toContain('150 000')
     // An empty row is stepped over the same way.
     await userEvent.keyboard('{Enter}')
@@ -166,10 +174,10 @@ describe('Enter in the money', () => {
   it('leaves what stands beside a sum to Tab: an agreed worth, a slip’s number', async () => {
     const sold = vi.fn()
     render(<Money due={som(700_000)} onComplete={sold} />)
-    await userEvent.type(field('usd'), '50{Enter}')
+    await userEvent.type(field('cash:USD'), '50{Enter}')
     // 605 000 at the rate, 95 000 still to pay: on to the next sum, past the agreed worth.
     await waitFor(() => expect(document.activeElement).toBe(field('account:humo')))
-    const taken = within(document.querySelector('[data-tender="usd"]') as HTMLElement).getAllByRole('textbox')[1]
+    const taken = within(document.querySelector('[data-tender="cash:USD"]') as HTMLElement).getAllByRole('textbox')[1]
     expect(plain((taken as HTMLInputElement).placeholder)).toBe('605 000')
 
     // The terminal's slip number appears with its sum, and is not on Enter's way either.
@@ -227,7 +235,7 @@ describe('leaving part of it owing', () => {
     render(<Money due={som(200_000)} onComplete={sold} borrower={{ owed: 0 }} />)
     // Through every sum to the last, and never past it into the debt.
     await userEvent.type(field('cash'), '50000{Enter}')
-    for (const key of ['usd', 'account:humo', 'account:uzcard', 'account:pos']) {
+    for (const key of ['cash:USD', 'account:humo', 'account:uzcard', 'account:pos']) {
       await waitFor(() => expect(document.activeElement).toBe(field(key)))
       await userEvent.keyboard('{Enter}')
     }
@@ -247,10 +255,10 @@ describe('Tab in the money', () => {
     const sold = vi.fn()
     render(<Money due={som(600_000)} onComplete={sold} />)
     // The field is there as soon as the cursor is in the row: Tab does not go past where it would appear.
-    field('usd').focus()
+    field('cash:USD').focus()
     await userEvent.keyboard('50')
     await userEvent.tab()
-    const taken = within(document.querySelector('[data-tender="usd"]') as HTMLElement).getAllByRole('textbox')[1]
+    const taken = within(document.querySelector('[data-tender="cash:USD"]') as HTMLElement).getAllByRole('textbox')[1]
     expect(document.activeElement).toBe(taken)
     await waitFor(() => expect(plain((taken as HTMLInputElement).placeholder)).toBe('605 000'))
 
@@ -263,7 +271,7 @@ describe('Tab in the money', () => {
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
     expect(sold.mock.calls[0][0].map((row: TenderRow) => [row.key, row.amount, row.value])).toEqual([
-      ['usd', 5000, som(600_000)],
+      ['cash:USD', 5000, som(600_000)],
     ])
   })
 })

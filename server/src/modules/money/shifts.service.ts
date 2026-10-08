@@ -4,7 +4,7 @@ import {
   DOLLAR,
   formatMoney,
   isDollar,
-  toBase,
+  tillWorth,
   type AnyCurrency,
   type CurrencyCode,
   type MoneySentEvent,
@@ -26,8 +26,10 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
+import { wantingRate } from './agreed'
 import { takesDollars } from './base'
 import { LedgerService, type Posting } from './ledger.service'
+import { bookFrom, ratesInForce } from './rate-book'
 import { MoneyTransfersService } from './transfers.service'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
@@ -332,7 +334,8 @@ export class ShiftsService {
               coalesce(sum(discount) FILTER (WHERE status = 'completed'), 0)::float8 AS discount,
               coalesce(sum(total) FILTER (WHERE status = 'completed'), 0)::float8 AS total,
               coalesce(sum(change_uzs) FILTER (WHERE status = 'completed'), 0)::float8 AS change_uzs,
-              coalesce(sum(change_usd) FILTER (WHERE status = 'completed'), 0)::float8 AS change_usd,
+              coalesce(sum(change_other) FILTER (WHERE status = 'completed' AND change_currency = 'USD'), 0)::float8
+                AS change_usd,
               coalesce(sum(rounding) FILTER (WHERE status = 'completed'), 0)::float8 AS rounding
        FROM sales WHERE shift_id = $1`,
       [shiftId],
@@ -448,7 +451,7 @@ export class ShiftsService {
     counted: Record<'base' | 'dollar', number | null>,
   ): Promise<Record<'base' | 'dollar', { expected: number; diff: number }>> {
     const today = await this.ledger.today(em, actor.orgId)
-    const rate = await this.ledger.rate(em, today)
+    const book = bookFrom(actor.base, await ratesInForce(em, today))
     const result = { base: { expected: 0, diff: 0 }, dollar: { expected: 0, diff: 0 } }
     const postings: Posting[] = []
 
@@ -466,10 +469,10 @@ export class ShiftsService {
       if (!diff) {
         continue
       }
-      if (isDollar(currency, actor.base) && !rate) {
-        throw AppError.conflict('NO_RATE', 'Dollar kursi qo‘yilmagan. Avval kursni kiriting')
+      const base = tillWorth(diff, currency, book)
+      if (base === null) {
+        throw AppError.conflict('NO_RATE', `${wantingRate(book, currency) ?? 'Kurs qo‘yilmagan'}. Avval kursni kiriting`)
       }
-      const base = toBase(diff, currency, rate?.uzsPerUsd ?? null, actor.base)
       const fresh = kind === 'shift_open' && !(await this.ledger.isUsed(em, account.id))
       const other = await this.ledger.systemAccount(em, actor.orgId, fresh ? 'opening' : 'cash_diff')
       postings.push({ accountId: account.id, amount: diff, base }, { accountId: other.id, amount: -base, base: -base })

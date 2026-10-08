@@ -1,4 +1,5 @@
 import {
+  CURRENCIES,
   DEFAULT_RECEIPT_TEMPLATE,
   formatMoney,
   paymentLabel,
@@ -20,7 +21,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
-import { base, dollarsBeside } from '@/lib/base'
+import { base } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
 
@@ -257,17 +258,33 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   ) : null}
                 </>
               ) : null}
-              {sale.uzsPerUsd && sale.payments.some((payment) => dollarsBeside(payment.currency)) ? (
-                <Line label={t('pos.rate')} value={`1 $ = ${money(Math.round(sale.uzsPerUsd * 100))}`} />
-              ) : null}
+              {/* The day's rate of each other currency it was paid in, as the books took the money. */}
+              {[...new Set(sale.payments.filter((payment) => payment.currency !== base()).map((p) => p.currency))].map(
+                (code) => {
+                  const paid = sale.payments.filter((payment) => payment.currency === code && payment.amount)
+                  const amount = paid.reduce((sum, payment) => sum + payment.amount, 0)
+                  const worth = paid.reduce((sum, payment) => sum + payment.base + payment.fx, 0)
+                  return amount ? (
+                    <Line
+                      key={code}
+                      label={t('pos.rate')}
+                      value={`1 ${CURRENCIES[code].symbol} = ${money(Math.round((worth * 100) / amount))}`}
+                    />
+                  ) : null
+                },
+              )}
               {/* Between the shop and its books, not the customer's business: it stays off the paper. */}
               {rateDiff ? (
                 <div className="print:hidden">
                   <Line label={t('pos.rateDiff')} value={`${rateDiff > 0 ? '+' : '−'}${money(Math.abs(rateDiff))}`} />
                 </div>
               ) : null}
-              {sale.changeUzs || sale.changeUsd ? (
-                <Line label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeUsd)} strong />
+              {sale.changeUzs || sale.changeOther ? (
+                <Line
+                  label={t('pos.change')}
+                  value={changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency)}
+                  strong
+                />
               ) : null}
             </div>
             {sale.note ? <p className="mt-2 text-xs text-ink-2">{sale.note}</p> : null}

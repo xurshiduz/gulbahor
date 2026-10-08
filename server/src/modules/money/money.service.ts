@@ -1,6 +1,7 @@
 import {
   ACCOUNT_KIND_LABELS,
   accountShops,
+  CURRENCIES,
   type AccountDto,
   type AnyCurrency,
   type AccountInput,
@@ -65,9 +66,20 @@ export class MoneyService {
   async createRegister(actor: Actor, input: RegisterInput): Promise<RegisterDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertRegister(em, input)
+      // A new till takes every currency the business keeps, unless told otherwise.
+      const currencies = this.tillCurrencies(actor, input.currencies ?? actor.currencies)
       // A shop's first till is its main one.
       const isMain = !(await em.existsBy(Register, { locationId: input.locationId, isMain: true }))
-      const saved = await em.save(em.create(Register, { orgId: actor.orgId, ...input, isActive: true, isMain }))
+      const saved = await em.save(
+        em.create(Register, {
+          orgId: actor.orgId,
+          name: input.name,
+          locationId: input.locationId,
+          currencies,
+          isActive: true,
+          isMain,
+        }),
+      )
       await this.audit.record(em, actor.orgId, actor, {
         action: 'register.create',
         entity: 'register',
@@ -86,14 +98,27 @@ export class MoneyService {
         throw AppError.validation({ locationId: 'Smenasi bo‘lgan kassani boshqa do‘konga o‘tkazib bo‘lmaydi' })
       }
       await this.assertRegister(em, input, id)
+      const currencies = this.tillCurrencies(actor, input.currencies ?? before.currencies)
+      // Cash still in a drawer is counted at the next shift's close: its currency stays with the till till then.
+      const kept: { currency: AnyCurrency; name: string }[] = await em.query(
+        `SELECT currency, name FROM accounts WHERE register_id = $1 AND kind = 'cash' AND balance <> 0`,
+        [id],
+      )
+      const stranded = kept.find((drawer) => drawer.currency !== actor.base && !currencies.includes(drawer.currency))
+      if (stranded) {
+        throw AppError.validation({
+          currencies: `${stranded.name}: kassada ${CURRENCIES[stranded.currency].name} naqdi bor. Avval topshiring`,
+        })
+      }
+      const changes = { name: input.name, locationId: input.locationId, currencies }
       if (before.locationId !== input.locationId) {
         // It leaves one shop and joins another: main in neither by right, and in the new one only if that has none.
         await em.update(Register, id, { isMain: false })
         await this.passMainOn(em, before.locationId, id)
         const isMain = !(await em.existsBy(Register, { locationId: input.locationId, isMain: true }))
-        await em.update(Register, id, { ...input, isMain })
+        await em.update(Register, id, { ...changes, isMain })
       } else {
-        await em.update(Register, id, input)
+        await em.update(Register, id, changes)
       }
       await em.update(Account, { registerId: id }, { locationId: input.locationId, locationIds: [input.locationId] })
       const after = await this.findRegister(em, id)
@@ -102,7 +127,7 @@ export class MoneyService {
         entity: 'register',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['name', 'locationId']),
+        changes: diff(before, after, ['name', 'locationId', 'currencies']),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
       return this.registerRow(em, id)
@@ -299,6 +324,7 @@ export class MoneyService {
       locationName: raw[index].location_name,
       isActive: register.isActive,
       isMain: register.isMain,
+      currencies: register.currencies,
       shift: raw[index].shift_id
         ? {
             id: raw[index].shift_id,
@@ -363,6 +389,15 @@ export class MoneyService {
       throw AppError.notFound('Hisob topilmadi')
     }
     return account
+  }
+
+  /** The currencies a till is to take beside the base: those of the business's it was given, in the business's order. */
+  private tillCurrencies(actor: Actor, wanted: AnyCurrency[]): AnyCurrency[] {
+    const unknown = wanted.find((code) => code !== actor.base && !actor.currencies.includes(code))
+    if (unknown) {
+      throw AppError.validation({ currencies: `${CURRENCIES[unknown].name} yoqilmagan: Pul → Kurslar` })
+    }
+    return actor.currencies.filter((code) => wanted.includes(code))
   }
 
   private async assertRegister(em: EntityManager, input: RegisterInput, exceptId?: string) {

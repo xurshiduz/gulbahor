@@ -17,7 +17,6 @@ import {
   type RateForm,
 } from './currencies'
 import { ALL_CURRENCY_CODES, CURRENCIES, formatMoney } from './money'
-import { toBase } from './pos'
 
 const som = (value: number) => Math.round(value * 100)
 const units = (value: number) => Math.round(value * 100)
@@ -127,10 +126,15 @@ describe('what a currency is worth in the base', () => {
   })
 
   it('values dollars exactly as the books already do, and the base as itself', () => {
+    // How the till counted dollars before every currency went through the book: the rate in tiyin, half up.
+    const counted = (amount: number, rate: number) => {
+      const scaled = Number((BigInt(Math.abs(amount)) * BigInt(Math.round(rate * 100)) + 50n) / 100n)
+      return amount < 0 ? -scaled : scaled
+    }
     for (const amount of [1, 33, 9_999, 123_456_789, -4_550]) {
       for (const rate of [12_650, 11_821.18, 12_999.99]) {
         const dollars: RateBook = { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: rate } } }
-        expect(worthInBase(amount, 'USD', dollars)).toBe(toBase(amount, 'USD', rate, 'UZS'))
+        expect(worthInBase(amount, 'USD', dollars)).toBe(counted(amount, rate))
       }
     }
     expect(worthInBase(som(1_500_000), 'UZS', { base: 'UZS', rates: {} })).toBe(som(1_500_000))

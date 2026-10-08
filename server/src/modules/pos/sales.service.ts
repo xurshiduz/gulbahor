@@ -5,7 +5,6 @@ import {
   floorOf,
   cartAutos,
   formatMoney,
-  isDollar,
   overDiscountLimit,
   overRateLoss,
   PAYMENT_METHOD_LABELS,
@@ -16,7 +15,7 @@ import {
   settle,
   settleLine,
   straysFromRate,
-  toBase,
+  CURRENCIES,
   variantLabel,
   worthOf,
   type AnyCurrency,
@@ -59,7 +58,7 @@ import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
 import { wantingRate } from '../money/agreed'
-import { takesDollars, tillCurrencyProblem } from '../money/base'
+import { tillCurrenciesOf, tillCurrencyProblem } from '../money/base'
 import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { servesShop } from '../money/places'
@@ -144,8 +143,8 @@ export class SalesService {
     const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
     const today = await this.ledger.today(em, actor.orgId)
     const { base } = actor
-    const usd = takesDollars(actor)
-    const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
+    const book = await this.currencies.book(em, actor, today)
+    const till = tillCurrenciesOf(actor, register)
 
     // ── Who is buying, when they are on the books. ──
     const customer = input.customerId ? await em.findOneBy(Customer, { id: input.customerId, isActive: true }) : null
@@ -321,17 +320,17 @@ export class SalesService {
     for (const [index, payment] of input.payments.entries()) {
       // Left out, it is the base: the money the shop keeps its books in.
       const currency = payment.currency ?? base
-      const problem = tillCurrencyProblem(currency, actor, rate)
+      const problem = tillCurrencyProblem(currency, till, book)
       if (problem) {
         fields[`payments.${index}.currency`] = problem
         continue
       }
-      if (payment.value !== null && !isDollar(currency, base)) {
-        fields[`payments.${index}.value`] = 'Kelishilgan qiymat faqat dollar uchun yoziladi'
+      if (payment.value !== null && currency === base) {
+        fields[`payments.${index}.value`] = 'Kelishilgan qiymat chet valyuta uchun yoziladi'
         continue
       }
-      if (payment.method !== 'cash' && currency !== base) {
-        fields[`payments.${index}.currency`] = 'Karta va terminal faqat asosiy valyutada'
+      if (payment.method === 'terminal' && currency !== base) {
+        fields[`payments.${index}.currency`] = 'Terminal faqat asosiy valyutada'
         continue
       }
       let account: Account | undefined
@@ -342,7 +341,7 @@ export class SalesService {
         const fits =
           account &&
           account.kind === payment.method &&
-          account.currency === base &&
+          account.currency === currency &&
           account.isActive &&
           servesShop(account, register.locationId)
         if (!fits) {
@@ -356,8 +355,8 @@ export class SalesService {
         account: account as Account,
         currency,
         amount: payment.amount,
-        base: worthOf(tender, rate, base),
-        fx: rateGain(tender, rate, base),
+        base: worthOf(tender, book) as number,
+        fx: rateGain(tender, book),
         reference: payment.reference ?? null,
       })
     }
@@ -366,16 +365,15 @@ export class SalesService {
     // they need the same word.
     const overRate = overRateLoss(
       payments.map((payment) => ({ ...payment, value: payment.base })),
-      rate,
+      book,
       settings.maxRateLossPercent,
-      base,
     )
     if (overRate && !allowed) {
       throw AppError.badRequest(
         'RATE_LOSS_OVER_LIMIT',
         approver
-          ? `${approver.name} dollarni kursdan qimmat olishni tasdiqlay olmaydi`
-          : `Dollar kun kursidan ${settings.maxRateLossPercent}% dan ko‘proq qimmat olinmoqda: rahbar tasdig‘i kerak`,
+          ? `${approver.name} valyutani kursdan qimmat olishni tasdiqlay olmaydi`
+          : `Valyuta kun kursidan ${settings.maxRateLossPercent}% dan ko‘proq qimmat olinmoqda: rahbar tasdig‘i kerak`,
         { payments: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
       )
     }
@@ -447,7 +445,6 @@ export class SalesService {
         }
         soldByWord = true
       }
-      const book = await this.currencies.book(em, actor, today)
       const wanting = wantingRate(book, book.base, partner.currency)
       if (wanting) {
         throw AppError.validation({ onAccount: wanting })
@@ -476,10 +473,10 @@ export class SalesService {
       totals.total - used - owed - onAccount,
       payments.map((payment) => ({ ...payment, value: payment.base })),
       {
-        uzsPerUsd: rate,
-        changeCurrency: input.changeCurrency === 'USD' && usd && rate ? 'USD' : base,
+        book,
+        // Change is handed back in a currency the till keeps; anything else asked for is all in the base.
+        changeCurrency: input.changeCurrency && till.includes(input.changeCurrency) ? input.changeCurrency : null,
         roundStep: settings.changeRoundStep,
-        base,
       },
     )
     if (settlement.problem === 'non_cash_over') {
@@ -502,7 +499,9 @@ export class SalesService {
       ...new Set([
         ...(used ? [PAYMENT_METHOD_LABELS.exchange] : []),
         ...payments.map(
-          (payment) => PAYMENT_METHOD_LABELS[payment.method] + (isDollar(payment.currency, base) ? ' $' : ''),
+          (payment) =>
+            PAYMENT_METHOD_LABELS[payment.method] +
+            (payment.currency !== base ? ` ${CURRENCIES[payment.currency].symbol}` : ''),
         ),
         ...(owed ? [PAYMENT_METHOD_LABELS.debt] : []),
         ...(onAccount ? [PAYMENT_METHOD_LABELS.partner] : []),
@@ -527,9 +526,11 @@ export class SalesService {
         subtotal: totals.subtotal,
         discount: totals.discount,
         total: totals.total,
-        uzsPerUsd: rate,
+        uzsPerUsd: null,
         changeUzs: settlement.changeUzs,
-        changeUsd: settlement.changeUsd,
+        changeOther: settlement.changeOther,
+        changeCurrency: settlement.changeCurrency,
+        changeOtherBase: settlement.changeBase - settlement.changeUzs,
         rounding: settlement.rounding,
         costUsd: 0,
         costUzs: 0,
@@ -706,12 +707,12 @@ export class SalesService {
       const drawer = await this.ledger.cashAccount(em, register, base)
       postings.push({ accountId: drawer.id, amount: -settlement.changeUzs, base: -settlement.changeUzs })
     }
-    if (settlement.changeUsd) {
-      const drawer = await this.ledger.cashAccount(em, register, 'USD')
+    if (settlement.changeOther && settlement.changeCurrency) {
+      const drawer = await this.ledger.cashAccount(em, register, settlement.changeCurrency)
       postings.push({
         accountId: drawer.id,
-        amount: -settlement.changeUsd,
-        base: -toBase(settlement.changeUsd, 'USD', rate, base),
+        amount: -settlement.changeOther,
+        base: -(settlement.changeBase - settlement.changeUzs),
       })
     }
     const revenue = await this.ledger.systemAccount(em, actor.orgId, 'sales')
@@ -941,9 +942,9 @@ export class SalesService {
       shiftId: sale.shiftId,
       shiftNumber: shift.number,
       subtotal: sale.subtotal,
-      uzsPerUsd: sale.uzsPerUsd,
       changeUzs: sale.changeUzs,
-      changeUsd: sale.changeUsd,
+      changeOther: sale.changeOther,
+      changeCurrency: sale.changeCurrency,
       rounding: sale.rounding,
       debt:
         debt && !debt.cancelled

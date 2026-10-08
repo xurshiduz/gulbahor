@@ -1,17 +1,13 @@
 import {
-  baseWorth,
   CURRENCIES,
-  DOLLAR,
   SYSTEM_ACCOUNT_LABELS,
   type CurrencyCode,
-  type RateDto,
   type SystemAccount,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
 import { Account, LedgerEntry, Organization, type Partner, type Register } from '../../database/entities'
-import { baseOf, bookFrom, ratesInForce } from './rate-book'
 
 /** One side of a movement: so much into an account (or, negative, out of it), and its worth in the base. */
 export interface Posting {
@@ -187,20 +183,5 @@ export class LedgerService {
       [orgId],
     )
     return day
-  }
-
-  /**
-   * What a dollar is worth in the base on a day, to the tiyin, worked out from the rates in force: the
-   * till counts in the base and dollars until it takes any currency (V9, 9d). Null where the dollar is the
-   * base, is not switched on, or cannot be valued yet.
-   */
-  async rate(em: EntityManager, date: string): Promise<RateDto | null> {
-    const base = await baseOf(em)
-    const rates = await ratesInForce(em, date)
-    const dollar = rates.get(DOLLAR)
-    const worth = base === DOLLAR || !dollar ? null : baseWorth(DOLLAR, bookFrom(base, rates))
-    return worth && dollar
-      ? { date: dollar.date, uzsPerUsd: Number(worth.toDecimalString(2)), setByName: dollar.setByName }
-      : null
   }
 }

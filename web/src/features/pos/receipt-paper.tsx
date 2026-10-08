@@ -12,7 +12,7 @@ import {
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { base, dollarsBeside } from '@/lib/base'
+import { base } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/format'
 
 import { changeText } from './pos-state'
@@ -30,8 +30,8 @@ export function paidText(payment: Pick<SalePaymentDto, 'method' | 'currency' | '
       ? money(payment.base)
       : `${money(payment.base)} (${money(payment.amount, payment.currency)})`
   }
-  return dollarsBeside(payment.currency)
-    ? `${money(payment.amount, 'USD')} = ${money(payment.base)}`
+  return payment.currency !== base()
+    ? `${money(payment.amount, payment.currency)} = ${money(payment.base)}`
     : money(payment.amount, payment.currency)
 }
 
@@ -139,8 +139,8 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
         ))}
         {/* The day the customer has agreed to: on the paper they take away. */}
         {sale.debt ? <Row label={t('pos.debtDue')} value={formatDay(sale.debt.dueDate)} /> : null}
-        {sale.changeUzs || sale.changeUsd ? (
-          <Row label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeUsd)} />
+        {sale.changeUzs || sale.changeOther ? (
+          <Row label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency)} />
         ) : null}
         {template.showSavings && sale.discount ? (
           <p className="mt-1 text-center font-medium">{t('receipt.saved', { amount: money(sale.discount) })}</p>
