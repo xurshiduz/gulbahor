@@ -1,6 +1,7 @@
 import {
   hasPermission,
   OWNER_ROLE_KEY,
+  PERMISSION_GROUPS,
   PERMISSION_KEYS,
   searchKey,
   type Page,
@@ -98,6 +99,7 @@ export class UsersService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertPhoneFree(em, input.phone)
       await this.assertRoles(em, actor, input.roleIds)
+      this.assertExtras(actor, input.extraPermissions)
       const locationIds = await this.resolveLocations(em, input)
 
       const user = await em.save(
@@ -110,6 +112,7 @@ export class UsersService {
           language: input.language,
           isActive: true,
           allLocations: input.allLocations,
+          extraPermissions: tidy(input.extraPermissions),
           // The password was chosen by someone else, so the person sets their own at first sign-in.
           mustChangePassword: true,
           pinFailures: 0,
@@ -140,6 +143,7 @@ export class UsersService {
       this.assertMayTouch(actor, before)
       await this.assertPhoneFree(em, input.phone, id)
       await this.assertRoles(em, actor, input.roleIds, before.roles.map((role) => role.id))
+      this.assertExtras(actor, input.extraPermissions, before.extraPermissions)
       const locationIds = await this.resolveLocations(em, input)
 
       const ownerRole = await this.ownerRole(em)
@@ -154,6 +158,7 @@ export class UsersService {
         phone: input.phone,
         language: input.language,
         allLocations: input.allLocations,
+        extraPermissions: tidy(input.extraPermissions),
         searchKey: keyOf(input),
       })
       await this.replaceLinks(em, actor.orgId, id, input.roleIds, locationIds)
@@ -164,7 +169,7 @@ export class UsersService {
         entity: 'user',
         entityId: id,
         summary: after.fullName,
-        changes: diff(auditView(before), auditView(after), ['fullName', 'login', 'phone', 'language', 'allLocations', 'roles', 'locations']),
+        changes: diff(auditView(before), auditView(after), ['fullName', 'login', 'phone', 'language', 'allLocations', 'roles', 'extraPermissions', 'locations']),
       })
       afterCommit(() => {
         this.actors.invalidate()
@@ -393,6 +398,22 @@ export class UsersService {
     }
   }
 
+  /**
+   * Permissions given beside the roles are given by someone who holds them: nobody hands out what they may not do
+   * themselves. Those the person already had may stay.
+   */
+  private assertExtras(actor: Actor, extras: string[], alreadyHeld: string[] = []) {
+    const beyond = extras.filter(
+      (permission) => !alreadyHeld.includes(permission) && !hasPermission(actor.permissions, permission),
+    )
+    if (beyond.length) {
+      throw AppError.forbidden(
+        `Sizda yo‘q ruxsatni bera olmaysiz: ${beyond.map(permissionName).join(', ')}`,
+        'ESCALATION',
+      )
+    }
+  }
+
   private assertMayTouch(actor: Actor, target: UserDto) {
     if (target.isOwner && !actor.isOwner) {
       throw AppError.forbidden('Egasining ma’lumotlarini faqat egasi o‘zgartira oladi')
@@ -412,8 +433,25 @@ function auditView(user: UserDto) {
     language: user.language,
     allLocations: user.allLocations,
     roles: user.roles.map((role) => role.name),
+    extraPermissions: user.extraPermissions.map(permissionName),
     locations: user.locations.map((location) => location.name),
   }
+}
+
+/** Each once, in the order of the list of permissions: what is stored does not change with the order it was ticked. */
+function tidy(extras: string[]): string[] {
+  return PERMISSION_KEYS.filter((key) => extras.includes(key))
+}
+
+/** "Kassa: Qarzga sotish": a permission as the screens name it. */
+function permissionName(key: string): string {
+  for (const group of PERMISSION_GROUPS) {
+    const found = group.permissions.find((item) => item.key === key)
+    if (found) {
+      return `${group.title}: ${found.title}`
+    }
+  }
+  return key
 }
 
 function toDto(user: User, extras: Extras): UserDto {
@@ -427,6 +465,7 @@ function toDto(user: User, extras: Extras): UserDto {
     isOwner: extras.is_owner,
     allLocations: user.allLocations,
     roles: extras.roles,
+    extraPermissions: user.extraPermissions,
     locations: extras.locations,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),

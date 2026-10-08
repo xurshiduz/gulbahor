@@ -8,6 +8,7 @@ import { User } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { verifySecret } from '../auth/crypto'
+import { USER_PERMISSIONS } from '../auth/permissions-sql'
 
 /** Wrong PINs in a row before a person's PIN is taken away. */
 const MAX_FAILURES = 5
@@ -30,12 +31,6 @@ interface Candidate {
   permissions: string[]
   works_here: boolean
 }
-
-const PERMISSIONS = `coalesce((
-  SELECT array_agg(DISTINCT permission)
-  FROM user_roles ur JOIN roles r ON r.id = ur.role_id CROSS JOIN LATERAL unnest(r.permissions) AS permission
-  WHERE ur.user_id = u.id
-), '{}')`
 
 /**
  * A manager's word at the till. What a cashier may not do alone (a discount
@@ -61,7 +56,7 @@ export class ApprovalsService {
     }
     const found = await this.db.tenant(actor.orgId, async ({ em }) => {
       const [row]: Candidate[] = await em.query(
-        `SELECT u.id, u.full_name, u.pin_hash, u.pin_failures, ${PERMISSIONS} AS permissions,
+        `SELECT u.id, u.full_name, u.pin_hash, u.pin_failures, ${USER_PERMISSIONS} AS permissions,
                 (u.all_locations OR EXISTS (
                   SELECT 1 FROM user_locations ul JOIN registers g ON g.location_id = ul.location_id
                   WHERE ul.user_id = u.id AND g.id = $2
@@ -108,7 +103,7 @@ export class ApprovalsService {
   /** Who at a shop may allow what a cashier may not, and has a PIN to say so with. */
   async approversAt(em: EntityManager, locationId: string, exceptUserId: string): Promise<PosContextDto['approvers']> {
     const rows: { id: string; full_name: string; permissions: string[] }[] = await em.query(
-      `SELECT u.id, u.full_name, ${PERMISSIONS} AS permissions
+      `SELECT u.id, u.full_name, ${USER_PERMISSIONS} AS permissions
        FROM users u
        WHERE u.is_active AND u.pin_hash IS NOT NULL AND u.id <> $2
          AND (u.all_locations OR EXISTS (

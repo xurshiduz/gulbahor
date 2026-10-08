@@ -1235,6 +1235,11 @@ export const uz = {
     emptyHint: 'Kassada smena ochilganda shu yerda ko‘rinadi.',
   },
   users: {
+    extraPermissions: 'Qo‘shimcha ruxsatlar',
+    extraPermissionsHint:
+      'Roldan tashqari faqat shu xodimga beriladi. Rol bergan ruxsatlar belgilangan; o‘zingizda yo‘q ruxsatni bera olmaysiz.',
+    fromRole: 'rolda bor',
+    extraCount: '+{{count}} ruxsat',
     title: 'Xodimlar',
     add: 'Xodim qo‘shish',
     edit: 'Xodimni tahrirlash',

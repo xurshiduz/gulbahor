@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt'
 
 import { Db } from '../../database/db.service'
 import type { Actor } from './actor'
+import { USER_PERMISSIONS } from './permissions-sql'
 
 export interface AccessClaims {
   sub: string
@@ -82,13 +83,7 @@ export class ActorService {
       }[] = await em.query(
         `
         SELECT u.id, u.full_name, u.all_locations, o.modules, o.base_currency,
-          coalesce((
-            SELECT array_agg(DISTINCT permission)
-            FROM user_roles ur
-            JOIN roles r ON r.id = ur.role_id
-            CROSS JOIN LATERAL unnest(r.permissions) AS permission
-            WHERE ur.user_id = u.id
-          ), '{}') AS permissions,
+          ${USER_PERMISSIONS} AS permissions,
           EXISTS (
             SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
             WHERE ur.user_id = u.id AND r.is_system AND r.template_key = $3

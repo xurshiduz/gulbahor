@@ -721,6 +721,13 @@ Sotish uchun kerak bo'ladiganlari (superadmin bilan birga): tarif va muddat, biz
 - Hisobot: har xodim kuniga necha soat faol bo'lgani, birinchi kirish va oxirgi faollik vaqti.
 - Kim ko'radi: rahbar va ruxsati borlar (`users.activity`).
 
+### Xodimga qo'shimcha ruxsat qanday qurildi (P1, 2026-10-08)
+
+- Xodimda rollaridan tashqari ruxsatlar ro'yxati (`users.extra_permissions`). Kishining ruxsatlari — rollari va shu ro'yxat birga: sessiya ham, kassadagi rahbar tasdig'i ro'yxati ham bitta SQL bo'lagidan o'qiydi (`server/src/modules/auth/permissions-sql.ts`). Berilgani yoki olingani darhol ishlaydi (sessiya keshi tozalanadi).
+- Faqat aniq ruxsat beriladi ("hammasi" — `*` va guruh — `pos.*` emas: ular faqat rolda). Kishi o'zida yo'q ruxsatni bera olmaydi (`ESCALATION`); xodimda oldindan bor ruxsat esa tahrirda qolishi mumkin. Tarixda ruxsat nomi bilan yoziladi.
+- Ekran: xodim formasida yig'iladigan "Qo'shimcha ruxsatlar" bo'limi — rol bergan ruxsatlar belgilangan va o'chiq ("rolda bor"), qolganlari qo'shiladi, tahrirlovchida yo'q ruxsat o'chiq; ro'yxatda rol yonida "+2 ruxsat" (ustiga borilsa qaysilari). Rol tanlangach u bergan ruxsat qo'shimcha sifatida yuborilmaydi.
+- "Rolga qo'shish" (qo'shimcha ruxsatdan rol yasash) qurilmadi: kerak bo'lsa alohida qilinadi.
+
 ---
 
 ## 14. Ish tartibi

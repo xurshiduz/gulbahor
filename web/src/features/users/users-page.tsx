@@ -20,6 +20,7 @@ import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
+import { permissionNames } from './permissions'
 import { ResetPasswordDialog, UserFormDialog, UserSessionsDialog, useUserFormOptions } from './user-form'
 
 const route = getRouteApi('/users')
@@ -92,6 +93,12 @@ export function UsersPage() {
             {row.original.roles.map((role) => (
               <Badge key={role.id}>{role.name}</Badge>
             ))}
+            {/* Given beside the roles: how many, and on hover which. */}
+            {row.original.extraPermissions.length ? (
+              <span title={permissionNames(row.original.extraPermissions)}>
+                <Badge tone="info">{t('users.extraCount', { count: row.original.extraPermissions.length })}</Badge>
+              </span>
+            ) : null}
           </span>
         ),
       },

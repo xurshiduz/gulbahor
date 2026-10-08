@@ -27,7 +27,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 
 | № | Paket | Modul | ~kun | Bog'liq | Holat |
 |---|---|---|---|---|---|
-| 1 | P1. Xodimga qo'shimcha ruxsat | Platforma | 1,5 | — | yangi (egasi so'radi) |
+| 1 | P1. Xodimga qo'shimcha ruxsat | Platforma | 1,5 | — | tayyor (2026-10-08) |
 | 2 | M1. Narx formulalari | Mijozlar va narx | 9 | — | boshlanmagan (spetsifikatsiya tayyor) |
 | 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | M1 | boshlanmagan |
 | 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | boshlanmagan |
@@ -43,7 +43,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 | 14 | K3. R3/UR4 o'quvchilarni ulash, CP30/C72 sinovi | Kassa | 2 | uskuna | uskunani kutmoqda |
 | 15 | V7. Kurs farqi hisoboti | Pul | 1,5 | — | boshlanmagan |
 | 16 | H1–H6. Hisobotlar 10b–10g | Hisobotlar | 12 | M2 | keyinga qoldirilgan |
-| 17 | V5. Asosiy valyutani tanlash | Pul | 10 | M2 | eng katta; so'ralganda |
+| 17 | V5. Asosiy valyutani tanlash | Pul | 10 | M2 | tayyor (2026-10-08; foydalanuvchi so'rovi bilan M2 dan oldin) |
 | 18 | P2–P5. Superadmin, loglar, Telegram, deploy | Platforma | 8 | — | foydalanuvchi bilan |
 
 Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz birlashuvi (u kassa, otlojka va hisobotlarga asos), keyin pul va sklad mayda paketlari, eng oxirida katta va kam so'ralgan ishlar. Jami ~80 kun.

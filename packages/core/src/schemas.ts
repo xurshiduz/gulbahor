@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { MODULE_KEYS } from './access'
+import { MODULE_KEYS, PERMISSION_KEYS } from './access'
 import type { LabelTemplate } from './labels'
 import { ALL_CURRENCY_CODES, type AnyCurrency, type CurrencyCode } from './money'
 import { parsePhone } from './phone'
@@ -346,6 +346,11 @@ const userBase = {
   allLocations: z.boolean(),
   locationIds: z.array(idSchema),
   language: z.enum(LANGUAGES).default('uz'),
+  /** Permissions beside the roles': one at a time, never "everything" — that is the owner's role alone. */
+  extraPermissions: z
+    .array(z.enum(PERMISSION_KEYS as [string, ...string[]]))
+    .max(200)
+    .default([]),
 }
 
 const locationsChosen = (value: { allLocations: boolean; locationIds: string[] }) =>
@@ -380,6 +385,8 @@ export interface UserDto {
   isOwner: boolean
   allLocations: boolean
   roles: { id: string; name: string }[]
+  /** What this person may do beside what the roles give. */
+  extraPermissions: string[]
   locations: { id: string; name: string }[]
   lastLoginAt: string | null
   createdAt: string

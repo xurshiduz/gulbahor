@@ -182,6 +182,10 @@ export class User {
   @Column('boolean')
   allLocations: boolean
 
+  /** Permissions given to this person beside their roles'. */
+  @Column('text', { array: true })
+  extraPermissions: string[]
+
   @Column('boolean')
   mustChangePassword: boolean
 

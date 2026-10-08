@@ -23,7 +23,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-08 (V5 dan keyin) — core 209, agent 17, server 369, web 207; typecheck va lint toza.
+Oxirgi to'liq tekshiruv: 2026-10-08, P1 dan keyin: core 209, web 209, agent 17, server 374 (31 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -201,7 +201,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [x] V2. Pul joylari istalgan valyutada.
    - [x] V4. Ayirboshlash: o'tkazmada va kassadan pul olishda juft maydon (foydalanuvchi so'rovi, 2026-10-06); talabi `docs/BULUT-SESSIYA.md`, 4-bo'lim, A. Komissiya keyin.
    - [x] V3. Hamkor istalgan valyutada; kassadan hamkorga sotuv; hamkorga narx turi; yetkazib beruvchiga qaytarish; talabi o'sha yerda, B (B1–B5).
-   - [x] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy valyuta va dollar"); reja, qarorlar va qanday qurilgani — KEYINGI-REJA, 8-bo'lim, "5-bosqich rejasi" va "5-bosqich qanday qurildi". 2026-10-08 da tugadi, commit qilinmagan.
+   - [x] V5. Asosiy valyutani tanlash ("so'm va dollar" → "asosiy valyuta va dollar"); reja, qarorlar va qanday qurilgani — KEYINGI-REJA, 8-bo'lim, "5-bosqich rejasi" va "5-bosqich qanday qurildi". 2026-10-08 da tugadi, commit qilindi va push qilindi (`a1928d9`, `454cfe0`).
      - [x] 5a. Asos: bazadagi uchta cheklov, core'dagi kassa, kirim va juft hisob funksiyalari asosiy valyuta bilan.
      - [x] 5b. Server: har `'UZS'` → biznesning asosiy valyutasi; dollar asosli biznesda dollar roli yo'q; `base-currency.spec.ts`.
      - [x] 5c. Veb: asosiy valyuta sessiyadan, "so'm" so'zlari valyuta nomi bilan.
@@ -210,7 +210,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
 
-0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: P1 (xodimga qo'shimcha ruxsat), keyin M1.
+0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: M1 (P1 tayyor) — u 13-banddagi tasdiq va KEYINGI-REJA 16.9 dagi savollarga javobni kutadi.
 
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula (~9 kun).
@@ -218,6 +218,9 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
+
+14. **Platforma** (YOL-XARITA, 3-bo'lim):
+   - [x] P1. Xodimga rolidan tashqari qo'shimcha ruxsat (KEYINGI-REJA, 13b oxiri — qanday qurilgani).
 
 Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
@@ -244,3 +247,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `213c32050b2a27b5e065a92282c55c6917cadfc3` | V5 5a–5c: asosiy valyuta core, server va vebda (kassa, kirim, narx, smena, hisobot, so'zlar); tenge va dollar asosli biznes testlari |
 | `af876161ed0b702d6f73d1d2a352d1cd68ff03a4` | V5 5d: asosiy valyutani tanlash — /currencies/base (qulf, narx va sozlamalarni o'tkazish, rebase), Sozlamalar → Biznes kartasi, birinchi sozlashda tanlov |
 | `f8a7080312893e871922f90c32be17741da9ea42` | V5 5e: ekranda tenge, dollar va qirg'iz somi asosli biznes, almashtirish; topilgan uchta kamchilik tuzatildi; hujjatlar |
+| `61468d60cf6df40df75852b17e5297edda5448f8` | P1: xodimga rolidan tashqari qo'shimcha ruxsat (users.extra_permissions, USER_PERMISSIONS, ESCALATION; formada yig'iladigan bo'lim, ro'yxatda "+N ruxsat") |

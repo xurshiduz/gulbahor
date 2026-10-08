@@ -28,6 +28,9 @@ import { api } from '@/lib/api'
 import { formatRecent } from '@/lib/format'
 import { toast } from '@/lib/toast'
 
+import { ExtraPermissions } from './extra-permissions'
+import { extrasBeyond } from './permissions'
+
 interface Values {
   fullName: string
   phone: string
@@ -37,6 +40,7 @@ interface Values {
   allLocations: boolean
   locationIds: string[]
   language: Language
+  extraPermissions: string[]
 }
 
 const LANGUAGE_LABELS: Record<Language, string> = { uz: 'O‘zbekcha', ru: 'Русский' }
@@ -68,6 +72,7 @@ export function UserFormDialog({ user, onClose }: { user: UserDto | null; onClos
       allLocations: user?.allLocations ?? false,
       locationIds: user?.locations.map((location) => location.id) ?? [],
       language: user?.language ?? 'uz',
+      extraPermissions: user?.extraPermissions ?? [],
     },
   })
   const errors = form.formState.errors
@@ -84,9 +89,10 @@ export function UserFormDialog({ user, onClose }: { user: UserDto | null; onClos
     onError: (error) => void applyServerErrors(error, form),
   })
 
-  const submit = user
-    ? zodSubmit(form, userUpdateSchema, (input) => mutation.mutate(input))
-    : zodSubmit(form, userCreateSchema, (input) => mutation.mutate(input))
+  // What the chosen roles give already is not sent as given beside them.
+  const send = <T extends { roleIds: string[]; extraPermissions: string[] }>(input: T) =>
+    mutation.mutate({ ...input, extraPermissions: extrasBeyond(roles, input.roleIds, input.extraPermissions) })
+  const submit = user ? zodSubmit(form, userUpdateSchema, send) : zodSubmit(form, userCreateSchema, send)
 
   // Only the owner may hand out the owner role.
   const roleOptions = roles
@@ -176,6 +182,14 @@ export function UserFormDialog({ user, onClose }: { user: UserDto | null; onClos
             </Field>
           ) : null}
         </div>
+
+        <Controller
+          control={form.control}
+          name="extraPermissions"
+          render={({ field }) => (
+            <ExtraPermissions roles={roles} roleIds={form.watch('roleIds')} value={field.value} onChange={field.onChange} />
+          )}
+        />
       </Form>
     </Dialog>
   )
