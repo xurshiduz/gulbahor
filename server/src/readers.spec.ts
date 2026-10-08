@@ -147,7 +147,7 @@ describe('Readers', () => {
     ).body
     epcs = [...(labels.file.zpl as string).matchAll(/\^RFW,H\^FD([0-9A-F]{24})\^FS/g)].map((match) => match[1])
     await alpha.post(`/api/receipts/${receiptId}/post`).expect(201)
-    await alpha.post('/api/shifts').send({ registerId, cashUzs: 0, cashUsd: 0 }).expect(201)
+    await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)
 
     const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]
     const hire = async (fullName: string, login: string, templateKey: string) => {

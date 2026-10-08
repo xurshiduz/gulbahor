@@ -98,7 +98,7 @@ describe('Partner sales', () => {
     await alpha.post(`/api/receipts/${receipt.body.id}/post`).expect(201)
     registerId = (await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201))
       .body.id
-    shiftId = (await alpha.post('/api/shifts').send({ registerId, cashUzs: 0 }).expect(201)).body.id
+    shiftId = (await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)).body.id
 
     elaris = (await alpha.post('/api/partners').send({ name: 'Elaris', isBuyer: true, currency: 'USD' }).expect(201))
       .body.id

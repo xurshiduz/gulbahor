@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const som = (amount: number) => amount * 100
 const PIN = '4821'
@@ -133,7 +134,7 @@ describe('Customer debts', () => {
 
     registerId = (await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201))
       .body.id
-    await alpha.post('/api/shifts').send({ registerId, cashUzs: 0 }).expect(201)
+    await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)
     safe = (
       await alpha.post('/api/money/accounts').send({ kind: 'safe', name: 'Seyf', locationId: shopId }).expect(201)
     ).body.id
@@ -310,7 +311,8 @@ describe('Customer debts', () => {
       const shift = (await alpha.get('/api/shifts').query({ status: 'open' }).expect(200)).body.items[0]
       const report = (await alpha.get(`/api/shifts/${shift.id}`).expect(200)).body
       // What came into the drawer for debts: 600 000 and 50 000. The safe is not the till's.
-      expect(report.totals).toMatchObject({ debtsUzs: som(650_000), debtsUsd: 0 })
+      expect(drawerOf(report, 'UZS')).toMatchObject({ debts: som(650_000) })
+      expect(drawerOf(report, 'USD')).toMatchObject({ debts: 0 })
       expect(report.totals.payments.find((row: { method: string }) => row.method === 'debt')).toBeDefined()
     })
 

@@ -14,13 +14,13 @@ describe('handing cash over', () => {
   const safes = [safe('s1', 'Seyf', 'UZS'), safe('s2', 'Seyf $', 'USD')]
 
   it('goes to the only safe of its currency without being asked which', () => {
-    expect(emptyHandings(safes)).toEqual({
+    expect(emptyHandings(safes, ['UZS', 'USD'])).toEqual({
       UZS: { amount: null, toAccountId: 's1', received: null },
       USD: { amount: null, toAccountId: 's2', received: null },
     })
     // No safe for dollars: there is nowhere to hand them over to — unless they may be changed on the way.
-    expect(emptyHandings([safes[0]]).USD?.toAccountId).toBeNull()
-    expect(emptyHandings([safes[0]], true).USD?.toAccountId).toBe('s1')
+    expect(emptyHandings([safes[0]], ['UZS', 'USD']).USD?.toAccountId).toBeNull()
+    expect(emptyHandings([safes[0]], ['UZS', 'USD'], true).USD?.toAccountId).toBe('s1')
   })
 
   it('sends only what holds a sum', () => {
@@ -29,15 +29,23 @@ describe('handing cash over', () => {
       USD: { amount: null, toAccountId: 's2' },
     }
     expect(handoversOf(handings)).toEqual([{ toAccountId: 's1', amount: som(350_000) }])
-    expect(handoversOf(emptyHandings(safes))).toEqual([])
+    expect(handoversOf(emptyHandings(safes, ['UZS', 'USD']))).toEqual([])
   })
 
   it('has a field for each currency with a safe, and says when more is handed over than was counted', async () => {
     let latest: Handings | null = null
     function Fields() {
-      const [value, setValue] = useState(() => emptyHandings(safes))
+      const [value, setValue] = useState(() => emptyHandings(safes, ['UZS', 'USD']))
       latest = value
-      return <HandoverFields safes={safes} value={value} onChange={setValue} limits={{ UZS: som(400_000), USD: 0 }} />
+      return (
+        <HandoverFields
+          safes={safes}
+          value={value}
+          onChange={setValue}
+          currencies={['UZS', 'USD']}
+          limits={{ UZS: som(400_000), USD: 0 }}
+        />
+      )
     }
     render(<Fields />)
     const uzs = screen.getByLabelText('Topshiriladigan so‘m')
@@ -57,7 +65,7 @@ describe('handing cash over', () => {
     const changing = { book, limit: 2, setsRates: false }
     let latest: Handings | null = null
     function Fields() {
-      const [value, setValue] = useState(() => emptyHandings([safes[1]], true))
+      const [value, setValue] = useState(() => emptyHandings([safes[1]], ['UZS'], true))
       latest = value
       return (
         <HandoverFields safes={[safes[1]]} value={value} onChange={setValue} currencies={['UZS']} changing={changing} />

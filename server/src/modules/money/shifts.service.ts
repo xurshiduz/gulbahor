@@ -1,15 +1,13 @@
 import { randomUUID } from 'node:crypto'
 
 import {
-  DOLLAR,
   formatMoney,
-  isDollar,
   tillWorth,
   type AnyCurrency,
-  type CurrencyCode,
   type MoneySentEvent,
   type Page,
   type PaymentMethod,
+  type ShiftCashMoves,
   type ShiftCloseInput,
   type ShiftDto,
   type ShiftListQuery,
@@ -21,18 +19,42 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Account, Location, Register, Shift, ShiftTerminalCount } from '../../database/entities'
+import { Account, Location, Register, Shift, ShiftCount, ShiftTerminalCount } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
 import { wantingRate } from './agreed'
-import { takesDollars } from './base'
+import { tillCurrenciesOf } from './base'
 import { LedgerService, type Posting } from './ledger.service'
 import { bookFrom, ratesInForce } from './rate-book'
 import { MoneyTransfersService } from './transfers.service'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
+
+/**
+ * The cash counted in each of a till's currencies; one left out was counted as nothing. Cash in a currency the
+ * till does not take is refused.
+ */
+function countedIn(till: AnyCurrency[], cash: ShiftOpenInput['cash']): Map<AnyCurrency, number> {
+  const fields: Record<string, string> = {}
+  for (const [currency, amount] of Object.entries(cash) as [AnyCurrency, number][]) {
+    if (amount && !till.includes(currency)) {
+      fields[`cash.${currency}`] = 'Bu valyuta bu kassada qabul qilinmaydi'
+    }
+  }
+  if (Object.keys(fields).length) {
+    throw AppError.validation(fields)
+  }
+  return new Map(till.map((currency) => [currency, cash[currency] ?? 0]))
+}
+
+/** Sums in words, one currency after another: what is not there is left out, but the first always says something. */
+const sumsText = (sums: [AnyCurrency, number][]) =>
+  sums
+    .filter(([, amount], index) => amount || index === 0)
+    .map(([currency, amount]) => formatMoney(amount, currency))
+    .join(', ')
 
 /**
  * A shift is one cashier's time at one till. It opens with a count of the
@@ -62,10 +84,8 @@ export class ShiftsService {
       if (await em.findOneBy(Shift, { registerId: register.id, status: 'open' })) {
         throw AppError.conflict('SHIFT_OPEN', 'Bu kassada smena allaqachon ochiq')
       }
-      const usd = takesDollars(actor)
-      if (input.cashUsd && !usd) {
-        throw AppError.validation({ cashUsd: 'Dollar bilan ishlash yoqilmagan' })
-      }
+      const till = tillCurrenciesOf(actor, register)
+      const cash = countedIn(till, input.cash)
 
       const number = `SM-${String(await nextNumbers(em, actor.orgId, 'shift')).padStart(6, '0')}`
       const shift = await em.save(
@@ -78,24 +98,21 @@ export class ShiftsService {
           openedBy: actor.userId,
           openedByName: actor.name,
           openedAt: new Date(),
-          openingUzs: input.cashUzs,
-          openingUsd: input.cashUsd,
         }),
       )
-      // The drawer is taken as counted. What differs from the books is a difference found at opening;
+      await em.insert(
+        ShiftCount,
+        till.map((currency) => ({ orgId: actor.orgId, shiftId: shift.id, currency, opening: cash.get(currency) ?? 0 })),
+      )
+      // Each drawer is taken as counted. What differs from the books is a difference found at opening;
       // a drawer that never had anything posted to it simply starts with what is in it.
-      await this.bringTo(em, actor, shift, register, 'shift_open', {
-        base: input.cashUzs,
-        dollar: usd ? input.cashUsd : null,
-      })
+      await this.bringTo(em, actor, shift, register, 'shift_open', cash)
 
       await this.audit.record(em, actor.orgId, actor, {
         action: 'shift.open',
         entity: 'shift',
         entityId: shift.id,
-        summary: `${number}: ${register.name}, ${formatMoney(input.cashUzs, actor.base)}${
-          input.cashUsd ? `, ${formatMoney(input.cashUsd, 'USD')}` : ''
-        }`,
+        summary: `${number}: ${register.name}, ${sumsText([...cash])}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['shifts', 'money', 'pos']))
       return this.load(em, actor, shift.id)
@@ -113,15 +130,9 @@ export class ShiftsService {
         throw AppError.forbidden('Smenani uni ochgan kassir yoki rahbar yopadi')
       }
       const register = await em.findOneByOrFail(Register, { id: shift.registerId })
-      const usd = takesDollars(actor)
-      if (input.cashUsd && !usd) {
-        throw AppError.validation({ cashUsd: 'Dollar bilan ishlash yoqilmagan' })
-      }
+      const cash = countedIn(tillCurrenciesOf(actor, register), input.cash)
 
-      const found = await this.bringTo(em, actor, shift, register, 'shift_close', {
-        base: input.cashUzs,
-        dollar: usd ? input.cashUsd : null,
-      })
+      const found = await this.bringTo(em, actor, shift, register, 'shift_close', cash)
       // What is handed over as the shift ends leaves the drawer now, while the shift is still its own;
       // it reaches the safe when whoever keeps it says so.
       const drawers = await em.findBy(Account, { registerId: register.id })
@@ -135,7 +146,7 @@ export class ShiftsService {
         }
         const sum = (handed[from.currency] ?? 0) + handover.amount
         handed[from.currency] = sum
-        if (sum > (isDollar(from.currency, actor.base) ? input.cashUsd : input.cashUzs)) {
+        if (sum > (cash.get(from.currency) ?? 0)) {
           throw AppError.validation({ [`handovers.${index}.amount`]: 'Sanalgan puldan ko‘p topshirib bo‘lmaydi' })
         }
         const sent = await this.transfers.sendIn(em, actor, {
@@ -169,28 +180,27 @@ export class ShiftsService {
         closedBy: actor.userId,
         closedByName: actor.name,
         closedAt: new Date(),
-        countedUzs: input.cashUzs,
-        countedUsd: input.cashUsd,
-        expectedUzs: found.base.expected,
-        expectedUsd: found.dollar.expected,
-        diffUzs: found.base.diff,
-        diffUsd: found.dollar.diff,
         note: input.note ?? null,
       })
+      // A drawer the till took on during the shift has no row from the opening yet.
+      for (const [currency, counted] of cash) {
+        const { expected, diff } = found.get(currency) as { expected: number; diff: number }
+        await em.query(
+          `INSERT INTO shift_counts (org_id, shift_id, currency, counted, expected, diff) VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (shift_id, currency)
+           DO UPDATE SET counted = EXCLUDED.counted, expected = EXCLUDED.expected, diff = EXCLUDED.diff`,
+          [actor.orgId, id, currency, counted, expected, diff],
+        )
+      }
 
-      const differs = found.base.diff || found.dollar.diff
+      const diffs = [...found].filter(([, result]) => result.diff)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'shift.close',
         entity: 'shift',
         entityId: id,
         summary: `${shift.number}: ${register.name}${
-          differs
-            ? `, farq ${[
-                found.base.diff ? formatMoney(found.base.diff, actor.base) : null,
-                found.dollar.diff ? formatMoney(found.dollar.diff, DOLLAR) : null,
-              ]
-                .filter(Boolean)
-                .join(', ')}`
+          diffs.length
+            ? `, farq ${diffs.map(([currency, result]) => formatMoney(result.diff, currency)).join(', ')}`
             : ', farqsiz'
         }`,
       })
@@ -251,6 +261,11 @@ export class ShiftsService {
     const location = await em.findOneByOrFail(Location, { id: shift.locationId })
     // What the books expected is for those who check the cashier, and only once the count is in.
     const reviews = can(actor, 'sales.shifts') && shift.status === 'closed'
+    const till = tillCurrenciesOf(actor, register)
+    const rows = await em.findBy(ShiftCount, { shiftId: id })
+    // The till's own currencies in its order, then any it no longer takes.
+    const place = (currency: AnyCurrency) => (till.includes(currency) ? till.indexOf(currency) : till.length)
+    rows.sort((a, b) => place(a.currency) - place(b.currency) || a.currency.localeCompare(b.currency))
     return {
       id: shift.id,
       number: shift.number,
@@ -261,18 +276,17 @@ export class ShiftsService {
       locationName: location.name,
       openedAt: shift.openedAt.toISOString(),
       openedByName: shift.openedByName,
-      openingUzs: shift.openingUzs,
-      openingUsd: shift.openingUsd,
       closedAt: shift.closedAt ? shift.closedAt.toISOString() : null,
       closedByName: shift.closedByName,
-      countedUzs: shift.countedUzs,
-      countedUsd: shift.countedUsd,
-      expectedUzs: reviews ? shift.expectedUzs : null,
-      expectedUsd: reviews ? shift.expectedUsd : null,
-      diffUzs: reviews ? shift.diffUzs : null,
-      diffUsd: reviews ? shift.diffUsd : null,
+      counts: rows.map((row) => ({
+        currency: row.currency,
+        opening: row.opening,
+        counted: row.counted,
+        expected: reviews ? row.expected : null,
+        diff: reviews ? row.diff : null,
+      })),
       note: shift.note,
-      totals: await this.totals(em, id, actor),
+      totals: await this.totals(em, id, [...till, ...rows.map((row) => row.currency)]),
       terminals: await this.terminals(em, id, reviews),
     }
   }
@@ -309,15 +323,13 @@ export class ShiftsService {
     }))
   }
 
-  /** The Z-report: what was sold in the shift and how it was paid. */
-  /** What went through a shift. `…Uzs` is the base, `…Usd` dollars beside it: none where the dollar is the base. */
-  private async totals(
-    em: EntityManager,
-    shiftId: string,
-    actor: Pick<Actor, 'base' | 'currencies'>,
-  ): Promise<ShiftTotals> {
-    const { base } = actor
-    const dollar = takesDollars(actor) ? DOLLAR : null
+  /**
+   * The Z-report: what was sold in the shift and how it was paid, and what
+   * moved in and out of each drawer — `drawers` first, in their order, then
+   * any other currency something moved in.
+   */
+  private async totals(em: EntityManager, shiftId: string, drawers: AnyCurrency[]): Promise<ShiftTotals> {
+    const base = drawers[0]
     const [sales]: {
       sales: number
       voided: number
@@ -325,7 +337,6 @@ export class ShiftsService {
       discount: number
       total: number
       change_uzs: number
-      change_usd: number
       rounding: number
     }[] = await em.query(
       `SELECT count(*) FILTER (WHERE status = 'completed')::int AS sales,
@@ -334,16 +345,20 @@ export class ShiftsService {
               coalesce(sum(discount) FILTER (WHERE status = 'completed'), 0)::float8 AS discount,
               coalesce(sum(total) FILTER (WHERE status = 'completed'), 0)::float8 AS total,
               coalesce(sum(change_uzs) FILTER (WHERE status = 'completed'), 0)::float8 AS change_uzs,
-              coalesce(sum(change_other) FILTER (WHERE status = 'completed' AND change_currency = 'USD'), 0)::float8
-                AS change_usd,
               coalesce(sum(rounding) FILTER (WHERE status = 'completed'), 0)::float8 AS rounding
        FROM sales WHERE shift_id = $1`,
+      [shiftId],
+    )
+    const change: { currency: AnyCurrency; amount: number }[] = await em.query(
+      `SELECT change_currency AS currency, sum(change_other)::float8 AS amount FROM sales
+       WHERE shift_id = $1 AND status = 'completed' AND change_currency IS NOT NULL AND change_other <> 0
+       GROUP BY change_currency`,
       [shiftId],
     )
     const payments: {
       method: PaymentMethod
       account_name: string
-      currency: CurrencyCode
+      currency: AnyCurrency
       amount: number
       base: number
     }[] = await em.query(
@@ -357,29 +372,24 @@ export class ShiftsService {
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
-    const partners: { kind: 'in' | 'out'; currency: CurrencyCode; amount: number }[] = await em.query(
+    const partners: { kind: 'in' | 'out'; currency: AnyCurrency; amount: number }[] = await em.query(
       `SELECT p.kind, l.currency, sum(l.amount)::float8 AS amount
        FROM partner_payment_lines l JOIN partner_payments p ON p.id = l.payment_id
        WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY p.kind, l.currency`,
       [shiftId],
     )
-    const withPartners = (kind: 'in' | 'out', currency: CurrencyCode | null) =>
-      partners.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
-    const ops: { kind: 'expense' | 'income'; currency: CurrencyCode; amount: number }[] = await em.query(
+    const ops: { kind: 'expense' | 'income'; currency: AnyCurrency; amount: number }[] = await em.query(
       `SELECT o.kind, l.currency, sum(l.amount)::float8 AS amount
        FROM money_op_lines l JOIN money_ops o ON o.id = l.op_id
        WHERE l.shift_id = $1 AND o.status = 'posted' GROUP BY o.kind, l.currency`,
       [shiftId],
     )
-    const withOps = (kind: 'expense' | 'income', currency: CurrencyCode | null) =>
-      ops.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
-    const debts: { currency: CurrencyCode; amount: number }[] = await em.query(
+    const debts: { currency: AnyCurrency; amount: number }[] = await em.query(
       `SELECT l.currency, sum(l.amount)::float8 AS amount
        FROM debt_payment_lines l JOIN debt_payments p ON p.id = l.payment_id
        WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY l.currency`,
       [shiftId],
     )
-    const withDebts = (currency: CurrencyCode | null) => debts.find((row) => row.currency === currency)?.amount ?? 0
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -395,6 +405,25 @@ export class ShiftsService {
        ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt', 'partner'], p.method), p.currency DESC, a.name`,
       [shiftId],
     )
+    const seen = [
+      ...drawers,
+      ...change.map((row) => row.currency),
+      ...(Object.keys({ ...moved.out, ...moved.in }) as AnyCurrency[]),
+      ...partners.map((row) => row.currency),
+      ...ops.map((row) => row.currency),
+      ...debts.map((row) => row.currency),
+    ]
+    const cash: ShiftCashMoves[] = [...new Set(seen)].map((currency) => ({
+      currency,
+      change: currency === base ? sales.change_uzs : (change.find((row) => row.currency === currency)?.amount ?? 0),
+      out: moved.out[currency] ?? 0,
+      in: moved.in[currency] ?? 0,
+      partnersIn: partners.find((row) => row.kind === 'in' && row.currency === currency)?.amount ?? 0,
+      partnersOut: partners.find((row) => row.kind === 'out' && row.currency === currency)?.amount ?? 0,
+      expenses: ops.find((row) => row.kind === 'expense' && row.currency === currency)?.amount ?? 0,
+      income: ops.find((row) => row.kind === 'income' && row.currency === currency)?.amount ?? 0,
+      debts: debts.find((row) => row.currency === currency)?.amount ?? 0,
+    }))
     return {
       sales: sales.sales,
       voided: sales.voided,
@@ -408,23 +437,8 @@ export class ShiftsService {
         amount: row.amount,
         base: row.base,
       })),
-      changeUzs: sales.change_uzs,
-      changeUsd: sales.change_usd,
       rounding: sales.rounding,
-      outUzs: moved.out[base] ?? 0,
-      outUsd: dollar ? (moved.out[dollar] ?? 0) : 0,
-      inUzs: moved.in[base] ?? 0,
-      inUsd: dollar ? (moved.in[dollar] ?? 0) : 0,
-      partnersInUzs: withPartners('in', base),
-      partnersInUsd: withPartners('in', dollar),
-      partnersOutUzs: withPartners('out', base),
-      partnersOutUsd: withPartners('out', dollar),
-      expensesUzs: withOps('expense', base),
-      expensesUsd: withOps('expense', dollar),
-      incomeUzs: withOps('income', base),
-      incomeUsd: withOps('income', dollar),
-      debtsUzs: withDebts(base),
-      debtsUsd: withDebts(dollar),
+      cash,
       returns: returns.returns,
       returned: returns.returned,
       refunds: refunds.map((row) => ({
@@ -438,9 +452,9 @@ export class ShiftsService {
   }
 
   /**
-   * Makes the drawer's accounts say what was counted, posting the difference
+   * Makes each drawer's account say what was counted, posting the difference
    * against the cash-difference account (or, for a drawer never used before,
-   * as its opening balance). Returns what the books had said.
+   * as its opening balance). Returns what the books had said, by currency.
    */
   private async bringTo(
     em: EntityManager,
@@ -448,24 +462,17 @@ export class ShiftsService {
     shift: Shift,
     register: Register,
     kind: 'shift_open' | 'shift_close',
-    counted: Record<'base' | 'dollar', number | null>,
-  ): Promise<Record<'base' | 'dollar', { expected: number; diff: number }>> {
+    counted: Map<AnyCurrency, number>,
+  ): Promise<Map<AnyCurrency, { expected: number; diff: number }>> {
     const today = await this.ledger.today(em, actor.orgId)
     const book = bookFrom(actor.base, await ratesInForce(em, today))
-    const result = { base: { expected: 0, diff: 0 }, dollar: { expected: 0, diff: 0 } }
+    const result = new Map<AnyCurrency, { expected: number; diff: number }>()
     const postings: Posting[] = []
 
-    for (const [side, currency] of [
-      ['base', actor.base],
-      ['dollar', DOLLAR],
-    ] as const) {
-      const amount = counted[side]
-      if (amount === null) {
-        continue
-      }
+    for (const [currency, amount] of counted) {
       const account = await this.ledger.cashAccount(em, register, currency)
       const diff = amount - account.balance
-      result[side] = { expected: account.balance, diff }
+      result.set(currency, { expected: account.balance, diff })
       if (!diff) {
         continue
       }

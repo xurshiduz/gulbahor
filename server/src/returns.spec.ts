@@ -148,7 +148,7 @@ describe('Returns', () => {
     shiftId = (
       await alpha
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(1_000_000) })
+        .send({ registerId, cash: { UZS: som(1_000_000) } })
         .expect(201)
     ).body.id
 

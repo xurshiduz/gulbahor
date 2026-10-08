@@ -20,7 +20,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { api } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -33,16 +33,51 @@ const refreshTill = (queryClient: ReturnType<typeof useQueryClient>) => {
   void queryClient.invalidateQueries({ queryKey: ['money'] })
 }
 
-/** A till with no shift: count the drawer and start. */
+/** The cash typed for each drawer, as the server takes it: a drawer left empty was counted as nothing. */
+type Counted = Partial<Record<AnyCurrency, number | null>>
+const countedOf = (cash: Counted) =>
+  Object.fromEntries(Object.entries(cash).filter((entry): entry is [string, number] => entry[1] !== null))
+
+/** A field for each of the till's drawers, the base first. */
+function DrawerFields({
+  currencies,
+  value,
+  onChange,
+  className = 'grid gap-4 sm:grid-cols-2',
+}: {
+  currencies: AnyCurrency[]
+  value: Counted
+  onChange: (value: Counted) => void
+  className?: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className={className}>
+      {currencies.map((currency, index) => (
+        <Field key={currency} label={t('pos.drawer', currencyWords(t, currency))} required={index === 0}>
+          {(id) => (
+            <MoneyInput
+              id={id}
+              autoFocus={index === 0}
+              value={value[currency] ?? null}
+              onChange={(amount) => onChange({ ...value, [currency]: amount })}
+              currency={currency}
+            />
+          )}
+        </Field>
+      ))}
+    </div>
+  )
+}
+
+/** A till with no shift: count the drawers and start. */
 export function OpenShift({ context }: { context: PosContextDto }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [cashUzs, setCashUzs] = useState<number | null>(null)
-  const [cashUsd, setCashUsd] = useState<number | null>(null)
+  const [cash, setCash] = useState<Counted>({})
 
   const open = useMutation({
-    mutationFn: () =>
-      api.post<ShiftDto>('/shifts', { registerId: context.register.id, cashUzs: cashUzs ?? 0, cashUsd: cashUsd ?? 0 }),
+    mutationFn: () => api.post<ShiftDto>('/shifts', { registerId: context.register.id, cash: countedOf(cash) }),
     onSuccess: (shift) => {
       toast.success(t('pos.shiftOpened', { number: shift.number }))
       refreshTill(queryClient)
@@ -65,14 +100,12 @@ export function OpenShift({ context }: { context: PosContextDto }) {
         </div>
         <p className="mb-4 text-[13px] text-ink-2">{t('pos.openShiftHint')}</p>
         <Form onSubmit={() => open.mutate()}>
-          <Field label={t('pos.drawerUzs', baseWords(t))} required>
-            {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency={base()} />}
-          </Field>
-          {context.currencies.includes('USD') ? (
-            <Field label={t('pos.drawerUsd')}>
-              {(id) => <MoneyInput id={id} value={cashUsd} onChange={setCashUsd} currency="USD" />}
-            </Field>
-          ) : null}
+          <DrawerFields
+            currencies={context.currencies}
+            value={cash}
+            onChange={setCash}
+            className="flex flex-col gap-4"
+          />
           <Button type="submit" variant="primary" loading={open.isPending}>
             {t('pos.openShift')}
             <Shortcut combo="mod+enter" className="ml-1 opacity-70" />
@@ -88,12 +121,12 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const shift = context.shift as ShiftDto
-  const [cashUzs, setCashUzs] = useState<number | null>(null)
-  const [cashUsd, setCashUsd] = useState<number | null>(null)
+  const currencies = context.currencies
+  const [cash, setCash] = useState<Counted>({})
   const [note, setNote] = useState('')
   // What the end of a shift hands over stays in its currency: an exchange is for the middle of one.
   const safes = ownSafes(context)
-  const [handings, setHandings] = useState(() => emptyHandings(safes))
+  const [handings, setHandings] = useState(() => emptyHandings(safes, currencies))
   /** What each terminal's end-of-day slip says, as far as the cashier typed it. */
   const [slips, setSlips] = useState<Record<string, number | null>>({})
 
@@ -107,15 +140,12 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
   })
 
   const submit = () => {
-    if (cashUzs === null) {
+    if ((cash[base()] ?? null) === null) {
       toast.error(t('pos.countFirst'))
       return
     }
     const handovers = handoversOf(handings)
-    if (
-      (handingIn(handings, base()).amount ?? 0) > cashUzs ||
-      (handings.USD && dollarsBeside('USD') ? (handings.USD.amount ?? 0) : 0) > (cashUsd ?? 0)
-    ) {
+    if (currencies.some((currency) => (handingIn(handings, currency).amount ?? 0) > (cash[currency] ?? 0))) {
       toast.error(t('pos.handoverOver'))
       return
     }
@@ -123,7 +153,7 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
       const amount = slips[terminal.id]
       return amount === null || amount === undefined ? [] : [{ accountId: terminal.id, amount }]
     })
-    const parsed = shiftCloseSchema.safeParse({ cashUzs, cashUsd: cashUsd ?? 0, note, handovers, terminals })
+    const parsed = shiftCloseSchema.safeParse({ cash: countedOf(cash), note, handovers, terminals })
     if (parsed.success) {
       close.mutate(parsed.data)
     }
@@ -146,22 +176,14 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
       }
     >
       <Form id="close-shift-form" onSubmit={submit}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('pos.drawerUzs', baseWords(t))} required>
-            {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency={base()} />}
-          </Field>
-          {context.currencies.includes('USD') ? (
-            <Field label={t('pos.drawerUsd')}>
-              {(id) => <MoneyInput id={id} value={cashUsd} onChange={setCashUsd} currency="USD" />}
-            </Field>
-          ) : null}
-        </div>
+        <DrawerFields currencies={currencies} value={cash} onChange={setCash} />
         {/* What of the counted cash goes to the safe now; the rest stays in the drawer for the next shift. */}
         <HandoverFields
           safes={safes}
           value={handings}
           onChange={setHandings}
-          limits={{ [base()]: cashUzs, ...(dollarsBeside('USD') ? { USD: cashUsd } : {}) }}
+          currencies={currencies.filter((currency) => safes.some((safe) => safe.currency === currency))}
+          limits={cash}
         />
         {context.terminals.length ? (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -218,6 +240,31 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
   if (!totals) {
     return null
   }
+  const currencies = [
+    ...new Set([...shift.counts.map((count) => count.currency), ...totals.cash.map((moves) => moves.currency)]),
+  ]
+  const drawers = currencies
+    .map((currency) => ({
+      currency,
+      count: shift.counts.find((count) => count.currency === currency),
+      moves: totals.cash.find((moves) => moves.currency === currency),
+    }))
+    .filter(
+      ({ currency, count, moves }) =>
+        currency === base() ||
+        !!(count?.opening || count?.counted || count?.expected || count?.diff) ||
+        !!(
+          moves &&
+          (moves.in ||
+            moves.out ||
+            moves.partnersIn ||
+            moves.partnersOut ||
+            moves.debts ||
+            moves.income ||
+            moves.expenses ||
+            moves.change)
+        ),
+    )
   const diff = (value: number | null, currency: AnyCurrency) =>
     value === null ? null : (
       <Row
@@ -280,8 +327,15 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             value={`−${money(refund.amount, refund.currency)}`}
           />
         ))}
-        {totals.changeUzs ? <Row label={t('pos.changeGiven')} value={`−${money(totals.changeUzs)}`} /> : null}
-        {totals.changeUsd ? <Row label={t('pos.changeGiven')} value={`−${money(totals.changeUsd, 'USD')}`} /> : null}
+        {totals.cash
+          .filter((moves) => moves.change)
+          .map((moves) => (
+            <Row
+              key={`change:${moves.currency}`}
+              label={t('pos.changeGiven')}
+              value={`−${money(moves.change, moves.currency)}`}
+            />
+          ))}
         {totals.rounding ? (
           <Row label={t('pos.rounding')} value={`${totals.rounding > 0 ? '+' : ''}${money(totals.rounding)}`} />
         ) : null}
@@ -307,57 +361,34 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
       <div className="sm:col-span-2">
         <p className="eyebrow mb-1">{t('pos.reportDrawer')}</p>
         <div className="grid gap-x-8 sm:grid-cols-2">
-          <div>
-            <Row label={t('pos.opening')} value={money(shift.openingUzs)} />
-            {totals.inUzs ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUzs)}`} /> : null}
-            {totals.outUzs ? <Row label={t('pos.handedOut')} value={`−${money(totals.outUzs)}`} /> : null}
-            {totals.partnersInUzs ? (
-              <Row label={t('pos.partnersIn')} value={`+${money(totals.partnersInUzs)}`} />
-            ) : null}
-            {totals.partnersOutUzs ? (
-              <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUzs)}`} />
-            ) : null}
-            {totals.debtsUzs ? <Row label={t('pos.debtsIn')} value={`+${money(totals.debtsUzs)}`} /> : null}
-            {totals.incomeUzs ? <Row label={t('pos.otherIn')} value={`+${money(totals.incomeUzs)}`} /> : null}
-            {totals.expensesUzs ? <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUzs)}`} /> : null}
-            {shift.countedUzs !== null ? <Row label={t('pos.counted')} value={money(shift.countedUzs)} strong /> : null}
-            {shift.expectedUzs !== null ? <Row label={t('pos.expected')} value={money(shift.expectedUzs)} /> : null}
-            {diff(shift.diffUzs, base())}
-          </div>
-          {shift.openingUsd ||
-          shift.countedUsd ||
-          shift.expectedUsd ||
-          totals.inUsd ||
-          totals.outUsd ||
-          totals.partnersInUsd ||
-          totals.partnersOutUsd ||
-          totals.debtsUsd ||
-          totals.incomeUsd ||
-          totals.expensesUsd ? (
-            <div>
-              <Row label={t('pos.opening')} value={money(shift.openingUsd, 'USD')} />
-              {totals.inUsd ? <Row label={t('pos.broughtIn')} value={`+${money(totals.inUsd, 'USD')}`} /> : null}
-              {totals.outUsd ? <Row label={t('pos.handedOut')} value={`−${money(totals.outUsd, 'USD')}`} /> : null}
-              {totals.partnersInUsd ? (
-                <Row label={t('pos.partnersIn')} value={`+${money(totals.partnersInUsd, 'USD')}`} />
+          {drawers.map(({ currency, count, moves }) => (
+            <div key={currency}>
+              {drawers.length > 1 ? (
+                <p className="mt-1 text-xs font-medium text-ink-2">{currencyWords(t, currency).Currency}</p>
               ) : null}
-              {totals.partnersOutUsd ? (
-                <Row label={t('pos.partnersOut')} value={`−${money(totals.partnersOutUsd, 'USD')}`} />
+              <Row label={t('pos.opening')} value={money(count?.opening ?? 0, currency)} />
+              {moves?.in ? <Row label={t('pos.broughtIn')} value={`+${money(moves.in, currency)}`} /> : null}
+              {moves?.out ? <Row label={t('pos.handedOut')} value={`−${money(moves.out, currency)}`} /> : null}
+              {moves?.partnersIn ? (
+                <Row label={t('pos.partnersIn')} value={`+${money(moves.partnersIn, currency)}`} />
               ) : null}
-              {totals.debtsUsd ? <Row label={t('pos.debtsIn')} value={`+${money(totals.debtsUsd, 'USD')}`} /> : null}
-              {totals.incomeUsd ? <Row label={t('pos.otherIn')} value={`+${money(totals.incomeUsd, 'USD')}`} /> : null}
-              {totals.expensesUsd ? (
-                <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUsd, 'USD')}`} />
+              {moves?.partnersOut ? (
+                <Row label={t('pos.partnersOut')} value={`−${money(moves.partnersOut, currency)}`} />
               ) : null}
-              {shift.countedUsd !== null ? (
-                <Row label={t('pos.counted')} value={money(shift.countedUsd, 'USD')} strong />
+              {moves?.debts ? <Row label={t('pos.debtsIn')} value={`+${money(moves.debts, currency)}`} /> : null}
+              {moves?.income ? <Row label={t('pos.otherIn')} value={`+${money(moves.income, currency)}`} /> : null}
+              {moves?.expenses ? (
+                <Row label={t('pos.expensesOut')} value={`−${money(moves.expenses, currency)}`} />
               ) : null}
-              {shift.expectedUsd !== null ? (
-                <Row label={t('pos.expected')} value={money(shift.expectedUsd, 'USD')} />
+              {count && count.counted !== null ? (
+                <Row label={t('pos.counted')} value={money(count.counted, currency)} strong />
               ) : null}
-              {diff(shift.diffUsd, 'USD')}
+              {count && count.expected !== null ? (
+                <Row label={t('pos.expected')} value={money(count.expected, currency)} />
+              ) : null}
+              {diff(count?.diff ?? null, currency)}
             </div>
-          ) : null}
+          ))}
         </div>
       </div>
     </div>

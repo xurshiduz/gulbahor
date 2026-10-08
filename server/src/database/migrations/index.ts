@@ -38,6 +38,7 @@ import { ExtraPermissions1790000036000 } from './1790000036000-extra-permissions
 import { DollarAsCurrency1790000037000 } from './1790000037000-dollar-as-currency'
 import { TillCurrencies1790000039000 } from './1790000039000-till-currencies'
 import { CostInBase1790000040000 } from './1790000040000-cost-in-base'
+import { ShiftCounts1790000041000 } from './1790000041000-shift-counts'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -81,4 +82,5 @@ export const MIGRATIONS = [
   DollarAsCurrency1790000037000,
   TillCurrencies1790000039000,
   CostInBase1790000040000,
+  ShiftCounts1790000041000,
 ]

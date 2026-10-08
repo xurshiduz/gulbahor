@@ -1,15 +1,8 @@
-import { DOLLAR, tillWorth, type AnyCurrency, type RateBook } from '@erp/core'
+import { tillWorth, type AnyCurrency, type RateBook } from '@erp/core'
 
 import type { Register } from '../../database/entities'
 import type { Actor } from '../auth/actor'
 import { wantingRate } from './agreed'
-
-/**
- * Whether the till takes dollars beside the base: the business has switched them on, and they are not its
- * base. Until the till takes any currency (V9, 9d) the dollar is the one it takes beside the base.
- */
-export const takesDollars = (actor: Pick<Actor, 'base' | 'currencies'>): boolean =>
-  actor.base !== DOLLAR && actor.currencies.includes(DOLLAR)
 
 /** Prices may be in the base or in any currency the business has switched on: the till counts them in the base. */
 export const pricedIn = (currency: AnyCurrency, actor: Pick<Actor, 'base' | 'currencies'>): boolean =>

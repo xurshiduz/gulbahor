@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { formatMoney } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const som = (amount: number) => amount * 100
 const usd = (dollars: number) => Math.round(dollars * 100)
@@ -187,22 +188,23 @@ describe('Till', () => {
       const shift = (
         await alpha
           .post('/api/shifts')
-          .send({ registerId, cashUzs: som(200_000) })
+          .send({ registerId, cash: { UZS: som(200_000) } })
           .expect(201)
       ).body
       expect(shift).toMatchObject({
         number: 'SM-000001',
         status: 'open',
         registerName: 'Kassa 1',
-        openingUzs: som(200_000),
-        openingUsd: 0,
-        expectedUzs: null,
+        counts: [
+          { currency: 'UZS', opening: som(200_000), expected: null },
+          { currency: 'USD', opening: 0 },
+        ],
         totals: { sales: 0, total: 0 },
       })
       shiftId = shift.id
       // The drawer starts with what was counted in it; that money came from before the books began.
       expect(await balances()).toMatchObject({ cash_UZS: som(200_000), cash_USD: 0, opening: -som(200_000) })
-      expect((await alpha.post('/api/shifts').send({ registerId, cashUzs: 0 })).status).toBe(409)
+      expect((await alpha.post('/api/shifts').send({ registerId, cash: {} })).status).toBe(409)
 
       const context = (await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context).toMatchObject({
@@ -581,7 +583,7 @@ describe('Till', () => {
 
   describe('closing', () => {
     it('is for the cashier who opened the shift, or someone who checks them', async () => {
-      await cashier.post(`/api/shifts/${shiftId}/close`).send({ cashUzs: 0 }).expect(404)
+      await cashier.post(`/api/shifts/${shiftId}/close`).send({ cash: {} }).expect(404)
     })
 
     it('takes the count as it is and writes the difference down', async () => {
@@ -601,18 +603,16 @@ describe('Till', () => {
       const closed = (
         await alpha
           .post(`/api/shifts/${shiftId}/close`)
-          .send({ cashUzs: som(511_000), cashUsd: usd(5) })
+          .send({ cash: { UZS: som(511_000), USD: usd(5) } })
           .expect(200)
       ).body
       expect(closed).toMatchObject({
         status: 'closed',
         closedByName: 'Alpha Owner',
-        countedUzs: som(511_000),
-        countedUsd: usd(5),
-        expectedUzs: som(516_000),
-        expectedUsd: usd(5),
-        diffUzs: -som(5000),
-        diffUsd: 0,
+        counts: [
+          { currency: 'UZS', counted: som(511_000), expected: som(516_000), diff: -som(5000) },
+          { currency: 'USD', counted: usd(5), expected: usd(5), diff: 0 },
+        ],
       })
       expect(closed.totals).toMatchObject({
         sales: 3,
@@ -620,9 +620,11 @@ describe('Till', () => {
         qty: 5,
         discount: som(9500),
         total: som(410_500),
-        changeUzs: som(21_000),
-        changeUsd: 0,
         rounding: -som(250),
+        cash: [
+          { currency: 'UZS', change: som(21_000) },
+          { currency: 'USD', change: 0 },
+        ],
       })
       expect(closed.totals.payments).toEqual([
         { method: 'cash', accountName: 'Kassa 1 (so‘m)', currency: 'UZS', amount: som(337_000), base: som(337_000) },
@@ -643,14 +645,14 @@ describe('Till', () => {
       const first = (await alpha.get('/api/sales').query({ q: 'CH-000001' }).expect(200)).body.items[0]
       const late = await alpha.post(`/api/sales/${first.id}/void`).send({ reason: 'Kech' }).expect(409)
       expect(late.body.error.code).toBe('SHIFT_CLOSED')
-      await alpha.post(`/api/shifts/${shiftId}/close`).send({ cashUzs: 0 }).expect(409)
+      await alpha.post(`/api/shifts/${shiftId}/close`).send({ cash: {} }).expect(409)
     })
 
     it('is blind for the cashier: what the books expected is not shown', async () => {
       const mine = (
         await cashier
           .post('/api/shifts')
-          .send({ registerId, cashUzs: som(511_000), cashUsd: usd(5) })
+          .send({ registerId, cash: { UZS: som(511_000), USD: usd(5) } })
           .expect(201)
       ).body
       expect(mine.number).toBe('SM-000002')
@@ -664,16 +666,14 @@ describe('Till', () => {
       const closed = (
         await cashier
           .post(`/api/shifts/${mine.id}/close`)
-          .send({ cashUzs: som(551_000), cashUsd: usd(5) })
+          .send({ cash: { UZS: som(551_000), USD: usd(5) } })
           .expect(200)
       ).body
-      expect(closed).toMatchObject({ status: 'closed', countedUzs: som(551_000), expectedUzs: null, diffUzs: null })
+      expect(closed).toMatchObject({ status: 'closed' })
+      expect(drawerOf(closed, 'UZS')).toMatchObject({ counted: som(551_000), expected: null, diff: null })
       const reviewed = (await alpha.get(`/api/shifts/${mine.id}`).expect(200)).body
-      expect(reviewed).toMatchObject({
-        expectedUzs: som(551_000),
-        diffUzs: 0,
-        totals: { sales: 1, total: som(40_000) },
-      })
+      expect(reviewed).toMatchObject({ totals: { sales: 1, total: som(40_000) } })
+      expect(drawerOf(reviewed, 'UZS')).toMatchObject({ expected: som(551_000), diff: 0 })
     })
   })
 
@@ -712,7 +712,7 @@ describe('Till', () => {
     it("is whole dollars, and what is left of it is given in so'm", async () => {
       await alpha
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(551_000), cashUsd: usd(5) })
+        .send({ registerId, cash: { UZS: som(551_000), USD: usd(5) } })
         .expect(201)
       const before = await balances()
       const sale = (

@@ -123,7 +123,7 @@ describe('Price types at the till', () => {
     await manager.post('/api/auth/pin').send({ password: PASSWORD, pin: PIN }).expect(204)
     await cashier
       .post('/api/shifts')
-      .send({ registerId, cashUzs: som(500_000) })
+      .send({ registerId, cash: { UZS: som(500_000) } })
       .expect(201)
   }, 60_000)
 

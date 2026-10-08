@@ -74,7 +74,7 @@ describe('Accounts shared between shops', () => {
         })
         .expect(201)
       await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
-      await alpha.post('/api/shifts').send({ registerId: tills[key], cashUzs: 0 }).expect(201)
+      await alpha.post('/api/shifts').send({ registerId: tills[key], cash: {} }).expect(201)
     }
 
     const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]

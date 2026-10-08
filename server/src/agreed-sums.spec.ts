@@ -92,7 +92,7 @@ describe('Agreed sums', () => {
     await alpha.put('/api/currencies/USD/rate').send({ value: 11_800 }).expect(200)
     await alpha
       .post('/api/shifts')
-      .send({ registerId, cashUzs: som(20_000_000), cashUsd: usd(2000) })
+      .send({ registerId, cash: { UZS: som(20_000_000), USD: usd(2000) } })
       .expect(201)
     const accounts = (await alpha.get('/api/money/accounts').expect(200)).body as AccountRow[]
     som_ = accounts.find((account) => account.kind === 'cash' && account.currency === 'UZS')!.id

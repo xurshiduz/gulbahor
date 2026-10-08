@@ -99,6 +99,14 @@ export class CurrenciesService {
     } else {
       await em.save(em.create(OrgCurrency, { orgId: actor.orgId, code, ...next, isActive: true }))
     }
+    if (!before?.isActive) {
+      // Every till takes it from now on, as a new till takes every currency the business keeps; one may be told
+      // otherwise in its own settings.
+      await em.query(
+        `UPDATE registers SET currencies = array_append(currencies, $1) WHERE NOT ($1 = ANY (currencies))`,
+        [code],
+      )
+    }
     if (!before?.isActive || !sameForm(before, next)) {
       await this.audit.record(em, actor.orgId, actor, {
         action: before?.isActive ? 'currency.update' : 'currency.enable',

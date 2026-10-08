@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { RealtimeService } from './modules/realtime/realtime.service'
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const som = (amount: number) => amount * 100
 const usd = (dollars: number) => Math.round(dollars * 100)
@@ -109,7 +110,7 @@ describe('Money transfers', () => {
       shiftId = (
         await cashier
           .post('/api/shifts')
-          .send({ registerId, cashUzs: som(500_000), cashUsd: usd(50) })
+          .send({ registerId, cash: { UZS: som(500_000), USD: usd(50) } })
           .expect(201)
       ).body.id
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
@@ -254,7 +255,8 @@ describe('Money transfers', () => {
     it('shows in the shift what left the drawer and what came into it', async () => {
       const shift = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       // What was refused or taken back moved nothing.
-      expect(shift.totals).toMatchObject({ outUzs: som(300_000), outUsd: usd(20), inUzs: som(200_000), inUsd: 0 })
+      expect(drawerOf(shift, 'UZS')).toMatchObject({ out: som(300_000), in: som(200_000) })
+      expect(drawerOf(shift, 'USD')).toMatchObject({ out: usd(20), in: 0 })
     })
   })
 
@@ -262,15 +264,14 @@ describe('Money transfers', () => {
     it('hands over what was counted, and the next shift finds what was left', async () => {
       const over = await cashier
         .post(`/api/shifts/${shiftId}/close`)
-        .send({ cashUzs: som(400_000), cashUsd: usd(30), handovers: [{ toAccountId: safeId, amount: som(450_000) }] })
+        .send({ cash: { UZS: som(400_000), USD: usd(30) }, handovers: [{ toAccountId: safeId, amount: som(450_000) }] })
       expect(over.status).toBe(400)
       expect(over.body.error.fields['handovers.0.amount']).toBeDefined()
 
       await cashier
         .post(`/api/shifts/${shiftId}/close`)
         .send({
-          cashUzs: som(400_000),
-          cashUsd: usd(30),
+          cash: { UZS: som(400_000), USD: usd(30) },
           handovers: [
             { toAccountId: safeId, amount: som(350_000) },
             { toAccountId: dollarSafeId, amount: usd(30) },
@@ -283,13 +284,9 @@ describe('Money transfers', () => {
         { fromName: 'Kassa 1 (dollar)', toKind: 'safe' },
       ])
       const closed = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
-      expect(closed).toMatchObject({
-        status: 'closed',
-        expectedUzs: som(400_000),
-        diffUzs: 0,
-        diffUsd: 0,
-        totals: { outUzs: som(650_000), outUsd: usd(50) },
-      })
+      expect(closed.status).toBe('closed')
+      expect(drawerOf(closed, 'UZS')).toMatchObject({ expected: som(400_000), diff: 0, out: som(650_000) })
+      expect(drawerOf(closed, 'USD')).toMatchObject({ diff: 0, out: usd(50) })
       expect(await balances()).toMatchObject({
         cash_UZS: som(50_000),
         cash_USD: 0,
@@ -306,7 +303,7 @@ describe('Money transfers', () => {
       // The drawer holds what was not handed over: opening on that count finds no difference.
       await cashier
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(50_000), cashUsd: 0 })
+        .send({ registerId, cash: { UZS: som(50_000), USD: 0 } })
         .expect(201)
       expect((await balances()).cash_diff ?? 0).toBe(0)
     })

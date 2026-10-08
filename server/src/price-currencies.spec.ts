@@ -77,7 +77,7 @@ describe('Prices in any currency', () => {
     await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
     registerId = (await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201))
       .body.id
-    await alpha.post('/api/shifts').send({ registerId, cashUzs: 0 }).expect(201)
+    await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)
   }, 60_000)
 
   afterAll(async () => {

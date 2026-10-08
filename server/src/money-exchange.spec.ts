@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { MoneyTransferDto } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const som = (amount: number) => Math.round(amount * 100)
 const usd = (amount: number) => Math.round(amount * 100)
@@ -236,7 +237,7 @@ describe('Money exchange', () => {
 
   describe('at a till', () => {
     it('offers every safe of the shop, whatever it holds', async () => {
-      shiftId = (await cashier.post('/api/shifts').send({ registerId, cashUzs: 0, cashUsd: 0 }).expect(201)).body.id
+      shiftId = (await cashier.post('/api/shifts').send({ registerId, cash: {} }).expect(201)).body.id
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context.safes.map((safe: { name: string }) => safe.name).sort()).toEqual(
         ['Seyf', 'Seyf $', 'Seyf 2', 'Seyf ¥', 'Seyf €'].sort(),
@@ -262,7 +263,8 @@ describe('Money exchange', () => {
       await receive(handed.id)
 
       const shift = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
-      expect(shift.totals).toMatchObject({ outUzs: som(600_000), outUsd: 0, inUzs: som(642_500), inUsd: 0 })
+      expect(drawerOf(shift, 'UZS')).toMatchObject({ out: som(600_000), in: som(642_500) })
+      expect(drawerOf(shift, 'USD')).toMatchObject({ out: 0, in: 0 })
     })
   })
 

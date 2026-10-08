@@ -1096,23 +1096,27 @@ export type ShiftStatus = (typeof SHIFT_STATUSES)[number]
 
 export const SHIFT_STATUS_LABELS: Record<ShiftStatus, string> = { open: 'Ochiq', closed: 'Yopilgan' }
 
-/** Opening a shift starts with counting what is in the drawer. */
+/**
+ * Cash counted in a till's drawers, by currency: one sum for each currency the
+ * till takes. A currency left out was counted as nothing.
+ */
+const drawerCashSchema = z.partialRecord(z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]), amountSchema)
+
+/** Opening a shift starts with counting what is in the drawers. */
 export const shiftOpenSchema = z.object({
   registerId: idSchema,
-  cashUzs: amountSchema,
-  cashUsd: amountSchema.default(0),
+  cash: drawerCashSchema.default({}),
 })
 export type ShiftOpenInput = z.infer<typeof shiftOpenSchema>
 
 /** Closing is a blind count: the cashier says what is there before being told what should be. */
 export const shiftCloseSchema = z.object({
-  cashUzs: amountSchema,
-  cashUsd: amountSchema.default(0),
+  cash: drawerCashSchema.default({}),
   note: optionalText(300),
   /** What of the counted cash is handed over as the shift ends, and to which safe; the rest stays in the drawer. */
   handovers: z
     .array(z.object({ toAccountId: idSchema, amount: amountSchema.refine((value) => value > 0) }))
-    .max(4)
+    .max(16)
     .default([]),
   /** What each terminal's own end-of-day slip says it took: checked against the payments rung up on it. */
   terminals: z
@@ -1122,40 +1126,53 @@ export const shiftCloseSchema = z.object({
 })
 export type ShiftCloseInput = z.infer<typeof shiftCloseSchema>
 
+/** What went in and out of one currency's drawer during a shift, other than sales paid in it. */
+export interface ShiftCashMoves {
+  currency: AnyCurrency
+  /** Change handed back in it. */
+  change: number
+  /** Handed over out of the drawer, and brought into it. */
+  out: number
+  in: number
+  /** Partners' payments taken into the drawer, and paid out of it. */
+  partnersIn: number
+  partnersOut: number
+  /** Expenses paid out of the drawer, and other money put into it. */
+  expenses: number
+  income: number
+  /** Customers' debts paid into the drawer. */
+  debts: number
+}
+
 export interface ShiftTotals {
   sales: number
   voided: number
   qty: number
   discount: number
   total: number
-  /** What came in by each way of paying, in its own currency and in so'm; on a partner's account, in theirs. */
+  /** What came in by each way of paying, in its own currency and in the base; on a partner's account, in theirs. */
   payments: { method: PaymentMethod; accountName: string; currency: AnyCurrency; amount: number; base: number }[]
-  /** Change handed back, by currency. */
-  changeUzs: number
-  changeUsd: number
   rounding: number
-  /** Cash handed over out of the drawer during the shift, and cash brought into it, by currency. */
-  outUzs: number
-  outUsd: number
-  inUzs: number
-  inUsd: number
-  /** Partners' payments taken into the drawer during the shift, and paid out of it, by currency. */
-  partnersInUzs: number
-  partnersInUsd: number
-  partnersOutUzs: number
-  partnersOutUsd: number
-  /** Expenses paid out of the drawer during the shift, and other money put into it, by currency. */
-  expensesUzs: number
-  expensesUsd: number
-  incomeUzs: number
-  incomeUsd: number
-  /** Customers' debts paid into the drawer during the shift, by currency. */
-  debtsUzs: number
-  debtsUsd: number
+  /** Each drawer's currency, the base first, with what moved in and out of it. */
+  cash: ShiftCashMoves[]
   /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
   returns: number
   returned: number
   refunds: { method: PaymentMethod; accountName: string; currency: AnyCurrency; amount: number; base: number }[]
+}
+
+/** One drawer of a shift: what it opened with and what the closing count found. */
+export interface ShiftCountDto {
+  currency: AnyCurrency
+  opening: number
+  counted: number | null
+  /**
+   * What the books said should be in the drawer, and the difference. Null
+   * while the shift is open, and for a person who may not see them: the
+   * count is blind.
+   */
+  expected: number | null
+  diff: number | null
 }
 
 export interface ShiftDto {
@@ -1168,21 +1185,10 @@ export interface ShiftDto {
   locationName: string
   openedAt: string
   openedByName: string | null
-  openingUzs: number
-  openingUsd: number
   closedAt: string | null
   closedByName: string | null
-  countedUzs: number | null
-  countedUsd: number | null
-  /**
-   * What the books said should be in the drawer, and the difference. Null
-   * while the shift is open, and for a person who may not see them: the
-   * count is blind.
-   */
-  expectedUzs: number | null
-  expectedUsd: number | null
-  diffUzs: number | null
-  diffUsd: number | null
+  /** A row for each of the till's currencies, the base first. */
+  counts: ShiftCountDto[]
   note: string | null
   totals: ShiftTotals | null
   /**

@@ -4,6 +4,7 @@ import type { AnyCurrency } from '@erp/core'
 
 import { OrgsService } from './modules/orgs/orgs.service'
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const minor = (amount: number) => Math.round(amount * 100)
 
@@ -169,7 +170,7 @@ describe('A base other than the so’m', () => {
     it('sells in tenge for tenge and dollars, and hands the change back in tenge', async () => {
       await gamma.agent
         .post('/api/shifts')
-        .send({ registerId: gamma.registerId, cashUzs: minor(20_000) })
+        .send({ registerId: gamma.registerId, cash: { KZT: minor(20_000) } })
         .expect(201)
       const sell = (payments: object[]) =>
         gamma.agent.post('/api/sales').send({
@@ -205,7 +206,9 @@ describe('A base other than the so’m', () => {
         `SELECT a.name, a.currency, a.balance FROM accounts a JOIN organizations o ON o.id = a.org_id
          WHERE o.name = 'Gamma' AND a.kind = 'cash' ORDER BY a.currency`,
       )
+      // The yuan, switched on with the first yuan receipt, is the till's too: its drawer opened empty.
       expect(drawers.map((row) => [row.name, row.currency, Number(row.balance)])).toEqual([
+        ['Kassa 1 (¥)', 'CNY', 0],
         ['Kassa 1 (₸)', 'KZT', minor(20_000)],
         ['Kassa 1 (dollar)', 'USD', minor(25)],
       ])
@@ -229,7 +232,8 @@ describe('A base other than the so’m', () => {
         })
         .expect(201)
       const shift = (await gamma.agent.get('/api/shifts').expect(200)).body.items[0]
-      expect(shift.totals).toMatchObject({ changeUzs: minor(2000), changeUsd: 0 })
+      expect(drawerOf(shift, 'KZT')).toMatchObject({ change: minor(2000) })
+      expect(drawerOf(shift, 'USD')).toMatchObject({ change: 0 })
       expect(shift.totals.payments).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ method: 'cash', currency: 'KZT', amount: minor(2000) }),
@@ -269,7 +273,7 @@ describe('A base other than the so’m', () => {
       expect(receipt).toMatchObject({ rate: 7.25, rateWay: 'per' })
       expect(receipt.totals.goodsUzs).toBe(minor(97.93))
 
-      await delta.agent.post('/api/shifts').send({ registerId: delta.registerId, cashUzs: 0 }).expect(201)
+      await delta.agent.post('/api/shifts').send({ registerId: delta.registerId, cash: {} }).expect(201)
       const sale = (
         await delta.agent
           .post('/api/sales')

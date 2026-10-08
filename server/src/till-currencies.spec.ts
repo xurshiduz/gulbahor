@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const minor = (amount: number) => Math.round(amount * 100)
 
@@ -78,7 +79,7 @@ describe('A till in any currency', () => {
     ).body
     expect(own.currencies).toEqual([])
 
-    await alpha.post('/api/shifts').send({ registerId, cashUzs: 0 }).expect(201)
+    await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)
     const context = (await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body
     expect(context.currencies).toEqual(['UZS', 'USD', 'CNY'])
     expect(context.book.rates.CNY).toEqual({ against: 'UZS', way: 'in', value: 1_750 })
@@ -128,7 +129,7 @@ describe('A till in any currency', () => {
     const other = (await alpha.get('/api/money/registers').expect(200)).body.find(
       (till: { name: string }) => till.name === 'Kassa 3',
     )
-    await alpha.post('/api/shifts').send({ registerId: other.id, cashUzs: 0 }).expect(201)
+    await alpha.post('/api/shifts').send({ registerId: other.id, cash: {} }).expect(201)
     const refused = await alpha.post('/api/sales').send({
       clientKey: randomUUID(),
       registerId: other.id,
@@ -161,5 +162,54 @@ describe('A till in any currency', () => {
     expect(made.body.refunds).toEqual(
       expect.arrayContaining([expect.objectContaining({ currency: 'CNY', amount: minor(200), base: minor(350_000) })]),
     )
+  })
+
+  it('counts every drawer at closing, the yuan one too, and hands yuan over to a yuan safe', async () => {
+    const safe = (
+      await alpha
+        .post('/api/money/accounts')
+        .send({ kind: 'safe', name: 'Yuan seyf', currency: 'CNY', locationId: shopId })
+        .expect(201)
+    ).body
+    const shiftId = (await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body.shift.id
+    const lira = await alpha.post(`/api/shifts/${shiftId}/close`).send({ cash: { TRY: minor(5) } })
+    expect(lira.status).toBe(400)
+    expect(lira.body.error.fields['cash.TRY']).toBe('Bu valyuta bu kassada qabul qilinmaydi')
+
+    // So'm: 1 000 handed back as change, 400 000 taken, 50 000 handed back. Yuan: 300 − 71 + 230 − 200.
+    const closed = (
+      await alpha
+        .post(`/api/shifts/${shiftId}/close`)
+        .send({
+          cash: { UZS: minor(349_000), USD: 0, CNY: minor(259) },
+          handovers: [{ toAccountId: safe.id, amount: minor(200) }],
+        })
+        .expect(200)
+    ).body
+    expect(closed.counts.map((count: { currency: string }) => count.currency)).toEqual(['UZS', 'USD', 'CNY'])
+    expect(drawerOf(closed, 'UZS')).toMatchObject({ counted: minor(349_000), expected: minor(349_000), diff: 0 })
+    expect(drawerOf(closed, 'CNY')).toMatchObject({
+      opening: 0,
+      counted: minor(259),
+      expected: minor(259),
+      diff: 0,
+      change: minor(71),
+      out: minor(200),
+    })
+    // What was handed over is on its way to the yuan safe; the drawer keeps the rest.
+    const drawer = (await alpha.get('/api/money/accounts').expect(200)).body.find(
+      (account: { registerId: string | null; currency: string }) =>
+        account.currency === 'CNY' && account.registerId === registerId,
+    )
+    expect(drawer?.balance ?? null).toBe(minor(59))
+  })
+
+  it('takes a currency switched on later at every till, the ones made before it too', async () => {
+    await alpha.post('/api/currencies').send({ code: 'EUR' }).expect(200)
+    const tills = (await alpha.get('/api/money/registers').expect(200)).body as { name: string; currencies: string[] }[]
+    expect(Object.fromEntries(tills.map((till) => [till.name, till.currencies]))).toEqual({
+      'Kassa 1': ['USD', 'CNY', 'EUR'],
+      'Kassa 3': ['EUR'],
+    })
   })
 })

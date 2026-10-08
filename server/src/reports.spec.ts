@@ -93,7 +93,7 @@ describe('Sales report', () => {
           .send({ name: `Kassa ${key}`, locationId: shops[key] })
           .expect(201)
       ).body.id
-      await alpha.post('/api/shifts').send({ registerId: tills[key], cashUzs: 0 }).expect(201)
+      await alpha.post('/api/shifts').send({ registerId: tills[key], cash: {} }).expect(201)
     }
     cardId = (await alpha.post('/api/money/accounts').send({ kind: 'card', name: 'Humo', last4: '3073' }).expect(201))
       .body.id

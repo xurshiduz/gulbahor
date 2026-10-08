@@ -18,6 +18,8 @@ import {
   tillWorth,
   worthOf,
   type Tender,
+  shiftCloseSchema,
+  shiftOpenSchema,
 } from './pos'
 
 const som = (amount: number) => amount * 100
@@ -448,5 +450,20 @@ describe('returns', () => {
     expect(returnInputSchema.safeParse(input).success).toBe(false)
     const parsed = returnInputSchema.parse({ ...input, lines: [input.lines[0]] })
     expect(parsed).toMatchObject({ refunds: [], exchange: null })
+  })
+})
+
+describe('a shift’s count', () => {
+  const id = '00000000-0000-4000-8000-000000000001'
+
+  it('is a sum for each currency counted, and nothing for one left out', () => {
+    expect(shiftOpenSchema.parse({ registerId: id }).cash).toEqual({})
+    expect(shiftOpenSchema.parse({ registerId: id, cash: { UZS: 100, CNY: 5 } }).cash).toEqual({ UZS: 100, CNY: 5 })
+    expect(shiftCloseSchema.parse({ cash: { USD: 0 } })).toMatchObject({ cash: { USD: 0 }, handovers: [] })
+  })
+
+  it('refuses a currency nobody knows, and a sum below nothing', () => {
+    expect(shiftOpenSchema.safeParse({ registerId: id, cash: { XYZ: 1 } }).success).toBe(false)
+    expect(shiftCloseSchema.safeParse({ cash: { UZS: -1 } }).success).toBe(false)
   })
 })

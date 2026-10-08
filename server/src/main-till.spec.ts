@@ -66,8 +66,8 @@ describe('The main till', () => {
 
   it('is told to whoever lays out a payment, with whose shift is open where', async () => {
     // A till has drawers once it has been opened: the cashier opens the first, the owner the second.
-    shifts.push((await cashier.post('/api/shifts').send({ registerId: first.id, cashUzs: 0 }).expect(201)).body.id)
-    shifts.push((await alpha.post('/api/shifts').send({ registerId: second.id, cashUzs: 0 }).expect(201)).body.id)
+    shifts.push((await cashier.post('/api/shifts').send({ registerId: first.id, cash: {} }).expect(201)).body.id)
+    shifts.push((await alpha.post('/api/shifts').send({ registerId: second.id, cash: {} }).expect(201)).body.id)
     for (const path of ['/api/partner-payments/accounts', '/api/money/ops/accounts']) {
       const places: Place[] = (await alpha.get(path).expect(200)).body
       const drawer = (till: Till) => places.find((place) => place.registerId === till.id && place.currency === 'UZS')
@@ -95,8 +95,8 @@ describe('The main till', () => {
   it('never belongs to a till that is put away', async () => {
     // A till with its shift open is not put away at all.
     expect((await alpha.post(`/api/money/registers/${first.id}/archive`)).status).toBe(409)
-    await cashier.post(`/api/shifts/${shifts[0]}/close`).send({ cashUzs: 0 }).expect(200)
-    await alpha.post(`/api/shifts/${shifts[1]}/close`).send({ cashUzs: 0 }).expect(200)
+    await cashier.post(`/api/shifts/${shifts[0]}/close`).send({ cash: {} }).expect(200)
+    await alpha.post(`/api/shifts/${shifts[1]}/close`).send({ cash: {} }).expect(200)
 
     // The first till is put away while the second is main: nothing moves.
     await alpha.post(`/api/money/registers/${first.id}/archive`).expect(200)

@@ -92,7 +92,7 @@ describe('Customers', () => {
       })
       .expect(201)
     cashier = await harness.signIn('kassir')
-    await cashier.post('/api/shifts').send({ registerId, cashUzs: 0 }).expect(201)
+    await cashier.post('/api/shifts').send({ registerId, cash: {} }).expect(201)
   }, 60_000)
 
   afterAll(async () => {

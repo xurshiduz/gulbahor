@@ -1840,12 +1840,6 @@ export class Shift {
   @Column('timestamptz')
   openedAt: Date
 
-  @Column('bigint', { transformer: bigintAsNumber })
-  openingUzs: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  openingUsd: number
-
   @Column('uuid', { nullable: true })
   closedBy: string | null
 
@@ -1854,24 +1848,6 @@ export class Shift {
 
   @Column('timestamptz', { nullable: true })
   closedAt: Date | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  countedUzs: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  countedUsd: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  expectedUzs: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  expectedUsd: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  diffUzs: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  diffUsd: number | null
 
   @Column('text', { nullable: true })
   note: string | null
@@ -2680,6 +2656,31 @@ export class DebtPaymentPart {
   amount: number
 }
 
+/** One drawer of a shift, in one currency: what it opened with and what the closing count found. */
+@Entity('shift_counts')
+export class ShiftCount {
+  @Column('uuid')
+  orgId: string
+
+  @PrimaryColumn('uuid')
+  shiftId: string
+
+  @PrimaryColumn('text')
+  currency: AnyCurrency
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  opening: number
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  counted: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  expected: number | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  diff: number | null
+}
+
 @Entity('shift_terminal_counts')
 export class ShiftTerminalCount {
   @PrimaryGeneratedColumn('uuid')
@@ -2920,6 +2921,7 @@ export const ENTITIES = [
   SaleReturnLine,
   SaleReturnPayment,
   MoneyTransfer,
+  ShiftCount,
   ShiftTerminalCount,
   PartnerPayment,
   PartnerPaymentLine,

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const som = (amount: number) => Math.round(amount * 100)
 const usd = (dollars: number) => Math.round(dollars * 100)
@@ -80,7 +81,7 @@ describe('Partner payments', () => {
     shiftId = (
       await alpha
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(1_000_000), cashUsd: usd(10) })
+        .send({ registerId, cash: { UZS: som(1_000_000), USD: usd(10) } })
         .expect(201)
     ).body.id
     const accounts = (await alpha.get('/api/money/accounts').expect(200)).body as AccountRow[]
@@ -339,22 +340,21 @@ describe('Partner payments', () => {
     it('shows in the shift what partners brought to the drawer and took from it', async () => {
       const shift = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       // The payment that was taken back moved nothing.
-      expect(shift.totals).toMatchObject({
-        partnersInUzs: som(6_325_000 + 1_000_000 + 1_270_000),
-        partnersInUsd: usd(500),
-        partnersOutUzs: som(2_000_000),
-        partnersOutUsd: usd(100),
+      expect(drawerOf(shift, 'UZS')).toMatchObject({
+        partnersIn: som(6_325_000 + 1_000_000 + 1_270_000),
+        partnersOut: som(2_000_000),
       })
+      expect(drawerOf(shift, 'USD')).toMatchObject({ partnersIn: usd(500), partnersOut: usd(100) })
     })
 
     it('that went through a drawer is not taken back once its shift is counted', async () => {
       await alpha
         .post(`/api/shifts/${shiftId}/close`)
-        .send({ cashUzs: som(7_595_000), cashUsd: usd(410) })
+        .send({ cash: { UZS: som(7_595_000), USD: usd(410) } })
         .expect(200)
       const closed = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       // What the books expected is what the payments left in the drawer.
-      expect(closed).toMatchObject({ diffUzs: 0, diffUsd: 0 })
+      expect(closed.counts.map((count: { diff: number }) => count.diff)).toEqual([0, 0])
       const late = await alpha.post(`/api/partner-payments/${firstId}/cancel`).send({ reason: 'Kech' }).expect(409)
       expect(late.body.error.code).toBe('SHIFT_CLOSED')
       // Nor does money go into a drawer nobody is counting.

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
+import { drawerOf } from './testing/shifts'
 
 const som = (amount: number) => Math.round(amount * 100)
 const usd = (dollars: number) => Math.round(dollars * 100)
@@ -103,7 +104,7 @@ describe('Expenses and other income', () => {
     shiftId = (
       await manager
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(1_000_000), cashUsd: usd(100) })
+        .send({ registerId, cash: { UZS: som(1_000_000), USD: usd(100) } })
         .expect(201)
     ).body.id
     const accounts = (await alpha.get('/api/money/accounts').expect(200)).body as AccountRow[]
@@ -284,12 +285,8 @@ describe('Expenses and other income', () => {
     it('show each shift what was spent out of its drawer', async () => {
       const shift = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
       // 85 000 lunch, 494 000 of the rent, 20 000 cleaning and 200 000 to the owner; 40 $ of the rent.
-      expect(shift.totals).toMatchObject({
-        expensesUzs: som(799_000),
-        expensesUsd: usd(40),
-        incomeUzs: 0,
-        incomeUsd: 0,
-      })
+      expect(drawerOf(shift, 'UZS')).toMatchObject({ expenses: som(799_000), income: 0 })
+      expect(drawerOf(shift, 'USD')).toMatchObject({ expenses: usd(40), income: 0 })
     })
 
     it('list them for those who keep the books, and for the others only their own', async () => {
@@ -358,7 +355,10 @@ describe('Expenses and other income', () => {
       ).body.items[0]
       const drawer = (await balances()).cash_UZS
       const dollars = (await balances()).cash_USD
-      await manager.post(`/api/shifts/${shiftId}/close`).send({ cashUzs: drawer, cashUsd: dollars }).expect(200)
+      await manager
+        .post(`/api/shifts/${shiftId}/close`)
+        .send({ cash: { UZS: drawer, USD: dollars } })
+        .expect(200)
       const late = await alpha.post(`/api/money/ops/${cleaning.id}/cancel`).send({ reason: 'Kech' })
       expect(late.status).toBe(409)
       expect(late.body.error.code).toBe('SHIFT_CLOSED')

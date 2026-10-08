@@ -40,13 +40,19 @@ const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(min
  * in it and, for those who check the cashiers, how the count came out
  * against the books.
  */
+/** How a drawer's count came out against the books; null where it was not counted, or is not shown. */
+const diffIn = (shift: ShiftDto, currency: AnyCurrency) =>
+  shift.counts.find((count) => count.currency === currency)?.diff ?? null
+
 export function ShiftsPage() {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const { open: openId, ...filters } = search
   const reviews = can('sales.shifts')
+  // A difference column for each currency the business keeps, the base first.
+  const kept = [base(), ...me.org.currencies].join(',')
 
   const list = useQuery({
     queryKey: ['shifts', 'list', filters],
@@ -124,28 +130,16 @@ export function ShiftsPage() {
         cell: ({ row }) => <span className="font-medium">{money(row.original.totals?.total ?? 0)}</span>,
       },
       ...(reviews
-        ? ([
-            {
-              id: 'diffUzs',
-              header: `${t('pos.diff')} (${CURRENCIES[base()].symbol})`,
-              meta: {
-                export: (row) => moneyCell(row.diffUzs),
-                className: 'tabular text-right whitespace-nowrap',
-                headerClassName: 'text-right',
-              },
-              cell: ({ row }) => <Diff value={row.original.diffUzs} currency={base()} />,
+        ? (kept.split(',') as AnyCurrency[]).map((currency): ColumnDef<ShiftDto> => ({
+            id: `diff:${currency}`,
+            header: `${t('pos.diff')} (${CURRENCIES[currency].symbol})`,
+            meta: {
+              export: (row) => moneyCell(diffIn(row, currency), currency),
+              className: 'tabular text-right whitespace-nowrap',
+              headerClassName: 'text-right',
             },
-            {
-              id: 'diffUsd',
-              header: `${t('pos.diff')} ($)`,
-              meta: {
-                export: (row) => moneyCell(row.diffUsd, 'USD'),
-                className: 'tabular text-right whitespace-nowrap',
-                headerClassName: 'text-right',
-              },
-              cell: ({ row }) => <Diff value={row.original.diffUsd} currency="USD" />,
-            },
-          ] satisfies ColumnDef<ShiftDto>[])
+            cell: ({ row }) => <Diff value={diffIn(row.original, currency)} currency={currency} />,
+          }))
         : []),
       {
         id: 'status',
@@ -158,7 +152,7 @@ export function ShiftsPage() {
         ),
       },
     ],
-    [t, reviews],
+    [t, reviews, kept],
   )
 
   const filtered = !!(search.q || search.locationId || search.from || search.to) || search.status !== 'all'

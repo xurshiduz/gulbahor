@@ -140,7 +140,7 @@ describe('Promotions', () => {
     cashier = await hire('Dilnoza Kassir', 'kassir', 'cashier')
     manager = await hire('Anvar Menejer', 'menejer', 'store_manager')
     for (const till of [registerId, otherRegisterId]) {
-      await cashier.post('/api/shifts').send({ registerId: till, cashUzs: 0 }).expect(201)
+      await cashier.post('/api/shifts').send({ registerId: till, cash: {} }).expect(201)
     }
 
     const group = (await alpha.post('/api/customers/groups').send({ name: 'Doimiy', discountPercent: 10 }).expect(201))

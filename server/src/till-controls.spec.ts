@@ -105,7 +105,7 @@ describe('Till controls', () => {
     shiftId = (
       await cashier
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(500_000) })
+        .send({ registerId, cash: { UZS: som(500_000) } })
         .expect(201)
     ).body.id
   }, 60_000)
@@ -351,7 +351,7 @@ describe('Till controls', () => {
 
       const unknown = await cashier
         .post(`/api/shifts/${shiftId}/close`)
-        .send({ cashUzs: som(500_000), terminals: [{ accountId: cardId, amount: 0 }] })
+        .send({ cash: { UZS: som(500_000) }, terminals: [{ accountId: cardId, amount: 0 }] })
       expect(unknown.status).toBe(400)
       expect(unknown.body.error.fields['terminals.0.accountId']).toBeDefined()
 
@@ -359,7 +359,7 @@ describe('Till controls', () => {
       const closed = (
         await cashier
           .post(`/api/shifts/${shiftId}/close`)
-          .send({ cashUzs: som(500_000), terminals: [{ accountId: terminalId, amount: som(95_000) }] })
+          .send({ cash: { UZS: som(500_000) }, terminals: [{ accountId: terminalId, amount: som(95_000) }] })
           .expect(200)
       ).body
       // The cashier sees what they typed; what it should have been is for those who check.
@@ -396,7 +396,7 @@ describe('Till controls', () => {
       await alpha.put('/api/currencies/USD/rate').send({ value: 12_100 }).expect(200)
       await cashier
         .post('/api/shifts')
-        .send({ registerId, cashUzs: som(500_000) })
+        .send({ registerId, cash: { UZS: som(500_000) } })
         .expect(201)
     })
 

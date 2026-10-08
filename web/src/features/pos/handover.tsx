@@ -1,8 +1,7 @@
 import {
   CURRENCIES as CURRENCY_LIST,
-  tillCurrencies,
   type AccountDto,
-  type CurrencyCode,
+  type AnyCurrency,
   type MoneyTransferDto,
   type PosContextDto,
   type RateBook,
@@ -23,13 +22,10 @@ import { exchangeLine, ReceivedField, receivedOf, transferSums } from '@/feature
 import { useRateBook } from '@/features/money/rates'
 import { TransferButtons } from '@/features/money/transfers'
 import { api } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
-
-/** The currencies a till's drawers hold: the base, and dollars beside it. */
-const tillOwn = (): CurrencyCode[] => tillCurrencies(base())
 
 const NOTHING: Handing = { amount: null, toAccountId: null, received: null }
 
@@ -41,27 +37,28 @@ export interface Handing {
   received?: number | null
 }
 
-export type Handings = Partial<Record<CurrencyCode, Handing>>
+export type Handings = Partial<Record<AnyCurrency, Handing>>
 
 /** What is handed over in a currency: nothing, where nothing was. */
-export const handingIn = (value: Handings, currency: CurrencyCode): Handing => value[currency] ?? NOTHING
+export const handingIn = (value: Handings, currency: AnyCurrency): Handing => value[currency] ?? NOTHING
 
 /**
- * Nothing handed over yet; where there is one safe for a currency, it is
- * the one. Where money may change on the way and the shop has a single
- * safe, that safe is the one for every currency.
+ * Nothing handed over yet from the drawers of `currencies`; where there is
+ * one safe for a currency, it is the one. Where money may change on the
+ * way and the shop has a single safe, that safe is the one for every
+ * currency.
  */
-export function emptyHandings(safes: AccountDto[], anyCurrency = false): Handings {
-  const only = (currency: CurrencyCode) =>
+export function emptyHandings(safes: AccountDto[], currencies: AnyCurrency[], anyCurrency = false): Handings {
+  const only = (currency: AnyCurrency) =>
     safes.find((safe) => safe.currency === currency)?.id ?? (anyCurrency && safes.length === 1 ? safes[0].id : null)
   return Object.fromEntries(
-    tillOwn().map((currency) => [currency, { amount: null, toAccountId: only(currency), received: null }]),
+    currencies.map((currency) => [currency, { amount: null, toAccountId: only(currency), received: null }]),
   )
 }
 
 /** The safes of the till's own currencies: what the end of a shift hands over to, money unchanged. */
-export const ownSafes = (context: Pick<PosContextDto, 'safes' | 'drawers'>) =>
-  context.safes.filter((safe) => tillOwn().some((currency) => currency === safe.currency && context.drawers[currency]))
+export const ownSafes = (context: Pick<PosContextDto, 'safes' | 'drawers' | 'currencies'>) =>
+  context.safes.filter((safe) => context.currencies.includes(safe.currency) && context.drawers[safe.currency])
 
 /** What changing money on the way needs: the day's rates and how far this person may agree from them. */
 export interface Changing {
@@ -71,7 +68,7 @@ export interface Changing {
 }
 
 /** The handing of one currency as an exchange, where its safe holds another; null where nothing is changed. */
-export function handingLine(currency: CurrencyCode, handing: Handing, safes: AccountDto[], changing: Changing) {
+export function handingLine(currency: AnyCurrency, handing: Handing, safes: AccountDto[], changing: Changing) {
   const to = safes.find((safe) => safe.id === handing.toAccountId)
   return exchangeLine(
     { id: currency, currency },
@@ -87,10 +84,10 @@ interface HandoverFieldsProps {
   value: Handings
   onChange: (value: Handings) => void
   /** The most that can be handed over in each currency, when the screen knows it: what was just counted. */
-  limits?: Partial<Record<CurrencyCode, number | null>>
+  limits?: Partial<Record<AnyCurrency, number | null>>
   autoFocus?: boolean
-  /** The currencies handed over, where they are not simply those with a safe: the till's drawers. */
-  currencies?: CurrencyCode[]
+  /** The drawers handed over from, a row for each. */
+  currencies: AnyCurrency[]
   /** Money may go to a safe of another currency, changed on the way at the day's rate or a sum agreed. */
   changing?: Changing
 }
@@ -105,12 +102,11 @@ export function HandoverFields({
   onChange,
   limits,
   autoFocus,
-  currencies: given,
+  currencies,
   changing,
 }: HandoverFieldsProps) {
   const { t } = useTranslation()
-  const currencies = given ?? tillOwn().filter((currency) => safes.some((safe) => safe.currency === currency))
-  const patch = (currency: CurrencyCode, change: Partial<Handing>) =>
+  const patch = (currency: AnyCurrency, change: Partial<Handing>) =>
     onChange({ ...value, [currency]: { ...handingIn(value, currency), ...change } })
 
   return (
@@ -129,7 +125,7 @@ export function HandoverFields({
         return (
           <div key={currency} className={cn('grid items-start gap-3', changing ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <Field
-              label={dollarsBeside(currency) ? t('pos.handoverUsd') : t('pos.handoverUzs', baseWords(t))}
+              label={t('pos.handoverIn', currencyWords(t, currency))}
               error={over ? t('pos.handoverOver') : undefined}
             >
               {(id) => (
@@ -188,10 +184,9 @@ export function HandoverFields({
 
 /** The handovers that hold a sum, as the server takes them. */
 export function handoversOf(value: Handings): { toAccountId: string; amount: number }[] {
-  return tillOwn().flatMap((currency) => {
-    const { amount, toAccountId } = handingIn(value, currency)
-    return amount && toAccountId ? [{ toAccountId, amount }] : []
-  })
+  return Object.values(value).flatMap((handing) =>
+    handing?.amount && handing.toAccountId ? [{ toAccountId: handing.toAccountId, amount: handing.amount }] : [],
+  )
 }
 
 /**
@@ -215,11 +210,11 @@ export function HandoverDialog({
   const queryClient = useQueryClient()
   const book = useRateBook()
   const changing: Changing = { book, limit, setsRates }
-  const currencies = tillOwn().filter((currency) => context.drawers[currency])
-  const [handings, setHandings] = useState(() => emptyHandings(context.safes, true))
+  const currencies = context.currencies.filter((currency) => context.drawers[currency])
+  const [handings, setHandings] = useState(() => emptyHandings(context.safes, currencies, true))
   const [note, setNote] = useState('')
   // One key for each currency: a handover sent twice is still made once.
-  const [keys] = useState(() => Object.fromEntries(tillOwn().map((currency) => [currency, uuid()])))
+  const [keys] = useState(() => Object.fromEntries(currencies.map((currency) => [currency, uuid()])))
 
   const send = useMutation({
     mutationFn: async () => {
