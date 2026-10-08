@@ -1,5 +1,4 @@
 import {
-  ALL_CURRENCY_CODES,
   CURRENCIES,
   currencyOfHeader,
   guessMapping,
@@ -28,17 +27,19 @@ import { Select } from '@/components/ui/controls'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
-import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords } from '@/lib/base'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
 import { sha256Hex } from '@/lib/sha256'
 import { toast } from '@/lib/toast'
 
-import { DEFAULTS_KEY, NO_DEFAULTS, ratesAsked, rememberedUzsRate, type ReceiptDefaults } from './receipt-state'
+import { useBookOn } from '@/features/money/rates'
+
+import { ReceiptRateField } from './receipt-rate'
+import { dayRateOf, DEFAULTS_KEY, NO_DEFAULTS, type ReceiptDefaults } from './receipt-state'
 
 type Cell = string | number | boolean | Date | null
 
@@ -121,9 +122,15 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   )
   const [supplierId, setSupplierId] = useState<string | null>(null)
   const [docDate, setDocDate] = useState(() => toIsoDate(todayIn(me.org.timezone)))
-  const [currency, setCurrency] = useState<AnyCurrency>(defaults.currency)
-  const [usdRate, setUsdRate] = useState<number | null>(defaults.usdRates?.[defaults.currency] ?? null)
-  const [uzsRate, setUzsRate] = useState<number | null>(() => rememberedUzsRate(defaults, defaults.currency))
+  // The currencies goods may be bought in: the base and those switched on.
+  const kept: AnyCurrency[] = [base(), ...me.org.currencies]
+  const [currency, setCurrency] = useState<AnyCurrency>(kept.includes(defaults.currency) ? defaults.currency : base())
+  // The day's rate until someone types another.
+  const [typedRate, setTypedRate] = useState<number | null>(null)
+  const book = useBookOn(docDate).data
+  const dayRate = book ? dayRateOf(currency, book) : null
+  const rate = typedRate ?? dayRate
+  const foreign = currency !== base()
 
   const suppliers = useQuery({
     queryKey: ['partners', 'suppliers'],
@@ -140,8 +147,6 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
         )
         .join('|')
     : ''
-  const asked = ratesAsked(currency)
-  const foreign = asked.usd
 
   const open = async (file: File) => {
     setReading(true)
@@ -164,9 +169,9 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
       setMapping(guessed)
       // "цена закупки YUAN" says what the supplier is paid in.
       const hinted = guessed.price === undefined ? null : currencyOfHeader(read.headers[guessed.price])
-      if (hinted) {
+      if (hinted && kept.includes(hinted)) {
         setCurrency(hinted)
-        setUsdRate(defaults.usdRates?.[hinted] ?? null)
+        setTypedRate(null)
       }
     } catch {
       toast.error(t('import.unreadable'))
@@ -197,8 +202,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
         supplierId,
         docDate,
         currency,
-        usdRate: foreign ? usdRate : 1,
-        uzsRate: asked.uzs ? uzsRate : 1,
+        rate: foreign ? rate : null,
         fileName: (sheet as Sheet).fileName,
         fileHash: (sheet as Sheet).fileHash,
         rows: read.rows,
@@ -222,8 +226,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   const ready =
     !!sheet &&
     !!locationId &&
-    (!asked.uzs || !!uzsRate) &&
-    (!foreign || !!usdRate) &&
+    (!foreign || !!rate) &&
     mapping.name !== undefined &&
     mapping.qty !== undefined &&
     read.rows.length > 0 &&
@@ -352,11 +355,10 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                     value={currency}
                     onChange={(value) => {
                       setCurrency(value as AnyCurrency)
-                      setUsdRate(defaults.usdRates?.[value as AnyCurrency] ?? null)
-                      setUzsRate(rememberedUzsRate(defaults, value as AnyCurrency))
+                      setTypedRate(null)
                       setPreview(null)
                     }}
-                    options={ALL_CURRENCY_CODES.map((code) => ({
+                    options={kept.map((code) => ({
                       value: code,
                       label: `${code} · ${CURRENCIES[code].name}`,
                     }))}
@@ -364,33 +366,12 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                 )}
               </Field>
               {foreign ? (
-                <Field label={t('receipts.usdRate', { pivot: CURRENCIES[asked.pivot].symbol, currency })} required>
-                  {(id) => (
-                    <NumberInput
-                      id={id}
-                      value={usdRate}
-                      onChange={(value) => (setUsdRate(value), setPreview(null))}
-                      decimals={4}
-                      suffix={CURRENCIES[currency].symbol}
-                    />
-                  )}
-                </Field>
-              ) : null}
-              {asked.uzs ? (
-                <Field
-                  label={t('receipts.uzsRate', { ...baseWords(t), pivot: CURRENCIES[asked.pivot].symbol })}
-                  required
-                >
-                  {(id) => (
-                    <NumberInput
-                      id={id}
-                      value={uzsRate}
-                      onChange={(value) => (setUzsRate(value), setPreview(null))}
-                      decimals={2}
-                      suffix={CURRENCIES[base()].symbol}
-                    />
-                  )}
-                </Field>
+                <ReceiptRateField
+                  currency={currency}
+                  value={rate}
+                  onChange={(value) => (setTypedRate(value), setPreview(null))}
+                  dayRate={dayRate}
+                />
               ) : null}
             </div>
 

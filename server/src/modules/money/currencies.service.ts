@@ -136,16 +136,6 @@ export class CurrenciesService {
           `${CURRENCIES[code].name} hali ishlatilmoqda: ${held.map((account) => account.name).join(', ')}. Avval shu hisoblarni bo‘shating`,
         )
       }
-      const [{ cost }]: { cost: AnyCurrency }[] = await em.query(
-        `SELECT cost_currency AS cost FROM organizations WHERE id = $1`,
-        [actor.orgId],
-      )
-      if (cost === code) {
-        throw AppError.conflict(
-          'CURRENCY_COST',
-          `Tannarx ${CURRENCIES[code].name}da yuritiladi: bu valyuta o‘chirib qo‘yilmaydi`,
-        )
-      }
       const priced: { name: string }[] = await em.query(
         `SELECT name FROM price_types WHERE currency = $1 AND is_active ORDER BY sort_order, name LIMIT 5`,
         [code],
@@ -158,7 +148,9 @@ export class CurrenciesService {
       }
       await em.update(OrgCurrency, mine.id, { isActive: false })
       // No till takes it any more: their drawers of it are empty (see above).
-      await em.query(`UPDATE registers SET currencies = array_remove(currencies, $1) WHERE $1 = ANY (currencies)`, [code])
+      await em.query(`UPDATE registers SET currencies = array_remove(currencies, $1) WHERE $1 = ANY (currencies)`, [
+        code,
+      ])
       await this.audit.record(em, actor.orgId, actor, {
         action: 'currency.disable',
         entity: 'currency',
@@ -219,6 +211,10 @@ export class CurrenciesService {
    */
   async book(em: EntityManager, actor: Pick<Actor, 'orgId'>, date: string): Promise<RateBook> {
     return bookFrom(await this.base(em, actor.orgId), await ratesInForce(em, date))
+  }
+
+  async bookOn(actor: Actor, date: string): Promise<RateBook> {
+    return this.db.tenant(actor.orgId, ({ em }) => this.book(em, actor, date))
   }
 
   /** The currencies money may be kept in: the base and those switched on. */

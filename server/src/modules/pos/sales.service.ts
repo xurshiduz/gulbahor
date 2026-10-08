@@ -532,7 +532,6 @@ export class SalesService {
         changeCurrency: settlement.changeCurrency,
         changeOtherBase: settlement.changeBase - settlement.changeUzs,
         rounding: settlement.rounding,
-        costUsd: 0,
         costUzs: 0,
         paidBy,
         approvedBy: vouched ? (approver?.id ?? null) : null,
@@ -568,7 +567,6 @@ export class SalesService {
           promotionName: autos[index].promo?.name ?? null,
           promoDiscount: Math.min(autos[index].promoOff, totals.lines[index].auto),
           total: totals.lines[index].total,
-          costUsd: 0,
           costUzs: 0,
           unitId: line.epc ? (unitOf.get(line.epc)?.id ?? null) : null,
         }),
@@ -593,10 +591,8 @@ export class SalesService {
 
     const movements: Movement[] = []
     const pieces: Partial<SaleItem>[] = []
-    let costUsd = 0
     let costUzs = 0
     for (const [index, line] of lines.entries()) {
-      let lineUsd = 0
       let lineUzs = 0
       picked[index].pieces.forEach((piece, position) => {
         movements.push({
@@ -609,20 +605,17 @@ export class SalesService {
           batchId: piece.batchId,
           variantId: piece.variantId,
           qty: -piece.qty,
-          costUsd: -piece.costUsd,
           costUzs: -piece.costUzs,
         })
         pieces.push({ orgId: actor.orgId, saleId: sale.id, lineId: line.id, position, ...piece })
-        lineUsd += piece.costUsd
         lineUzs += piece.costUzs
       })
-      await em.update(SaleLine, line.id, { costUsd: lineUsd, costUzs: lineUzs })
-      costUsd += lineUsd
+      await em.update(SaleLine, line.id, { costUzs: lineUzs })
       costUzs += lineUzs
     }
     await this.stock.apply(em, actor.orgId, actor.userId, movements)
     await em.insert(SaleItem, pieces)
-    await em.update(Sale, sale.id, { costUsd, costUzs })
+    await em.update(Sale, sale.id, { costUzs })
     if (units.length) {
       await em.query(`UPDATE rfid_units SET status = 'sold', sale_id = $1 WHERE id = ANY($2)`, [
         sale.id,
@@ -799,7 +792,6 @@ export class SalesService {
           batchId: piece.batchId,
           variantId: piece.variantId,
           qty: piece.qty,
-          costUsd: piece.costUsd,
           costUzs: piece.costUzs,
         })),
       )

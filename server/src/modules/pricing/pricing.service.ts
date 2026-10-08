@@ -1,4 +1,5 @@
 import {
+  baseWorth,
   exchange,
   formatMoney,
   NO_ROUNDING,
@@ -25,6 +26,7 @@ import {
   type RepriceSkip,
   type Season,
   type AnyCurrency,
+  type RateBook,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager, type SelectQueryBuilder } from 'typeorm'
@@ -69,8 +71,10 @@ interface PriceRow {
 
 interface UnitCost {
   qty: number
+  /** One unit, in the base, at what the goods cost when they came in. */
   uzs: number | null
-  usd: number | null
+  /** The same with the goods bought for foreign money at today's rates of their currencies. */
+  today: number | null
 }
 
 /** One price as a revision records it. */
@@ -119,7 +123,7 @@ export class PricingService {
         .getRawAndEntities()
 
       const ids = entities.map((product) => product.id)
-      const costs = await this.unitCosts(em, ids, query.uzsRate ?? null, actor.base)
+      const costs = await this.unitCosts(em, ids, await bookToday(em))
       const prices = await this.prices(em, ids)
       const seesCost = can(actor, 'stock.cost')
 
@@ -136,7 +140,7 @@ export class PricingService {
             season: product.season,
             qty: cost?.qty ?? 0,
             unitCostUzs: seesCost ? (cost?.uzs ?? null) : null,
-            unitCostUsd: seesCost ? (cost?.usd ?? null) : null,
+            unitCostToday: seesCost && cost?.today !== cost?.uzs ? (cost?.today ?? null) : null,
             prices: Object.fromEntries(
               mine
                 .filter((price) => !price.variant_id && !price.location_id)
@@ -181,10 +185,10 @@ export class PricingService {
       const parents = byRule ? await this.categoryParents(em) : new Map<string, string | null>()
       const [retail] = byRule ? await em.findBy(PriceType, { kind: 'retail' }) : []
 
-      const rate = operation.kind === 'markup' && type.currency === actor.base ? operation.uzsRate : null
-      const costs = await this.unitCosts(em, ids, rate, actor.base)
-      // A price in another currency is marked up on the cost in it, at today's rates.
-      const book = type.currency === actor.base || type.currency === actor.cost ? null : await bookToday(em)
+      const book = await bookToday(em)
+      const costs = await this.unitCosts(em, ids, book)
+      // At today's rates of the currencies the goods came in, when asked: what bringing them in again would cost.
+      const today = operation.kind === 'markup' && operation.today
       const rows = await this.prices(em, ids)
       const priceOf = (productId: string, priceTypeId: string | undefined) =>
         rows.find(
@@ -204,14 +208,10 @@ export class PricingService {
       for (const subject of subjects) {
         const old = priceOf(subject.id, type.id)
         const cost = costs.get(subject.id)
+        const inBase = (today ? (cost?.today ?? cost?.uzs) : cost?.uzs) ?? null
+        // A price in another currency is marked up on the cost in it, at today's rates.
         const unitCost =
-          (type.currency === actor.base
-            ? cost?.uzs
-            : type.currency === actor.cost
-              ? cost?.usd
-              : cost?.uzs != null && book
-                ? exchange(cost.uzs, actor.base, type.currency, book)
-                : null) ?? null
+          inBase === null || type.currency === actor.base ? inBase : exchange(inBase, actor.base, type.currency, book)
         const worked = this.work(operation, {
           old,
           unitCost,
@@ -691,27 +691,30 @@ export class PricingService {
 
   /**
    * What one unit of each model costs: the average of what is on hand, or,
-   * with nothing on hand, what the last batch cost. With a rate, goods
-   * bought for foreign money are costed in so'm at that rate, which is what
-   * replacing them would cost today; goods bought for so'm cost what they cost.
+   * with nothing on hand, what the last batch cost. Beside it, the same with
+   * the goods bought for foreign money at today's rates of the currencies
+   * they came in — their price in that currency again, their expenses as they
+   * were: what bringing them in again would cost. Goods bought in the base,
+   * and found ones, cost what they cost; a currency with no rate today, too.
    */
-  private async unitCosts(
-    em: EntityManager,
-    productIds: string[],
-    uzsRate: number | null,
-    base: AnyCurrency,
-  ): Promise<Map<string, UnitCost>> {
+  private async unitCosts(em: EntityManager, productIds: string[], book: RateBook): Promise<Map<string, UnitCost>> {
     if (!productIds.length) {
       return new Map()
     }
-    const uzs = (alias: string) =>
-      `CASE WHEN $2::numeric IS NOT NULL AND r.currency IS NOT NULL AND r.currency <> $3
-            THEN round(${alias}.cost_usd * $2::numeric) ELSE ${alias}.cost_uzs END`
+    // One of each currency in the base today, exactly enough for a price in minor units.
+    const worth: Partial<Record<AnyCurrency, string>> = {}
+    for (const code of Object.keys(book.rates) as AnyCurrency[]) {
+      worth[code] = baseWorth(code, book)?.toDecimalString(12)
+    }
+    const today = (alias: string) =>
+      `${alias}.cost_uzs + coalesce(round(${alias}.qty * rl.price * (
+         ($2::jsonb ->> r.currency)::numeric - CASE r.rate_way WHEN 'in' THEN r.rate ELSE 1 / r.rate END
+       )), 0)`
     const origin = `LEFT JOIN receipt_lines rl ON rl.id = b.receipt_line_id LEFT JOIN receipts r ON r.id = rl.receipt_id`
-    const rows: { product_id: string; qty: number; unit_uzs: number | null; unit_usd: number | null }[] =
+    const rows: { product_id: string; qty: number; unit_uzs: number | null; unit_today: number | null }[] =
       await em.query(
         `WITH held AS (
-         SELECT v.product_id, sum(sb.qty) AS qty, sum(sb.cost_usd) AS usd, sum(${uzs('sb')}) AS uzs
+         SELECT v.product_id, sum(sb.qty) AS qty, sum(sb.cost_uzs) AS uzs, sum(${today('sb')}) AS today
          FROM stock_balances sb
          JOIN product_variants v ON v.id = sb.variant_id
          JOIN stock_batches b ON b.id = sb.batch_id
@@ -719,7 +722,7 @@ export class PricingService {
          WHERE sb.qty > 0 AND v.product_id = ANY($1)
          GROUP BY v.product_id
        ), last AS (
-         SELECT DISTINCT ON (v.product_id) v.product_id, b.qty, b.cost_usd AS usd, ${uzs('b')} AS uzs
+         SELECT DISTINCT ON (v.product_id) v.product_id, b.qty, b.cost_uzs AS uzs, ${today('b')} AS today
          FROM stock_batches b
          JOIN product_variants v ON v.id = b.variant_id
          ${origin}
@@ -728,15 +731,15 @@ export class PricingService {
        )
        SELECT p AS product_id, coalesce(h.qty, 0)::float8 AS qty,
               (coalesce(h.uzs, l.uzs) / coalesce(h.qty, l.qty))::float8 AS unit_uzs,
-              (coalesce(h.usd, l.usd) / coalesce(h.qty, l.qty))::float8 AS unit_usd
+              (coalesce(h.today, l.today) / coalesce(h.qty, l.qty))::float8 AS unit_today
        FROM unnest($1::uuid[]) AS p
        LEFT JOIN held h ON h.product_id = p
        LEFT JOIN last l ON l.product_id = p`,
-        [productIds, uzsRate, base],
+        [productIds, JSON.stringify(worth)],
       )
     const whole = (value: number | null) => (value === null ? null : Math.round(value))
     return new Map(
-      rows.map((row) => [row.product_id, { qty: row.qty, uzs: whole(row.unit_uzs), usd: whole(row.unit_usd) }]),
+      rows.map((row) => [row.product_id, { qty: row.qty, uzs: whole(row.unit_uzs), today: whole(row.unit_today) }]),
     )
   }
 
@@ -829,7 +832,7 @@ function describe(operation: RepriceOperation, currency: CurrencyCode, sourceNam
       return `${sourceName} ${percentText(operation.percent)}`
     case 'markup': {
       const how = operation.percent === null ? 'qoida bo‘yicha' : percentText(operation.percent)
-      return `Tannarxdan ${how}${operation.uzsRate ? `, kurs ${operation.uzsRate}` : ''}`
+      return `Tannarxdan ${how}${operation.today ? ', bugungi kurslarda' : ''}`
     }
   }
 }

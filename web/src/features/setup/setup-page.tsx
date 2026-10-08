@@ -17,9 +17,12 @@ import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
-const PLACE_KINDS = (['store', 'mixed', 'warehouse'] as const).map((kind) => ({ value: kind, label: LOCATION_KIND_LABELS[kind] }))
+const PLACE_KINDS = (['store', 'mixed', 'warehouse'] as const).map((kind) => ({
+  value: kind,
+  label: LOCATION_KIND_LABELS[kind],
+}))
 
-const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'currencies', 'costCurrency'], ['locations'], ['modules']]
+const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'currencies'], ['locations'], ['modules']]
 
 /** The first-run wizard: three short steps that shape the system to the business. */
 export function SetupPage() {
@@ -43,7 +46,6 @@ export function SetupPage() {
   const places = useFieldArray({ control: form.control, name: 'locations' })
   const modules = form.watch('modules')
   const baseCurrency = form.watch('baseCurrency')
-  const chosen = (form.watch('currencies') ?? []).filter((code) => code !== baseCurrency)
 
   const mutation = useMutation({
     mutationFn: (input: SetupInput) => api.post('/org/setup', input),
@@ -94,7 +96,9 @@ export function SetupPage() {
             >
               {index < step ? <Check className="size-3.5" /> : index + 1}
             </span>
-            <span className={cn('truncate text-xs font-medium', index === step ? 'text-ink' : 'text-ink-3')}>{label}</span>
+            <span className={cn('truncate text-xs font-medium', index === step ? 'text-ink' : 'text-ink-3')}>
+              {label}
+            </span>
             {index < steps.length - 1 ? <span className="h-px flex-1 bg-line" /> : null}
           </li>
         ))}
@@ -103,7 +107,12 @@ export function SetupPage() {
       <Form onSubmit={() => void advance()}>
         {step === 0 ? (
           <>
-            <Field label={t('setup.businessName')} hint={t('setup.businessNameHint')} error={errors.name?.message} required>
+            <Field
+              label={t('setup.businessName')}
+              hint={t('setup.businessNameHint')}
+              error={errors.name?.message}
+              required
+            >
               {(id) => <Input id={id} autoFocus invalid={!!errors.name} {...form.register('name')} />}
             </Field>
             <Field label={t('setup.baseCurrency')} hint={t('setup.baseCurrencyHint')} required>
@@ -146,31 +155,6 @@ export function SetupPage() {
                 />
               )}
             </Field>
-            {/* Costs beside the base: in one of the currencies just named, or in the base alone. */}
-            {chosen.length ? (
-              <Field label={t('costCurrency.label')} hint={t('costCurrency.hint')}>
-                {(id) => (
-                  <Controller
-                    control={form.control}
-                    name="costCurrency"
-                    render={({ field }) => (
-                      <Select
-                        id={id}
-                        value={field.value && chosen.includes(field.value) ? field.value : (baseCurrency ?? 'UZS')}
-                        onChange={(value) => field.onChange(value)}
-                        options={[baseCurrency ?? 'UZS', ...chosen].map((code) => ({
-                          value: code,
-                          label:
-                            code === (baseCurrency ?? 'UZS')
-                              ? t('costCurrency.none', { base: t(`currencies.names.${code}`) })
-                              : t(`currencies.names.${code}`),
-                        }))}
-                      />
-                    )}
-                  />
-                )}
-              </Field>
-            ) : null}
           </>
         ) : null}
 
@@ -188,12 +172,16 @@ export function SetupPage() {
                       invalid={!!errors.locations?.[index]?.name}
                       {...form.register(`locations.${index}.name`)}
                     />
-                    {errors.locations?.[index]?.name ? <p className="mt-1 text-xs text-bad">{errors.locations[index]?.name?.message}</p> : null}
+                    {errors.locations?.[index]?.name ? (
+                      <p className="mt-1 text-xs text-bad">{errors.locations[index]?.name?.message}</p>
+                    ) : null}
                   </div>
                   <Controller
                     control={form.control}
                     name={`locations.${index}.kind`}
-                    render={({ field }) => <Select value={field.value} onChange={field.onChange} options={PLACE_KINDS} className="w-44" />}
+                    render={({ field }) => (
+                      <Select value={field.value} onChange={field.onChange} options={PLACE_KINDS} className="w-44" />
+                    )}
                   />
                   <Button
                     variant="ghost"

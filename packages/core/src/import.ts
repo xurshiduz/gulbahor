@@ -345,9 +345,15 @@ export const receiptImportSchema = z.object({
   supplierId: idSchema.nullish().transform((value) => value || null),
   docDate: z.iso.date(),
   currency: currencySchema,
-  usdRate: z.number().positive().max(1_000_000_000),
-  uzsRate: z.number().positive().max(1_000_000_000),
-  extraCurrency: currencySchema.default('USD'),
+  /** The receipt's rate against the base, written `receiptRateWay` round; none for a receipt in the base. */
+  rate: z
+    .number()
+    .positive()
+    .max(1_000_000_000)
+    .nullish()
+    .transform((rate) => rate ?? null),
+  /** Left out, the base. */
+  extraCurrency: currencySchema.optional(),
   note: optionalText(500),
   fileName: z.string().trim().min(1).max(200),
   fileHash: z.string().regex(/^[0-9a-f]{64}$/),

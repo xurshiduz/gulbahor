@@ -1,4 +1,5 @@
 import {
+  exchange,
   formatMoney,
   marginPercent,
   SEASON_LABELS,
@@ -23,17 +24,16 @@ import { Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
-import { NumberInput } from '@/components/ui/number-input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
+import { useRateBook } from '@/features/money/rates'
 import { api } from '@/lib/api'
-import { base, baseWords, cost } from '@/lib/base'
+import { base } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
-import { usePreference } from '@/lib/preferences'
 import { toast } from '@/lib/toast'
 
 import { MarkupRulesTab, percentText } from './markup-rules-tab'
@@ -57,8 +57,8 @@ export function PricesPage() {
   const [repricing, setRepricing] = useState(false)
 
   const { tab, ...listSearch } = search
-  // So'm per dollar: with it, cost is what the goods would cost to buy today.
-  const [uzsRate, setUzsRate] = usePreference<number | null>('pricing.uzsRate', null)
+  // Today's rates: a price in another currency is set against the cost in it.
+  const book = useRateBook()
 
   const priceTypes = usePriceTypes()
   const types = useMemo(() => (priceTypes.data ?? []).filter((type) => type.isActive), [priceTypes.data])
@@ -67,9 +67,8 @@ export function PricesPage() {
   const categoryOptions = useCategoryOptions(categories.data, search.categoryId)
 
   const list = useQuery({
-    queryKey: ['pricing', 'list', listSearch, uzsRate],
-    queryFn: ({ signal }) =>
-      api.get<PageOf<PriceListItemDto>>('/pricing/products', { ...listSearch, uzsRate: uzsRate ?? undefined }, signal),
+    queryKey: ['pricing', 'list', listSearch],
+    queryFn: ({ signal }) => api.get<PageOf<PriceListItemDto>>('/pricing/products', listSearch, signal),
     placeholderData: keepPreviousData,
     enabled: tab === 'list',
   })
@@ -154,6 +153,22 @@ export function PricesPage() {
                   formatMoney(row.original.unitCostUzs, base(), { minor: 'never' })
                 ),
             } satisfies ColumnDef<PriceListItemDto>,
+            {
+              // What the goods bought for foreign money would cost to bring in again, at today's rates.
+              id: 'costToday',
+              header: () => <span title={t('pricing.costTodayHint')}>{t('pricing.costToday')}</span>,
+              meta: {
+                export: (row) => moneyCell(row.unitCostToday),
+                className: 'tabular text-right whitespace-nowrap text-ink-2',
+                headerClassName: 'text-right',
+              },
+              cell: ({ row }) =>
+                row.original.unitCostToday === null ? (
+                  <span className="text-ink-3">—</span>
+                ) : (
+                  formatMoney(row.original.unitCostToday, base(), { minor: 'never' })
+                ),
+            } satisfies ColumnDef<PriceListItemDto>,
           ]
         : []),
       ...types.map((type): ColumnDef<PriceListItemDto> => ({
@@ -169,7 +184,9 @@ export function PricesPage() {
           if (amount === undefined) {
             return <span className="text-ink-3">—</span>
           }
-          const cost = type.currency === base() ? row.original.unitCostUzs : row.original.unitCostUsd
+          const inBase = row.original.unitCostUzs
+          const cost =
+            inBase === null || type.currency === base() ? inBase : book && exchange(inBase, base(), type.currency, book)
           const margin = marginPercent(amount, cost)
           return (
             <span className="inline-flex items-baseline gap-2">
@@ -187,7 +204,7 @@ export function PricesPage() {
         },
       })),
     ],
-    [t, seesCost, types],
+    [t, seesCost, types, book],
   )
 
   const filtered = !!(search.q || search.categoryId || search.brandId || search.season) || search.presence !== 'all'
@@ -222,8 +239,7 @@ export function PricesPage() {
             rowId={(row) => row.productId}
             exportAs={{
               fileName: t('pricing.title'),
-              rows: () =>
-                fetchAll<PriceListItemDto>('/pricing/products', { ...listSearch, uzsRate: uzsRate ?? undefined }),
+              rows: () => fetchAll<PriceListItemDto>('/pricing/products', listSearch),
             }}
             onRowOpen={(row) => void go({ to: '/products/$productId', params: { productId: row.productId } })}
             sort={search.sort ?? 'name'}
@@ -276,23 +292,6 @@ export function PricesPage() {
                   ]}
                   className="w-44"
                 />
-                {/* A rate between the base and the cost currency: none where costs are kept in the base alone. */}
-                {seesCost && cost() !== base() ? (
-                  <label
-                    className="flex items-center gap-2 text-xs text-ink-3"
-                    title={t('pricing.rateHint', { ...baseWords(t), cost: t(`currencies.short.${cost()}`) })}
-                  >
-                    {t('pricing.rate')}
-                    <NumberInput
-                      value={uzsRate}
-                      onChange={setUzsRate}
-                      decimals={2}
-                      max={1_000_000}
-                      placeholder="—"
-                      className="w-28"
-                    />
-                  </label>
-                ) : null}
               </>
             }
             empty={<EmptyState icon={BadgePercent} title={filtered ? t('common.nothingFound') : t('common.empty')} />}
@@ -311,7 +310,6 @@ export function PricesPage() {
           filter={scopeFilter}
           scope={scopeText}
           priceTypes={types}
-          uzsRate={uzsRate}
           seesCost={seesCost}
           onClose={() => setRepricing(false)}
         />

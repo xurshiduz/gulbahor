@@ -1,7 +1,7 @@
 import {
-  ALL_CURRENCY_CODES,
   CURRENCIES,
   EXPENSE_BASES,
+  exchange,
   EXPENSE_BASIS_LABELS,
   formatMoney,
   RECEIPT_STATUS_LABELS,
@@ -22,6 +22,7 @@ import {
   type PriceTypeDto,
   type ProductDto,
   type ProductListItemDto,
+  type RateBook,
   type ReceiptDto,
   type ReceiptProductDto,
   type ReceiptStatus,
@@ -43,7 +44,6 @@ import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
-import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { QtyMatrix } from '@/components/ui/qty-matrix'
 import { Thumb } from '@/components/ui/thumb'
@@ -51,8 +51,9 @@ import { useSession } from '@/features/auth/session'
 import { useAttributes, usePriceTypes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
 import { LabelDialog } from '@/features/labels/label-dialog'
+import { useBookOn } from '@/features/money/rates'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords, cost as costCurrency } from '@/lib/base'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
@@ -71,8 +72,7 @@ import {
   newBlock,
   nextKey,
   NO_DEFAULTS,
-  ratesAsked,
-  rememberedUzsRate,
+  dayRateOf,
   toReceiptProduct,
   type Block,
   type BlockCost,
@@ -80,6 +80,7 @@ import {
   type Header,
   type ReceiptDefaults,
 } from './receipt-state'
+import { ReceiptRateField } from './receipt-rate'
 
 const route = getRouteApi('/receipts/$receiptId')
 
@@ -176,6 +177,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   const expensesEditable = editable || (status === 'posted' && canPost)
 
   const [defaults, setDefaults] = usePreference<ReceiptDefaults>(DEFAULTS_KEY, NO_DEFAULTS)
+  // The currencies goods may be bought and expenses paid in: the base and those switched on.
+  const kept: AnyCurrency[] = [base(), ...me.org.currencies]
 
   const [header, setHeader] = useState<Header>(() => ({
     locationId:
@@ -187,12 +190,21 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
           : null),
     supplierId: receipt?.supplierId ?? null,
     docDate: receipt?.docDate ?? toIsoDate(todayIn(me.org.timezone)),
-    currency: receipt?.currency ?? defaults.currency,
-    usdRate: receipt?.usdRate ?? defaults.usdRates?.[defaults.currency] ?? null,
-    uzsRate: receipt?.uzsRate ?? rememberedUzsRate(defaults, receipt?.currency ?? defaults.currency),
-    extraCurrency: receipt?.extraCurrency ?? costCurrency(),
+    currency: receipt?.currency ?? (kept.includes(defaults.currency) ? defaults.currency : base()),
+    rate: receipt?.rate ?? null,
+    extraCurrency: receipt?.extraCurrency ?? base(),
     note: receipt?.note ?? '',
   }))
+  // A receipt's rate is the day's until someone types another; a saved one keeps its own.
+  const [rateTyped, setRateTyped] = useState(!!receipt)
+  const day = useBookOn(header.docDate).data
+  const book: RateBook = useMemo(() => day ?? { base: base(), rates: {} }, [day])
+  const dayRate = dayRateOf(header.currency, book)
+  useEffect(() => {
+    if (editable && !rateTyped && dayRate !== null && header.rate !== dayRate) {
+      setHeader((current) => ({ ...current, rate: dayRate }))
+    }
+  }, [editable, rateTyped, dayRate, header.rate])
   const [blocks, setBlocks] = useState<Block[]>(() => (receipt ? blocksOf(receipt) : []))
   const [expenses, setExpenses] = useState<ExpenseDraft[]>(() => (receipt ? expensesOf(receipt) : []))
   const [products, setProducts] = useState<Map<string, ReceiptProductDto>>(
@@ -233,9 +245,11 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     }
   }
 
-  const cost = useMemo(() => costOf(header, blocks, expenses, products), [header, blocks, expenses, products])
-  const asked = ratesAsked(header.currency)
-  const foreign = asked.usd
+  const cost = useMemo(
+    () => costOf(header, blocks, expenses, products, book),
+    [header, blocks, expenses, products, book],
+  )
+  const foreign = header.currency !== base()
   const retailType = priceTypes.find((type) => type.kind === 'retail' && type.isActive)
   const wholesaleType = priceTypes.find((type) => type.kind === 'wholesale' && type.isActive)
   // Every other price the business keeps has its field too: the floor, a family price, a second wholesale one.
@@ -307,8 +321,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     const { lines } = linesOf(blocks, products)
     return receiptInputSchema.safeParse({
       ...header,
-      usdRate: asked.usd ? header.usdRate : 1,
-      uzsRate: asked.uzs ? header.uzsRate : 1,
+      rate: foreign ? header.rate : null,
       lines,
       expenses: expenseInputs(expenses),
     })
@@ -351,13 +364,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   })
 
   const afterSave = (saved: ReceiptDto) => {
-    setDefaults({
-      locationId: saved.locationId,
-      currency: saved.currency,
-      uzsRate: ratesAsked(saved.currency).pivot === costCurrency() ? saved.uzsRate : defaults.uzsRate,
-      uzsRates: { ...defaults.uzsRates, [ratesAsked(saved.currency).pivot]: saved.uzsRate },
-      usdRates: { ...defaults.usdRates, [saved.currency]: saved.usdRate },
-    })
+    setDefaults({ locationId: saved.locationId, currency: saved.currency })
     setDirty(false)
     setExpensesDirty(false)
     reload(saved)
@@ -484,9 +491,9 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     enabled: canLabel && !labelsOpen,
   })
 
-  // A new receipt starts at the search box once its header is filled in from the last one.
+  // A new receipt starts at the search box once its header is filled in from the last one; the rate is the day's.
   useEffect(() => {
-    if (!receipt && header.locationId && (header.uzsRate || !asked.uzs)) {
+    if (!receipt && header.locationId) {
       pickerRef.current?.focus()
     }
     // Only on opening.
@@ -506,7 +513,9 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     return partner.id
   }
 
-  const expenseCurrencies = [...new Set<AnyCurrency>([costCurrency(), base(), header.currency])]
+  const expenseCurrencies = [
+    ...new Set<AnyCurrency>([...kept, header.extraCurrency, ...expenses.map((expense) => expense.currency)]),
+  ]
   const busy = save.isPending || act.isPending
   const totals = cost?.costing.totals
 
@@ -640,7 +649,16 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                         id={id}
                         options={supplierOptions}
                         value={header.supplierId}
-                        onChange={(supplierId) => patchHeader({ supplierId })}
+                        onChange={(supplierId) => {
+                          const theirs = suppliers.find((partner) => partner.id === supplierId)?.currency
+                          const priced = blocks.some((block) => block.price)
+                          if (theirs && theirs !== header.currency && kept.includes(theirs) && !priced) {
+                            setRateTyped(false)
+                            patchHeader({ supplierId, currency: theirs, rate: dayRateOf(theirs, book) })
+                          } else {
+                            patchHeader({ supplierId })
+                          }
+                        }}
                         onCreate={can('partners.manage') ? createSupplier : undefined}
                         invalid={!!errors.supplierId}
                         disabled={!editable}
@@ -666,19 +684,14 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                         <Select
                           id={id}
                           value={header.currency}
-                          onChange={(currency) =>
+                          onChange={(currency) => {
+                            setRateTyped(false)
                             patchHeader({
                               currency: currency as AnyCurrency,
-                              usdRate: defaults.usdRates?.[currency as AnyCurrency] ?? null,
-                              uzsRate: rememberedUzsRate(defaults, currency as AnyCurrency),
-                              // An extra cost can only be in a currency the receipt has a rate for.
-                              extraCurrency:
-                                header.extraCurrency === costCurrency() || header.extraCurrency === base()
-                                  ? header.extraCurrency
-                                  : costCurrency(),
+                              rate: dayRateOf(currency as AnyCurrency, book),
                             })
-                          }
-                          options={ALL_CURRENCY_CODES.map((code) => ({
+                          }}
+                          options={[...new Set([...kept, header.currency])].map((code) => ({
                             value: code,
                             label: `${code} · ${CURRENCIES[code].name}`,
                           }))}
@@ -688,45 +701,17 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     )}
                   </Field>
                   {foreign ? (
-                    <Field
-                      label={t('receipts.usdRate', {
-                        pivot: CURRENCIES[asked.pivot].symbol,
-                        currency: header.currency,
-                      })}
-                      error={errors.usdRate}
-                      required
-                    >
-                      {(id) => (
-                        <NumberInput
-                          id={id}
-                          value={header.usdRate}
-                          onChange={(usdRate) => patchHeader({ usdRate })}
-                          decimals={4}
-                          suffix={CURRENCIES[header.currency].symbol}
-                          invalid={!!errors.usdRate}
-                          disabled={!editable}
-                        />
-                      )}
-                    </Field>
-                  ) : null}
-                  {asked.uzs ? (
-                    <Field
-                      label={t('receipts.uzsRate', { ...baseWords(t), pivot: CURRENCIES[asked.pivot].symbol })}
-                      error={errors.uzsRate}
-                      required
-                    >
-                      {(id) => (
-                        <NumberInput
-                          id={id}
-                          value={header.uzsRate}
-                          onChange={(uzsRate) => patchHeader({ uzsRate })}
-                          decimals={2}
-                          suffix={CURRENCIES[base()].symbol}
-                          invalid={!!errors.uzsRate}
-                          disabled={!editable}
-                        />
-                      )}
-                    </Field>
+                    <ReceiptRateField
+                      currency={header.currency}
+                      value={header.rate}
+                      onChange={(rate) => {
+                        setRateTyped(true)
+                        patchHeader({ rate })
+                      }}
+                      dayRate={dayRate}
+                      error={errors.rate}
+                      disabled={!editable}
+                    />
                   ) : null}
                   <Field
                     label={t('receipts.note')}
@@ -770,6 +755,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     cost={cost?.blocks[index]}
                     markups={markups.data?.[block.productId]}
                     header={header}
+                    book={book}
                     retailType={canPrice ? retailType : undefined}
                     wholesaleType={canPrice ? wholesaleType : undefined}
                     otherTypes={canPrice ? otherTypes : []}
@@ -826,23 +812,29 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                   <Total
                     label={t('receipts.totalGoods')}
                     value={formatMoney(totals.goods, header.currency)}
-                    sub={header.currency === costCurrency() ? undefined : formatMoney(totals.goodsUsd, costCurrency())}
+                    sub={foreign ? formatMoney(totals.goodsUzs, base(), { minor: 'never' }) : undefined}
                   />
                   <Total
                     label={t('receipts.totalExpenses')}
-                    value={formatMoney(totals.expensesUsd, costCurrency())}
+                    value={formatMoney(totals.expensesUzs, base(), { minor: 'never' })}
                     sub={
-                      totals.goodsUsd
+                      totals.goodsUzs
                         ? t('receipts.expenseShare', {
-                            percent: formatNumber(Math.round((totals.expensesUsd / totals.goodsUsd) * 1000) / 10),
+                            percent: formatNumber(Math.round((totals.expensesUzs / totals.goodsUzs) * 1000) / 10),
                           })
                         : undefined
                     }
                   />
                   <div className="my-1 border-t border-line" />
-                  <Total label={t('receipts.totalCost')} value={formatMoney(totals.costUsd, costCurrency())} strong />
-                  {costCurrency() !== base() ? (
-                    <Total label="" value={formatMoney(totals.costUzs, base(), { minor: 'never' })} strong />
+                  <Total
+                    label={t('receipts.totalCost')}
+                    value={formatMoney(totals.costUzs, base(), { minor: 'never' })}
+                    strong
+                  />
+                  {cost?.costing.wanting ? (
+                    <p className="text-xs text-warn">
+                      {t('receipts.noRateFor', { currency: CURRENCIES[cost.costing.wanting].name })}
+                    </p>
                   ) : null}
                 </dl>
               ) : (
@@ -883,6 +875,8 @@ interface BlockCardProps {
   /** What the model's markup rule says for each price type. */
   markups: Markup[] | undefined
   header: Header
+  /** The rates of the receipt's day: a price in another currency is suggested at them. */
+  book: RateBook
   retailType: PriceTypeDto | undefined
   wholesaleType: PriceTypeDto | undefined
   /** The price types beyond those two: each has its field. */
@@ -903,6 +897,7 @@ function BlockCard({
   cost,
   markups,
   header,
+  book,
   retailType,
   wholesaleType,
   otherTypes,
@@ -917,7 +912,6 @@ function BlockCard({
   const unit = UNIT_INFO[product.unit]
 
   const each = cost && cost.qty ? unitCost(cost.costUzs, cost.qty) : null
-  const eachUsd = cost && cost.qty ? unitCost(cost.costUsd, cost.qty) : null
   const markup =
     each && block.retailPrice && retailType?.currency === base()
       ? Math.round(((block.retailPrice - each) / each) * 100)
@@ -930,7 +924,13 @@ function BlockCard({
     if (!editable || !type || !rule) {
       return undefined
     }
-    const from = rule.base === 'retail' ? retail : type.currency === base() ? each : eachUsd
+    // A price in another currency is marked up on the cost in it, at the receipt's day's rates.
+    const from =
+      rule.base === 'retail'
+        ? retail
+        : each !== null && type.currency !== base()
+          ? exchange(each, base(), type.currency, book)
+          : each
     return from
       ? roundPrice(withPercent(Math.round(from), rule.percent), { step: type.roundStep, ending: type.roundEnding })
       : undefined
@@ -1072,13 +1072,9 @@ function BlockCard({
         <dl className="ml-auto flex min-w-44 flex-col gap-1 text-xs">
           <Total label={t('receipts.totalQty')} value={`${formatNumber(cost?.qty ?? 0)} ${unit.short}`} />
           <Total label={t('receipts.totalGoods')} value={formatMoney(cost?.goods ?? 0, header.currency)} />
-          {each !== null && eachUsd !== null ? (
+          {each !== null ? (
             <>
-              <Total
-                label={t('receipts.unitCost')}
-                value={formatMoney(each, base(), { minor: 'never' })}
-                sub={formatMoney(eachUsd, costCurrency())}
-              />
+              <Total label={t('receipts.unitCost')} value={formatMoney(each, base(), { minor: 'never' })} />
               {markup !== null ? (
                 <Total label={t('receipts.markup')} value={`${markup > 0 ? '+' : ''}${formatNumber(markup)}%`} />
               ) : null}
@@ -1110,7 +1106,7 @@ interface ExpensesEditorProps {
   onChange: (expenses: ExpenseDraft[]) => void
   currencies: AnyCurrency[]
   editable: boolean
-  amounts: { amountUsd: number; amountUzs: number }[] | undefined
+  amounts: { amountUzs: number }[] | undefined
   weightless: number[]
 }
 
@@ -1123,7 +1119,7 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
   const add = () =>
     onChange([
       ...expenses,
-      { key: nextKey(), name: '', amount: null, currency: costCurrency(), basis: 'quantity', isEstimate: false },
+      { key: nextKey(), name: '', amount: null, currency: base(), basis: 'quantity', isEstimate: false },
     ])
 
   return (
@@ -1166,9 +1162,12 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
               label={t('receipts.estimate')}
             />
           </div>
-          <span className="tabular w-24 text-right text-xs text-ink-3">
-            {amounts?.[index] && expense.currency !== costCurrency()
-              ? formatMoney(amounts[index].amountUsd, costCurrency())
+          {/* What it comes to in the base, at the receipt's rate or its day's. */}
+          <span className="tabular w-28 text-right text-xs text-ink-3">
+            {expense.amount && expense.currency !== base() && amounts?.[index]
+              ? amounts[index].amountUzs
+                ? `≈ ${formatMoney(amounts[index].amountUzs, base(), { minor: 'never' })}`
+                : t('pos.noRateShort')
               : ''}
           </span>
           {editable ? (

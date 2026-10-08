@@ -17,6 +17,8 @@ interface VariantRow {
 
 const usd = (dollars: number) => Math.round(dollars * 100)
 const som = (amount: number) => Math.round(amount * 100)
+/** The cargo comes in dollars at 12 800 so'm: what so many dollars cost in the base. */
+const inSom = (dollars: number) => usd(dollars) * 12_800
 
 /**
  * Receiving goods: what a receipt costs, what it puts on hand, and how a bill
@@ -39,8 +41,7 @@ describe('Receiving', () => {
     supplierId,
     docDate: '2026-10-01',
     currency: 'USD',
-    usdRate: 1,
-    uzsRate: 12_800,
+    rate: 12_800,
     lines: [
       { variantId: tshirt.variants[0].id, qty: 300, price: usd(3), retailPrice: 90_000_00 },
       { variantId: tshirt.variants[1].id, qty: 200, price: usd(3), retailPrice: 90_000_00 },
@@ -56,16 +57,16 @@ describe('Receiving', () => {
 
   const stockOf = async (agent: Agent, productId: string) =>
     (await agent.get(`/api/stock/products/${productId}`).expect(200)).body as {
-      variants: { variantId: string; qty: number; costUsd: number | null; byLocation: Record<string, number> }[]
+      variants: { variantId: string; qty: number; costUzs: number | null; byLocation: Record<string, number> }[]
     }
 
   const ledger = (documentId: string) =>
     harness.dataSource.transaction(async (em) => {
       await em.query(`SELECT set_config('app.bypass_rls', 'on', true)`)
       return em.query(
-        `SELECT kind, location_id, qty::float8 AS qty, cost_usd::float8 AS cost_usd FROM stock_movements WHERE document_id = $1 ORDER BY id`,
+        `SELECT kind, location_id, qty::float8 AS qty, cost_uzs::float8 AS cost_uzs FROM stock_movements WHERE document_id = $1 ORDER BY id`,
         [documentId],
-      ) as Promise<{ kind: string; location_id: string | null; qty: number; cost_usd: number }[]>
+      ) as Promise<{ kind: string; location_id: string | null; qty: number; cost_uzs: number }[]>
     })
 
   beforeAll(async () => {
@@ -107,9 +108,9 @@ describe('Receiving', () => {
       const draft = await alpha.post('/api/receipts').send(cargo()).expect(201)
       expect(draft.body.number).toBe('K-000001')
       expect(draft.body.status).toBe('draft')
-      expect(draft.body.totals).toMatchObject({ qty: 900, goods: usd(6400), costUsd: usd(8104) })
+      expect(draft.body.totals).toMatchObject({ qty: 900, goods: usd(6400), costUzs: inSom(8104) })
       expect(draft.body.products.map((product: Named) => product.name)).toEqual(['Futbolka', 'Jinsi', 'Kurtka'])
-      expect(draft.body.lines[0].costUsd).toBeNull()
+      expect(draft.body.lines[0].costUzs).toBeNull()
 
       expect((await stockOf(alpha, tshirt.id)).variants.every((variant) => variant.qty === 0)).toBe(true)
 
@@ -149,23 +150,27 @@ describe('Receiving', () => {
       receiptId = (await alpha.post('/api/receipts').send(cargo()).expect(201)).body.id
       const posted = await alpha.post(`/api/receipts/${receiptId}/post`).expect(201)
       expect(posted.body.status).toBe('posted')
-      expect(posted.body.totals).toMatchObject({ costUsd: usd(8104), costUzs: usd(8104) * 12_800 })
+      expect(posted.body.totals).toMatchObject({
+        goodsUzs: inSom(6400),
+        expensesUzs: inSom(1704),
+        costUzs: inSom(8104),
+      })
 
       // 500 T-shirts cost 1865 dollars together; the two sizes share it 300 : 200.
-      const [small, medium, denim, parka] = posted.body.lines.map((line: { costUsd: number }) => line.costUsd)
-      expect(small + medium).toBe(usd(1865))
-      expect([small, medium]).toEqual([usd(1119), usd(746)])
-      expect([denim, parka]).toEqual([usd(3024), usd(3215)])
+      const [small, medium, denim, parka] = posted.body.lines.map((line: { costUzs: number }) => line.costUzs)
+      expect(small + medium).toBe(inSom(1865))
+      expect([small, medium]).toEqual([inSom(1119), inSom(746)])
+      expect([denim, parka]).toEqual([inSom(3024), inSom(3215)])
 
       const stock = await stockOf(alpha, tshirt.id)
-      expect(stock.variants.map((variant) => [variant.qty, variant.costUsd])).toEqual([
-        [300, usd(1119)],
-        [200, usd(746)],
+      expect(stock.variants.map((variant) => [variant.qty, variant.costUzs])).toEqual([
+        [300, inSom(1119)],
+        [200, inSom(746)],
       ])
       expect(stock.variants[0].byLocation).toEqual({ [shopId]: 300 })
 
       const list = await alpha.get('/api/stock').query({ q: 'futbolka' }).expect(200)
-      expect(list.body.items[0]).toMatchObject({ qty: 500, costUsd: usd(1865), byLocation: { [shopId]: 500 } })
+      expect(list.body.items[0]).toMatchObject({ qty: 500, costUzs: inSom(1865), byLocation: { [shopId]: 500 } })
       expect((await alpha.get('/api/stock').query({ presence: 'out' })).body.total).toBe(0)
     })
 
@@ -194,25 +199,25 @@ describe('Receiving', () => {
           ],
         })
         .expect(200)
-      expect(revised.body.totals.costUsd).toBe(usd(8194))
+      expect(revised.body.totals.costUzs).toBe(inSom(8194))
 
       const stock = await alpha.get('/api/stock').expect(200)
-      const total = stock.body.items.reduce((sum: number, item: { costUsd: number }) => sum + item.costUsd, 0)
-      expect(total).toBe(usd(8194))
+      const total = stock.body.items.reduce((sum: number, item: { costUzs: number }) => sum + item.costUzs, 0)
+      expect(total).toBe(inSom(8194))
       expect((await alpha.get('/api/receipts')).body.items[0].hasEstimates).toBe(false)
 
       // The ledger holds the receipt and the revaluation; together they are the balance.
       const rows = await ledger(receiptId)
       expect(rows.filter((row) => row.kind === 'receipt')).toHaveLength(4)
       expect(rows.filter((row) => row.kind === 'revalue').every((row) => row.qty === 0)).toBe(true)
-      expect(rows.reduce((sum, row) => sum + row.cost_usd, 0)).toBe(usd(8194))
+      expect(rows.reduce((sum, row) => sum + row.cost_uzs, 0)).toBe(inSom(8194))
     })
 
     it('is cancelled while its goods are untouched, and comes back as a draft copy', async () => {
       const cancelled = await alpha.post(`/api/receipts/${receiptId}/cancel`).expect(201)
       expect(cancelled.body.status).toBe('cancelled')
       expect((await alpha.get('/api/stock')).body.total).toBe(0)
-      expect((await ledger(receiptId)).reduce((sum, row) => sum + row.cost_usd, 0)).toBe(0)
+      expect((await ledger(receiptId)).reduce((sum, row) => sum + row.cost_uzs, 0)).toBe(0)
       await alpha.post(`/api/receipts/${receiptId}/cancel`).expect(409)
 
       const copy = await alpha.post(`/api/receipts/${receiptId}/copy`).expect(201)
@@ -236,15 +241,18 @@ describe('Receiving', () => {
   })
 
   describe('currencies', () => {
-    it('costs a yuan purchase in dollars and so’m, with expenses in any of the three', async () => {
+    it('costs a yuan purchase in so’m at its own rate, with expenses in any currency the business keeps', async () => {
+      await alpha
+        .post('/api/currencies')
+        .send({ code: 'CNY', form: { against: 'USD', way: 'per' } })
+        .expect(200)
       const draft = await alpha
         .post('/api/receipts')
         .send({
           locationId: shopId,
           docDate: '2026-10-02',
           currency: 'CNY',
-          usdRate: 7.1,
-          uzsRate: 12_800,
+          rate: 1_800,
           extraCurrency: 'UZS',
           lines: [{ variantId: jeans.variants[0].id, qty: 10, price: 71_00, extra: 6_400_00 }],
           expenses: [
@@ -253,23 +261,31 @@ describe('Receiving', () => {
           ],
         })
         .expect(201)
-      // Goods 710 yuan = 100 dollars; extras 10 × 6 400 so'm = 5 dollars; freight 142 yuan = 20; delivery 128 000 so'm = 10.
+      // "1 ¥ = 1 800 so'm", the yuan written first. Goods 710 ¥ = 1 278 000; extras 10 × 6 400 = 64 000;
+      // freight 142 ¥ = 255 600; delivery 128 000 so'm as it is.
+      expect(draft.body).toMatchObject({ rate: 1_800, rateWay: 'in' })
       expect(draft.body.totals).toMatchObject({
         goods: 710_00,
-        goodsUsd: usd(100),
-        expensesUsd: usd(35),
-        costUsd: usd(135),
-        costUzs: 1_728_000_00,
+        goodsUzs: som(1_278_000),
+        expensesUzs: som(447_600),
+        costUzs: som(1_725_600),
       })
-      await alpha
+
+      // A receipt in another currency needs its rate; an expense, a currency the business keeps and a rate on the day.
+      const unrated = await alpha.post('/api/receipts').send({ ...cargo(), currency: 'CNY', rate: undefined })
+      expect(unrated.status).toBe(400)
+      expect(unrated.body.error.fields.rate).toBe('Kursni yozing')
+      const lira = await alpha
         .post('/api/receipts')
-        .send({
-          ...cargo(),
-          currency: 'CNY',
-          usdRate: 7.1,
-          expenses: [{ name: 'X', amount: 1, currency: 'TRY', basis: 'value' }],
-        })
-        .expect(400)
+        .send({ ...cargo(), currency: 'CNY', expenses: [{ name: 'X', amount: 1, currency: 'TRY', basis: 'value' }] })
+      expect(lira.body.error.fields['expenses.0.currency']).toBe('Bu valyuta yoqilmagan: Pul → Kurslar')
+      const dollars = await alpha.post('/api/receipts').send({
+        ...cargo(),
+        currency: 'CNY',
+        expenses: [{ name: 'Y', amount: usd(10), currency: 'USD', basis: 'value' }],
+      })
+      expect(dollars.status).toBe(400)
+      expect(dollars.body.error.fields['expenses.0.currency']).toBe('Dollar kursi qo‘yilmagan (kirim sanasiga)')
     })
   })
 
@@ -302,7 +318,7 @@ describe('Receiving', () => {
       const cashier = await harness.signIn('kassir2')
       const seen = (await cashier.get('/api/stock').expect(200)).body.items[0]
       expect(seen.qty).toBeGreaterThan(0)
-      expect(seen.costUsd).toBeNull()
+      expect(seen.costUzs).toBeNull()
       await cashier.get('/api/receipts').expect(403)
 
       // The warehouse keeper receives goods but does not set selling prices.
@@ -372,8 +388,7 @@ describe('Receiving', () => {
           supplierId: dordoy,
           docDate: '2026-10-02',
           currency: 'USD',
-          usdRate: 1,
-          uzsRate: 12_800,
+          rate: 12_800,
           lines: [
             { variantId: tshirt.variants[0].id, qty: 100, price: usd(3) },
             { variantId: jeans.variants[0].id, supplierId: market, qty: 50, price: usd(8) },
@@ -419,14 +434,15 @@ describe('Receiving', () => {
 
     it('owes a supplier in yuan exactly what a yuan receipt says, and another currency at the day’s rate', async () => {
       const [{ day }] = await harness.dataSource.query(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
+      // The yuan is kept from the receipt above; the lira is kept, written against the dollar.
       await alpha
         .post('/api/currencies')
-        .send({ code: 'CNY', form: { against: 'USD', way: 'per' } })
+        .send({ code: 'TRY', form: { against: 'USD', way: 'per' } })
         .expect(200)
       const yiwu = (
         await alpha.post('/api/partners').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201)
       ).body.id
-      const receipt = (currency: string, usdRate: number, price: number) =>
+      const receipt = (currency: string, rate: number, price: number) =>
         alpha
           .post('/api/receipts')
           .send({
@@ -434,23 +450,23 @@ describe('Receiving', () => {
             supplierId: yiwu,
             docDate: day,
             currency,
-            usdRate,
-            uzsRate: 12_800,
+            rate,
             lines: [{ variantId: coat.variants[0].id, qty: 10, price }],
           })
           .expect(201)
 
-      // Billed 500 ¥ at the receipt's 7,2 to the dollar: owed 500 ¥, whatever the day's rate says.
-      const inYuan = (await receipt('CNY', 7.2, 5000)).body
+      // Billed 500 ¥ at the receipt's 1 780 so'm: owed 500 ¥, whatever the day's rate says.
+      const inYuan = (await receipt('CNY', 1_780, 5000)).body
       await alpha.post(`/api/receipts/${inYuan.id}/post`).expect(201)
       expect((await statement(yiwu)).balance).toBe(-50_000)
 
-      // Billed in lira, the receipt's 340 ₺ are 10 $; yuan it has no rate for come from the day's rates.
-      const inLira = (await receipt('TRY', 34, 3400)).body
+      // Billed in lira: 340 ₺ in yuan come from the day's rates — 10 $ at 34 ₺, 72,50 ¥ at 7,25.
+      const inLira = (await receipt('TRY', 376.47, 3400)).body
       const none = await alpha.post(`/api/receipts/${inLira.id}/post`).expect(409)
       expect(none.body.error.message).toContain('kursi qo‘yilmagan: yetkazib beruvchi qarzini hisoblab bo‘lmaydi')
       await alpha.put('/api/currencies/USD/rate').send({ value: 12_800 }).expect(200)
       await alpha.put('/api/currencies/CNY/rate').send({ value: 7.25 }).expect(200)
+      await alpha.put('/api/currencies/TRY/rate').send({ value: 34 }).expect(200)
       await alpha.post(`/api/receipts/${inLira.id}/post`).expect(201)
       expect((await statement(yiwu)).balance).toBe(-50_000 - 7250)
 
@@ -469,8 +485,6 @@ describe('Receiving', () => {
           locationId: shopId,
           docDate: '2026-10-02',
           currency: 'UZS',
-          usdRate: 1,
-          uzsRate: 12_800,
           lines: [{ variantId: coat.variants[0].id, qty: 2, price: som(400_000) }],
         })
         .expect(201)

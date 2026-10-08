@@ -25,8 +25,6 @@ describe('Prices set by a receipt', () => {
     locationId: shopId,
     docDate: '2026-10-01',
     currency: 'UZS',
-    usdRate: 12_000,
-    uzsRate: 12_000,
     lines,
   })
   const pricesOf = async (productId: string): Promise<Record<string, number>> => {

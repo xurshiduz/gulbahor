@@ -36,8 +36,8 @@ import { SupplierReturns1790000034000 } from './1790000034000-supplier-returns'
 import { BaseCurrency1790000035000 } from './1790000035000-base-currency'
 import { ExtraPermissions1790000036000 } from './1790000036000-extra-permissions'
 import { DollarAsCurrency1790000037000 } from './1790000037000-dollar-as-currency'
-import { CostCurrency1790000038000 } from './1790000038000-cost-currency'
 import { TillCurrencies1790000039000 } from './1790000039000-till-currencies'
+import { CostInBase1790000040000 } from './1790000040000-cost-in-base'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -79,6 +79,6 @@ export const MIGRATIONS = [
   BaseCurrency1790000035000,
   ExtraPermissions1790000036000,
   DollarAsCurrency1790000037000,
-  CostCurrency1790000038000,
   TillCurrencies1790000039000,
+  CostInBase1790000040000,
 ]

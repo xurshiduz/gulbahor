@@ -69,9 +69,7 @@ describe('Accounts shared between shops', () => {
         .send({
           locationId: shops[key],
           docDate: '2026-10-01',
-          uzsRate: 12_000,
           currency: 'UZS',
-          usdRate: 12_000,
           lines: [{ variantId: shirt, qty: 5, price: som(50_000) }],
         })
         .expect(201)

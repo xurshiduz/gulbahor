@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords, cost } from '@/lib/base'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -41,8 +41,6 @@ interface Props {
   /** The filter in words, for the person to check what is about to change. */
   scope: string
   priceTypes: PriceTypeDto[]
-  /** So'm per dollar as set on the price list, offered when costing from cost. */
-  uzsRate: number | null
   seesCost: boolean
   onClose: () => void
 }
@@ -54,7 +52,7 @@ type Direction = 'up' | 'down'
  * is worked out first and shown, old price beside new; only then, and only
  * if nothing was altered since, can it be applied.
  */
-export function RepriceDialog({ filter, scope, priceTypes, uzsRate, seesCost, onClose }: Props) {
+export function RepriceDialog({ filter, scope, priceTypes, seesCost, onClose }: Props) {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const queryClient = useQueryClient()
@@ -69,7 +67,8 @@ export function RepriceDialog({ filter, scope, priceTypes, uzsRate, seesCost, on
   const [direction, setDirection] = useState<Direction>('up')
   const [percent, setPercent] = useState<number | null>(null)
   const [amount, setAmount] = useState<number | null>(null)
-  const [rate, setRate] = useState<number | null>(uzsRate)
+  // From cost at today's rates of the currencies the goods came in: what bringing them in again would cost.
+  const [today, setToday] = useState(false)
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [round, setRound] = useState(true)
   const [note, setNote] = useState('')
@@ -85,10 +84,10 @@ export function RepriceDialog({ filter, scope, priceTypes, uzsRate, seesCost, on
         : kind === 'amount'
           ? { kind, amount: amount === null ? undefined : sign * amount }
           : kind === 'markup'
-            ? { kind, percent, uzsRate: cost() !== base() && type.currency === base() ? rate : null }
+            ? { kind, percent, today }
             : { kind, priceTypeId: source?.id, percent: percent === null ? undefined : sign * percent }
     return repriceSchema.safeParse({ priceTypeId, filter, operation, round, note })
-  }, [kind, percent, amount, rate, sign, source, type.currency, priceTypeId, filter, round, note])
+  }, [kind, percent, amount, today, sign, source, priceTypeId, filter, round, note])
 
   // A preview belongs to the request it was worked out for; any change to the fields makes it stale.
   const key = request.success ? JSON.stringify({ ...request.data, note: undefined }) : null
@@ -272,13 +271,11 @@ export function RepriceDialog({ filter, scope, priceTypes, uzsRate, seesCost, on
               )}
             </Field>
           )}
-          {kind === 'markup' && type.currency === base() && cost() !== base() ? (
-            <Field
-              label={t('pricing.rate')}
-              hint={t('pricing.rateHint', { ...baseWords(t), cost: t(`currencies.short.${cost()}`) })}
-            >
-              {(id) => <NumberInput id={id} value={rate} onChange={setRate} decimals={2} max={1_000_000} />}
-            </Field>
+          {kind === 'markup' ? (
+            <div data-enter-skip className="flex flex-col gap-1 pt-6">
+              <Checkbox checked={today} onChange={setToday} label={t('pricing.atToday')} />
+              <span className="text-xs text-ink-3">{t('pricing.costTodayHint')}</span>
+            </div>
           ) : null}
         </div>
 

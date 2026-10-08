@@ -95,9 +95,7 @@ describe('Price types at the till', () => {
       .send({
         locationId: shopId,
         docDate: '2026-10-01',
-        uzsRate: 12_000,
         currency: 'UZS',
-        usdRate: 12_000,
         lines: [{ variantId: dress, qty: 20, price: som(120_000) }],
       })
       .expect(201)

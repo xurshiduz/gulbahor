@@ -15,8 +15,6 @@ export interface Actor {
   base: AnyCurrency
   /** The currencies switched on beside the base. */
   currencies: AnyCurrency[]
-  /** What costs are kept in beside the base: what every `…Usd` cost is in. The base where there is none. */
-  cost: AnyCurrency
   allLocations: boolean
   locationIds: string[]
   ip: string | null
@@ -55,20 +53,29 @@ export function describeDevice(userAgent: string | undefined): string {
   if (!userAgent) {
     return 'Noma’lum qurilma'
   }
-  const browser =
-    /Edg\//.test(userAgent) ? 'Edge'
-    : /OPR\/|Opera/.test(userAgent) ? 'Opera'
-    : /YaBrowser/.test(userAgent) ? 'Yandex'
-    : /Firefox\//.test(userAgent) ? 'Firefox'
-    : /Chrome\//.test(userAgent) ? 'Chrome'
-    : /Safari\//.test(userAgent) ? 'Safari'
-    : 'Brauzer'
-  const system =
-    /Windows/.test(userAgent) ? 'Windows'
-    : /Android/.test(userAgent) ? 'Android'
-    : /iPhone|iPad|iOS/.test(userAgent) ? 'iOS'
-    : /Mac OS X/.test(userAgent) ? 'macOS'
-    : /Linux/.test(userAgent) ? 'Linux'
-    : ''
+  const browser = /Edg\//.test(userAgent)
+    ? 'Edge'
+    : /OPR\/|Opera/.test(userAgent)
+      ? 'Opera'
+      : /YaBrowser/.test(userAgent)
+        ? 'Yandex'
+        : /Firefox\//.test(userAgent)
+          ? 'Firefox'
+          : /Chrome\//.test(userAgent)
+            ? 'Chrome'
+            : /Safari\//.test(userAgent)
+              ? 'Safari'
+              : 'Brauzer'
+  const system = /Windows/.test(userAgent)
+    ? 'Windows'
+    : /Android/.test(userAgent)
+      ? 'Android'
+      : /iPhone|iPad|iOS/.test(userAgent)
+        ? 'iOS'
+        : /Mac OS X/.test(userAgent)
+          ? 'macOS'
+          : /Linux/.test(userAgent)
+            ? 'Linux'
+            : ''
   return system ? `${browser} · ${system}` : browser
 }

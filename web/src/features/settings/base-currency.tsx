@@ -1,4 +1,4 @@
-import { ALL_CURRENCY_CODES, CURRENCIES, type AnyCurrency, type BaseCurrencyDto, type CostCurrencyDto } from '@erp/core'
+import { ALL_CURRENCY_CODES, CURRENCIES, type AnyCurrency, type BaseCurrencyDto } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Lock } from 'lucide-react'
 import { useState } from 'react'
@@ -110,89 +110,6 @@ export function BaseCurrencyCard() {
             <span className="inline-flex items-center gap-1.5 text-ink-3">
               <Lock className="size-3.5" />
               {t(`baseCurrency.locked.${state.data.locked}`)}
-            </span>
-          ) : !me.user.isOwner ? (
-            <span className="text-ink-3">{t('baseCurrency.ownerOnly')}</span>
-          ) : null}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-/**
- * What the business keeps its costs in beside its base: dollars where it
- * buys in them and wants its stock in them too, or the base alone. The owner
- * chooses it from the currencies switched on, until goods are costed.
- */
-export function CostCurrencyCard() {
-  const { t } = useTranslation()
-  const { me } = useSession()
-  const queryClient = useQueryClient()
-  const [next, setNext] = useState<AnyCurrency | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const state = useQuery({
-    queryKey: ['money', 'cost'],
-    queryFn: ({ signal }) => api.get<CostCurrencyDto>('/currencies/cost', undefined, signal),
-  })
-  const base = me.org.baseCurrency
-  const current = state.data?.cost ?? me.org.costCurrency
-  const mayChange = me.user.isOwner && state.data?.locked === null
-  const label = (code: AnyCurrency) =>
-    code === base ? t('costCurrency.none', { base: named(base, t) }) : named(code, t)
-
-  const change = useMutation({
-    mutationFn: (currency: AnyCurrency) => api.put<CostCurrencyDto>('/currencies/cost', { currency }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries()
-      setNext(null)
-      toast.success(t('costCurrency.changed'))
-    },
-    onError: (failure) => {
-      setError(failure instanceof ApiError ? (failure.fields?.currency ?? failure.message) : String(failure))
-    },
-  })
-
-  return (
-    <Card title={t('costCurrency.title')}>
-      {mayChange ? (
-        <Field label={t('costCurrency.label')} hint={t('costCurrency.hint')} error={error ?? undefined}>
-          {(id) => (
-            <div className="flex flex-wrap items-center gap-2">
-              <Combobox
-                id={id}
-                className="w-72"
-                options={[base, ...me.org.currencies].map((code) => ({
-                  value: code,
-                  label: label(code),
-                  hint: CURRENCIES[code].symbol,
-                }))}
-                value={next ?? current}
-                onChange={(value) => {
-                  setNext((value as AnyCurrency | null) ?? null)
-                  setError(null)
-                }}
-                invalid={!!error}
-              />
-              <Button
-                variant="primary"
-                disabled={!next || next === current}
-                loading={change.isPending}
-                onClick={() => (next ? change.mutate(next) : undefined)}
-              >
-                {t('baseCurrency.change')}
-              </Button>
-            </div>
-          )}
-        </Field>
-      ) : (
-        <div className="flex items-start gap-3 text-[13px]">
-          <span className="font-medium text-ink">{label(current)}</span>
-          {state.data?.locked ? (
-            <span className="inline-flex items-center gap-1.5 text-ink-3">
-              <Lock className="size-3.5" />
-              {t(`costCurrency.locked.${state.data.locked}`)}
             </span>
           ) : !me.user.isOwner ? (
             <span className="text-ink-3">{t('baseCurrency.ownerOnly')}</span>

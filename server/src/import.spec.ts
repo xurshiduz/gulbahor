@@ -76,8 +76,7 @@ describe('Import', () => {
     locationId: shopId,
     docDate: '2026-10-01',
     currency: 'CNY',
-    usdRate: 7.1,
-    uzsRate: 12_800,
+    rate: 1_800,
     fileName: 'CHINA.xlsx',
     fileHash: 'a'.repeat(64),
     rows,
@@ -95,6 +94,7 @@ describe('Import', () => {
     harness = await startApp()
     ;({ alpha } = harness)
     shopId = (await alpha.get('/api/locations')).body.items[0].id
+    await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
   })
 
   afterAll(async () => {

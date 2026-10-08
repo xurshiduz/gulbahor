@@ -76,7 +76,7 @@ describe('Sales report', () => {
     const receive = async (locationId: string, lines: { variantId: string; qty: number; price: number }[]) => {
       const receipt = await alpha
         .post('/api/receipts')
-        .send({ locationId, docDate: yesterday, uzsRate: 12_000, currency: 'UZS', usdRate: 12_000, lines })
+        .send({ locationId, docDate: yesterday, currency: 'UZS', lines })
         .expect(201)
       await alpha.post(`/api/receipts/${receipt.body.id}/post`).expect(201)
     }

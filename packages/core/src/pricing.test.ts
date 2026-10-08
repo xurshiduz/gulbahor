@@ -119,7 +119,7 @@ describe('schemas', () => {
     const base = { priceTypeId: RETAIL, filter: {} }
     const parsed = repriceSchema.parse({ ...base, operation: { kind: 'markup' } })
     expect(parsed).toMatchObject({ dryRun: true, round: true, filter: { presence: 'all' } })
-    expect(parsed.operation).toEqual({ kind: 'markup', percent: null, uzsRate: null })
+    expect(parsed.operation).toEqual({ kind: 'markup', percent: null, today: false })
     expect(repriceSchema.safeParse({ ...base, operation: { kind: 'percent', percent: 10 } }).success).toBe(true)
     expect(repriceSchema.safeParse({ ...base, operation: { kind: 'amount', amount: -500_000 } }).success).toBe(true)
     expect(

@@ -120,7 +120,7 @@ describe('Returns', () => {
     const receive = async (body: Record<string, unknown>) => {
       const draft = await alpha
         .post('/api/receipts')
-        .send({ locationId: shopId, docDate: '2026-10-01', uzsRate: 12_000, ...body })
+        .send({ locationId: shopId, docDate: '2026-10-01', rate: 12_000, ...body })
         .expect(201)
       await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
       return draft.body.id as string
@@ -128,12 +128,10 @@ describe('Returns', () => {
     // Ten shirts at 4 dollars (48 000 so'm at the day's rate); scarves at 20 000 and jackets at 150 000 so'm.
     shirtReceiptId = await receive({
       currency: 'USD',
-      usdRate: 1,
       lines: [{ variantId: shirt, qty: 10, price: usd(4) }],
     })
     await receive({
       currency: 'UZS',
-      usdRate: 12_000,
       lines: [
         { variantId: scarf, qty: 5, price: som(20_000) },
         { variantId: jacket, qty: 4, price: som(150_000) },

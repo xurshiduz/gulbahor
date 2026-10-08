@@ -31,7 +31,6 @@ export interface Movement {
   batchId: string
   variantId: string
   qty: number
-  costUsd: number
   costUzs: number
 }
 
@@ -40,7 +39,6 @@ export interface Piece {
   batchId: string
   variantId: string
   qty: number
-  costUsd: number
   costUzs: number
 }
 
@@ -48,7 +46,6 @@ interface Held {
   batch_id: string
   variant_id: string
   qty: number
-  cost_usd: number
   cost_uzs: number
 }
 
@@ -86,13 +83,11 @@ function carve(balances: Held[], qty: number): { pieces: Piece[]; missing: numbe
       batchId: balance.batch_id,
       variantId: balance.variant_id,
       qty: Number(take) / QTY_SCALE,
-      costUsd: share(balance.cost_usd, take, have),
       costUzs: share(balance.cost_uzs, take, have),
     }
     pieces.push(piece)
     // The same balances may be carved again in this request; they shrink as they would in the ledger.
     balance.qty = Number(have - take) / QTY_SCALE
-    balance.cost_usd -= piece.costUsd
     balance.cost_uzs -= piece.costUzs
     wanted -= take
   }
@@ -127,7 +122,6 @@ export class StockService {
       const sum = changes.get(key)
       if (sum) {
         sum.qty = (Math.round(sum.qty * QTY_SCALE) + Math.round(movement.qty * QTY_SCALE)) / QTY_SCALE
-        sum.costUsd += movement.costUsd
         sum.costUzs += movement.costUzs
       } else {
         changes.set(key, { ...movement })
@@ -140,28 +134,27 @@ export class StockService {
 
     // A balance that exists is moved; one that does not is created. (An upsert would test the
     // movement itself against the balance checks before looking for the row it adds to.)
-    const data = `unnest($2::uuid[], $3::uuid[], $4::uuid[], $5::numeric[], $6::bigint[], $7::bigint[])
-      AS d (location_id, batch_id, variant_id, qty, cost_usd, cost_uzs)`
+    const data = `unnest($2::uuid[], $3::uuid[], $4::uuid[], $5::numeric[], $6::bigint[])
+      AS d (location_id, batch_id, variant_id, qty, cost_uzs)`
     const params = [
       orgId,
       rows.map((row) => row.locationId),
       rows.map((row) => row.batchId),
       rows.map((row) => row.variantId),
       rows.map((row) => row.qty),
-      rows.map((row) => row.costUsd),
       rows.map((row) => row.costUzs),
     ]
     try {
       await em.query(
         `WITH moved AS (
            UPDATE stock_balances b
-           SET qty = b.qty + d.qty, cost_usd = b.cost_usd + d.cost_usd, cost_uzs = b.cost_uzs + d.cost_uzs
+           SET qty = b.qty + d.qty, cost_uzs = b.cost_uzs + d.cost_uzs
            FROM ${data}
            WHERE b.org_id = $1 AND b.location_id = d.location_id AND b.batch_id = d.batch_id
            RETURNING b.location_id, b.batch_id
          )
-         INSERT INTO stock_balances (org_id, location_id, batch_id, variant_id, qty, cost_usd, cost_uzs)
-         SELECT $1, d.location_id, d.batch_id, d.variant_id, d.qty, d.cost_usd, d.cost_uzs
+         INSERT INTO stock_balances (org_id, location_id, batch_id, variant_id, qty, cost_uzs)
+         SELECT $1, d.location_id, d.batch_id, d.variant_id, d.qty, d.cost_uzs
          FROM ${data}
          WHERE NOT EXISTS (SELECT 1 FROM moved m WHERE m.location_id = d.location_id AND m.batch_id = d.batch_id)`,
         params,
@@ -218,7 +211,7 @@ export class StockService {
   ): Promise<{ pieces: Piece[]; missing: number }[]> {
     const held: Held[] = wants.length
       ? await em.query(
-          `SELECT sb.batch_id, sb.variant_id, sb.qty::float8 AS qty, sb.cost_usd::float8 AS cost_usd, sb.cost_uzs::float8 AS cost_uzs
+          `SELECT sb.batch_id, sb.variant_id, sb.qty::float8 AS qty, sb.cost_uzs::float8 AS cost_uzs
            FROM stock_balances sb JOIN stock_batches b ON b.id = sb.batch_id
            WHERE sb.location_id = $1 AND sb.variant_id = ANY($2) AND sb.qty > 0
            ORDER BY b.received_on, b.created_at, b.id
@@ -242,7 +235,7 @@ export class StockService {
   ): Promise<{ pieces: Piece[]; missing: number }[]> {
     const held: Held[] = wants.length
       ? await em.query(
-          `SELECT batch_id, variant_id, qty::float8 AS qty, cost_usd::float8 AS cost_usd, cost_uzs::float8 AS cost_uzs
+          `SELECT batch_id, variant_id, qty::float8 AS qty, cost_uzs::float8 AS cost_uzs
            FROM stock_balances WHERE location_id = $1 AND batch_id = ANY($2) AND qty > 0
            FOR UPDATE`,
           [locationId, [...new Set(wants.map((want) => want.batchId))]],
@@ -289,7 +282,6 @@ export class StockService {
         .addSelect('b.name', 'brand_name')
         .addSelect(`(SELECT coalesce(sum(sb.qty), 0)::float8 ${onHand})`, 'qty')
         .addSelect(`(SELECT coalesce(sum(sb.cost_uzs), 0)::float8 ${onHand})`, 'cost_uzs')
-        .addSelect(`(SELECT coalesce(sum(sb.cost_usd), 0)::float8 ${onHand})`, 'cost_usd')
         .addSelect(
           `(SELECT jsonb_object_agg(x.location_id, x.qty) FROM (SELECT sb.location_id, sum(sb.qty)::float8 AS qty ${onHand} GROUP BY sb.location_id) x)`,
           'by_location',
@@ -340,7 +332,6 @@ export class StockService {
             brand_name: string | null
             qty: number
             cost_uzs: number
-            cost_usd: number
             by_location: Record<string, number> | null
             retail_price: { amount: number | string; currency: CurrencyCode } | null
           }
@@ -354,7 +345,6 @@ export class StockService {
             qty: row.qty,
             byLocation: row.by_location ?? {},
             costUzs: seesCost ? row.cost_uzs : null,
-            costUsd: seesCost ? row.cost_usd : null,
             retailPrice: row.retail_price
               ? { amount: Number(row.retail_price.amount), currency: row.retail_price.currency }
               : null,
@@ -383,21 +373,19 @@ export class StockService {
         sku: string
         qty: number
         cost_uzs: number
-        cost_usd: number
         by_location: Record<string, number> | null
       }[] = await em.query(
         `SELECT v.id, v.value1_id, v.value2_id, v.value3_id, v.sku,
-                coalesce(s.qty, 0)::float8 AS qty, coalesce(s.cost_uzs, 0)::float8 AS cost_uzs,
-                coalesce(s.cost_usd, 0)::float8 AS cost_usd, s.by_location
+                coalesce(s.qty, 0)::float8 AS qty, coalesce(s.cost_uzs, 0)::float8 AS cost_uzs, s.by_location
          FROM product_variants v
          LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
          LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
          LEFT JOIN attribute_values a3 ON a3.id = v.value3_id
          LEFT JOIN LATERAL (
-           SELECT sum(x.qty) AS qty, sum(x.cost_uzs) AS cost_uzs, sum(x.cost_usd) AS cost_usd,
+           SELECT sum(x.qty) AS qty, sum(x.cost_uzs) AS cost_uzs,
                   jsonb_object_agg(x.location_id, x.qty) AS by_location
            FROM (
-             SELECT sb.location_id, sum(sb.qty)::float8 AS qty, sum(sb.cost_uzs) AS cost_uzs, sum(sb.cost_usd) AS cost_usd
+             SELECT sb.location_id, sum(sb.qty)::float8 AS qty, sum(sb.cost_uzs) AS cost_uzs
              FROM stock_balances sb WHERE sb.variant_id = v.id AND sb.qty > 0 GROUP BY sb.location_id
            ) x
          ) s ON true
@@ -413,7 +401,6 @@ export class StockService {
         qty: row.qty,
         byLocation: row.by_location ?? {},
         costUzs: seesCost ? row.cost_uzs : null,
-        costUsd: seesCost ? row.cost_usd : null,
       }))
       return {
         productId: product.id,

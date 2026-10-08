@@ -101,7 +101,7 @@ KEYINGI-REJA 16.8 jadvali va `MIJOZLAR-TEXNIK.md` §2 bo'yicha: M2 baza va bitta
 
 - **V6. Terminal → bank — ~2 kun.** Terminal qaysi bank hisobiga tushishi; "Bankka tushdi" amali; komissiya xarajatga.
 - **V8. Komissiya — ~1 kun.** O'tkazma va ayirboshlashda summa yoki foiz; "Bank komissiyasi" xarajatiga o'zi yoziladi.
-- **V9. Hamma valyuta teng — ~11–12 kun.** Dollar oddiy valyuta; kurs istalgan valyutaga nisbatan; har kassa o'z valyutalarida naqd oladi; narx istalgan valyutada; "Tannarx valyutasi". Reja va bosqichlar (9a–9f) — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
+- **V9. Hamma valyuta teng — ~11–12 kun.** Dollar oddiy valyuta; kurs istalgan valyutaga nisbatan; har kassa o'z valyutalarida naqd oladi; narx istalgan valyutada; tannarx faqat asosiy valyutada (9c′, egasining qarori 2026-10-08: "tannarx valyutasi" bekor), kirimda bitta kurs, xarajat istalgan valyutada. Reja va bosqichlar (9a–9f, 9c′) — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi" va "9c′ rejasi"; narx (fiks / kursga bog'langan), mijoz hisobi har valyutada va hisobot valyutasi — o'sha yerda, "Narx, mijoz hisobi va hisobot valyutasi" (M1, M2, 14a ga qo'shildi).
 - **V7. Kurs farqi hisoboti — ~1,5 kun.** Kelishilgan summalar va ayirboshlashdan foyda/zarar, davr va xodim bo'yicha.
 - **V5. Asosiy valyutani tanlash — ~10 kun.** "So'm va dollar" → "asosiy va ikkinchi valyuta" butun tizimda (KEYINGI-REJA 8). So'ralganda.
 

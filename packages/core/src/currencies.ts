@@ -263,6 +263,10 @@ export type CurrencyInput = z.infer<typeof currencyInputSchema>
 export const currencyCodeSchema = currencyCode
 
 /** A currency's rate from today on. */
+/** A day whose rates are wanted, all of them as one book (`GET /currencies/book?on=`). */
+export const bookQuerySchema = z.object({ on: z.iso.date() })
+export type BookQuery = z.infer<typeof bookQuerySchema>
+
 export const currencyRateInputSchema = z.object({
   value: rateValue,
   /** The screen asked, and the person said the rate is meant: one far from the last is taken only so. */
@@ -313,12 +317,6 @@ export const baseCurrencyInputSchema = z.object({ currency: currencyCode })
 export type BaseCurrencyInput = z.infer<typeof baseCurrencyInputSchema>
 
 /** What taking another base would do, for the screen to say before it is done. */
-/** The currency costs are kept in beside the base, and whether it may still change: until goods are costed. */
-export interface CostCurrencyDto {
-  cost: AnyCurrency
-  locked: BaseLock | null
-}
-
 export interface BaseCurrencyDto {
   base: AnyCurrency
   /** Null while it may still change. */

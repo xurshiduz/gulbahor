@@ -125,9 +125,7 @@ describe('Customer debts', () => {
       .send({
         locationId: shopId,
         docDate: '2026-10-01',
-        uzsRate: 12_000,
         currency: 'UZS',
-        usdRate: 12_000,
         lines: [{ variantId: coat, qty: 30, price: som(200_000) }],
       })
       .expect(201)

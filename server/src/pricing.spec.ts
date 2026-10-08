@@ -106,16 +106,15 @@ describe('Pricing', () => {
     const receive = async (body: Record<string, unknown>) => {
       const draft = await alpha
         .post('/api/receipts')
-        .send({ locationId: shopId, docDate: '2026-10-01', uzsRate: 12_000, ...body })
+        .send({ locationId: shopId, docDate: '2026-10-01', rate: 12_000, ...body })
         .expect(201)
       await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
     }
     // The polo is bought for dollars: 4 dollars each, 48 000 so'm at the day's rate.
-    await receive({ currency: 'USD', usdRate: 1, lines: [{ variantId: polo.variants[0].id, qty: 10, price: usd(4) }] })
+    await receive({ currency: 'USD', lines: [{ variantId: polo.variants[0].id, qty: 10, price: usd(4) }] })
     // The scarf is bought for so'm: 20 000 each.
     await receive({
       currency: 'UZS',
-      usdRate: 12_000,
       lines: [{ variantId: scarf.variants[0].id, qty: 5, price: som(20_000) }],
     })
   }, 60_000)
@@ -130,6 +129,8 @@ describe('Pricing', () => {
       expect(rows.Polo).toMatchObject({
         qty: 10,
         unitCostUzs: som(48_000),
+        // No rate set since: nothing is different today.
+        unitCostToday: null,
         prices: { [retail]: som(90_000) },
         overrides: 1,
       })
@@ -144,10 +145,11 @@ describe('Pricing', () => {
       expect(Object.keys(await list({ categoryId: menId }))).toEqual(['Polo'])
     })
 
-    it("costs dollar goods at today's rate when asked, and leaves so'm goods as they were", async () => {
-      const rows = await list({ uzsRate: 13_000 })
-      expect(rows.Polo.unitCostUzs).toBe(som(52_000))
-      expect(rows.Sharf.unitCostUzs).toBe(som(20_000))
+    it("shows dollar goods at today's rate beside what they cost, and so'm goods as they were", async () => {
+      await alpha.put('/api/currencies/USD/rate').send({ value: 13_000 }).expect(200)
+      const rows = await list()
+      expect(rows.Polo).toMatchObject({ unitCostUzs: som(48_000), unitCostToday: som(52_000) })
+      expect(rows.Sharf).toMatchObject({ unitCostUzs: som(20_000), unitCostToday: null })
     })
   })
 
@@ -192,14 +194,14 @@ describe('Pricing', () => {
       await reprice({ kind: 'percent', percent: 0 }, { dryRun: false }).expect(409)
     })
 
-    it('works a price out from cost, at a rate when one is given', async () => {
+    it('works a price out from cost, at today’s rates when asked', async () => {
       const atCost = (await reprice({ kind: 'markup', percent: 80 }).expect(200)).body
       // 48 000 + 80% = 86 400; the scarf 20 000 + 80% = 36 000; the cap has no cost.
       expect(lineOf(atCost, 'Polo')?.next).toBe(som(86_000))
       expect(lineOf(atCost, 'Sharf')?.next).toBe(som(36_000))
       expect(lineOf(atCost, 'Kepka')?.skip).toBe('no_cost')
 
-      const today = (await reprice({ kind: 'markup', percent: 80, uzsRate: 13_000 }).expect(200)).body
+      const today = (await reprice({ kind: 'markup', percent: 80, today: true }).expect(200)).body
       // The dollar went up: 52 000 + 80% = 93 600. The scarf was bought for so'm and stays.
       expect(lineOf(today, 'Polo')).toMatchObject({ next: som(94_000), unitCost: som(52_000) })
       expect(lineOf(today, 'Sharf')?.next).toBe(som(36_000))

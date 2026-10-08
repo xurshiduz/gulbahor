@@ -1,10 +1,9 @@
 import {
   allocateExact,
-  convertible,
   costReceipt,
-  pivotOf,
   exchange,
   formatMoney,
+  receiptRateWay,
   RECEIPT_STATUS_LABELS,
   searchKey,
   type AnyCurrency,
@@ -258,7 +257,6 @@ export class ReceiptsService {
           receiptLineId: line.id,
           receivedOn: receipt.docDate,
           qty: line.qty,
-          costUsd: costing.lines[index].costUsd,
           costUzs: costing.lines[index].costUzs,
         })),
       )
@@ -276,7 +274,6 @@ export class ReceiptsService {
           batchId: batches.identifiers[index].id as string,
           variantId: line.variantId,
           qty: line.qty,
-          costUsd: costing.lines[index].costUsd,
           costUzs: costing.lines[index].costUzs,
         })),
       )
@@ -315,11 +312,11 @@ export class ReceiptsService {
    * supplier at all were paid for on the spot.
    *
    * An account in the receipt's own currency is owed exactly what the
-   * supplier billed, whatever any rate says; one in dollars or in so'm, what
-   * the receipt's own rates make of it; one in any other currency, the
-   * receipt's dollars at the day's rate. In the books it is worth what the
-   * receipt's rates make of it in so'm. A cancelled receipt takes back
-   * exactly what was written.
+   * supplier billed, whatever any rate says; one in the base, what the
+   * receipt's rate makes of it; one in any other currency, the bill at the
+   * rates of the receipt's day. In the books it is worth what the receipt's
+   * rate makes of it in the base. A cancelled receipt takes back exactly
+   * what was written.
    */
   private async owe(
     em: EntityManager,
@@ -328,15 +325,14 @@ export class ReceiptsService {
     lines: ReceiptLine[],
     costing: Costing,
   ): Promise<void> {
-    const owed = new Map<string, { goods: number; usd: number; uzs: number }>()
+    const owed = new Map<string, { goods: number; uzs: number }>()
     lines.forEach((line, index) => {
       const supplierId = line.supplierId ?? receipt.supplierId
       if (!supplierId) {
         return
       }
-      const sum = owed.get(supplierId) ?? { goods: 0, usd: 0, uzs: 0 }
+      const sum = owed.get(supplierId) ?? { goods: 0, uzs: 0 }
       sum.goods += costing.lines[index].goods
-      sum.usd += costing.lines[index].goodsUsd
       sum.uzs += costing.lines[index].goodsUzs
       owed.set(supplierId, sum)
     })
@@ -350,9 +346,9 @@ export class ReceiptsService {
     // One supplier after another in the same order every time: two receipts never wait on each other's accounts.
     for (const supplierId of ids) {
       const supplier = suppliers.find((item) => item.id === supplierId) as Partner
-      const { goods, usd, uzs } = owed.get(supplierId) as { goods: number; usd: number; uzs: number }
+      const { goods, uzs } = owed.get(supplierId) as { goods: number; uzs: number }
       const account = await this.ledger.partnerAccount(em, supplier)
-      const amount = await this.inAccount(em, actor, receipt, account.currency, { goods, usd, uzs })
+      const amount = await this.inAccount(em, actor, receipt, account.currency, { goods, uzs })
       postings.push({ accountId: account.id, amount: -amount, base: -uzs })
       worth += uzs
     }
@@ -386,7 +382,7 @@ export class ReceiptsService {
     const lines = await em.find(ReceiptLine, { where: { receiptId }, order: { position: 'ASC' } })
     const expenses = await em.find(ReceiptExpense, { where: { receiptId }, order: { position: 'ASC' } })
     const costing = await this.cost(em, receipt, lines, expenses)
-    const owed = new Map<string, { goods: number; usd: number; uzs: number }>()
+    const owed = new Map<string, { goods: number; uzs: number }>()
     for (const piece of parts) {
       const index = lines.findIndex((line) => line.id === piece.receiptLineId)
       const line = lines[index]
@@ -400,9 +396,8 @@ export class ReceiptsService {
           (BigInt(sum) * BigInt(Math.round(piece.qty * 1000)) * 2n + BigInt(Math.round(line.qty * 1000))) /
             (BigInt(Math.round(line.qty * 1000)) * 2n),
         )
-      const sum = owed.get(supplierId) ?? { goods: 0, usd: 0, uzs: 0 }
+      const sum = owed.get(supplierId) ?? { goods: 0, uzs: 0 }
       sum.goods += share(costing.lines[index].goods)
-      sum.usd += share(costing.lines[index].goodsUsd)
       sum.uzs += share(costing.lines[index].goodsUzs)
       owed.set(supplierId, sum)
     }
@@ -416,7 +411,7 @@ export class ReceiptsService {
     let credited: { amount: number; currency: AnyCurrency } | null = null
     for (const supplierId of ids) {
       const supplier = suppliers.find((item) => item.id === supplierId) as Partner
-      const sums = owed.get(supplierId) as { goods: number; usd: number; uzs: number }
+      const sums = owed.get(supplierId) as { goods: number; uzs: number }
       const account = await this.ledger.partnerAccount(em, supplier)
       const amount = await this.inAccount(em, actor, receipt, account.currency, sums)
       postings.push({ accountId: account.id, amount, base: sums.uzs })
@@ -431,37 +426,26 @@ export class ReceiptsService {
 
   /**
    * What the goods of a receipt come to on an account kept in `currency`:
-   * exactly what was billed in the receipt's own currency; in the cost
-   * currency or the base, what the receipt's rates make of it; in any other,
-   * the receipt's cost-currency sum at the rates of its day.
+   * exactly what was billed in the receipt's own currency; in the base, what
+   * the receipt's rate makes of it; in any other, the bill at the rates of
+   * the receipt's day.
    */
   private async inAccount(
     em: EntityManager,
     actor: Actor,
     receipt: Receipt,
     currency: AnyCurrency,
-    sums: { goods: number; usd: number; uzs: number },
+    sums: { goods: number; uzs: number },
   ): Promise<number> {
-    return currency === receipt.currency
-      ? sums.goods
-      : currency === actor.base
-        ? sums.uzs
-        : currency === actor.cost
-          ? sums.usd
-          : this.dayWorth(em, actor, receipt, sums.usd, currency)
-  }
-
-  /** A receipt's cost-currency sum in a currency it has no rate of: the rates of the receipt's day say. */
-  private async dayWorth(
-    em: EntityManager,
-    actor: Actor,
-    receipt: Receipt,
-    usd: number,
-    currency: AnyCurrency,
-  ): Promise<number> {
+    if (currency === receipt.currency) {
+      return sums.goods
+    }
+    if (currency === actor.base) {
+      return sums.uzs
+    }
     const book = await this.currencies.book(em, actor, receipt.docDate)
-    const wanting = wantingRate(book, actor.cost, currency)
-    const amount = wanting ? null : exchange(usd, actor.cost, currency, book)
+    const wanting = wantingRate(book, receipt.currency, currency)
+    const amount = wanting ? null : exchange(sums.goods, receipt.currency, currency, book)
     if (amount === null) {
       throw AppError.conflict(
         'RATE_MISSING',
@@ -500,7 +484,6 @@ export class ReceiptsService {
           batchId: batch.id,
           variantId: batch.variantId,
           qty: -here.qty,
-          costUsd: -here.costUsd,
           costUzs: -here.costUzs,
         }
       })
@@ -541,7 +524,8 @@ export class ReceiptsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const receipt = await this.lock(em, actor, id)
       this.assertStatus(receipt, 'posted')
-      assertConvertible(receipt.currency, null, input.expenses, actor.base, actor.cost)
+      const kept = await this.currencies.kept(em, actor)
+      throwIfAny(keptFields(kept, null, input.expenses))
 
       const lines = await em.find(ReceiptLine, { where: { receiptId: id }, order: { position: 'ASC' } })
       await em.delete(ReceiptExpense, { receiptId: id })
@@ -554,20 +538,18 @@ export class ReceiptsService {
       const movements: Movement[] = []
 
       for (const [index, line] of lines.entries()) {
-        const deltaUsd = costing.lines[index].costUsd - (line.costUsd ?? 0)
         const deltaUzs = costing.lines[index].costUzs - (line.costUzs ?? 0)
-        if (!deltaUsd && !deltaUzs) {
+        if (!deltaUzs) {
           continue
         }
         const batch = batches.find((item) => item.receiptLineId === line.id) as StockBatch
         const held = balances.filter((balance) => balance.batchId === batch.id)
         const gone = scaled(batch.qty) - held.reduce((sum, balance) => sum + scaled(balance.qty), 0n)
         const weights = [...held.map((balance) => scaled(balance.qty)), gone]
-        const usd = allocateExact(deltaUsd, weights)
         const uzs = allocateExact(deltaUzs, weights)
 
         weights.forEach((weight, position) => {
-          if (weight === 0n || (!usd[position] && !uzs[position])) {
+          if (weight === 0n || !uzs[position]) {
             return
           }
           movements.push({
@@ -580,14 +562,10 @@ export class ReceiptsService {
             batchId: batch.id,
             variantId: batch.variantId,
             qty: 0,
-            costUsd: usd[position],
             costUzs: uzs[position],
           })
         })
-        await em.update(StockBatch, batch.id, {
-          costUsd: costing.lines[index].costUsd,
-          costUzs: costing.lines[index].costUzs,
-        })
+        await em.update(StockBatch, batch.id, { costUzs: costing.lines[index].costUzs })
       }
 
       await this.stock.apply(em, actor.orgId, actor.userId, movements)
@@ -602,7 +580,7 @@ export class ReceiptsService {
         entityId: id,
         summary: receipt.number,
         changes: {
-          expenses: [formatMoney(receipt.expensesUsd, 'USD'), formatMoney(costing.totals.expensesUsd, 'USD')],
+          expenses: [formatMoney(receipt.expensesUzs, actor.base), formatMoney(costing.totals.expensesUzs, actor.base)],
           cost: [formatMoney(receipt.costUzs, actor.base), formatMoney(costing.totals.costUzs, actor.base)],
         },
       })
@@ -660,8 +638,8 @@ export class ReceiptsService {
       supplierId: receipt.supplierId,
       docDate: receipt.docDate,
       currency: receipt.currency,
-      usdRate: receipt.usdRate,
-      uzsRate: receipt.uzsRate,
+      rate: receipt.rate,
+      rateWay: receipt.rateWay,
       extraCurrency: receipt.extraCurrency,
       note: receipt.note,
       sourceFile: receipt.sourceFile,
@@ -676,7 +654,6 @@ export class ReceiptsService {
         retailPrice: line.retailPrice,
         wholesalePrice: line.wholesalePrice,
         otherPrices: line.otherPrices,
-        costUsd: line.costUsd,
         costUzs: line.costUzs,
       })),
       expenses: expenses.map((expense) => ({
@@ -686,7 +663,6 @@ export class ReceiptsService {
         currency: expense.currency,
         basis: expense.basis,
         isEstimate: expense.isEstimate,
-        amountUsd: expense.amountUsd,
         amountUzs: expense.amountUzs,
       })),
       products,
@@ -767,10 +743,14 @@ export class ReceiptsService {
       fields.supplierId = 'Yetkazib beruvchi topilmadi'
     }
 
-    Object.assign(
-      fields,
-      convertibleFields(input.currency, input.extraCurrency ?? actor.cost, input.expenses, actor.base, actor.cost),
-    )
+    // Goods are bought, and expenses paid, in currencies the business keeps; one other than the base has a rate.
+    const kept = await this.currencies.kept(em, actor)
+    if (!kept.includes(input.currency)) {
+      fields.currency = NOT_KEPT
+    } else if (input.currency !== actor.base && !input.rate) {
+      fields.rate = 'Kursni yozing'
+    }
+    Object.assign(fields, keptFields(kept, input.extraCurrency ?? null, input.expenses))
 
     const variantIds = [...new Set(input.lines.map((line) => line.variantId))]
     const variants = variantIds.length ? await em.findBy(ProductVariant, { id: In(variantIds) }) : []
@@ -853,6 +833,11 @@ export class ReceiptsService {
     return em.find(ReceiptExpense, { where: { receiptId: receipt.id }, order: { position: 'ASC' } })
   }
 
+  /**
+   * What each line costs, in the base. Anything in a third currency goes at
+   * the rates of the receipt's day; one with no rate stops the receipt, under
+   * the field it is in.
+   */
   private async cost(
     em: EntityManager,
     receipt: Receipt,
@@ -866,14 +851,17 @@ export class ReceiptsService {
         )
       : []
     const weightOf = new Map(weights.map((row) => [row.id, row.weight_g]))
-    // Costed in the business's base and cost currency: a receipt does not carry them, the business does.
-    const { baseCurrency, costCurrency } = await em.findOneByOrFail(Organization, { id: receipt.orgId })
-    return costReceipt({
-      base: baseCurrency,
-      cost: costCurrency,
+    const { baseCurrency: base } = await em.findOneByOrFail(Organization, { id: receipt.orgId })
+    const third = [receipt.extraCurrency, ...expenses.map((expense) => expense.currency)].some(
+      (code) => code !== base && code !== receipt.currency,
+    )
+    const book = third ? await this.currencies.book(em, receipt, receipt.docDate) : { base, rates: {} }
+    const costing = costReceipt({
+      base,
       currency: receipt.currency,
-      usdRate: receipt.usdRate,
-      uzsRate: receipt.uzsRate,
+      rate: receipt.rate,
+      rateWay: receipt.rateWay,
+      book,
       extraCurrency: receipt.extraCurrency,
       lines: lines.map((line) => ({
         qty: line.qty,
@@ -887,26 +875,36 @@ export class ReceiptsService {
         basis: expense.basis,
       })),
     })
+    const wanting = costing.wanting
+    if (wanting) {
+      if (wanting === receipt.currency) {
+        throw AppError.validation({ rate: 'Kursni yozing' })
+      }
+      const words = `${wantingRate(book, wanting) ?? 'Kurs qo‘yilmagan'} (kirim sanasiga)`
+      const fields: Record<string, string> = {}
+      if (receipt.extraCurrency === wanting) {
+        fields.extraCurrency = words
+      }
+      expenses.forEach((expense, index) => {
+        if (expense.currency === wanting) {
+          fields[`expenses.${index}.currency`] = words
+        }
+      })
+      throw AppError.validation(fields)
+    }
+    return costing
   }
 
   private async writeCosts(em: EntityManager, lines: ReceiptLine[], expenses: ReceiptExpense[], costing: Costing) {
     await em.query(
-      `UPDATE receipt_lines l SET cost_usd = d.cost_usd, cost_uzs = d.cost_uzs
-       FROM unnest($1::uuid[], $2::bigint[], $3::bigint[]) AS d (id, cost_usd, cost_uzs) WHERE l.id = d.id`,
-      [
-        lines.map((line) => line.id),
-        costing.lines.map((line) => line.costUsd),
-        costing.lines.map((line) => line.costUzs),
-      ],
+      `UPDATE receipt_lines l SET cost_uzs = d.cost_uzs
+       FROM unnest($1::uuid[], $2::bigint[]) AS d (id, cost_uzs) WHERE l.id = d.id`,
+      [lines.map((line) => line.id), costing.lines.map((line) => line.costUzs)],
     )
     await em.query(
-      `UPDATE receipt_expenses e SET amount_usd = d.amount_usd, amount_uzs = d.amount_uzs
-       FROM unnest($1::uuid[], $2::bigint[], $3::bigint[]) AS d (id, amount_usd, amount_uzs) WHERE e.id = d.id`,
-      [
-        expenses.map((expense) => expense.id),
-        costing.expenses.map((expense) => expense.amountUsd),
-        costing.expenses.map((expense) => expense.amountUzs),
-      ],
+      `UPDATE receipt_expenses e SET amount_uzs = d.amount_uzs
+       FROM unnest($1::uuid[], $2::bigint[]) AS d (id, amount_uzs) WHERE e.id = d.id`,
+      [expenses.map((expense) => expense.id), costing.expenses.map((expense) => expense.amountUzs)],
     )
   }
 
@@ -989,55 +987,44 @@ async function priceFields(
 }
 
 function header(
-  input: Pick<
-    ReceiptInput,
-    'locationId' | 'supplierId' | 'docDate' | 'currency' | 'usdRate' | 'uzsRate' | 'extraCurrency' | 'note'
-  >,
-  actor: Pick<Actor, 'base' | 'cost'>,
+  input: Pick<ReceiptInput, 'locationId' | 'supplierId' | 'docDate' | 'currency' | 'rate' | 'extraCurrency' | 'note'>,
+  actor: Pick<Actor, 'base'>,
 ) {
-  const pivot = pivotOf(actor.base, actor.cost, input.currency)
+  const inBase = input.currency === actor.base
   return {
     locationId: input.locationId,
     supplierId: input.supplierId,
     docDate: input.docDate,
     currency: input.currency,
-    // Nothing between a currency and itself; a receipt in the base has one rate, not two.
-    usdRate: input.currency === pivot ? 1 : input.currency === actor.base ? input.uzsRate : input.usdRate,
-    uzsRate: actor.base === pivot ? 1 : input.uzsRate,
-    extraCurrency: input.extraCurrency ?? actor.cost,
+    // Nothing between the base and itself.
+    rate: inBase ? null : input.rate,
+    rateWay: receiptRateWay(input.currency, actor.base),
+    extraCurrency: input.extraCurrency ?? actor.base,
     note: input.note,
   }
 }
 
-/** An extra cost and every expense are in the cost currency, the base or the receipt's own: those it has rates for. */
-function convertibleFields(
-  receiptCurrency: AnyCurrency,
+const NOT_KEPT = 'Bu valyuta yoqilmagan: Pul → Kurslar'
+
+/** The lines' extra costs and every expense are in a currency the business keeps: the base or one switched on. */
+function keptFields(
+  kept: AnyCurrency[],
   extraCurrency: AnyCurrency | null,
   expenses: ReceiptExpenseInput[],
-  base: AnyCurrency,
-  cost: AnyCurrency,
 ): Record<string, string> {
   const fields: Record<string, string> = {}
-  const wrong = 'Tannarx valyutasi, asosiy valyuta yoki hujjat valyutasini tanlang'
-  if (extraCurrency && !convertible(extraCurrency, receiptCurrency, base, cost)) {
-    fields.extraCurrency = wrong
+  if (extraCurrency && !kept.includes(extraCurrency)) {
+    fields.extraCurrency = NOT_KEPT
   }
   expenses.forEach((expense, index) => {
-    if (!convertible(expense.currency, receiptCurrency, base, cost)) {
-      fields[`expenses.${index}.currency`] = wrong
+    if (!kept.includes(expense.currency)) {
+      fields[`expenses.${index}.currency`] = NOT_KEPT
     }
   })
   return fields
 }
 
-function assertConvertible(
-  receiptCurrency: AnyCurrency,
-  extraCurrency: AnyCurrency | null,
-  expenses: ReceiptExpenseInput[],
-  base: AnyCurrency,
-  cost: AnyCurrency,
-) {
-  const fields = convertibleFields(receiptCurrency, extraCurrency, expenses, base, cost)
+function throwIfAny(fields: Record<string, string>) {
   if (Object.keys(fields).length) {
     throw AppError.validation(fields)
   }
@@ -1047,11 +1034,8 @@ function totalColumns(totals: ReceiptTotals) {
   return {
     totalQty: totals.qty,
     goods: totals.goods,
-    goodsUsd: totals.goodsUsd,
     goodsUzs: totals.goodsUzs,
-    expensesUsd: totals.expensesUsd,
     expensesUzs: totals.expensesUzs,
-    costUsd: totals.costUsd,
     costUzs: totals.costUzs,
   }
 }
@@ -1060,11 +1044,8 @@ function totalsOf(receipt: Receipt): ReceiptTotals {
   return {
     qty: receipt.totalQty,
     goods: receipt.goods,
-    goodsUsd: receipt.goodsUsd,
     goodsUzs: receipt.goodsUzs,
-    expensesUsd: receipt.expensesUsd,
     expensesUzs: receipt.expensesUzs,
-    costUsd: receipt.costUsd,
     costUzs: receipt.costUzs,
   }
 }

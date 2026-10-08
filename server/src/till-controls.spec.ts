@@ -71,9 +71,7 @@ describe('Till controls', () => {
       .send({
         locationId: shopId,
         docDate: '2026-10-01',
-        uzsRate: 12_000,
         currency: 'UZS',
-        usdRate: 12_000,
         lines: [{ variantId: shirt, qty: 20, price: som(50_000) }],
       })
       .expect(201)
@@ -231,9 +229,7 @@ describe('Till controls', () => {
         .send({
           locationId: shopId,
           docDate: '2026-10-01',
-          uzsRate: 12_000,
           currency: 'UZS',
-          usdRate: 12_000,
           lines: [{ variantId: dress, qty: 10, price: som(120_000) }],
         })
         .expect(201)

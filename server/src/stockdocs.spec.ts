@@ -3,11 +3,13 @@ import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 
 interface StockRow {
   qty: number
-  costUsd: number | null
+  costUzs: number | null
   byLocation: Record<string, number>
 }
 
 const usd = (dollars: number) => Math.round(dollars * 100)
+/** Goods come in dollars at 12 000 so'm: what so many dollars cost in the base. */
+const inSom = (dollars: number) => usd(dollars) * 12_000
 
 /**
  * Transfers, write-offs and counts: goods leave oldest batch first, a
@@ -33,8 +35,7 @@ describe('Stock documents', () => {
         locationId: shopId,
         docDate,
         currency: 'USD',
-        usdRate: 1,
-        uzsRate: 12_000,
+        rate: 12_000,
         lines: [{ variantId, qty, price }],
       })
       .expect(201)
@@ -147,7 +148,7 @@ describe('Stock documents', () => {
       expect(places[places.length - 1].id).toBe(transitId)
 
       const now = await stock()
-      expect(now).toMatchObject({ qty: 20, costUsd: usd(80), byLocation: { [shopId]: 8, [transitId]: 12 } })
+      expect(now).toMatchObject({ qty: 20, costUzs: inSom(80), byLocation: { [shopId]: 8, [transitId]: 12 } })
 
       // The place for goods on the way is the ledger's own: it is not among the places people work with.
       const listed = (await alpha.get('/api/locations').query({ status: 'all' })).body.items as { id: string }[]
@@ -161,7 +162,7 @@ describe('Stock documents', () => {
         .put(`/api/receipts/${receipts[0].id}/expenses`)
         .send({ expenses: [{ name: 'Kargo', amount: usd(20), currency: 'USD', basis: 'quantity' }] })
         .expect(200)
-      expect((await stock()).costUsd).toBe(usd(100))
+      expect((await stock()).costUzs).toBe(inSom(100))
     })
 
     it('is received by the place it goes to, short of what was lost on the way', async () => {
@@ -187,7 +188,7 @@ describe('Stock documents', () => {
       // Eleven arrived: ten at 3 dollars and one at 7 (5 plus the late 2). The one that did not was worth 7.
       const now = await stock()
       expect(now.byLocation).toEqual({ [shopId]: 8, [depotId]: 11 })
-      expect(now.costUsd).toBe(usd(8 * 7 + 30 + 7))
+      expect(now.costUzs).toBe(inSom(8 * 7 + 30 + 7))
       await keeper.post(`/api/stock-documents/${transferId}/receive`).send({}).expect(409)
     })
 
@@ -224,8 +225,8 @@ describe('Stock documents', () => {
       const before = await stock()
       const posted = await alpha.post(`/api/stock-documents/${draft.body.id}/post`).expect(201)
       // Two of the eight left in the shop, each worth 7 dollars.
-      expect(posted.body).toMatchObject({ status: 'posted', costUzs: usd(14) * 12_000 })
-      expect(await stock()).toMatchObject({ qty: before.qty - 2, costUsd: (before.costUsd as number) - usd(14) })
+      expect(posted.body).toMatchObject({ status: 'posted', costUzs: inSom(14) })
+      expect(await stock()).toMatchObject({ qty: before.qty - 2, costUzs: (before.costUzs as number) - inSom(14) })
 
       // Cancelling puts the same pieces back at what they cost.
       await alpha.post(`/api/stock-documents/${draft.body.id}/cancel`).expect(201)
@@ -267,7 +268,7 @@ describe('Stock documents', () => {
       expect((await stock()).byLocation[shopId]).toBe(6)
       const scarves = (await alpha.get('/api/stock').query({ q: 'sharf' })).body.items[0]
       // Never received, so nothing is known of its cost: it comes in at zero.
-      expect(scarves).toMatchObject({ qty: 3, costUsd: 0 })
+      expect(scarves).toMatchObject({ qty: 3, costUzs: 0 })
       await alpha.post(`/api/stock-documents/${draft.body.id}/cancel`).expect(409)
     })
 
@@ -290,11 +291,11 @@ describe('Stock documents', () => {
         await em.query(`SELECT set_config('app.bypass_rls', 'on', true)`)
         const [moved] = await em.query(
           `SELECT coalesce(sum(qty) FILTER (WHERE location_id IS NOT NULL), 0)::float8 AS qty,
-                  coalesce(sum(cost_usd) FILTER (WHERE location_id IS NOT NULL), 0)::float8 AS cost
+                  coalesce(sum(cost_uzs) FILTER (WHERE location_id IS NOT NULL), 0)::float8 AS cost
            FROM stock_movements`,
         )
         const [held] = await em.query(
-          `SELECT coalesce(sum(qty), 0)::float8 AS qty, coalesce(sum(cost_usd), 0)::float8 AS cost FROM stock_balances`,
+          `SELECT coalesce(sum(qty), 0)::float8 AS qty, coalesce(sum(cost_uzs), 0)::float8 AS cost FROM stock_balances`,
         )
         return { moved, held }
       })

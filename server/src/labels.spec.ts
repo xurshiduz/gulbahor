@@ -107,8 +107,7 @@ describe('Labels', () => {
           locationId: shopId,
           docDate: '2026-10-01',
           currency: 'USD',
-          usdRate: 1,
-          uzsRate: 12_000,
+          rate: 12_000,
           lines: [
             { variantId: shirt, qty: 3, price: 300 },
             { variantId: scarf, qty: 2, price: 200 },
@@ -263,12 +262,14 @@ describe('Labels', () => {
       expect(all.every((unit) => unit.status === 'in_stock' && unit.batch_id)).toBe(true)
 
       // Shirts 1-3 came on the first line, 4-5 on the third: two batches at two costs.
-      const shirts: { unit_no: number; cost_usd: string }[] = await sql(
-        `SELECT u.unit_no, b.cost_usd FROM rfid_units u JOIN stock_batches b ON b.id = u.batch_id
+      const shirts: { unit_no: number; cost_uzs: string }[] = await sql(
+        `SELECT u.unit_no, b.cost_uzs FROM rfid_units u JOIN stock_batches b ON b.id = u.batch_id
          WHERE u.variant_id = $1 ORDER BY u.unit_no`,
         [shirt],
       )
-      expect(shirts.map((row) => Number(row.cost_usd))).toEqual([900, 900, 900, 700, 700])
+      expect(shirts.map((row) => Number(row.cost_uzs))).toEqual(
+        [900, 900, 900, 700, 700].map((cents) => cents * 12_000),
+      )
     })
 
     it('finds the piece by its code however the reader spells it', async () => {

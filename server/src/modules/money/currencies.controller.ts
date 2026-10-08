@@ -1,18 +1,20 @@
 import {
   baseCurrencyInputSchema,
+  bookQuerySchema,
   currencyCodeSchema,
   currencyInputSchema,
   currencyRateInputSchema,
   type AnyCurrency,
   type BaseCurrencyDto,
   type BaseCurrencyInput,
-  type CostCurrencyDto,
+  type BookQuery,
   type CurrenciesDto,
   type CurrencyInput,
   type CurrencyRateDto,
   type CurrencyRateInput,
+  type RateBook,
 } from '@erp/core'
-import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, CurrentActor } from '../auth/actor'
@@ -53,19 +55,10 @@ export class CurrenciesController {
     return this.bases.change(actor, input.currency)
   }
 
-  /** The currency costs are kept in beside the base, and whether it may still change: until goods are costed. */
-  @Get('cost')
-  cost(@CurrentActor() actor: Actor): Promise<CostCurrencyDto> {
-    return this.bases.costState(actor)
-  }
-
-  @Put('cost')
-  @Can('settings.manage')
-  setCost(
-    @CurrentActor() actor: Actor,
-    @Body(zod(baseCurrencyInputSchema)) input: BaseCurrencyInput,
-  ): Promise<CostCurrencyDto> {
-    return this.bases.changeCost(actor, input.currency)
+  /** Every rate in force on a day, as one book: what a receipt of that day values a third currency at. */
+  @Get('book')
+  book(@CurrentActor() actor: Actor, @Query(zod(bookQuerySchema)) query: BookQuery): Promise<RateBook> {
+    return this.currencies.bookOn(actor, query.on)
   }
 
   @Post()

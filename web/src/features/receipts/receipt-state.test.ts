@@ -1,7 +1,7 @@
 import type { AttributeDto, ReceiptDto, ReceiptProductDto } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
-import { blocksOf, costOf, linesOf, matrixOf, newBlock, type Block, type Header } from './receipt-state'
+import { blocksOf, costOf, dayRateOf, linesOf, matrixOf, newBlock, type Block, type Header } from './receipt-state'
 
 const value = (id: string, hex: string | null = null) => ({ id, name: id, hex, isActive: true })
 const attributes: AttributeDto[] = [
@@ -44,11 +44,12 @@ const header: Header = {
   supplierId: null,
   docDate: '2026-10-01',
   currency: 'USD',
-  usdRate: 1,
-  uzsRate: 12_800,
+  rate: 12_800,
   extraCurrency: 'USD',
   note: '',
 }
+
+const book = { base: 'UZS' as const, rates: {} }
 
 describe('matrixOf', () => {
   it('lays the variants out by colour and size in the catalogue order, with gaps where none exists', () => {
@@ -97,7 +98,6 @@ describe('blocks and lines', () => {
       retailPrice: null,
       wholesalePrice: null,
       otherPrices: {},
-      costUsd: null,
       costUzs: null,
     })
     const blocks = blocksOf({
@@ -142,7 +142,6 @@ describe('blocks and lines', () => {
       retailPrice: null,
       wholesalePrice: null,
       otherPrices,
-      costUsd: null,
       costUzs: null,
     })
     const blocks = blocksOf({
@@ -167,14 +166,32 @@ describe('blocks and lines', () => {
     const expenses = [
       { key: 'e', name: 'Boj', amount: 800, currency: 'USD' as const, basis: 'value' as const, isEstimate: false },
     ]
-    const cost = costOf(header, blocks, expenses, products)
-    expect(cost?.blocks.map((block) => [block.qty, block.goods, block.costUsd])).toEqual([
-      [10, 3000, 3600],
-      [10, 1000, 1200],
+    const cost = costOf(header, blocks, expenses, products, book)
+    expect(cost?.blocks.map((block) => [block.qty, block.goods, block.costUzs])).toEqual([
+      [10, 3000, 3600 * 12_800],
+      [10, 1000, 1200 * 12_800],
     ])
     expect(cost?.costing.totals.costUzs).toBe(4800 * 12_800)
 
-    expect(costOf({ ...header, uzsRate: null }, blocks, expenses, products)).toBeNull()
-    expect(costOf({ ...header, currency: 'CNY', usdRate: null }, blocks, expenses, products)).toBeNull()
+    expect(costOf({ ...header, rate: null }, blocks, expenses, products, book)).toBeNull()
+    // A receipt in the base has no rate to wait for.
+    expect(costOf({ ...header, currency: 'UZS', rate: null }, blocks, [], products, book)?.costing.totals.costUzs).toBe(
+      4000,
+    )
+  })
+
+  it('offers the day’s rate the way the receipt writes it', () => {
+    const day = {
+      base: 'UZS' as const,
+      rates: {
+        USD: { against: 'UZS' as const, way: 'in' as const, value: 12_650 },
+        CNY: { against: 'USD' as const, way: 'per' as const, value: 7.25 },
+      },
+    }
+    expect(dayRateOf('USD', day)).toBe(12_650)
+    // 12 650 ÷ 7,25, to the tiyin.
+    expect(dayRateOf('CNY', day)).toBe(1_744.83)
+    expect(dayRateOf('TRY', day)).toBeNull()
+    expect(dayRateOf('UZS', day)).toBeNull()
   })
 })

@@ -77,14 +77,13 @@ export class ActorService {
         all_locations: boolean
         modules: string[]
         base_currency: AnyCurrency
-        cost_currency: AnyCurrency
         currencies: AnyCurrency[]
         permissions: string[]
         is_owner: boolean
         location_ids: string[]
       }[] = await em.query(
         `
-        SELECT u.id, u.full_name, u.all_locations, o.modules, o.base_currency, o.cost_currency,
+        SELECT u.id, u.full_name, u.all_locations, o.modules, o.base_currency,
           ${USER_PERMISSIONS} AS permissions,
           coalesce((
             SELECT array_agg(c.code ORDER BY c.created_at) FROM org_currencies c WHERE c.org_id = o.id AND c.is_active
@@ -115,7 +114,6 @@ export class ActorService {
         modules: row.modules,
         base: row.base_currency,
         currencies: row.currencies,
-        cost: row.cost_currency,
         allLocations: row.all_locations,
         locationIds: row.location_ids,
       }

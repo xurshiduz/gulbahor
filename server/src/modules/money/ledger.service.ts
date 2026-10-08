@@ -1,9 +1,4 @@
-import {
-  CURRENCIES,
-  SYSTEM_ACCOUNT_LABELS,
-  type CurrencyCode,
-  type SystemAccount,
-} from '@erp/core'
+import { CURRENCIES, SYSTEM_ACCOUNT_LABELS, type CurrencyCode, type SystemAccount } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 

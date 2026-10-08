@@ -517,7 +517,7 @@ Egasi (2026-10-08): dollarning alohida o'rni eskirgan qoida. Shu bo'lim yuqorida
 - **9a. Valyutalar va kurslar (~2 kun).** Dollar `org_currencies` va `currency_rates` ga ko'chadi (migratsiya), `usd` moduli va `/money/rates` yo'qoladi; `Actor.currencies` (yoqilgan valyutalar, sessiya bilan); `usualRateForm` — asosiyda; "Kurslar" ekranida hamma valyuta bir xil (dollar qatori qotirilmagan, yozilish shakli — asosiy yoki istalgan boshqa yoqilgan valyuta); yangi biznes formasida asosiy valyuta standart so'm va yoqiladigan valyutalar ro'yxati. Kassa hali "asosiy + dollar" tartibida ishlaydi: dollar yoqilgan bo'lsa, uning kursi kitobdan olinadi.
 - **9b. Narx istalgan valyutada (~1 kun).** Narx turi va narx — istalgan yoqilgan valyuta; kassa, kirim, ommaviy o'zgartirish, asosiy valyuta almashtirish kitob bilan.
 - **9c. Tannarx valyutasi va kirim (~2 kun).** `cost_currency`, kirim hisobi shu valyuta orqali (`costReceipt`), qulf, partiyaning kelgan valyutasi va narxi ekranda.
-- **9c′. Tannarx faqat asosiy valyutada (~2 kun; egasining qarori, pastda).** Tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada.
+- **9c′. Tannarx faqat asosiy valyutada (~3 kun; egasining qarori, pastda — "9c′ rejasi").** Tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada, "bugungi kursda tannarx".
 - **9d. Kassa (~3–4 kun).** Kassa valyutalari, tortmalar, to'lov qatorlari, kelishilgan qiymat, qaytim istalgan tortma valyutasida (`sales.change_*` → valyuta + summa), qaytarish, chek, kassa konteksti.
 - **9e. Smena va inkassatsiya (~2 kun).** Har tortma sanog'i jadvalda, smena hisoboti, topshirish.
 - **9f. Tekshiruv (~1 kun).** To'liq testlar, ekranda (so'm asosli biznes dollar, yuan bilan; tenge asosli), hujjatlar.
@@ -561,13 +561,55 @@ Egasi (2026-10-08): dollarning alohida o'rni eskirgan qoida. Shu bo'lim yuqorida
 - **Smena** hozircha qaytimni dollar bo'yicha sanaydi (`change_currency = 'USD'`) — har tortma 9e da.
 - **Testlar**: `till-currencies.spec.ts` (kassa valyutalari standarti va tekshiruvi, yuanga sotuv va yuanda qaytim, yuanda kelishilgan qiymat, kassa olmaydigan valyuta, yuanda pul qaytarish), core'da "a till that takes yuan beside so'm and dollars", mavjud kassa testlari yangi kontekst bilan.
 
-### Egasining qarori: tannarx doim asosiy valyutada (2026-10-08, 9d dan keyin)
+### 9c′ rejasi: tannarx faqat asosiy valyutada (egasining qarori, 2026-10-08)
 
-Egasi 9c ni qayta ko'rdi: **tannarx doim asosiy valyutada yuritiladi, "tannarx valyutasi" sozlamasi kerak emas.** Kirimda tovar olingan valyuta (odatda yetkazib beruvchining valyutasi) va uning asosiy valyutaga kursi ko'rsatiladi, tannarx shu kurs bilan chiqadi; xarajat istalgan valyutada bo'lishi mumkin va asosiy valyutaga o'tkaziladi; tovar qaysi valyutada kelgani eslab qolinadi. Taklif (egasiga yuborildi, javob kutilmoqda) — **9c′**:
+Egasi 9c ni qayta ko'rdi va tasdiqladi ("ha, rejaga yoz va boshla"). 9c dagi "tannarx valyutasi" bekor qilinadi.
 
-- Xarajat qatorida faqat nomi, summa, valyuta, taqsimlash; tizim o'zi o'tkazadi va natijani yonida ko'rsatadi. Kurs: kirim valyutasida — kirimning kursi; asosiyda — kurssiz; boshqa valyutada — kirim sanasidagi kunlik kurs (yo'q bo'lsa saqlashda xato). Keyin tahrirlansa ham kirim sanasining kursi.
-- Tovar: kirim valyutasi yetkazib beruvchidan o'zi qo'yiladi; bitta kurs (kirim valyutasi → asosiy, odatdagi ko'rinishda), kunlik kurs o'zi turadi, o'zgartirsa bo'ladi; asosiy valyutadagi kirimda kurs maydoni yo'q.
-- Olib tashlanadi: `cost_currency` va uning sozlamasi, ikkinchi tannarx ustunlari (`…_usd`, 14 ta jadvalda), kirimdagi ikki kurs (`usdRate`/`uzsRate` → bitta kurs).
+- **Tannarx bitta — asosiy valyutada, partiyada.** Olib tashlanadi: `organizations.cost_currency`, `Actor.cost`, `OrgDto.costCurrency`, vebda `cost()`, `/currencies/cost`, `COST_LOCKED`, `CURRENCY_COST`, birinchi sozlashdagi va "Sozlamalar → Biznes"dagi tanlov. Ikkinchi tannarx ustunlari (`…_usd`: kirim, kirim qatori va xarajati, partiya, qoldiq, harakat, sklad hujjati, uning qatori va bo'lagi, sotuv, uning qatori va bo'lagi, qaytarish qatori) o'chiriladi; `…_uzs` — asosiy valyuta. Sabab: aka narx kurs bilan o'zi o'zgarmasligini istaydi; partiyaning kelgan valyutasi va kursi baribir saqlanadi, valyutadagi foyda kerak bo'lsa hisobot o'zi hisoblaydi (pastda, "Hisobot valyutasi").
+- **Kirim valyutasi** — tovar olingan valyuta (odatda yetkazib beruvchining valyutasi): yetkazib beruvchi tanlanganda uning valyutasi o'zi qo'yiladi, o'zgartirsa bo'ladi.
+- **Bitta kurs** — kirim valyutasi va asosiy valyuta orasida, odatdagi ko'rinishda, qimmatrog'i birinchi ("1 ¥ = 1 750 so'm"; dollar asosli biznesda "1 $ = 7,25 ¥"). Kirim sanasining kunlik kursi o'zi turadi, kelishilgani yozilsa o'zgaradi; asosiy valyutadagi kirimda kurs maydoni yo'q. Bazada `usd_rate`/`uzs_rate` o'rniga `rate` va `rate_way` (`in` — "1 kirim valyutasi = N asosiy", `per` — "1 asosiy = N kirim valyutasi").
+- **Xarajat istalgan yoqilgan valyutada** (qatordagi qo'shimcha xarajat ham): faqat summa va valyuta yoziladi, tizim o'zi o'tkazadi va natijani yonida ko'rsatadi. Kurs: kirim valyutasida — kirimning kursi; asosiyda — kurssiz; boshqa valyutada — kirim sanasining kunlik kursi (yo'q bo'lsa saqlashda xato). Keyin tahrirlansa ham kirim sanasining kursi — tannarx suzmaydi. To'lov oynasidagi juft maydon yo'q: haqiqiy to'lov "Pul → Chiqim"da o'z kursi bilan qilinadi, farqi o'sha yerda kurs farqiga.
+- **Alohida saqlanadi**: kelgan narx (kirim valyutasida) va kurs, tovar qiymati, xarajat ulushi, tannarx (asosiyda). Yetkazib beruvchi qarzi — aynan u yozgan summa, kirim valyutasida (hisobi boshqa valyutada bo'lsa — kirim kunining kitobi bilan, hozirgidek).
+- **"Bugungi kursda tannarx"** saqlanmaydi: partiyaning tovar qismi kelgan valyutaning bugungi kursida, xarajat ulushi yozilgan qiymatida. Ommaviy narx o'zgartirishdagi "bugungi kursda" shu bilan ishlaydi (dollar kursi o'rniga kurslar kitobi).
+
+### 9c′ qanday qurildi (2026-10-09)
+
+- **Tannarx valyutasi yo'q.** Migratsiya `1790000040000-cost-in-base` (9c dagi `1790000038000-cost-currency` o'chirildi; bazada qolgan ustun `DROP … IF EXISTS` bilan ketadi): `organizations.cost_currency` va 14 ta jadvaldagi ikkinchi tannarx ustunlari (`receipts.goods_usd/expenses_usd/cost_usd`, `receipt_lines.cost_usd`, `receipt_expenses.amount_usd`, `stock_batches/balances/movements.cost_usd`, `stock_documents/lines/items.cost_usd`, `sales/sale_lines.cost_usd`, `sale_items.cost_usd/returned_usd`, `sale_return_lines.cost_usd`) o'chirildi; `stock_balances` dagi "bo'sh qoldiq qiymatsiz" tekshiruvi `stock_balances_empty` (faqat `cost_uzs`) bo'lib qaytdi. `Actor.cost`, `OrgDto.costCurrency`, `CostCurrencyDto`, `GET`/`PUT /currencies/cost`, `COST_LOCKED`, `CURRENCY_COST`, `setup.costCurrency`, vebda `cost()` va "Tannarx valyutasi" kartasi yo'q. **`…_uzs` — asosiy valyuta; tannarxda `…_usd` endi yo'q** (`…_usd` faqat smena va kassadagi dollar tortmasi nomlarida qoldi — 9e).
+- **Kirimning bitta kursi**: `receipts.rate` (`numeric`, asosiy valyutadagi kirimda `NULL`) va `rate_way` (`in` — "1 ¥ = 1 750 so'm", `per` — "1 $ = 7,25 ¥"); yo'nalishni server `receiptRateWay(valyuta, asosiy)` (= `usualRateForm`) bilan o'zi qo'yadi. Eski kirimlar: `uzs_rate / usd_rate` (dollarda — `uzs_rate`) dan, kattasi birinchi. API'da `usdRate`/`uzsRate` o'rniga `rate` (Excel importida ham); chet valyutadagi kirimda yo'q bo'lsa — `rate: 'Kursni yozing'`.
+- **Kirim valyutasi va xarajatlar — yoqilgan valyutalardan** (`CurrenciesService.kept`): boshqasi — "Bu valyuta yoqilmagan: Pul → Kurslar" (`currency`, `extraCurrency`, `expenses.N.currency`). Satr qo'shimcha xarajati (`extraCurrency`) standart holatda asosiy valyutada.
+- **Hisob** (`core/purchasing.ts`, `costReceipt`): `CostingInput { base, currency, rate, rateWay, book, extraCurrency, lines, expenses }`. Kirim valyutasidagi summa — kirimning kursida, asosiydagisi — o'zicha, uchinchi valyutadagisi — **kirim sanasining kitobida** (`CurrenciesService.book(em, actor, docDate)`; server faqat kerak bo'lsa oladi). Kursi yo'q valyuta `Costing.wanting` bo'lib qaytadi (summasi 0 deb); server uni o'sha maydon ostida xato qiladi: "Dollar kursi qo'yilmagan (kirim sanasiga)". Kech kelgan hisob (`updateExpenses`) ham kirim sanasining kursida — tannarx suzmaydi.
+- **Yetkazib beruvchi qarzi** (`owe`, `creditIn`, `inAccount`): hisob kirim valyutasida — aynan yozilgan summa; asosiyda — kirim kursidagi qiymat; boshqasida — yozilgan summa kirim valyutasidan kirim kunining kitobi bilan (`exchange`; kurs yo'q bo'lsa `RATE_MISSING`).
+- **"Bugungi kursda tannarx"** (`pricing.service` `unitCosts`): partiyaning qiymati + `qty × narx × (bugungi kurs − kirim kursi)` kirim valyutasida (asosiy valyutadagi, kirimsiz va kursi yo'q partiyalarda farq yo'q); xarajat ulushi o'zgarmaydi. `PriceListItemDto.unitCostToday` (farq bo'lmasa `null`), ommaviy o'zgartirishda `markup.today` (dollar kursi `uzsRate` o'rniga). Narxlar sahifasida "Bugungi kursda" ustuni; boshqa valyutadagi narx turining ustamasi bugungi kitob bilan.
+- **API**: `GET /currencies/book?on=YYYY-MM-DD` — o'sha kunning kitobi (hamma ko'radi).
+- **Ekran**: kirimda bitta kurs maydoni (`receipt-rate.tsx`, `ReceiptRateField`: "1 ¥ = ? so'm", yonida farq qilsa "Kun kursi: …"); kirim sanasining kursi o'zi turadi (`dayRateOf`, `useBookOn`) va kimdir yozmaguncha sana yoki valyuta bilan o'zgaradi; yetkazib beruvchi tanlansa uning valyutasi o'zi qo'yiladi (narx yozilmagan bo'lsa). Valyuta ro'yxatida faqat yoqilganlar. Xarajat istalgan yoqilgan valyutada, yonida "≈ 1 200 000 so'm" (kursi yo'q bo'lsa "kurs yo'q"); jami va tannarx asosiy valyutada; kursi yo'q uchinchi valyuta jamida ogohlantirish. Import oynasida xuddi shu maydon. Qoldiq sahifasidan ikkinchi tannarx olib tashlandi.
+- **Testlar**: core'da `costReceipt` (dollar asosli ishlangan misol, so'm biznesida bir xil kurs, uchinchi valyuta kun kursida, kursi yo'q valyuta, tenge va dollar asoslari, `receiptRateWay`); serverda `receipt-currencies.spec.ts` (bitta kurs, kursiz so'm kirimi, kecha va bugungi dollar kursi, kech kelgan hisob, yoqilmagan va kursi yo'q valyuta, kirimlar ro'yxati, dollar biznesida yuan) — `cost-currency.spec.ts` o'rniga; `receiving`, `pricing` ("bugungi kursda"), `stockdocs`, `base-currency` va boshqalar yangi maydonlar bilan; vebda `dayRateOf`.
+
+### Narx, mijoz hisobi va hisobot valyutasi (egasining qarori, 2026-10-08)
+
+ERP'lardagi amaliyot bilan solishtirib kelishildi (1C: narx turlari, boshqaruv valyutasi, shartnoma valyutasi; SAP: parallel valyuta; Odoo: pricelist). 16-bo'limning tegishli qarorlarini almashtiradi — ro'yxati 16.10 da.
+
+**Narx**
+
+1. **Narx tovarga** (model, o'lcham, do'kon) qo'yiladi, partiyaga emas; partiyada — tannarx va kelgan valyutasi. Sabab: kassa bir xil shtrix-kodli ikki partiyani ajrata olmaydi; javonda bir xil tovar ikki narxda turmasin. Yangi partiya kelganda narx haqidagi qaror kirimda.
+2. **Har narx fiks yoki kursga bog'langan.** Fiks — asosiy valyutada, kurs o'zgarsa ham turadi. Bog'langan — valyutada saqlanadi (standart: tovar kelgan valyuta; yoki tanlangan, masalan dollar), kassada bugungi kurs bilan o'giriladi va narx turining qadami bilan yaxlitlanadi (kurs ozgina o'zgarsa narx joyida turadi). Narx turida standarti, tovarda (o'lcham yoki do'kon narxida alohida) o'zgartiriladi.
+3. **Bog'langanni fiks qilish**: o'sha kungi so'mdagi qiymatida (kassa ko'rsatayotgan son) qotadi. Etiketka boshqa narxda chiqqan bo'lsa tanlov: "Etiketkadagi narxda" yoki "Bugungi narxda" (qayta chop etish ro'yxatiga). Teskarisi: fiks narx bugungi kurs bilan valyutaga o'giriladi. "Narxlar" sahifasida filtr bilan ommaviy ham; tarixga yoziladi va qaytariladi; narxni o'zgartirish ruxsati bilan.
+4. Bog'langan narxli tovarning yangi partiyasi boshqa valyutada kelsa, kirim so'raydi: "Narx dollarga bog'langan, bu partiya yuanda keldi: dollarda qolsinmi yoki yuanga o'tsinmi?" (standart — qoladi). Fiks narxda kirim eski va yangi tannarxni, ustamani ko'rsatadi.
+5. **Narx faqat hujjat bilan o'zgaradi** (kirim, ommaviy o'zgartirish, tovar kartasi), tarix bilan. Narxi o'zgargan tovar "Qayta chop etish" ro'yxatiga tushadi; bog'langan narxning so'mdagi qiymati yaxlitlash qadamidan oshib o'zgarsa ham. Sozlama "Etiketkasi chiqqan narx qulflanadi": bunday narxni faqat ruxsat bilan o'zgartirish.
+6. **Narx turi formasi**: "Turi" va "Valyuta" maydonlari yo'q. Chakana va Minimal — tizim narxlari (biznes ochilganda o'zi yaratiladi; nomi va sozlamalari o'zgaradi, o'chirilmaydi, ikkinchisi yaratilmaydi). Qolgan hammasi — qo'shimcha narx (ulgurji, optom, oila, "Yaqinlar 50%"). Formada: nomi, qanday hisoblanadi, narx odatda fiksmi yoki bog'langanmi (qaysi valyutaga), kassada kim tanlaydi, minimaldan past mumkinmi, yaxlitlash qadami va narx oxiri.
+7. **Aksiya va minimal narx**: aksiya standart holatda minimal narxda to'xtaydi, kassada PIN so'ralmaydi. Aksiya kartasida "Minimaldan ham past" — ruxsati bor xodim tanlaydi; yaratishda ogohlantirish ("38 ta tovar minimal narxdan, 5 tasi tannarxdan past tushadi"). Kassirning aksiya ustidan chegirmasi odatdagidek tekshiriladi. Hozir 50% aksiya tovarni minimaldan pastga tushirsa kassa har sotuvda PIN so'raydi — shu tuzatiladi.
+8. **Oila, qarindosh, "50%"** — formulali qo'shimcha narx turlari ("tannarx + 0%", "chakana − 50%") va "minimaldan past mumkin". Kassada ruxsat yoki PIN bilan tanlanadi yoki mijozga biriktiriladi (unda PIN kerak emas). Kassir tannarxni ko'rmaydi.
+
+**Mijoz hisobi**
+
+9. **Har valyutada alohida qoldiq** (1C'dagi shartnoma valyutasi kabi): "Qarzi 200 $ · Haqi 100 000 so'm". Mijozning asosiy valyutasi hamma oynada o'zi tanlanib turadi. Ichkarida har valyutaga alohida hisob (birinchi yozuvda ochiladi) — "pul ham daftar" qoidasi o'zgarmaydi.
+10. **To'lov oynasida "qaysi hisobga"** valyutasi (standart — mijozniki); qatorlar istalgan valyutada, har biri shu valyutaga kun kursida yoki kelishilgan summada o'giriladi. Misol: dollar tanlangan, 200 $ + 1 000 000 so'm (≈ 90 $) → dollar hisobiga 290 $; ertasiga so'm tanlansa 200 $ (≈ 2 400 000) + 1 000 000 → so'm hisobiga 3 400 000.
+11. **Har hujjat bitta valyutada** va faqat shu valyutadagi qoldiqqa tegadi. Kirim — o'z valyutasidagi qoldiqqa. Kassa cheki do'kon valyutasida qoladi (smena, Z-hisobot); "Hisobiga" / "Hisobidan" qismi tanlangan bitta valyutada (standart — mijozniki), chekda ikkalasi: "15 812 500 so'm (1 250,00 $)".
+12. **Valyutalar o'zi qo'shilmaydi** — kurs o'zgarsa qarz suzmasin. Bir valyutadagi haqini boshqasidagi qarzga yopish — alohida "hisob ichida almashtirish" amali (kursni odam tasdiqlaydi, farq kurs farqiga). Jami bugungi kursda asosiy valyutada ko'rinadi; qarz chegarasi shu jami bilan. Akt-sverka har valyutani alohida va oxirida jamini beradi.
+13. Mijozda "Turi" maydoni yo'q — "Yetkazib beruvchi" belgisi (16.1, 6-qaror); kim bizdan tovar olsa — xaridor, tovar almashuv o'zi bo'ladi.
+
+**Hisobot valyutasi** (14a bilan quriladi)
+
+14. Hisobotda **"Valyuta" tanlovi** — biznesning istalgan yoqilgan valyutasi (standart asosiy, xodimda eslab qolinadi). Faqat ko'rsatish: daftar, tannarx, narx asosiy valyutada qoladi. Har hujjat o'z kunidagi kursda: sotuv — sotilgan kuni, sotilgan tovar tannarxi — **kirim qilingan kuni** (so'm qadrsizlanishi shundan ko'rinadi), xarajat — o'z kuni; qoldiq qiymati — bugungi kursda. Kurs yo'q kun — undan oldingi oxirgi kurs; valyuta yoqilishidan oldingi davr ochiq aytiladi ("1-oktyabrgacha yuan kursi yo'q"), 1:1 deb olinmaydi.
 
 ### Kurs sozlamasi (alohida sahifa)
 
@@ -833,6 +875,7 @@ Umumiy qoidalar (hamma hisobotga tegishli):
 - **Sof tushum** = sotilgan tovar − qaytarilgan tovar. Qaytarish qaytgan kunida ayiriladi (sotilgan kunida emas): kassadagi pul bilan shu mos keladi. Bekor qilingan chek hisobga kirmaydi.
 - **Foyda** = sof tushum − sotilgan tovarning tannarxi (partiyadan, FIFO; qaytgan tovarning tannarxi qaytariladi). Foyda va tannarxni faqat "Tannarxni ko'rish" ruxsati borlar ko'radi — do'kon menejeri savdoni ko'radi, foydani emas.
 - Har jadval Excel'ga chiqariladi.
+- **Valyuta** tanlanadi (2026-10-08 qarori, V9 bo'limidagi 14-band): biznesning istalgan yoqilgan valyutasi, har hujjat o'z kunidagi kursda, sotilgan tovar tannarxi kirim kunidagi kursda.
 - Ruxsat: "Hisobotlar" guruhi — savdo hisobotlari (`reports.sales`), keyin sklad va moliya hisobotlari alohida.
 
 Bo'laklar:
@@ -1151,6 +1194,17 @@ Hozir qurilmaydi, lekin hisob bunga tayyor: otlojka (zaklad avans bo'lib hisobga
 | 5 | Hujjat va tekshiruv | 1 | CLAUDE.md, rejalar, ko'chirishni aka bazasining nusxasida oldinga va orqaga sinash |
 
 Jami — taxminan **29 kun**. 1-bosqich mustaqil va birinchi chiqadi (kirimdagi narx akaga hozir kerak); 2 va 3 birga chiqadi (ko'chirish ekranlarsiz chiqmaydi); 4 — bo'lak-bo'lak. Har bosqich tekshiruvlar va testlar yashil bo'lib tugaydi.
+
+### 16.10. 2026-10-08 dagi o'zgarishlar
+
+V9 bo'limidagi "Narx, mijoz hisobi va hisobot valyutasi" qarorlari bu bo'limning quyidagilarini almashtiradi:
+
+- **4-qaror** (bitta hisob, bitta valyutada) → har valyutada alohida qoldiq, mijozning asosiy valyutasi standart (9–12). 16.2 jadvalidagi "Valyuta" qatori — "Asosiy valyuta: standart so'm; hisoblar har valyutada".
+- **23-qaror** (birlashtirish): har valyutadagi qoldiq o'z valyutasidagi hisobga o'tadi; boshqa valyutaga faqat odam tanlasa, kun kursida yoki kelishilgan summada.
+- **30-qaror** (narx — narx turining valyutasida, kartada valyuta almashtirilmaydi) → narx fiks yoki kursga bog'langan, tovarda tanlanadi (2–4). Ommaviy o'zgartirish har narxni o'z valyutasida o'qiydi (hozirgi xato shu bilan yopiladi).
+- **16.4 "Valyuta"** bandi → narx turida valyuta yo'q, "odatda fiks yoki bog'langan" (6).
+- **16.5, 16-holat** → "Hisobiga" blokida hisob valyutasi tanlanadi (11).
+- **16.8, 1-bosqich** (narx formulalari) ga qo'shiladi: fiks / bog'langan narx, fiks qilish va bog'lash (ommaviy ham), narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati va qulf (~4 kun). **2-bosqich** ga: har valyutadagi qoldiq va "hisob ichida almashtirish" (~2 kun).
 
 ### 16.9. Ochiq savollar
 

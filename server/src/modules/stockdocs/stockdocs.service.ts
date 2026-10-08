@@ -444,7 +444,6 @@ export class StockDocsService {
     const movements: Movement[] = []
     const items: Partial<StockDocumentItem>[] = []
     const parts: { receiptLineId: string; qty: number }[] = []
-    let costUsd = 0
     let costUzs = 0
     for (const [index, line] of lines.entries()) {
       const own = receiptLines.filter((item) => item.variantId === line.variantId).map((item) => item.id)
@@ -481,10 +480,8 @@ export class StockDocsService {
         items.push({ orgId: actor.orgId, documentId: doc.id, lineId: line.id, position, ...piece })
         parts.push({ receiptLineId: lineOf.get(piece.batchId) as string, qty: piece.qty })
       })
-      const usd = pieces.reduce((sum, piece) => sum + piece.costUsd, 0)
       const uzs = pieces.reduce((sum, piece) => sum + piece.costUzs, 0)
-      await em.update(StockDocumentLine, line.id, { costUsd: usd, costUzs: uzs })
-      costUsd += usd
+      await em.update(StockDocumentLine, line.id, { costUzs: uzs })
       costUzs += uzs
     }
     throwIfAny(fields, 'Qoldiq yetarli emas')
@@ -492,7 +489,7 @@ export class StockDocsService {
     for (let start = 0; start < items.length; start += 500) {
       await em.insert(StockDocumentItem, items.slice(start, start + 500))
     }
-    await em.update(StockDocument, doc.id, { costUsd, costUzs })
+    await em.update(StockDocument, doc.id, { costUzs })
     const credited = await this.receipts.creditIn(em, actor, doc.receiptId as string, parts, {
       date: doc.docDate,
       documentType: SUPPLIER_RETURN,
@@ -530,7 +527,7 @@ export class StockDocsService {
     lines: StockDocumentLine[],
     kind: Movement['kind'],
     to: string | null,
-  ): Promise<{ cost: { costUsd: number; costUzs: number } }> {
+  ): Promise<{ cost: { costUzs: number } }> {
     if (!lines.length) {
       throw AppError.validation({ lines: 'Hujjatda kamida bitta tovar bo‘lishi kerak' })
     }
@@ -550,7 +547,6 @@ export class StockDocsService {
 
     const movements: Movement[] = []
     const items: Partial<StockDocumentItem>[] = []
-    let costUsd = 0
     let costUzs = 0
     for (const [index, line] of lines.entries()) {
       const { pieces } = picked[index]
@@ -558,17 +554,15 @@ export class StockDocsService {
         movements.push(...move(kind, doc, line.id, doc.locationId, to, piece))
         items.push({ orgId: actor.orgId, documentId: doc.id, lineId: line.id, position, ...piece })
       })
-      const usd = pieces.reduce((sum, piece) => sum + piece.costUsd, 0)
       const uzs = pieces.reduce((sum, piece) => sum + piece.costUzs, 0)
-      await em.update(StockDocumentLine, line.id, { costUsd: usd, costUzs: uzs })
-      costUsd += usd
+      await em.update(StockDocumentLine, line.id, { costUzs: uzs })
       costUzs += uzs
     }
     await this.stock.apply(em, actor.orgId, actor.userId, movements)
     for (let start = 0; start < items.length; start += 500) {
       await em.insert(StockDocumentItem, items.slice(start, start + 500))
     }
-    return { cost: { costUsd, costUzs } }
+    return { cost: { costUzs } }
   }
 
   /**
@@ -625,7 +619,6 @@ export class StockDocsService {
     const movements: Movement[] = []
     const items: Partial<StockDocumentItem>[] = []
     let net = 0
-    let costUsd = 0
     let costUzs = 0
     let short = 0
     let over = 0
@@ -633,7 +626,6 @@ export class StockDocsService {
     for (const line of lines) {
       const expected = onHand.get(line.variantId) ?? 0
       const diff = scaled(line.qty) - scaled(expected)
-      let usd = 0
       let uzs = 0
 
       if (diff < 0) {
@@ -641,21 +633,18 @@ export class StockDocsService {
         pieces.forEach((piece, position) => {
           movements.push(...move('count', doc, line.id, doc.locationId, null, piece))
           items.push({ orgId: actor.orgId, documentId: doc.id, lineId: line.id, position, ...piece })
-          usd -= piece.costUsd
           uzs -= piece.costUzs
         })
         short -= diff
       } else if (diff > 0) {
         const found = await this.foundBatch(em, actor, doc, line.variantId, unscaled(diff))
         movements.push(...move('count', doc, line.id, null, doc.locationId, found))
-        usd = found.costUsd
         uzs = found.costUzs
         over += diff
       }
 
-      await em.update(StockDocumentLine, line.id, { expectedQty: expected, costUsd: usd, costUzs: uzs })
+      await em.update(StockDocumentLine, line.id, { expectedQty: expected, costUzs: uzs })
       net += diff
-      costUsd += usd
       costUzs += uzs
     }
 
@@ -663,7 +652,7 @@ export class StockDocsService {
     if (items.length) {
       await em.insert(StockDocumentItem, items)
     }
-    await em.update(StockDocument, doc.id, { diffQty: unscaled(net), costUsd, costUzs })
+    await em.update(StockDocument, doc.id, { diffQty: unscaled(net), costUzs })
     return `${doc.number}: kamomad ${unscaled(short)} dona, ortiqcha ${unscaled(over)} dona, farq ${formatMoney(costUzs, actor.base)}`
   }
 
@@ -676,23 +665,21 @@ export class StockDocsService {
     qty: number,
   ): Promise<Piece> {
     // What it costs where it is still on hand; failing that, what it cost the last time it came in.
-    const [known]: { qty: number; cost_usd: number; cost_uzs: number }[] = await em.query(
-      `SELECT coalesce(sum(qty), 0)::float8 AS qty, coalesce(sum(cost_usd), 0)::float8 AS cost_usd,
-              coalesce(sum(cost_uzs), 0)::float8 AS cost_uzs
+    const [known]: { qty: number; cost_uzs: number }[] = await em.query(
+      `SELECT coalesce(sum(qty), 0)::float8 AS qty, coalesce(sum(cost_uzs), 0)::float8 AS cost_uzs
        FROM stock_balances WHERE variant_id = $1 AND qty > 0`,
       [variantId],
     )
     let basis = known
     if (!(basis.qty > 0)) {
       const [last]: (typeof basis)[] = await em.query(
-        `SELECT qty::float8 AS qty, cost_usd::float8 AS cost_usd, cost_uzs::float8 AS cost_uzs
+        `SELECT qty::float8 AS qty, cost_uzs::float8 AS cost_uzs
          FROM stock_batches WHERE variant_id = $1 ORDER BY received_on DESC, created_at DESC LIMIT 1`,
         [variantId],
       )
-      basis = last ?? { qty: 0, cost_usd: 0, cost_uzs: 0 }
+      basis = last ?? { qty: 0, cost_uzs: 0 }
     }
     const each = (cost: number) => (basis.qty > 0 ? Math.round((cost * qty) / basis.qty) : 0)
-    const costUsd = each(basis.cost_usd)
     const costUzs = each(basis.cost_uzs)
     const batch = await em.save(
       em.create(StockBatch, {
@@ -701,11 +688,10 @@ export class StockDocsService {
         receiptLineId: null,
         receivedOn: doc.docDate,
         qty,
-        costUsd,
         costUzs,
       }),
     )
-    return { batchId: batch.id, variantId, qty, costUsd, costUzs }
+    return { batchId: batch.id, variantId, qty, costUzs }
   }
 
   // ───────────────────────────── Reading ─────────────────────────────
@@ -975,10 +961,10 @@ function move(
   }
   const movements: Movement[] = []
   if (from) {
-    movements.push({ ...base, locationId: from, qty: -piece.qty, costUsd: -piece.costUsd, costUzs: -piece.costUzs })
+    movements.push({ ...base, locationId: from, qty: -piece.qty, costUzs: -piece.costUzs })
   }
   if (to) {
-    movements.push({ ...base, locationId: to, qty: piece.qty, costUsd: piece.costUsd, costUzs: piece.costUzs })
+    movements.push({ ...base, locationId: to, qty: piece.qty, costUzs: piece.costUzs })
   }
   return movements
 }
@@ -994,10 +980,9 @@ function part(piece: Piece, units: number, other?: Piece): Piece {
     return {
       ...piece,
       qty: unscaled(units),
-      costUsd: piece.costUsd - other.costUsd,
       costUzs: piece.costUzs - other.costUzs,
     }
   }
   const of = (cost: number) => (units === whole ? cost : Math.round((cost * units) / whole))
-  return { ...piece, qty: unscaled(units), costUsd: of(piece.costUsd), costUzs: of(piece.costUzs) }
+  return { ...piece, qty: unscaled(units), costUzs: of(piece.costUzs) }
 }

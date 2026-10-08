@@ -135,8 +135,6 @@ describe('Readers', () => {
           locationId: shopId,
           docDate: '2026-10-01',
           currency: 'UZS',
-          usdRate: 12_000,
-          uzsRate: 12_000,
           lines: [{ variantId: shirt, qty: 3, price: som(48_000) }],
         })
         .expect(201)

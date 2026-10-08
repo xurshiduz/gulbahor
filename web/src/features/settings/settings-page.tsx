@@ -18,7 +18,7 @@ import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { toast } from '@/lib/toast'
 
-import { BaseCurrencyCard, CostCurrencyCard } from './base-currency'
+import { BaseCurrencyCard } from './base-currency'
 import { LabelSettings } from './label-settings'
 import { ReceiptSettings } from './receipt-settings'
 
@@ -51,7 +51,6 @@ export function SettingsPage() {
         <TabPanel value="business">
           <div className="flex flex-col gap-3">
             <BaseCurrencyCard />
-            <CostCurrencyCard />
             {/* A new base sets new sums (the change step, the debt limit): the form starts again from them. */}
             <BusinessSettings key={me.org.baseCurrency} />
           </div>
@@ -66,7 +65,8 @@ export function SettingsPage() {
 
 function useSaveOrg() {
   const queryClient = useQueryClient()
-  return (org: OrgDto) => queryClient.setQueryData(['me'], (me: { org: OrgDto } | undefined) => (me ? { ...me, org } : me))
+  return (org: OrgDto) =>
+    queryClient.setQueryData(['me'], (me: { org: OrgDto } | undefined) => (me ? { ...me, org } : me))
 }
 
 function BusinessSettings() {
@@ -108,13 +108,25 @@ function BusinessSettings() {
         <Field label={t('settings.name')} error={errors.name?.message} required>
           {(id) => <Input id={id} invalid={!!errors.name} {...form.register('name')} />}
         </Field>
-        <Field label={t('settings.autoLock')} hint={t('settings.autoLockHint')} error={errors.settings?.autoLockMinutes?.message}>
+        <Field
+          label={t('settings.autoLock')}
+          hint={t('settings.autoLockHint')}
+          error={errors.settings?.autoLockMinutes?.message}
+        >
           {(id) => (
             <Controller
               control={form.control}
               name="settings.autoLockMinutes"
               render={({ field }) => (
-                <NumberInput id={id} value={field.value} onChange={field.onChange} min={0} max={240} suffix={t('settings.minutes')} className="w-40" />
+                <NumberInput
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  min={0}
+                  max={240}
+                  suffix={t('settings.minutes')}
+                  className="w-40"
+                />
               )}
             />
           )}
@@ -144,7 +156,15 @@ function BusinessSettings() {
               control={form.control}
               name="settings.maxDiscountPercent"
               render={({ field }) => (
-                <NumberInput id={id} value={field.value} onChange={field.onChange} decimals={1} max={100} suffix="%" className="w-40" />
+                <NumberInput
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  decimals={1}
+                  max={100}
+                  suffix="%"
+                  className="w-40"
+                />
               )}
             />
           )}
@@ -184,23 +204,47 @@ function BusinessSettings() {
               control={form.control}
               name="settings.returnDays"
               render={({ field }) => (
-                <NumberInput id={id} value={field.value} onChange={field.onChange} min={0} max={3650} suffix={t('settings.days')} className="w-40" />
+                <NumberInput
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  min={0}
+                  max={3650}
+                  suffix={t('settings.days')}
+                  className="w-40"
+                />
               )}
             />
           )}
         </Field>
-        <Field label={t('settings.debtDays')} hint={t('settings.debtDaysHint')} error={errors.settings?.debtDays?.message}>
+        <Field
+          label={t('settings.debtDays')}
+          hint={t('settings.debtDaysHint')}
+          error={errors.settings?.debtDays?.message}
+        >
           {(id) => (
             <Controller
               control={form.control}
               name="settings.debtDays"
               render={({ field }) => (
-                <NumberInput id={id} value={field.value} onChange={field.onChange} min={1} max={3650} suffix={t('settings.days')} className="w-40" />
+                <NumberInput
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  min={1}
+                  max={3650}
+                  suffix={t('settings.days')}
+                  className="w-40"
+                />
               )}
             />
           )}
         </Field>
-        <Field label={t('settings.debtLimit')} hint={t('settings.debtLimitHint')} error={errors.settings?.debtLimit?.message}>
+        <Field
+          label={t('settings.debtLimit')}
+          hint={t('settings.debtLimitHint')}
+          error={errors.settings?.debtLimit?.message}
+        >
           {(id) => (
             <Controller
               control={form.control}
@@ -273,7 +317,9 @@ function ModuleSettings() {
     <div className="flex flex-col gap-3">
       <Card className="divide-y divide-line p-0">
         {MODULES.map((module) => {
-          const required = module.requires?.map((key) => MODULES.find((item) => item.key === key)?.title).filter(Boolean)
+          const required = module.requires
+            ?.map((key) => MODULES.find((item) => item.key === key)?.title)
+            .filter(Boolean)
           return (
             <div key={module.key} className="px-4 py-3">
               <Switch
@@ -289,7 +335,9 @@ function ModuleSettings() {
                 hint={
                   <>
                     {module.description}
-                    {required?.length ? <span className="text-ink-2"> {t('settings.requires', { name: required.join(', ') })}.</span> : null}
+                    {required?.length ? (
+                      <span className="text-ink-2"> {t('settings.requires', { name: required.join(', ') })}.</span>
+                    ) : null}
                   </>
                 }
               />

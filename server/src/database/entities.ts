@@ -58,10 +58,6 @@ export class Organization {
   /** Any currency of the catalogue: what the books, prices and receipts are kept in. */
   baseCurrency: AnyCurrency
 
-  /** What costs are kept in beside the base (`…_usd` columns); the base itself where there is no second one. */
-  @Column('text')
-  costCurrency: AnyCurrency
-
   @Column('text', { array: true })
   modules: string[]
 
@@ -916,11 +912,12 @@ export class Receipt {
   @Column('text')
   currency: AnyCurrency
 
-  @Column('numeric', { transformer: numericAsNumber })
-  usdRate: number
+  /** Against the base, written `rateWay` round; null for a receipt in the base. */
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  rate: number | null
 
-  @Column('numeric', { transformer: numericAsNumber })
-  uzsRate: number
+  @Column('text')
+  rateWay: RateWay
 
   @Column('text')
   extraCurrency: AnyCurrency
@@ -941,19 +938,10 @@ export class Receipt {
   goods: number
 
   @Column('bigint', { transformer: bigintAsNumber })
-  goodsUsd: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
   goodsUzs: number
 
   @Column('bigint', { transformer: bigintAsNumber })
-  expensesUsd: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
   expensesUzs: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
@@ -1032,9 +1020,6 @@ export class ReceiptLine {
   otherPrices: Record<string, number>
 
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  costUsd: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   costUzs: number | null
 }
 
@@ -1068,9 +1053,6 @@ export class ReceiptExpense {
   isEstimate: boolean
 
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  amountUsd: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   amountUzs: number | null
 }
 
@@ -1095,9 +1077,6 @@ export class StockBatch {
   qty: number
 
   @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
 
   @CreateDateColumn({ type: 'timestamptz' })
@@ -1120,9 +1099,6 @@ export class StockBalance {
 
   @Column('numeric', { transformer: numericAsNumber })
   qty: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
@@ -1162,9 +1138,6 @@ export class StockMovement {
 
   @Column('numeric', { transformer: numericAsNumber })
   qty: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
@@ -1220,9 +1193,6 @@ export class StockDocument {
 
   @Column('numeric', { nullable: true, transformer: numericAsNumber })
   diffQty: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  costUsd: number | null
 
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   costUzs: number | null
@@ -1288,9 +1258,6 @@ export class StockDocumentLine {
   expectedQty: number | null
 
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  costUsd: number | null
-
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   costUzs: number | null
 }
 
@@ -1319,9 +1286,6 @@ export class StockDocumentItem {
 
   @Column('numeric', { transformer: numericAsNumber })
   qty: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
@@ -1991,9 +1955,6 @@ export class Sale {
   rounding: number
 
   @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
 
   @Column('text')
@@ -2107,9 +2068,6 @@ export class SaleLine {
   total: number
 
   @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
 
   @Column('uuid', { nullable: true })
@@ -2149,17 +2107,11 @@ export class SaleItem {
   qty: number
 
   @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number
 
   /** How much of the piece has come back, and at what cost. */
   @Column('numeric', { transformer: numericAsNumber })
   returnedQty: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  returnedUsd: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   returnedUzs: number
@@ -2304,9 +2256,6 @@ export class SaleReturnLine {
 
   @Column('bigint', { transformer: bigintAsNumber })
   total: number
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  costUsd: number
 
   @Column('bigint', { transformer: bigintAsNumber })
   costUzs: number

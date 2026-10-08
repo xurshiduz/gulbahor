@@ -471,7 +471,10 @@ export class ShiftsService {
       }
       const base = tillWorth(diff, currency, book)
       if (base === null) {
-        throw AppError.conflict('NO_RATE', `${wantingRate(book, currency) ?? 'Kurs qo‘yilmagan'}. Avval kursni kiriting`)
+        throw AppError.conflict(
+          'NO_RATE',
+          `${wantingRate(book, currency) ?? 'Kurs qo‘yilmagan'}. Avval kursni kiriting`,
+        )
       }
       const fresh = kind === 'shift_open' && !(await this.ledger.isUsed(em, account.id))
       const other = await this.ledger.systemAccount(em, actor.orgId, fresh ? 'opening' : 'cash_diff')

@@ -91,9 +91,7 @@ describe('Partner sales', () => {
       .send({
         locationId: shopId,
         docDate: '2026-10-01',
-        uzsRate: 12_000,
         currency: 'UZS',
-        usdRate: 12_000,
         lines: [{ variantId: coat, qty: 40, price: som(600_000) }],
       })
       .expect(201)
@@ -327,9 +325,7 @@ describe('Partner sales', () => {
         .send({
           locationId: shopId,
           docDate: '2026-10-01',
-          uzsRate: 12_000,
           currency: 'UZS',
-          usdRate: 12_000,
           lines: [{ variantId: trousers, qty: 5, price: som(150_000) }],
         })
         .expect(201)

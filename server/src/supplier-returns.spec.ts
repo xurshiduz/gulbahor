@@ -48,11 +48,11 @@ describe('Supplier returns', () => {
     )
     return Number(row.qty)
   }
-  const receive = async (supplierId: string, currency: string, usdRate: number, lines: Record<string, unknown>[]) => {
+  const receive = async (supplierId: string, currency: string, rate: number, lines: Record<string, unknown>[]) => {
     const draft = (
       await alpha
         .post('/api/receipts')
-        .send({ locationId: shopId, supplierId, docDate: today, currency, usdRate, uzsRate: 12_800, lines })
+        .send({ locationId: shopId, supplierId, docDate: today, currency, rate, lines })
         .expect(201)
     ).body
     await alpha.post(`/api/receipts/${draft.id}/post`).expect(201)
@@ -82,7 +82,7 @@ describe('Supplier returns', () => {
     await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
     yiwu = (await alpha.post('/api/partners').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201))
       .body.id
-    fromDordoy = await receive(dordoy, 'USD', 1, [{ variantId: coat, qty: 10, price: usd(30) }])
+    fromDordoy = await receive(dordoy, 'USD', 12_800, [{ variantId: coat, qty: 10, price: usd(30) }])
 
     const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]
     await alpha
@@ -129,7 +129,7 @@ describe('Supplier returns', () => {
       // A later receipt of the same coats from someone else: its batch is not the one that goes back.
       const other = (await alpha.post('/api/partners').send({ name: 'Boshqa', isSupplier: true, currency: 'USD' })).body
         .id
-      await receive(other, 'USD', 1, [{ variantId: coat, qty: 5, price: usd(40) }])
+      await receive(other, 'USD', 12_800, [{ variantId: coat, qty: 5, price: usd(40) }])
       expect((await owes(dordoy)).balance).toBe(-usd(300))
 
       const made = (await draft(fromDordoy.id, [{ variantId: coat, qty: 3 }]).expect(201)).body as Doc
@@ -164,7 +164,7 @@ describe('Supplier returns', () => {
 
   describe('in a supplier’s own currency', () => {
     it('comes off at exactly what the receipt billed, whatever the rate', async () => {
-      const inYuan = await receive(yiwu, 'CNY', 7.2, [{ variantId: scarf, qty: 10, price: yuan(50) }])
+      const inYuan = await receive(yiwu, 'CNY', 1_780, [{ variantId: scarf, qty: 10, price: yuan(50) }])
       expect((await owes(yiwu)).balance).toBe(-yuan(500))
       const made = (await draft(inYuan.id, [{ variantId: scarf, qty: 3 }]).expect(201)).body as Doc
       const posted = (await alpha.post(`/api/stock-documents/${made.id}/post`).expect(201)).body as Doc

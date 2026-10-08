@@ -71,8 +71,6 @@ describe('Prices in any currency', () => {
         locationId: shopId,
         docDate: '2026-10-01',
         currency: 'UZS',
-        usdRate: 12_650,
-        uzsRate: 12_650,
         lines: [{ variantId: dress, qty: 5, price: minor(122_500) }],
       })
       .expect(201)

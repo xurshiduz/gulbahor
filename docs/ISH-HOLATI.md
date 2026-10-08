@@ -212,8 +212,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 9a. Valyutalar va kurslar: dollar oddiy valyuta, `usd` moduli va `exchange_rates` yo'q, kurs istalgan valyutaga nisbatan, yangi biznes so'm bilan.
      - [x] 9b. Narx istalgan yoqilgan valyutada.
      - [x] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
-     - [ ] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
-     - [ ] 9c′. Tannarx faqat asosiy valyutada: tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada (taklif egasida).
+     - [x] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
+     - [ ] 9c′. Tannarx faqat asosiy valyutada: tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada, "bugungi kursda tannarx" (egasi tasdiqladi).
      - [ ] 9e. Smena va inkassatsiya: har tortma sanog'i.
      - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
@@ -223,8 +223,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: V9 (egasi so'radi, 2026-10-08), keyin M1.
 
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
-   - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula (~9 kun).
-   - [ ] M2. Yagona mijoz: baza, ko'chirish, bitta hisob, muddat va chegara, to'lovlar, qaytarish (~7 kun).
+   - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula; + fiks / kursga bog'langan narx, narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati (KEYINGI-REJA, V9 bo'limi "Narx, mijoz hisobi…", 16.10) (~13 kun).
+   - [ ] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun).
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
@@ -236,7 +236,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-V9 / 9d: kassa istalgan valyutada — kassa valyutalari, tortmalar, to'lov qatorlari, qaytim, qaytarish, chek.
+V9 / 9c′: tannarx faqat asosiy valyutada — cost_currency va …_usd tannarx ustunlari olib tashlanadi, kirimda bitta kurs (rate, rate_way), xarajat istalgan valyutada, bugungi kursda tannarx
 
 ## Ish daraxti nusxalari
 
@@ -261,3 +261,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `c1015db1b48825e679f0f8aa912d72d92ba144ea` | V9 / 9a: dollar oddiy valyuta (org_currencies, currency_rates; usd moduli va exchange_rates yo'q), Actor.currencies, kurs asosiyda va istalgan valyutaga nisbatan, CURRENCY_PRICED, yangi biznes so'm bilan |
 | `2eecf33b22b93901d96712db1381f4479280ec4e` | V9 / 9b: narx turi va narx istalgan yoqilgan valyutada (pricedIn), kassa narxni kurslar kitobi bilan o'giradi, ustama boshqa valyutada, MoneyInput valyutalar bo'ylab; T1 (to'rt til) rejasi |
 | `e4a9116b450695b73aee40f1a2b8204de3a8c3b1` | V9 / 9c: tannarx valyutasi (cost_currency, Actor.cost, COST_LOCKED, CURRENCY_COST), kirim tayanch valyuta orqali (pivotOf), sozlama va birinchi sozlashda tanlov, tovar sahifasida Kirimlar (kelgan valyuta va narx) |
+| `098398810a4fddf3d099ec19c5f9d25a19cc8f89` | V9 / 9d: kassa istalgan valyutada — registers.currencies (Naqd valyutalar), to'lov qatori har valyutaga, qaytim istalgan valyutada (change_other/change_currency/change_other_base), kelishilgan qiymat har chet valyutada, qaytarish, chek va hisobot; egasining qarori: tannarx faqat asosiyda (9c′ taklifi) |

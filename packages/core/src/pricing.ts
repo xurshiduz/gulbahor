@@ -154,18 +154,14 @@ const operationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('amount'), amount: z.number().int().min(-1_000_000_000_00).max(1_000_000_000_00) }),
   /**
    * From what the goods cost. Without a percentage each model takes the
-   * markup its rule gives it. With a rate, goods bought for foreign money
-   * are costed at that rate rather than at the rate of the day they came in.
+   * markup its rule gives it. `today`: goods bought for foreign money are
+   * costed at today's rates of the currencies they came in, not at the rate
+   * of the day they came in (`PriceListItemDto.unitCostToday`).
    */
   z.object({
     kind: z.literal('markup'),
     percent: percentSchema.nullish().transform((value) => value ?? null),
-    uzsRate: z
-      .number()
-      .positive()
-      .max(1_000_000)
-      .nullish()
-      .transform((value) => value ?? null),
+    today: z.boolean().default(false),
   }),
   /** From another price type's prices: wholesale as retail less 15%. */
   z.object({ kind: z.literal('from_type'), priceTypeId: idSchema, percent: percentSchema }),
@@ -182,10 +178,7 @@ export const priceListFilterSchema = z.object({
 })
 export type PriceListFilter = z.infer<typeof priceListFilterSchema>
 
-export const priceListQuerySchema = listQuerySchema.extend(priceListFilterSchema.shape).extend({
-  /** So'm per dollar: with it, cost is shown as what the goods would cost to buy today. */
-  uzsRate: z.coerce.number().positive().max(1_000_000).optional(),
-})
+export const priceListQuerySchema = listQuerySchema.extend(priceListFilterSchema.shape)
 export type PriceListQuery = z.infer<typeof priceListQuerySchema>
 
 export const repriceSchema = z.object({
@@ -247,9 +240,13 @@ export interface PriceListItemDto {
   brandName: string | null
   season: Season | null
   qty: number
-  /** One unit's cost; null when unknown or not shown to this person. */
+  /** One unit's cost in the base; null when unknown or not shown to this person. */
   unitCostUzs: number | null
-  unitCostUsd: number | null
+  /**
+   * The same with the goods bought for foreign money at today's rates of the currencies they came in (their expenses
+   * as they were): what it would cost to bring them in again. Null where it is no different, or not shown.
+   */
+  unitCostToday: number | null
   /** The model's own price by price type. */
   prices: Record<string, number>
   /** Prices set apart for a size or a shop: they move with the model's price. */

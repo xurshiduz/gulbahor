@@ -53,8 +53,6 @@ describe('A till in any currency', () => {
         locationId: shopId,
         docDate: '2026-10-01',
         currency: 'UZS',
-        usdRate: 12_650,
-        uzsRate: 12_650,
         lines: [{ variantId: dress, qty: 10, price: minor(200_000) }],
       })
       .expect(201)

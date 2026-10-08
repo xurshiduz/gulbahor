@@ -112,9 +112,7 @@ describe('Promotions', () => {
         .send({
           locationId,
           docDate: '2026-10-01',
-          uzsRate: 12_000,
           currency: 'UZS',
-          usdRate: 12_000,
           lines: [
             { variantId: dress, qty: 30, price: som(100_000) },
             { variantId: scarf, qty: 30, price: som(20_000) },
@@ -388,9 +386,7 @@ describe('Promotions', () => {
         .send({
           locationId: shopId,
           docDate: '2026-10-01',
-          uzsRate: 12_000,
           currency: 'UZS',
-          usdRate: 12_000,
           lines: [
             { variantId: trousers.variants[0].id, qty: 30, price: som(60_000) },
             { variantId: belt.variants[0].id, qty: 30, price: som(15_000) },

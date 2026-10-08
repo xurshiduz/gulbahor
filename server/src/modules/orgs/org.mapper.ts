@@ -22,7 +22,6 @@ function toOrgDto(org: Organization, currencies: AnyCurrency[]): OrgDto {
     timezone: org.timezone,
     baseCurrency: org.baseCurrency,
     currencies,
-    costCurrency: org.costCurrency,
     modules: org.modules,
     settings: { ...DEFAULT_ORG_SETTINGS, ...org.settings },
     setupCompleted: org.setupCompleted,

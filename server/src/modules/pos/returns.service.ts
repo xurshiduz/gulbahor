@@ -288,7 +288,6 @@ export class ReturnsService {
             variantId: item.line.variantId,
             qty: item.qty,
             total: item.total,
-            costUsd: 0,
             costUzs: 0,
             unitId: item.line.unitId,
           }),
@@ -300,7 +299,6 @@ export class ReturnsService {
       for (const [index, item] of taken.entries()) {
         const pieces = await em.find(SaleItem, { where: { lineId: item.line.id }, order: { position: 'DESC' } })
         let left = milli(item.qty)
-        let lineUsd = 0
         let lineUzs = 0
         for (const piece of pieces) {
           const has = milli(piece.qty) - milli(piece.returnedQty)
@@ -309,8 +307,6 @@ export class ReturnsService {
           }
           const take = Math.min(has, left)
           // The last of a piece takes all the cost that is left of it, so nothing is lost to rounding.
-          const costUsd =
-            take === has ? piece.costUsd - piece.returnedUsd : costOf(piece.costUsd, take, milli(piece.qty))
           const costUzs =
             take === has ? piece.costUzs - piece.returnedUzs : costOf(piece.costUzs, take, milli(piece.qty))
           movements.push({
@@ -323,22 +319,19 @@ export class ReturnsService {
             batchId: piece.batchId,
             variantId: piece.variantId,
             qty: take / 1000,
-            costUsd,
             costUzs,
           })
           await em.update(SaleItem, piece.id, {
             returnedQty: (milli(piece.returnedQty) + take) / 1000,
-            returnedUsd: piece.returnedUsd + costUsd,
             returnedUzs: piece.returnedUzs + costUzs,
           })
           left -= take
-          lineUsd += costUsd
           lineUzs += costUzs
         }
         if (left) {
           throw new Error(`Sale line ${item.line.id} has fewer pieces out than are coming back`)
         }
-        await em.update(SaleReturnLine, lines[index].id, { costUsd: lineUsd, costUzs: lineUzs })
+        await em.update(SaleReturnLine, lines[index].id, { costUzs: lineUzs })
         await em.update(SaleLine, item.line.id, {
           returnedQty: (milli(item.line.returnedQty) + milli(item.qty)) / 1000,
           returnedTotal: item.line.returnedTotal + item.total,

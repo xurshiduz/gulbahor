@@ -49,7 +49,6 @@ describe('A base other than the so’m', () => {
       .send({
         name,
         currencies: ['USD'],
-        costCurrency: 'USD',
         locations: [{ name: `${name} shop`, kind: 'store' }],
         modules,
       })
@@ -77,6 +76,8 @@ describe('A base other than the so’m', () => {
         })
         .expect(201)
     ).body.variants[0].id as string
+    // Bought in yuan: the business keeps them from the first such receipt on.
+    await agent.post('/api/currencies').send({ code: 'CNY' })
     const draft = (
       await agent
         .post('/api/receipts')
@@ -140,11 +141,12 @@ describe('A base other than the so’m', () => {
 
     it('buys in yuan and costs the goods in tenge and dollars', async () => {
       await gamma.agent.put('/api/currencies/USD/rate').send({ value: 480 }).expect(200)
-      // 10 at 71 ¥ = 710 ¥ = 100 $ = 48 000 ₸.
-      const bought = await stocked(gamma, { amount: minor(12_000), currency: 'KZT' }, { usdRate: 7.1, uzsRate: 480 })
+      // 10 at 71 ¥ = 710 ¥, which at 7,1 to the dollar and 480 ₸ a dollar is 48 000 ₸: one rate, the yuan in tenge.
+      const bought = await stocked(gamma, { amount: minor(12_000), currency: 'KZT' }, { rate: 67.605634 })
       variant = bought.variant
-      expect(bought.receipt.totals).toMatchObject({ goodsUsd: minor(100), goodsUzs: minor(48_000) })
-      // An expense can be in tenge, dollars or yuan; so'm the receipt has no rate for.
+      expect(bought.receipt).toMatchObject({ rate: 67.605634, rateWay: 'in' })
+      expect(bought.receipt.totals).toMatchObject({ goods: minor(710), goodsUzs: minor(48_000) })
+      // An expense can be in any currency the business keeps; so'm it does not keep.
       const so = await gamma.agent
         .put(`/api/receipts/${bought.receipt.id}/expenses`)
         .send({ expenses: [{ name: 'Kargo', amount: minor(100_000), currency: 'UZS', basis: 'quantity' }] })
@@ -262,14 +264,10 @@ describe('A base other than the so’m', () => {
     })
 
     it('costs the goods once, in dollars, and sells for dollars with change in dollars', async () => {
-      // 10 at 71 ¥ = 710 ¥ = 98 $ at 7,25; whatever so'm rate a form might send, a dollar is a dollar.
-      const { variant, receipt } = await stocked(
-        delta,
-        { amount: minor(37.6), currency: 'USD' },
-        { usdRate: 7.25, uzsRate: 12_650 },
-      )
-      expect(receipt.totals.goodsUzs).toBe(receipt.totals.goodsUsd)
-      expect(receipt.totals.goodsUsd).toBe(minor(97.93))
+      // 10 at 71 ¥ = 710 ¥ = 97,93 $ at "1 $ = 7,25 ¥": the dollar comes first, and costs are in it alone.
+      const { variant, receipt } = await stocked(delta, { amount: minor(37.6), currency: 'USD' }, { rate: 7.25 })
+      expect(receipt).toMatchObject({ rate: 7.25, rateWay: 'per' })
+      expect(receipt.totals.goodsUzs).toBe(minor(97.93))
 
       await delta.agent.post('/api/shifts').send({ registerId: delta.registerId, cashUzs: 0 }).expect(201)
       const sale = (
@@ -411,7 +409,7 @@ describe('A base other than the so’m', () => {
       const draft = (
         await zeta.agent
           .post('/api/receipts')
-          .send({ locationId: zeta.shopId, docDate: today, currency: 'USD', usdRate: 1, uzsRate: 12_650, lines: [] })
+          .send({ locationId: zeta.shopId, docDate: today, currency: 'USD', rate: 12_650, lines: [] })
           .expect(201)
       ).body
       const drafted = await zeta.agent.put('/api/currencies/base').send({ currency: 'USD' })
@@ -420,7 +418,7 @@ describe('A base other than the so’m', () => {
       expect((await zeta.agent.get('/api/currencies/base').expect(200)).body.locked).toBe('drafts')
       await zeta.agent.delete(`/api/receipts/${draft.id}`).expect(204)
 
-      await stocked(zeta, { amount: minor(127_000), currency: 'UZS' }, { usdRate: 7.25, uzsRate: 12_650 })
+      await stocked(zeta, { amount: minor(127_000), currency: 'UZS' }, { rate: 1_745 })
       const locked = await zeta.agent.put('/api/currencies/base').send({ currency: 'USD' })
       expect(locked.status).toBe(409)
       expect(locked.body.error.message).toBe('Tovar kirimi bor: asosiy valyuta endi o‘zgarmaydi')

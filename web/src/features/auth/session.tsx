@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/feedback'
 import { setLanguage } from '@/i18n'
 import { api, ApiError, setSignedOutHandler } from '@/lib/api'
-import { setBase, setCost } from '@/lib/base'
+import { setBase } from '@/lib/base'
 import { useRealtime } from '@/lib/realtime'
 import { toast } from '@/lib/toast'
 
@@ -120,7 +120,6 @@ export function SessionGate({ setup, children }: { setup: ReactNode; children: R
   }
   // Before anything below renders a sum: every sum without a currency of its own is in the base.
   setBase(me.org.baseCurrency)
-  setCost(me.org.costCurrency)
 
   let content = children
   if (me.user.mustChangePassword) {
@@ -145,7 +144,11 @@ function NotSetUp() {
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="max-w-sm text-sm text-ink-2">{t('setup.notReady')}</p>
-      <button type="button" className="text-sm font-medium text-accent-ink hover:underline" onClick={() => void logout()}>
+      <button
+        type="button"
+        className="text-sm font-medium text-accent-ink hover:underline"
+        onClick={() => void logout()}
+      >
         {t('auth.signOut')}
       </button>
     </div>

@@ -236,9 +236,7 @@ describe('Product photographs', () => {
         .send({
           locationId: shopId,
           docDate: '2026-10-01',
-          uzsRate: 12_000,
           currency: 'UZS',
-          usdRate: 12_000,
           lines: [
             { variantId: dress.variants[0].id, qty: 1, price: 100_000_00 },
             { variantId: bare.variants[0].id, qty: 1, price: 50_000_00 },

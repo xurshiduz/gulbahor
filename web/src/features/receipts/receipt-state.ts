@@ -1,7 +1,8 @@
 import {
+  baseWorth,
   combinations,
   costReceipt,
-  pivotOf,
+  receiptRateWay,
   type AnyCurrency,
   type AttributeDto,
   type Costing,
@@ -11,9 +12,10 @@ import {
   type ReceiptExpenseInput,
   type ReceiptLineInput,
   type ReceiptProductDto,
+  type RateBook,
 } from '@erp/core'
 
-import { base, cost } from '@/lib/base'
+import { base } from '@/lib/base'
 
 /**
  * A receipt on the screen is a list of blocks, not of lines. A block is one
@@ -55,8 +57,8 @@ export interface Header {
   supplierId: string | null
   docDate: string
   currency: AnyCurrency
-  usdRate: number | null
-  uzsRate: number | null
+  /** Against the base, written `receiptRateWay` round; not read for a receipt in the base. */
+  rate: number | null
   extraCurrency: AnyCurrency
   note: string
 }
@@ -65,34 +67,24 @@ export interface Header {
 export interface ReceiptDefaults {
   locationId: string | null
   currency: AnyCurrency
-  /** Units of the base for one of the cost currency. */
-  uzsRate: number | null
-  /** Units of the base for one of each go-between currency (where costs are kept in the base alone). */
-  uzsRates?: Partial<Record<AnyCurrency, number>>
-  /** Units for one of the go-between currency, by currency. */
-  usdRates: Partial<Record<AnyCurrency, number>>
 }
 
 /**
- * Which rates a receipt in `currency` asks for: the currency against the go-between (`usd`, "1 $ = 7,25 ¥")
- * and the go-between in the base (`uzs`, "1 $ = 12 650 so'm"). Where costs are kept in the base alone, one:
- * "1 ¥ = 1 750 so'm".
+ * The day's rate of `currency`, written the way a receipt writes it ("1 ¥ = 1 750 so'm", or "1 $ = 7,25 ¥" in a
+ * dollar business): to the tiyin where it runs to hundreds, to four places where it is a handful. Null for the
+ * base, and while the day has no rate for it.
  */
-export function ratesAsked(currency: AnyCurrency): { pivot: AnyCurrency; usd: boolean; uzs: boolean } {
-  const pivot = pivotOf(base(), cost(), currency)
-  return { pivot, usd: currency !== pivot && currency !== base(), uzs: base() !== pivot }
-}
-
-/** The base rate a new receipt in `currency` starts from: the last one used for its go-between. */
-export function rememberedUzsRate(defaults: ReceiptDefaults, currency: AnyCurrency): number | null {
-  const { pivot, uzs } = ratesAsked(currency)
-  if (!uzs) {
-    return 1
+export function dayRateOf(currency: AnyCurrency, book: RateBook): number | null {
+  const one = currency === base() ? null : baseWorth(currency, book)
+  if (!one) {
+    return null
   }
-  return defaults.uzsRates?.[pivot] ?? (pivot === cost() ? defaults.uzsRate : null)
+  const value = receiptRateWay(currency, base()) === 'in' ? one.toNumber() : 1 / one.toNumber()
+  const places = value >= 100 ? 100 : 10_000
+  return Math.round(value * places) / places
 }
 
-export const NO_DEFAULTS: ReceiptDefaults = { locationId: null, currency: 'USD', uzsRate: null, usdRates: {} }
+export const NO_DEFAULTS: ReceiptDefaults = { locationId: null, currency: 'UZS' }
 
 export const DEFAULTS_KEY = 'receipt.defaults'
 
@@ -205,7 +197,6 @@ export function expenseInputs(expenses: ExpenseDraft[]): ReceiptExpenseInput[] {
 export interface BlockCost {
   qty: number
   goods: number
-  costUsd: number
   costUzs: number
 }
 
@@ -215,9 +206,10 @@ export function costOf(
   blocks: Block[],
   expenses: ExpenseDraft[],
   products: Map<string, ReceiptProductDto>,
+  /** The rates of the receipt's day: what an expense in a third currency is worth. */
+  book: RateBook,
 ): { costing: Costing; blocks: BlockCost[] } | null {
-  const asked = ratesAsked(header.currency)
-  if ((asked.uzs && !header.uzsRate) || (asked.usd && !header.usdRate)) {
+  if (header.currency !== base() && !header.rate) {
     return null
   }
   const { lines, blockOf } = linesOf(blocks, products)
@@ -226,10 +218,10 @@ export function costOf(
 
   const costing = costReceipt({
     base: base(),
-    cost: cost(),
     currency: header.currency,
-    usdRate: header.usdRate ?? 1,
-    uzsRate: header.uzsRate ?? 1,
+    rate: header.rate,
+    rateWay: receiptRateWay(header.currency, base()),
+    book,
     extraCurrency: header.extraCurrency,
     lines: lines.map((line) => ({
       qty: line.qty,
@@ -240,12 +232,11 @@ export function costOf(
     expenses: expenseInputs(expenses),
   })
 
-  const perBlock: BlockCost[] = blocks.map(() => ({ qty: 0, goods: 0, costUsd: 0, costUzs: 0 }))
+  const perBlock: BlockCost[] = blocks.map(() => ({ qty: 0, goods: 0, costUzs: 0 }))
   costing.lines.forEach((line, index) => {
     const block = perBlock[blockOf[index]]
     block.qty = Math.round((block.qty + lines[index].qty) * 1000) / 1000
     block.goods += line.goods
-    block.costUsd += line.costUsd
     block.costUzs += line.costUzs
   })
   return { costing, blocks: perBlock }
