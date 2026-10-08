@@ -14,6 +14,7 @@ import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { photoVersions } from '@/lib/image'
 import { toast } from '@/lib/toast'
+import { uuid } from '@/lib/uuid'
 
 /** A colour the model comes in: what a photograph may be said to show. */
 export interface ImageColor {
@@ -78,7 +79,7 @@ export function ProductImages({ productId, images, colors, canManage }: ProductI
     setQueue((current) => [
       ...current,
       ...pictures.slice(0, Math.max(0, room)).map((file) => ({
-        key: crypto.randomUUID(),
+        key: uuid(),
         file,
         preview: URL.createObjectURL(file),
         state: 'waiting' as const,

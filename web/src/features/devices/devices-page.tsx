@@ -42,6 +42,7 @@ import { Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Page } from '@/components/ui/page'
 import { api } from '@/lib/api'
+import { copyText } from '@/lib/clipboard'
 import { formatRecent } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
@@ -469,7 +470,7 @@ function KeyDialog({ agent, onClose }: { agent: AgentKeyDto; onClose: () => void
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(config)
+      await copyText(config)
       toast.success(t('devices.copied'))
     } catch {
       toast.error(t('devices.copyFailed'))

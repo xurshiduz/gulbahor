@@ -35,6 +35,7 @@ import { base, baseWords, dollarsBeside } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
+import { sha256Hex } from '@/lib/sha256'
 import { toast } from '@/lib/toast'
 
 import { DEFAULTS_KEY, NO_DEFAULTS, type ReceiptDefaults } from './receipt-state'
@@ -57,9 +58,6 @@ interface LocationOption {
 
 const SKIP = 'skip'
 
-const hex = (buffer: ArrayBuffer) =>
-  [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-
 /** The first row that looks like a header: at least three cells of text. */
 const headerRowOf = (data: Cell[][]) =>
   Math.max(
@@ -75,7 +73,7 @@ async function readSheet(file: File): Promise<Sheet> {
   const at = headerRowOf(data)
   return {
     fileName: file.name,
-    fileHash: hex(await crypto.subtle.digest('SHA-256', buffer)),
+    fileHash: await sha256Hex(buffer),
     headers: data[at] ?? [],
     rows: data.slice(at + 1).map((cells, index) => ({ number: at + index + 2, cells })),
   }

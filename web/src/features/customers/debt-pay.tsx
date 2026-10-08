@@ -40,9 +40,9 @@ import { api, ApiError } from '@/lib/api'
 import { base, baseWords } from '@/lib/base'
 import { formatPhone } from '@/lib/format'
 import { toast } from '@/lib/toast'
+import { uuid } from '@/lib/uuid'
 import { useRateBook } from '@/features/money/rates'
 
-const uuid = () => crypto.randomUUID()
 const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 interface DebtPayDialogProps {
