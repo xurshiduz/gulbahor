@@ -153,6 +153,18 @@
     background: var(--accent-soft);
     color: var(--accent-ink);
   }
+  /*
+   * A field the browser filled in by itself (a saved login) is painted the browser's own blue. Inside a framed
+   * field — a password with its eye, a phone with +998 — only the typing part turned blue and the frame and
+   * its ends stayed white, so the frame looked broken. Filled-in fields keep the screen's colours.
+   */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--ink);
+    caret-color: var(--ink);
+    box-shadow: 0 0 0 1000px var(--surface) inset;
+  }
   button,
   [role='button'],
   [role='tab'],

@@ -21,13 +21,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { className, prefix, suffix, invalid, ...props },
   ref,
 ) {
+  // Inside a frame the field fills what is within the frame's border, not its own height: a field one line
+  // taller ran over the frame, and a filled-in field's colour covered it.
   const input = (
     <input
       ref={ref}
       aria-invalid={invalid || undefined}
       autoComplete="off"
       spellCheck={false}
-      className={cn(controlClass, prefix && 'pl-0', suffix && 'pr-0', (prefix || suffix) && 'border-0 bg-transparent focus:outline-0', className)}
+      className={cn(controlClass, prefix && 'pl-0', suffix && 'pr-0', (prefix || suffix) && 'h-full border-0 bg-transparent focus:outline-0', className)}
       {...props}
     />
   )
