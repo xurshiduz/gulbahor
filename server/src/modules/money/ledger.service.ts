@@ -1,8 +1,9 @@
-import { CURRENCIES, SYSTEM_ACCOUNT_LABELS, type CurrencyCode, type SystemAccount } from '@erp/core'
+import { SYSTEM_ACCOUNT_LABELS, type AnyCurrency, type SystemAccount } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
 import { Account, LedgerEntry, Organization, type Partner, type Register } from '../../database/entities'
+import { drawerName } from './drawers'
 
 /** One side of a movement: so much into an account (or, negative, out of it), and its worth in the base. */
 export interface Posting {
@@ -145,7 +146,7 @@ export class LedgerService {
   }
 
   /** A till's drawer in one currency; made the first time money of that currency goes in. */
-  async cashAccount(em: EntityManager, register: Register, currency: CurrencyCode): Promise<Account> {
+  async cashAccount(em: EntityManager, register: Register, currency: AnyCurrency): Promise<Account> {
     const existing = await em.findOneBy(Account, { registerId: register.id, currency })
     if (existing) {
       return existing
@@ -154,7 +155,7 @@ export class LedgerService {
       em.create(Account, {
         orgId: register.orgId,
         kind: 'cash',
-        name: `${register.name} (${CURRENCIES[currency].symbol})`,
+        name: drawerName(register.name, currency),
         currency,
         locationId: register.locationId,
         locationIds: [register.locationId],

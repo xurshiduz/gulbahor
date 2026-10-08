@@ -40,6 +40,7 @@ import { TillCurrencies1790000039000 } from './1790000039000-till-currencies'
 import { CostInBase1790000040000 } from './1790000040000-cost-in-base'
 import { ShiftCounts1790000041000 } from './1790000041000-shift-counts'
 import { EveryTillEveryCurrency1790000042000 } from './1790000042000-every-till-every-currency'
+import { TillDrawers1790000043000 } from './1790000043000-till-drawers'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -85,4 +86,5 @@ export const MIGRATIONS = [
   CostInBase1790000040000,
   ShiftCounts1790000041000,
   EveryTillEveryCurrency1790000042000,
+  TillDrawers1790000043000,
 ]

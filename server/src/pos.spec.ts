@@ -149,8 +149,14 @@ describe('Till', () => {
         .body.id
       expect((await alpha.post('/api/money/accounts').send({ ...card, last4: '30' })).status).toBe(400)
       const accounts = (await alpha.get('/api/money/accounts').expect(200)).body as AccountRow[]
-      expect(accounts.map((account) => account.kind)).toEqual(['card', 'terminal'])
-      expect(accounts[0]).toMatchObject({ name: 'Humo', balance: 0, currency: 'UZS' })
+      // The till's drawers came with it, one for each currency the business keeps.
+      expect(accounts.map((account) => [account.kind, account.name])).toEqual([
+        ['cash', 'Kassa 1 ($)'],
+        ['cash', 'Kassa 1 (so‘m)'],
+        ['card', 'Humo'],
+        ['terminal', 'Terminal 1'],
+      ])
+      expect(accounts[2]).toMatchObject({ name: 'Humo', balance: 0, currency: 'UZS' })
       await cashier.get('/api/money/accounts').expect(403)
     })
 

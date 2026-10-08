@@ -377,13 +377,10 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
   const locations = useLocations()
   // A warehouse has no till: only places that sell are offered.
   const shops = (locations.data ?? []).filter((location) => location.kind !== 'warehouse' && location.kind !== 'zone')
-  // Cash beside the base: any currency the business keeps. A new till takes every one of them, as the server would.
-  const others = useSession().me.org.currencies.filter((code) => code !== baseCurrency())
-  const form = useForm<{ name: string; locationId: string | null; currencies: AnyCurrency[] }>({
+  const form = useForm<{ name: string; locationId: string | null }>({
     defaultValues: {
       name: register?.name ?? '',
       locationId: register?.locationId ?? (shops.length === 1 ? shops[0].id : null),
-      currencies: register?.currencies ?? others,
     },
   })
   const errors = form.formState.errors
@@ -422,7 +419,13 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
         <Field label={t('money.name')} error={errors.name?.message} required>
           {(id) => <Input id={id} autoFocus placeholder="Kassa 1" invalid={!!errors.name} {...form.register('name')} />}
         </Field>
-        <Field label={t('money.shop')} error={errors.locationId?.message} required>
+        <Field
+          label={t('money.shop')}
+          // The cash a till takes is in its drawers: "Naqd" accounts given to it, one for each currency.
+          hint={t('money.drawersHint')}
+          error={errors.locationId?.message}
+          required
+        >
           {(id) => (
             <Controller
               control={form.control}
@@ -439,30 +442,6 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
             />
           )}
         </Field>
-        {others.length ? (
-          <Field
-            label={t('money.tillCurrencies')}
-            hint={t('money.tillCurrenciesHint', { base: currencyName(baseCurrency(), t) })}
-            error={errors.currencies?.message}
-          >
-            {(id) => (
-              <Controller
-                control={form.control}
-                name="currencies"
-                render={({ field }) => (
-                  <Combobox
-                    id={id}
-                    multiple
-                    value={field.value}
-                    onChange={(codes) => field.onChange(codes)}
-                    options={others.map((code) => ({ value: code, label: currencyName(code, t), hint: code }))}
-                    invalid={!!errors.currencies}
-                  />
-                )}
-              />
-            )}
-          </Field>
-        ) : null}
       </Form>
     </Dialog>
   )
@@ -547,8 +526,7 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
         header: '',
         meta: { fixed: true, className: 'w-px' },
         cell: ({ row }) =>
-          // A till's drawer belongs to its till: it is renamed and put away with it.
-          canManage && row.original.kind !== 'cash' ? (
+          canManage ? (
             <span onClick={(event) => event.stopPropagation()}>
               <Menu
                 trigger={
@@ -585,12 +563,15 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
       data={accounts.data}
       loading={accounts.isPending}
       rowId={(row) => row.id}
-      onRowOpen={canManage ? (row) => (row.kind === 'cash' ? undefined : onEdit(row)) : undefined}
+      onRowOpen={canManage ? onEdit : undefined}
       rowClassName={(row) => (row.isActive ? undefined : 'text-ink-3')}
       empty={<EmptyState icon={Landmark} title={t('money.noAccounts')} hint={t('money.noAccountsHint')} />}
     />
   )
 }
+
+/** Cash first: it is what is set up most. */
+const KIND_ORDER: PaymentAccountKind[] = ['safe', ...PAYMENT_ACCOUNT_KINDS.filter((kind) => kind !== 'safe')]
 
 interface AccountValues {
   kind: PaymentAccountKind
@@ -600,24 +581,31 @@ interface AccountValues {
   locationIds: string[]
   cardNumber: string
   bank: string
+  /** The till whose drawer this cash is; only for cash. */
+  registerId: string | null
 }
 
 function AccountDialog({ account, onClose }: { account: AccountDto | null; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const locations = useLocations()
+  const registers = useRegisters()
   const form = useForm<AccountValues>({
     defaultValues: {
-      kind: (account?.kind as PaymentAccountKind | undefined) ?? 'card',
+      // A till's drawer is cash like any other, given to the till.
+      kind: account?.kind === 'cash' ? 'safe' : ((account?.kind as PaymentAccountKind | undefined) ?? 'safe'),
       name: account?.name ?? '',
       currency: account?.currency ?? baseCurrency(),
       locationIds: account?.locationIds ?? [],
       cardNumber: account?.cardNumber ? formatCardNumber(account.cardNumber) : '',
       bank: account?.bank ?? '',
+      registerId: account?.registerId ?? null,
     },
   })
   const errors = form.formState.errors
   const kind = form.watch('kind')
+  const tillId = kind === 'safe' ? form.watch('registerId') : null
+  const tills = (registers.data ?? []).filter((till) => till.isActive || till.id === account?.registerId)
   // Money is kept in any currency the business has switched on; a terminal takes what the tills sell in.
   const currencies = useCurrencies()
   const base = currencies.data?.base ?? baseCurrency()
@@ -639,8 +627,9 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
     const input = zodCheck(form, accountInputSchema, {
       ...values,
       currency: choosesCurrency ? values.currency : base,
-      // What was a card with several shops and is now a terminal keeps the first of them.
-      locationIds: shared ? values.locationIds : values.locationIds.slice(0, 1),
+      // What was a card with several shops and is now a terminal keeps the first of them; a drawer stands where its till does.
+      locationIds: tillId ? [] : shared ? values.locationIds : values.locationIds.slice(0, 1),
+      registerId: tillId,
       cardNumber: values.cardNumber || null,
       // A card set up before whole numbers were kept is still known by its last four.
       last4: account?.last4 ?? null,
@@ -677,7 +666,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
                     id={id}
                     value={field.value}
                     onChange={field.onChange}
-                    options={PAYMENT_ACCOUNT_KINDS.map((item) => ({ value: item, label: ACCOUNT_KIND_LABELS[item] }))}
+                    options={KIND_ORDER.map((item) => ({ value: item, label: ACCOUNT_KIND_LABELS[item] }))}
                   />
                 )}
               />
@@ -695,40 +684,65 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
             )}
           </Field>
         </div>
-        <Field
-          label={shared ? t('money.shops') : t('money.shop')}
-          hint={shared ? t('money.shopsHint') : t('money.shopHint')}
-          error={errors.locationIds?.message}
-        >
-          {(id) => (
-            <Controller
-              control={form.control}
-              name="locationIds"
-              render={({ field }) => {
-                const options = (locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))
-                // A card goes wherever its owner does; a terminal and a safe stand in one place.
-                return shared ? (
+        {kind === 'safe' && tills.length ? (
+          <Field label={t('money.till')} hint={t('money.tillHint')} error={errors.registerId?.message}>
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="registerId"
+                render={({ field }) => (
                   <Combobox
                     id={id}
-                    multiple
-                    options={options}
+                    options={tills.map((till) => ({ value: till.id, label: till.name, hint: till.locationName }))}
                     value={field.value}
                     onChange={field.onChange}
-                    placeholder={t('money.everyShop')}
+                    placeholder={t('money.noTill')}
+                    invalid={!!errors.registerId}
                   />
-                ) : (
-                  <Combobox
-                    id={id}
-                    options={options}
-                    value={field.value[0] ?? null}
-                    onChange={(value) => field.onChange(value ? [value] : [])}
-                    placeholder={t('money.everyShop')}
-                  />
-                )
-              }}
-            />
-          )}
-        </Field>
+                )}
+              />
+            )}
+          </Field>
+        ) : null}
+        {tillId ? null : (
+          <Field
+            label={shared ? t('money.shops') : t('money.shop')}
+            hint={shared ? t('money.shopsHint') : t('money.shopHint')}
+            error={errors.locationIds?.message}
+          >
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="locationIds"
+                render={({ field }) => {
+                  const options = (locations.data ?? []).map((location) => ({
+                    value: location.id,
+                    label: location.name,
+                  }))
+                  // A card goes wherever its owner does; a terminal and a safe stand in one place.
+                  return shared ? (
+                    <Combobox
+                      id={id}
+                      multiple
+                      options={options}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder={t('money.everyShop')}
+                    />
+                  ) : (
+                    <Combobox
+                      id={id}
+                      options={options}
+                      value={field.value[0] ?? null}
+                      onChange={(value) => field.onChange(value ? [value] : [])}
+                      placeholder={t('money.everyShop')}
+                    />
+                  )
+                }}
+              />
+            )}
+          </Field>
+        )}
         {choosesCurrency ? (
           <Field label={t('money.currency')} error={errors.currency?.message}>
             {(id) => (

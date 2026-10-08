@@ -17,6 +17,24 @@ describe('A till in any currency', () => {
   let registerId: string
   let dress: string
 
+  interface Drawer {
+    id: string
+    name: string
+    currency: string
+    isActive: boolean
+    registerId: string | null
+  }
+  const drawersOf = async (tillId: string) =>
+    ((await alpha.get('/api/money/accounts').expect(200)).body as Drawer[])
+      .filter((account) => account.registerId === tillId)
+      .sort((a, b) => a.currency.localeCompare(b.currency))
+  const drawerIn = async (tillId: string, currency: string) =>
+    (await drawersOf(tillId)).find((drawer) => drawer.currency === currency) as Drawer
+  const tillNamed = async (name: string) =>
+    (
+      (await alpha.get('/api/money/registers').expect(200)).body as { id: string; name: string; currencies: string[] }[]
+    ).find((till) => till.name === name) as { id: string; name: string; currencies: string[] }
+
   const sell = (payments: Record<string, unknown>[], total: number, more: Record<string, unknown> = {}) =>
     alpha.post('/api/sales').send({
       clientKey: randomUUID(),
@@ -64,20 +82,24 @@ describe('A till in any currency', () => {
     await harness.close()
   })
 
-  it('takes every currency the business keeps unless told otherwise, and only those', async () => {
+  it('takes every currency the business keeps: a drawer for each, made with the till', async () => {
     const till = (await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201))
       .body
     registerId = till.id
     expect(till.currencies).toEqual(['USD', 'CNY'])
-    const lira = await alpha
-      .post('/api/money/registers')
-      .send({ name: 'Kassa 2', locationId: shopId, currencies: ['TRY'] })
-      .expect(400)
-    expect(lira.body.error.fields.currencies).toBe('Turk lirasi yoqilmagan: Pul → Kurslar')
-    const own = (
-      await alpha.post('/api/money/registers').send({ name: 'Kassa 3', locationId: shopId, currencies: [] }).expect(201)
-    ).body
-    expect(own.currencies).toEqual([])
+    expect((await drawersOf(registerId)).map((drawer) => [drawer.name, drawer.currency, drawer.isActive])).toEqual([
+      ['Kassa 1 (¥)', 'CNY', true],
+      ['Kassa 1 ($)', 'USD', true],
+      ['Kassa 1 (so‘m)', 'UZS', true],
+    ])
+
+    // A till for so'm alone: its other drawers are put away, like any account.
+    const own = (await alpha.post('/api/money/registers').send({ name: 'Kassa 3', locationId: shopId }).expect(201))
+      .body
+    for (const drawer of (await drawersOf(own.id)).filter((item) => item.currency !== 'UZS')) {
+      await alpha.post(`/api/money/accounts/${drawer.id}/archive`).expect(200)
+    }
+    expect((await tillNamed('Kassa 3')).currencies).toEqual([])
 
     await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)
     const context = (await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body
@@ -121,14 +143,58 @@ describe('A till in any currency', () => {
     expect(sale.payments[0]).toMatchObject({ base: minor(400_000), fx: minor(2_500) })
   })
 
-  it('refuses a currency the till does not take, and one with no rate', async () => {
-    await alpha
-      .put(`/api/money/registers/${registerId}`)
-      .send({ name: 'Kassa 1', locationId: shopId, currencies: ['USD'] })
-      .expect(400)
-    const other = (await alpha.get('/api/money/registers').expect(200)).body.find(
-      (till: { name: string }) => till.name === 'Kassa 3',
+  it('keeps a drawer that holds money, the base one, and any while the shift is open', async () => {
+    const [yuan, dollars, som] = await drawersOf(registerId)
+    expect((await alpha.post(`/api/money/accounts/${yuan.id}/archive`).expect(409)).body.error.code).toBe('DRAWER_HELD')
+    expect((await alpha.post(`/api/money/accounts/${som.id}/archive`).expect(409)).body.error.code).toBe('BASE_DRAWER')
+    expect((await alpha.post(`/api/money/accounts/${dollars.id}/archive`).expect(409)).body.error.code).toBe(
+      'SHIFT_OPEN',
     )
+  })
+
+  it('takes a drawer made by hand, one to a currency, and lets an empty one leave the till', async () => {
+    const own = await tillNamed('Kassa 3')
+    const dollars = await drawerIn(own.id, 'USD')
+    // Another dollar drawer in the same till: refused, the one put away is to be brought back.
+    const twice = await alpha
+      .post('/api/money/accounts')
+      .send({ kind: 'safe', name: 'Dollar 2', currency: 'USD', registerId: own.id })
+      .expect(400)
+    expect(twice.body.error.fields.registerId).toBe(
+      'Bu kassada AQSH dollari tortmasi arxivda: «Kassa 3 ($)» ni qayta tiklang',
+    )
+    // An empty drawer leaves the till as cash kept elsewhere; another is made in its place by hand.
+    const loose = (
+      await alpha
+        .put(`/api/money/accounts/${dollars.id}`)
+        .send({ kind: 'safe', name: 'Dollar qo‘lda', currency: 'USD', registerId: null })
+        .expect(200)
+    ).body
+    expect(loose).toMatchObject({ kind: 'safe', registerId: null })
+    const made = (
+      await alpha
+        .post('/api/money/accounts')
+        .send({ kind: 'safe', name: 'Kassa 3 dollar', currency: 'USD', registerId: own.id })
+        .expect(201)
+    ).body
+    expect(made).toMatchObject({ kind: 'cash', registerId: own.id, locationId: shopId })
+    expect((await tillNamed('Kassa 3')).currencies).toEqual(['USD'])
+    // A till's base drawer stays in it; a card is no till's.
+    const som = await drawerIn(registerId, 'UZS')
+    const away = await alpha
+      .put(`/api/money/accounts/${som.id}`)
+      .send({ kind: 'safe', name: som.name, currency: 'UZS', registerId: null })
+      .expect(400)
+    expect(away.body.error.fields.registerId).toBe('Asosiy valyuta tortmasi kassadan ajratilmaydi')
+    const card = await alpha
+      .post('/api/money/accounts')
+      .send({ kind: 'card', name: 'Humo', currency: 'UZS', registerId: own.id })
+      .expect(400)
+    expect(card.body.error.fields.registerId).toBe('Kassaga faqat naqd hisob biriktiriladi')
+  })
+
+  it('refuses a currency the till does not take, and one with no rate', async () => {
+    const other = await tillNamed('Kassa 3')
     await alpha.post('/api/shifts').send({ registerId: other.id, cash: {} }).expect(201)
     const refused = await alpha.post('/api/sales').send({
       clientKey: randomUUID(),
@@ -209,7 +275,7 @@ describe('A till in any currency', () => {
     const tills = (await alpha.get('/api/money/registers').expect(200)).body as { name: string; currencies: string[] }[]
     expect(Object.fromEntries(tills.map((till) => [till.name, till.currencies]))).toEqual({
       'Kassa 1': ['USD', 'CNY', 'EUR'],
-      'Kassa 3': ['EUR'],
+      'Kassa 3': ['USD', 'EUR'],
     })
   })
 })

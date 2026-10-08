@@ -304,6 +304,13 @@ describe('A base other than the so’m', () => {
   describe('chosen until the first money is written', () => {
     let zeta: Business
     let product: string
+    const tillDrawers = async () =>
+      (
+        await sql<{ till: string; name: string; currency: string }[]>(
+          `SELECT r.name AS till, a.name, a.currency FROM accounts a JOIN registers r ON r.id = a.register_id
+           JOIN organizations o ON o.id = a.org_id WHERE o.name = 'Zeta' AND a.is_active ORDER BY r.name, a.currency`,
+        )
+      ).map((row) => [row.till, row.name, row.currency])
 
     beforeAll(async () => {
       zeta = await open('Zeta', 'zeta', 'UZS', ['terminal', 'loyalty'])
@@ -359,6 +366,26 @@ describe('A base other than the so’m', () => {
     })
 
     it('carries prices, thresholds and limits to dollars, and keeps the so’m as a currency with its rate', async () => {
+      // A second till whose dollar drawer went elsewhere, and whose so'm drawer the owner named.
+      const second = (
+        await zeta.agent.post('/api/money/registers').send({ name: 'Kassa 2', locationId: zeta.shopId }).expect(201)
+      ).body.id
+      const drawers = (await zeta.agent.get('/api/money/accounts').expect(200)).body as {
+        id: string
+        currency: string
+        registerId: string | null
+      }[]
+      const of = (currency: string) =>
+        drawers.find((drawer) => drawer.registerId === second && drawer.currency === currency)!
+      await zeta.agent
+        .put(`/api/money/accounts/${of('USD').id}`)
+        .send({ kind: 'safe', name: 'Dollar seyf', currency: 'USD', registerId: null })
+        .expect(200)
+      await zeta.agent
+        .put(`/api/money/accounts/${of('UZS').id}`)
+        .send({ kind: 'safe', name: 'Rahbar', currency: 'UZS', registerId: second })
+        .expect(200)
+
       const state = (await zeta.agent.put('/api/currencies/base').send({ currency: 'USD' }).expect(200)).body
       expect(state).toEqual({ base: 'USD', locked: null, prices: 1 })
 
@@ -389,6 +416,22 @@ describe('A base other than the so’m', () => {
       })
       // The base has no rate, and no row among the currencies beside it.
       expect(currencies.active.map((currency: { code: string }) => currency.code)).toEqual(['USD', 'UZS'])
+
+      // The first till's dollar drawer is its base one now and the so'm one stays; the second's named drawer went
+      // over to dollars as it was named.
+      expect(await tillDrawers()).toEqual([
+        ['Kassa 1', 'Kassa 1 ($)', 'USD'],
+        ['Kassa 1', 'Kassa 1 (so‘m)', 'UZS'],
+        ['Kassa 2', 'Rahbar', 'USD'],
+      ])
+      const tills = (await zeta.agent.get('/api/money/registers').expect(200)).body as {
+        name: string
+        currencies: string[]
+      }[]
+      expect(Object.fromEntries(tills.map((till) => [till.name, till.currencies]))).toEqual({
+        'Kassa 1': ['UZS'],
+        'Kassa 2': [],
+      })
     })
 
     it('goes back to so’m the same way, the dollar rate written afresh', async () => {
@@ -407,6 +450,11 @@ describe('A base other than the so’m', () => {
       })
       const model = (await zeta.agent.get(`/api/products/${product}`).expect(200)).body
       expect(model.prices).toEqual([expect.objectContaining({ amount: minor(127_000), currency: 'UZS' })])
+      expect(await tillDrawers()).toEqual([
+        ['Kassa 1', 'Kassa 1 ($)', 'USD'],
+        ['Kassa 1', 'Kassa 1 (so‘m)', 'UZS'],
+        ['Kassa 2', 'Rahbar', 'UZS'],
+      ])
     })
 
     it('is fixed once there is a draft receipt, and once goods are in', async () => {

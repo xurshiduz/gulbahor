@@ -23,11 +23,12 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { CurrencyRate, OrgCurrency, Organization } from '../../database/entities'
+import { Account, CurrencyRate, OrgCurrency, Organization, Register } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { ActorService } from '../auth/actor.service'
 import { RealtimeService } from '../realtime/realtime.service'
+import { syncTills } from './drawers'
 import { LedgerService } from './ledger.service'
 import { bookFrom, ratesInForce } from './rate-book'
 
@@ -100,12 +101,17 @@ export class CurrenciesService {
       await em.save(em.create(OrgCurrency, { orgId: actor.orgId, code, ...next, isActive: true }))
     }
     if (!before?.isActive) {
-      // Every till takes it from now on, as a new till takes every currency the business keeps; one may be told
-      // otherwise in its own settings.
-      await em.query(
-        `UPDATE registers SET currencies = array_append(currencies, $1) WHERE NOT ($1 = ANY (currencies))`,
-        [code],
-      )
+      // Every till takes it from now on, as a new till takes every currency the business keeps: each gets its
+      // drawer, or has the one it had brought back. One may be put away again like any account.
+      for (const register of await em.find(Register)) {
+        const drawer = await em.findOneBy(Account, { registerId: register.id, currency: code })
+        if (!drawer) {
+          await this.ledger.cashAccount(em, register, code)
+        } else if (!drawer.isActive) {
+          await em.update(Account, drawer.id, { isActive: true })
+        }
+      }
+      await syncTills(em)
     }
     if (!before?.isActive || !sameForm(before, next)) {
       await this.audit.record(em, actor.orgId, actor, {
@@ -155,10 +161,9 @@ export class CurrenciesService {
         )
       }
       await em.update(OrgCurrency, mine.id, { isActive: false })
-      // No till takes it any more: their drawers of it are empty (see above).
-      await em.query(`UPDATE registers SET currencies = array_remove(currencies, $1) WHERE $1 = ANY (currencies)`, [
-        code,
-      ])
+      // No till takes it any more: their drawers of it, all empty (see above), are put away.
+      await em.query(`UPDATE accounts SET is_active = false WHERE kind = 'cash' AND currency = $1`, [code])
+      await syncTills(em)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'currency.disable',
         entity: 'currency',

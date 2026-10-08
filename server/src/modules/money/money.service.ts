@@ -19,6 +19,7 @@ import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
 import { CurrenciesService } from './currencies.service'
+import { syncTills } from './drawers'
 import { LedgerService } from './ledger.service'
 import { mayUse } from './places'
 
@@ -32,11 +33,23 @@ const kept = (input: AccountInput, actor: Pick<Actor, 'base'>): KeptAccount => (
   currency: input.currency ?? actor.base,
 })
 
-/** An account as it is kept: the shops it serves, and the one shop of an account that has exactly one. */
-function placed(input: KeptAccount) {
+/**
+ * An account as it is kept: the shops it serves, and the one shop of an account that has exactly one. Cash in a
+ * till is that till's drawer, in the till's shop.
+ */
+function placed(input: KeptAccount, till: Pick<Register, 'id' | 'locationId'> | null = null) {
   const { locationIds: _asked, ...rest } = input
+  if (till) {
+    return {
+      ...rest,
+      kind: 'cash' as const,
+      registerId: till.id,
+      locationIds: [till.locationId],
+      locationId: till.locationId,
+    }
+  }
   const shops = accountShops(input)
-  return { ...rest, locationIds: shops, locationId: shops.length === 1 ? shops[0] : null }
+  return { ...rest, registerId: null, locationIds: shops, locationId: shops.length === 1 ? shops[0] : null }
 }
 
 /**
@@ -66,8 +79,6 @@ export class MoneyService {
   async createRegister(actor: Actor, input: RegisterInput): Promise<RegisterDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertRegister(em, input)
-      // A new till takes every currency the business keeps, unless told otherwise.
-      const currencies = this.tillCurrencies(actor, input.currencies ?? actor.currencies)
       // A shop's first till is its main one.
       const isMain = !(await em.existsBy(Register, { locationId: input.locationId, isMain: true }))
       const saved = await em.save(
@@ -75,11 +86,16 @@ export class MoneyService {
           orgId: actor.orgId,
           name: input.name,
           locationId: input.locationId,
-          currencies,
+          currencies: [],
           isActive: true,
           isMain,
         }),
       )
+      // A drawer for the base and for every currency the business keeps: put away one that is not wanted.
+      for (const currency of [actor.base, ...actor.currencies]) {
+        await this.ledger.cashAccount(em, saved, currency)
+      }
+      await syncTills(em, [saved.id])
       await this.audit.record(em, actor.orgId, actor, {
         action: 'register.create',
         entity: 'register',
@@ -98,19 +114,7 @@ export class MoneyService {
         throw AppError.validation({ locationId: 'Smenasi bo‘lgan kassani boshqa do‘konga o‘tkazib bo‘lmaydi' })
       }
       await this.assertRegister(em, input, id)
-      const currencies = this.tillCurrencies(actor, input.currencies ?? before.currencies)
-      // Cash still in a drawer is counted at the next shift's close: its currency stays with the till till then.
-      const kept: { currency: AnyCurrency; name: string }[] = await em.query(
-        `SELECT currency, name FROM accounts WHERE register_id = $1 AND kind = 'cash' AND balance <> 0`,
-        [id],
-      )
-      const stranded = kept.find((drawer) => drawer.currency !== actor.base && !currencies.includes(drawer.currency))
-      if (stranded) {
-        throw AppError.validation({
-          currencies: `${stranded.name}: kassada ${CURRENCIES[stranded.currency].name} naqdi bor. Avval topshiring`,
-        })
-      }
-      const changes = { name: input.name, locationId: input.locationId, currencies }
+      const changes = { name: input.name, locationId: input.locationId }
       if (before.locationId !== input.locationId) {
         // It leaves one shop and joins another: main in neither by right, and in the new one only if that has none.
         await em.update(Register, id, { isMain: false })
@@ -121,13 +125,21 @@ export class MoneyService {
         await em.update(Register, id, changes)
       }
       await em.update(Account, { registerId: id }, { locationId: input.locationId, locationIds: [input.locationId] })
+      // Drawers named after the till are named after it still.
+      if (before.name !== input.name) {
+        await em.query(
+          `UPDATE accounts SET name = $2 || substr(name, length($3) + 1)
+           WHERE register_id = $1 AND kind = 'cash' AND left(name, length($3) + 2) = $3 || ' ('`,
+          [id, input.name, before.name],
+        )
+      }
       const after = await this.findRegister(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'register.update',
         entity: 'register',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['name', 'locationId', 'currencies']),
+        changes: diff(before, after, ['name', 'locationId']),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
       return this.registerRow(em, id)
@@ -175,16 +187,18 @@ export class MoneyService {
     const input = kept(asked, actor)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertAccount(em, actor, input)
+      const till = input.registerId ? await this.drawerTill(em, input.registerId, input.currency) : null
       const saved = await em.save(
-        em.create(Account, { orgId: actor.orgId, ...placed(input), balance: 0, isActive: true }),
+        em.create(Account, { orgId: actor.orgId, ...placed(input, till), balance: 0, isActive: true }),
       )
+      await syncTills(em, [saved.registerId])
       await this.audit.record(em, actor.orgId, actor, {
         action: 'account.create',
         entity: 'account',
         entityId: saved.id,
         summary: `${ACCOUNT_KIND_LABELS[saved.kind]}: ${saved.name}`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
       return this.accountRow(em, saved.id, true)
     })
   }
@@ -193,25 +207,44 @@ export class MoneyService {
     const input = kept(asked, actor)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.findAccount(em, id)
-      const changes = before.kind !== input.kind || before.currency !== input.currency
+      const kind = input.registerId ? 'cash' : input.kind
+      const moves = (before.registerId ?? null) !== input.registerId
+      const changes = before.kind !== kind || before.currency !== input.currency || moves
+      // A till sells in its base: the drawer of it stays where it is.
+      if (before.kind === 'cash' && before.currency === actor.base && (moves || before.currency !== input.currency)) {
+        throw AppError.validation({ registerId: 'Asosiy valyuta tortmasi kassadan ajratilmaydi' })
+      }
       if (changes && (await this.ledger.isUsed(em, id))) {
         throw AppError.validation(
-          before.kind !== input.kind
-            ? { kind: 'Pul o‘tgan hisobning turini o‘zgartirib bo‘lmaydi' }
-            : { currency: 'Pul o‘tgan hisobning valyutasini o‘zgartirib bo‘lmaydi' },
+          moves
+            ? { registerId: 'Pul o‘tgan hisobni boshqa kassaga o‘tkazib bo‘lmaydi' }
+            : before.kind !== kind
+              ? { kind: 'Pul o‘tgan hisobning turini o‘zgartirib bo‘lmaydi' }
+              : { currency: 'Pul o‘tgan hisobning valyutasini o‘zgartirib bo‘lmaydi' },
         )
       }
       await this.assertAccount(em, actor, input, id)
-      await em.update(Account, id, placed(input))
+      const till = input.registerId ? await this.drawerTill(em, input.registerId, input.currency, id) : null
+      await em.update(Account, id, placed(input, till))
+      await syncTills(em, [before.registerId, input.registerId])
       const after = await this.findAccount(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'account.update',
         entity: 'account',
         entityId: id,
         summary: after.name,
-        changes: diff(before, after, ['kind', 'name', 'currency', 'locationIds', 'last4', 'cardNumber', 'bank']),
+        changes: diff(before, after, [
+          'kind',
+          'name',
+          'currency',
+          'locationIds',
+          'registerId',
+          'last4',
+          'cardNumber',
+          'bank',
+        ]),
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
       return this.accountRow(em, id, true)
     })
   }
@@ -220,17 +253,69 @@ export class MoneyService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const account = await this.findAccount(em, id)
       if (account.isActive !== active) {
+        if (account.kind === 'cash') {
+          await this.assertDrawerChange(em, actor, account, active)
+        }
         await em.update(Account, id, { isActive: active })
+        await syncTills(em, [account.registerId])
         await this.audit.record(em, actor.orgId, actor, {
           action: active ? 'account.restore' : 'account.archive',
           entity: 'account',
           entityId: id,
           summary: account.name,
         })
-        afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+        afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
       }
       return this.accountRow(em, id, true)
     })
+  }
+
+  /**
+   * The till a drawer is to be in, and whether it may be: a till in use, with no other drawer of the currency
+   * — in use or put away; one put away is brought back, not made twice.
+   */
+  private async drawerTill(
+    em: EntityManager,
+    registerId: string,
+    currency: AnyCurrency,
+    exceptId?: string,
+  ): Promise<Register> {
+    const till = await em.findOneBy(Register, { id: registerId })
+    if (!till || !till.isActive) {
+      throw AppError.validation({ registerId: 'Kassa topilmadi' })
+    }
+    const other = await em.findOneBy(Account, { registerId, currency })
+    if (other && other.id !== exceptId) {
+      throw AppError.validation({
+        registerId: other.isActive
+          ? `Bu kassada ${CURRENCIES[currency].name} tortmasi bor: ${other.name}`
+          : `Bu kassada ${CURRENCIES[currency].name} tortmasi arxivda: «${other.name}» ni qayta tiklang`,
+      })
+    }
+    return till
+  }
+
+  /**
+   * A drawer put away stops its till taking that currency; brought back, it takes it again. Not the drawer of
+   * the base, which the till sells in; not one with money in it, nor while the till's shift is open.
+   */
+  private async assertDrawerChange(em: EntityManager, actor: Actor, drawer: Account, active: boolean) {
+    if (!active) {
+      if (drawer.currency === actor.base) {
+        throw AppError.conflict(
+          'BASE_DRAWER',
+          'Asosiy valyuta tortmasini arxivlab bo‘lmaydi: kassa shu valyutada sotadi',
+        )
+      }
+      if (drawer.balance !== 0) {
+        throw AppError.conflict('DRAWER_HELD', `${drawer.name}: tortmada pul bor. Avval topshiring`)
+      }
+      if (await em.findOneBy(Shift, { registerId: drawer.registerId as string, status: 'open' })) {
+        throw AppError.conflict('SHIFT_OPEN', 'Bu kassada smena ochiq. Avval smenani yoping')
+      }
+    } else if (!(await this.currencies.kept(em, actor)).includes(drawer.currency)) {
+      throw AppError.validation({ currency: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+    }
   }
 
   // ───────────────────────────── Reading ─────────────────────────────
@@ -382,22 +467,13 @@ export class MoneyService {
     return row
   }
 
-  /** A card, a terminal, a safe: one of the accounts a person keeps. A till's drawer is the till's. */
+  /** A card, a terminal, cash in a till or elsewhere: one of the accounts a person keeps. */
   private async findAccount(em: EntityManager, id: string): Promise<Account> {
     const account = await em.findOneBy(Account, { id })
-    if (!account || account.kind === 'system' || account.kind === 'partner' || account.kind === 'cash') {
+    if (!account || account.kind === 'system' || account.kind === 'partner') {
       throw AppError.notFound('Hisob topilmadi')
     }
     return account
-  }
-
-  /** The currencies a till is to take beside the base: those of the business's it was given, in the business's order. */
-  private tillCurrencies(actor: Actor, wanted: AnyCurrency[]): AnyCurrency[] {
-    const unknown = wanted.find((code) => code !== actor.base && !actor.currencies.includes(code))
-    if (unknown) {
-      throw AppError.validation({ currencies: `${CURRENCIES[unknown].name} yoqilmagan: Pul → Kurslar` })
-    }
-    return actor.currencies.filter((code) => wanted.includes(code))
   }
 
   private async assertRegister(em: EntityManager, input: RegisterInput, exceptId?: string) {

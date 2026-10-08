@@ -215,7 +215,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
      - [x] 9c′. Tannarx faqat asosiy valyutada: tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada, "bugungi kursda tannarx" (egasi tasdiqladi).
      - [x] 9e. Smena va inkassatsiya: har tortma sanog'i.
-     - [ ] 9e+. Standart holatda hamma valyuta va hisob ko'rinadi, keraksizi xodimning o'zi uchun yashiriladi (egasi so'radi, 2026-10-09).
+     - [x] 9e+. Standart holatda hamma valyuta va hisob ko'rinadi, keraksizi xodimning o'zi uchun yashiriladi (egasi so'radi, 2026-10-09).
+     - [ ] 9e++. Kassa tortmasi — kassaga biriktirilgan "Naqd" hisob: egasi o'zi ochadi, nomlaydi, arxivlaydi; kassa formasida "Naqd valyutalar" yo'q (egasi so'radi, 2026-10-09).
      - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
    - [ ] V6. Terminal → bank tushumi.
@@ -237,7 +238,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-Kassa va to'lov oynalarida kam ishlatiladigan valyuta va hisob qatorlarini yashirish (foydalanuvchi so'radi)
+V9 / 9f: tekshiruv — to'liq testlar, ekranda (so'm biznesi dollar va yuan bilan, tenge asosli), hujjatlar
 
 ## Ish daraxti nusxalari
 
@@ -265,3 +266,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `098398810a4fddf3d099ec19c5f9d25a19cc8f89` | V9 / 9d: kassa istalgan valyutada — registers.currencies (Naqd valyutalar), to'lov qatori har valyutaga, qaytim istalgan valyutada (change_other/change_currency/change_other_base), kelishilgan qiymat har chet valyutada, qaytarish, chek va hisobot; egasining qarori: tannarx faqat asosiyda (9c′ taklifi) |
 | `a49e88f36e064452bb7bf3165039f9d949667afb` | V9 / 9c′: tannarx faqat asosiy valyutada — cost_currency va 14 ta jadvaldagi …_usd tannarx ustunlari olib tashlandi, kirimda bitta kurs (rate, rate_way; kun kursi o'zi turadi), xarajat istalgan yoqilgan valyutada kirim sanasining kursida, bugungi kursda tannarx, /currencies/book |
 | `16d94e84b1e685186924a2a3ba549bc7247f60f8` | V9 / 9e: smena sanog'i har tortma valyutasida (shift_counts), ochish/yopish cash: {valyuta: summa}, Z-hisobot har valyuta (ShiftTotals.cash), topshirish kassa valyutalaridan, Smenalar ro'yxatida har valyuta farqi; valyuta yoqilganda hamma kassaga qo'shiladi |
+| `4e9e222e8e743166db2176f1e786f40b78182788` | Kassa va to'lov oynalarida hamma valyuta va hisob standart holatda ko'rinadi; xodim o'zi uchun yashiradi (places.hidden: cash:CNY yoki hisob), kassada ko'z belgisi va Yashirilgan: …, oynalarda X va Yana hisob…; har kassa hamma valyutada (migratsiya 42000), dollar tortmasi ($); Pul holatida hamma valyuta va har kurs |

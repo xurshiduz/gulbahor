@@ -984,7 +984,11 @@ export const uz = {
     noRegistersHint: 'Sotish uchun har do‘konda kamida bitta kassa bo‘lishi kerak.',
     editRegister: 'Kassani tahrirlash',
     tillCurrencies: 'Naqd valyutalar',
-    tillCurrenciesHint: '{{base}}dan tashqari kassa naqd oladigan valyutalar. Bo‘sh qolsa, faqat {{base}} oladi.',
+    drawersHint:
+      'Kassa naqdi — «Hisoblar»dagi shu kassaga biriktirilgan «Naqd» hisoblar, har valyutaga bittadan. Yangi kassaga ular o‘zi qo‘shiladi.',
+    till: 'Kassa',
+    tillHint: 'Tanlansa, bu naqd shu kassaning tortmasi bo‘ladi: kassa shu valyutadagi naqdni shu yerga oladi.',
+    noTill: 'Kassaga biriktirilmagan',
     kind: 'Turi',
     shops: 'Do‘konlar',
     shopsHint: 'Karta qaysi do‘konlar kassasida chiqishi. Bo‘sh qolsa, hamma do‘konda chiqadi.',

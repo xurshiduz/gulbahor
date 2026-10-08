@@ -2,7 +2,6 @@ import {
   cashSteps,
   CURRENCIES,
   DEFAULT_ORG_SETTINGS,
-  DOLLAR,
   exchange,
   rebase,
   roundPrice,
@@ -23,6 +22,7 @@ import { ActorService } from '../auth/actor.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { wantingRate } from './agreed'
 import { CurrenciesService } from './currencies.service'
+import { syncTills } from './drawers'
 import { LedgerService } from './ledger.service'
 
 const LOCKED: Record<BaseLock, string> = {
@@ -38,10 +38,12 @@ const LOCKED: Record<BaseLock, string> = {
  * Before that there are no sums in the books to carry across, only what was
  * set up in the old base: price types and prices, loyalty thresholds, fixed
  * promotion prices, the debt limit. Those are carried at the day's rates and
- * prices rounded as the new currency is counted; a till's drawers, terminals
- * and the business's own accounts — all empty — simply take the new
- * currency. The old base stays as one currency more, with its rate in the
- * new base; every other currency keeps its rate as it was written.
+ * prices rounded as the new currency is counted; terminals and the
+ * business's own accounts — all empty — simply take the new currency. A
+ * till's drawer in the new currency becomes its base one; a till without one
+ * has its base drawer take the new currency. The old base stays as one
+ * currency more, with its rate in the new base; every other currency keeps
+ * its rate as it was written.
  */
 @Injectable()
 export class BaseCurrencyService {
@@ -144,19 +146,21 @@ export class BaseCurrencyService {
     }
 
     // ── The accounts that hold the base, all empty yet ──
-    // A till that has a drawer in the new currency already keeps that one.
-    await em.query(
-      `DELETE FROM accounts a WHERE a.kind = 'cash' AND a.currency = $1
-         AND EXISTS (SELECT 1 FROM accounts b WHERE b.register_id = a.register_id AND b.kind = 'cash' AND b.currency = $2)`,
-      [old, next],
-    )
+    // A till sells in its base: a drawer it has in the new currency is its base one now, put away or not, and the
+    // drawer of the old base stays beside it as the owner made it.
+    await em.query(`UPDATE accounts SET is_active = true WHERE kind = 'cash' AND currency = $1 AND NOT is_active`, [
+      next,
+    ])
+    // A till without one has its base drawer take the new currency, under the owner's name for it if it has one.
     await em.query(
       `UPDATE accounts a SET currency = $2,
-         name = CASE WHEN a.kind = 'cash'
-           THEN coalesce((SELECT r.name FROM registers r WHERE r.id = a.register_id) || ' (' || $3 || ')', a.name)
+         name = CASE WHEN a.kind = 'cash' AND a.name = (SELECT r.name FROM registers r WHERE r.id = a.register_id) || ' (' || $3 || ')'
+           THEN (SELECT r.name FROM registers r WHERE r.id = a.register_id) || ' (' || $4 || ')'
            ELSE a.name END
-       WHERE a.currency = $1 AND a.kind IN ('cash', 'terminal', 'system')`,
-      [old, next, next === DOLLAR ? 'dollar' : CURRENCIES[next].symbol],
+       WHERE a.currency = $1 AND a.kind IN ('cash', 'terminal', 'system')
+         AND NOT (a.kind = 'cash' AND EXISTS (
+           SELECT 1 FROM accounts b WHERE b.register_id = a.register_id AND b.kind = 'cash' AND b.currency = $2))`,
+      [old, next, CURRENCIES[old].symbol, CURRENCIES[next].symbol],
     )
 
     // ── The rates: the new base has none, the old one is a currency beside it ──
@@ -194,6 +198,8 @@ export class BaseCurrencyService {
         ...(settings.debtLimit > 0 ? { debtLimit: carried(settings.debtLimit, true) } : {}),
       },
     })
+    // What each till takes beside the base is read again from its drawers, against the new base.
+    await syncTills(em)
     await this.audit.record(em, actor.orgId, actor, {
       action: 'org.base_currency',
       entity: 'org',

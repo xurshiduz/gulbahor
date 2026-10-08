@@ -122,8 +122,16 @@ export const accountInputSchema = z
       .nullish()
       .transform((value) => value || null),
     bank: optionalText(60),
+    /**
+     * The till whose drawer it is: cash kept in a till, counted with its shifts. Only cash ("Naqd") goes in a
+     * till; none, and it is cash kept elsewhere — a safe, what somebody carries.
+     */
+    registerId: idSchema.nullish().transform((value) => value ?? null),
   })
   .superRefine((account, context) => {
+    if (account.registerId && account.kind !== 'safe') {
+      context.addIssue({ code: 'custom', path: ['registerId'], message: 'Kassaga faqat naqd hisob biriktiriladi' })
+    }
     // A terminal and a safe stand in one place; a card and a bank account go wherever their owner does.
     if (new Set(account.locationIds).size > 1 && !SHARED_ACCOUNT_KINDS.includes(account.kind)) {
       context.addIssue({
@@ -171,17 +179,14 @@ export interface AccountDto {
   isActive: boolean
 }
 
+/**
+ * A till. What currencies it takes cash in is no field of its own: it is what drawers it has — cash accounts in
+ * it, one to a currency, made with the till for every currency the business keeps and put away or added like
+ * any account.
+ */
 export const registerInputSchema = z.object({
   name: requiredText(60),
   locationId: idSchema,
-  /**
-   * The currencies the till takes cash in beside the base: some of those the business has switched on. Left
-   * out, every one of them for a new till, and what it had for one that is changed.
-   */
-  currencies: z
-    .array(z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]))
-    .max(16)
-    .optional(),
 })
 export type RegisterInput = z.infer<typeof registerInputSchema>
 
@@ -193,7 +198,7 @@ export interface RegisterDto {
   isActive: boolean
   /** The shop's main till: where its money is taken from and put when nobody says which. One to a shop. */
   isMain: boolean
-  /** The currencies it takes cash in beside the base. */
+  /** The currencies it takes cash in beside the base: those of its drawers in use. */
   currencies: AnyCurrency[]
   /** The shift open on it now. */
   shift: { id: string; number: string; openedAt: string; openedByName: string | null } | null
