@@ -1,7 +1,6 @@
 import {
   ACCOUNT_KIND_LABELS,
   CURRENCIES,
-  DOLLAR,
   formatCardNumber,
   isRateJump,
   rateJump,
@@ -10,8 +9,6 @@ import {
   PAYMENT_ACCOUNT_KINDS,
   registerInputSchema,
   SHARED_ACCOUNT_KINDS,
-  todayIn,
-  toIsoDate,
   type AccountDto,
   type AccountInput,
   type AnyCurrency,
@@ -759,10 +756,9 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
 
 function RatesTab() {
   const { t } = useTranslation()
-  const { can, me } = useSession()
+  const { can } = useSession()
   const confirm = useConfirm()
   const queryClient = useQueryClient()
-  const today = toIsoDate(todayIn(me.org.timezone))
   const currencies = useQuery({
     queryKey: ['money', 'currencies'],
     queryFn: ({ signal }) => api.get<CurrenciesDto>('/currencies', undefined, signal),
@@ -773,11 +769,8 @@ function RatesTab() {
     void queryClient.invalidateQueries({ queryKey: ['pos'] })
   }
   const setRate = useMutation({
-    // The dollar's rate is the tills' own and is kept where it always was; the others have theirs beside it.
     mutationFn: ({ code, value, confirmed }: { code: AnyCurrency; value: number; confirmed: boolean }) =>
-      code === DOLLAR
-        ? api.put('/money/rates', { date: today, uzsPerUsd: value, confirmed })
-        : api.put(`/currencies/${code}/rate`, { value, confirmed }),
+      api.put(`/currencies/${code}/rate`, { value, confirmed }),
     onSuccess: () => {
       refresh()
       toast.success(t('common.saved'))
@@ -826,7 +819,6 @@ function RatesTab() {
     <div className="flex max-w-3xl flex-col gap-4">
       <CurrenciesView
         currencies={currencies.data}
-        today={today}
         canManage={can('money.manage')}
         canRate={can('money.rates')}
         saving={setRate.isPending ? setRate.variables.code : null}

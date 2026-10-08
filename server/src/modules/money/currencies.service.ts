@@ -1,7 +1,6 @@
 import {
   ALL_CURRENCY_CODES,
   CURRENCIES,
-  DOLLAR,
   isRateJump,
   mayBeWrittenAgainst,
   missingRate,
@@ -17,7 +16,6 @@ import {
   type CurrencyRateInput,
   type RateBook,
   type RateForm,
-  type RateWay,
   type WrittenRate,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
@@ -28,8 +26,10 @@ import { Db } from '../../database/db.service'
 import { CurrencyRate, OrgCurrency, Organization } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
+import { ActorService } from '../auth/actor.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { LedgerService } from './ledger.service'
+import { bookFrom, ratesInForce } from './rate-book'
 
 const DAY = 86_400_000
 
@@ -43,20 +43,14 @@ const written = (code: AnyCurrency, rate: WrittenRate) => {
 
 const sameForm = (a: RateForm, b: RateForm) => a.against === b.against && a.way === b.way
 
-/** What a business reckons in: its base, and whether it keeps dollars at its tills. */
-interface Setup {
-  base: AnyCurrency
-  dollars: boolean
-}
-
 /**
  * The currencies a business keeps beside its base, and the rate of each.
  *
- * The base has no rate. The dollar, where the business has dollars at all,
- * is always there and its rate is the one the tills have always used
- * (`exchange_rates`); every other currency is switched on from the list
- * that is given, and has one number of its own, written against the base
- * or against another currency the business has.
+ * The base has no rate. Every other currency — the dollar as much as the
+ * yuan — is switched on from the list that is given, and has one number of
+ * its own, written against the base or against another currency the
+ * business has. Who has which is part of the session (`Actor.currencies`),
+ * so a change is felt by the next request.
  */
 @Injectable()
 export class CurrenciesService {
@@ -65,6 +59,7 @@ export class CurrenciesService {
     private readonly ledger: LedgerService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly actors: ActorService,
   ) {}
 
   async list(actor: Actor): Promise<CurrenciesDto> {
@@ -74,48 +69,51 @@ export class CurrenciesService {
   /** Switches a currency on, or changes the way its rate is written. Its rates so far stay as they were written. */
   async enable(actor: Actor, code: AnyCurrency, form?: RateForm): Promise<CurrenciesDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const setup = await this.setup(em, actor)
-      if (code === setup.base) {
-        throw AppError.validation({ code: 'Bu asosiy valyuta: uning kursi bo‘lmaydi' })
-      }
-      if (code === DOLLAR) {
-        throw AppError.validation({
-          code: setup.dollars
-            ? 'Dollar ro‘yxatda doim bor'
-            : 'Dollar «Dollar bilan ishlash» moduli bilan yoqiladi: Sozlamalar → Biznes',
-        })
-      }
-      const before = await em.findOneBy(OrgCurrency, { code })
-      const next =
-        form ?? (before ? { against: before.against, way: before.way } : usualRateForm(code, setup.base, setup.dollars))
-      const others = await em.find(OrgCurrency, { where: { isActive: true } })
-      if (!mayBeWrittenAgainst(code, next.against, this.forms(others, setup, code), setup.base)) {
-        throw AppError.validation({
-          form: `Kursni ${CURRENCIES[next.against].name} bilan yozib bo‘lmaydi: u yoqilmagan yoki o‘zi shu valyutaga bog‘langan`,
-        })
-      }
-      if (before) {
-        await em.update(OrgCurrency, before.id, { isActive: true, ...next })
-      } else {
-        await em.save(em.create(OrgCurrency, { orgId: actor.orgId, code, ...next, isActive: true }))
-      }
-      if (!before?.isActive || !sameForm(before, next)) {
-        await this.audit.record(em, actor.orgId, actor, {
-          action: before?.isActive ? 'currency.update' : 'currency.enable',
-          entity: 'currency',
-          summary: named(code),
-          changes: before?.isActive ? { form: [wording(code, before), wording(code, next)] } : null,
-        })
-      }
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+      await this.enableIn(em, actor, code, form)
+      afterCommit(() => this.changed(actor.orgId))
       return this.rows(em, actor)
     })
+  }
+
+  /** The same, inside a transaction the caller already has: the first-run setup switches its currencies on so. */
+  async enableIn(
+    em: EntityManager,
+    actor: Pick<Actor, 'orgId' | 'userId' | 'name' | 'ip'>,
+    code: AnyCurrency,
+    form?: RateForm,
+  ): Promise<void> {
+    const base = await this.base(em, actor.orgId)
+    if (code === base) {
+      throw AppError.validation({ code: 'Bu asosiy valyuta: uning kursi bo‘lmaydi' })
+    }
+    const before = await em.findOneBy(OrgCurrency, { code })
+    const next = form ?? (before ? { against: before.against, way: before.way } : usualRateForm(code, base))
+    const others = await em.find(OrgCurrency, { where: { isActive: true } })
+    if (!mayBeWrittenAgainst(code, next.against, forms(others, code), base)) {
+      throw AppError.validation({
+        form: `Kursni ${CURRENCIES[next.against].name} bilan yozib bo‘lmaydi: u yoqilmagan yoki o‘zi shu valyutaga bog‘langan`,
+      })
+    }
+    if (before) {
+      await em.update(OrgCurrency, before.id, { isActive: true, ...next })
+    } else {
+      await em.save(em.create(OrgCurrency, { orgId: actor.orgId, code, ...next, isActive: true }))
+    }
+    if (!before?.isActive || !sameForm(before, next)) {
+      await this.audit.record(em, actor.orgId, actor, {
+        action: before?.isActive ? 'currency.update' : 'currency.enable',
+        entity: 'currency',
+        summary: named(code),
+        changes: before?.isActive ? { form: [wording(code, before), wording(code, next)] } : null,
+      })
+    }
   }
 
   /**
    * Puts a currency away: it is offered nowhere any more, and everything
    * written in it stays readable. Not while money is still kept in it, nor
-   * while another currency's rate is written against it.
+   * while prices are set in it, nor while another currency's rate is written
+   * against it.
    */
   async disable(actor: Actor, code: AnyCurrency): Promise<CurrenciesDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
@@ -138,13 +136,23 @@ export class CurrenciesService {
           `${CURRENCIES[code].name} hali ishlatilmoqda: ${held.map((account) => account.name).join(', ')}. Avval shu hisoblarni bo‘shating`,
         )
       }
+      const priced: { name: string }[] = await em.query(
+        `SELECT name FROM price_types WHERE currency = $1 AND is_active ORDER BY sort_order, name LIMIT 5`,
+        [code],
+      )
+      if (priced.length) {
+        throw AppError.conflict(
+          'CURRENCY_PRICED',
+          `Narxlar ${CURRENCIES[code].name}da: ${priced.map((type) => type.name).join(', ')}. Avval narx turining valyutasini o‘zgartiring`,
+        )
+      }
       await em.update(OrgCurrency, mine.id, { isActive: false })
       await this.audit.record(em, actor.orgId, actor, {
         action: 'currency.disable',
         entity: 'currency',
         summary: named(code),
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+      afterCommit(() => this.changed(actor.orgId))
       return this.rows(em, actor)
     })
   }
@@ -154,7 +162,7 @@ export class CurrenciesService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const mine = await this.find(em, code)
       const today = await this.ledger.today(em, actor.orgId)
-      const before = (await this.inForce(em, today)).get(code)
+      const before = (await ratesInForce(em, today)).get(code)
       // Written another way since, the two numbers are not to be set side by side.
       if (!input.confirmed && before && sameForm(before, mine) && isRateJump(before.value, input.value)) {
         throw rateJumpError(before.value, input.value)
@@ -174,7 +182,8 @@ export class CurrenciesService {
         summary: `${today}: ${written(code, next)}`,
         changes: before ? { [code]: [written(code, before), written(code, next)] } : null,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
+      // The tills count by the rates too.
+      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
       return this.rows(em, actor)
     })
   }
@@ -196,72 +205,24 @@ export class CurrenciesService {
    * The rates in force on a day: the last one each currency was given on or
    * before it. Whatever values money on that day takes them from here.
    */
-  async book(em: EntityManager, actor: Pick<Actor, 'orgId' | 'modules'>, date: string): Promise<RateBook> {
-    const setup = await this.setup(em, actor)
-    const book: RateBook = { base: setup.base, rates: {} }
-    for (const [code, rate] of await this.inForce(em, date)) {
-      book.rates[code] = { against: rate.against, way: rate.way, value: rate.value }
-    }
-    const dollar = setup.dollars ? await this.ledger.rate(em, date) : null
-    if (dollar) {
-      book.rates[DOLLAR] = { against: setup.base, way: 'in', value: dollar.uzsPerUsd }
-    }
-    return book
+  async book(em: EntityManager, actor: Pick<Actor, 'orgId'>, date: string): Promise<RateBook> {
+    return bookFrom(await this.base(em, actor.orgId), await ratesInForce(em, date))
   }
 
-  /** The currencies money may be kept in: the base, the dollar where the business has dollars, and what it switched on. */
-  async kept(em: EntityManager, actor: Pick<Actor, 'orgId' | 'modules'>): Promise<AnyCurrency[]> {
-    const setup = await this.setup(em, actor)
+  /** The currencies money may be kept in: the base and those switched on. */
+  async kept(em: EntityManager, actor: Pick<Actor, 'orgId'>): Promise<AnyCurrency[]> {
     const mine = await em.find(OrgCurrency, { where: { isActive: true }, order: { createdAt: 'ASC' } })
-    return [setup.base, ...(setup.dollars ? [DOLLAR] : []), ...mine.map((currency) => currency.code)]
+    return [await this.base(em, actor.orgId), ...mine.map((currency) => currency.code)]
   }
 
-  private async setup(em: EntityManager, actor: Pick<Actor, 'orgId' | 'modules'>): Promise<Setup> {
-    const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
-    return { base: org.baseCurrency, dollars: org.baseCurrency !== DOLLAR && actor.modules.includes('usd') }
+  /** Who has which currencies is read with the session; screens hear of it as a change to the business. */
+  private changed(orgId: string) {
+    this.actors.invalidate()
+    this.realtime.changed(orgId, ['money', 'me'])
   }
 
-  /** How each currency a business has is written, the dollar among them; one may be left out, to be judged afresh. */
-  private forms(mine: OrgCurrency[], setup: Setup, except?: AnyCurrency): Partial<Record<AnyCurrency, RateForm>> {
-    const forms: Partial<Record<AnyCurrency, RateForm>> = {}
-    if (setup.dollars) {
-      forms[DOLLAR] = { against: setup.base, way: 'in' }
-    }
-    for (const currency of mine) {
-      if (currency.code !== except) {
-        forms[currency.code] = { against: currency.against, way: currency.way }
-      }
-    }
-    return forms
-  }
-
-  /** The last rate of each currency on or before a day, of those still switched on. */
-  private async inForce(em: EntityManager, date: string): Promise<Map<AnyCurrency, CurrencyRateDto>> {
-    const rows: {
-      code: AnyCurrency
-      rate_date: string
-      against: AnyCurrency
-      way: RateWay
-      value: string
-      set_by_name: string | null
-    }[] = await em.query(
-      `SELECT DISTINCT ON (r.code) r.code, r.rate_date::text, r.against, r.way, r.value, r.set_by_name
-       FROM currency_rates r JOIN org_currencies c ON c.org_id = r.org_id AND c.code = r.code AND c.is_active
-       WHERE r.rate_date <= $1 ORDER BY r.code, r.rate_date DESC`,
-      [date],
-    )
-    return new Map(
-      rows.map((row) => [
-        row.code,
-        {
-          date: row.rate_date,
-          against: row.against,
-          way: row.way,
-          value: Number(row.value),
-          setByName: row.set_by_name,
-        },
-      ]),
-    )
+  private async base(em: EntityManager, orgId: string): Promise<AnyCurrency> {
+    return (await em.findOneByOrFail(Organization, { id: orgId })).baseCurrency
   }
 
   private async find(em: EntityManager, code: AnyCurrency): Promise<OrgCurrency> {
@@ -273,25 +234,18 @@ export class CurrenciesService {
   }
 
   private async rows(em: EntityManager, actor: Actor): Promise<CurrenciesDto> {
-    const setup = await this.setup(em, actor)
+    const base = await this.base(em, actor.orgId)
     const today = await this.ledger.today(em, actor.orgId)
     const mine = await em.find(OrgCurrency, { where: { isActive: true }, order: { createdAt: 'ASC' } })
-    const rates = await this.inForce(em, today)
-    const dollar = setup.dollars ? await this.ledger.rate(em, today) : null
-    const book: RateBook = { base: setup.base, rates: {} }
-    for (const [code, rate] of rates) {
-      book.rates[code] = { against: rate.against, way: rate.way, value: rate.value }
-    }
-    if (dollar) {
-      book.rates[DOLLAR] = { against: setup.base, way: 'in', value: dollar.uzsPerUsd }
-    }
+    const rates = await ratesInForce(em, today)
+    const book = bookFrom(base, rates)
     const keeping: { currency: AnyCurrency }[] = await em.query(
       `SELECT DISTINCT currency FROM accounts WHERE balance <> 0 AND kind <> 'system'`,
     )
     const held = new Set(keeping.map((row) => row.currency))
     const stale = (date: string | undefined) => !!date && (Date.parse(today) - Date.parse(date)) / DAY > RATE_STALE_DAYS
 
-    const row = (code: AnyCurrency, part: Pick<CurrencyDto, 'base' | 'fixed' | 'form' | 'rate'>): CurrencyDto => ({
+    const row = (code: AnyCurrency, part: Pick<CurrencyDto, 'base' | 'form' | 'rate'>): CurrencyDto => ({
       code,
       ...part,
       worth: part.base ? null : shownWorth(code, book),
@@ -301,31 +255,30 @@ export class CurrenciesService {
       carries: mine.filter((currency) => currency.against === code).map((currency) => currency.code),
     })
 
-    const active: CurrencyDto[] = [row(setup.base, { base: true, fixed: true, form: null, rate: null })]
-    if (setup.dollars) {
-      const form: RateForm = { against: setup.base, way: 'in' }
-      active.push(
-        row(DOLLAR, {
-          base: false,
-          fixed: true,
-          form,
-          rate: dollar ? { ...form, value: dollar.uzsPerUsd, date: dollar.date, setByName: dollar.setByName } : null,
-        }),
-      )
-    }
-    for (const currency of mine) {
-      active.push(
+    const active: CurrencyDto[] = [
+      row(base, { base: true, form: null, rate: null }),
+      ...mine.map((currency) =>
         row(currency.code, {
           base: false,
-          fixed: false,
           form: { against: currency.against, way: currency.way },
           rate: rates.get(currency.code) ?? null,
         }),
-      )
-    }
-    const taken = new Set<AnyCurrency>([setup.base, DOLLAR, ...mine.map((currency) => currency.code)])
-    return { base: setup.base, active, available: ALL_CURRENCY_CODES.filter((code) => !taken.has(code)) }
+      ),
+    ]
+    const taken = new Set<AnyCurrency>([base, ...mine.map((currency) => currency.code)])
+    return { base, active, available: ALL_CURRENCY_CODES.filter((code) => !taken.has(code)) }
   }
+}
+
+/** How each currency a business has is written; one may be left out, to be judged afresh. */
+function forms(mine: OrgCurrency[], except?: AnyCurrency): Partial<Record<AnyCurrency, RateForm>> {
+  const forms: Partial<Record<AnyCurrency, RateForm>> = {}
+  for (const currency of mine) {
+    if (currency.code !== except) {
+      forms[currency.code] = { against: currency.against, way: currency.way }
+    }
+  }
+  return forms
 }
 
 /** The way a rate is written, in words a history line can hold: "1 $ = … ¥". */

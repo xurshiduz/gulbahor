@@ -7,7 +7,8 @@ import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox, Select, Switch } from '@/components/ui/controls'
+import { Combobox } from '@/components/ui/combobox'
+import { Checkbox, Select } from '@/components/ui/controls'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -18,10 +19,7 @@ import { cn } from '@/lib/cn'
 
 const PLACE_KINDS = (['store', 'mixed', 'warehouse'] as const).map((kind) => ({ value: kind, label: LOCATION_KIND_LABELS[kind] }))
 
-// Dollars are asked about on the first step, in plain words, rather than listed among the modules.
-const CHOOSABLE_MODULES = MODULES.filter((module) => module.key !== 'usd')
-
-const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'useUsd'], ['locations'], ['modules']]
+const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'currencies'], ['locations'], ['modules']]
 
 /** The first-run wizard: three short steps that shape the system to the business. */
 export function SetupPage() {
@@ -34,9 +32,9 @@ export function SetupPage() {
     resolver: zodResolver(setupSchema),
     defaultValues: {
       name: me.org.name === 'Namuna biznes' ? '' : me.org.name,
-      // A new business is asked once what it keeps its books in; the dollar unless it says otherwise.
-      baseCurrency: 'USD',
-      useUsd: true,
+      // A new business is asked once what it keeps its books in; so'm unless it says otherwise.
+      baseCurrency: 'UZS',
+      currencies: [],
       locations: [{ name: '', kind: 'store' }],
       modules: [],
     },
@@ -115,7 +113,7 @@ export function SetupPage() {
                   render={({ field }) => (
                     <Select
                       id={id}
-                      value={field.value ?? 'USD'}
+                      value={field.value ?? 'UZS'}
                       onChange={field.onChange}
                       options={ALL_CURRENCY_CODES.map((code) => ({
                         value: code,
@@ -126,14 +124,27 @@ export function SetupPage() {
                 />
               )}
             </Field>
-            {/* Dollars beside the base: nothing to ask where the dollar is the base. */}
-            {baseCurrency !== 'USD' ? (
-              <Controller
-                control={form.control}
-                name="useUsd"
-                render={({ field }) => <Switch checked={field.value} onChange={field.onChange} label={t('setup.useUsd')} hint={t('setup.useUsdHint')} />}
-              />
-            ) : null}
+            <Field label={t('setup.currencies')} hint={t('setup.currenciesHint')}>
+              {(id) => (
+                <Controller
+                  control={form.control}
+                  name="currencies"
+                  render={({ field }) => (
+                    <Combobox
+                      id={id}
+                      multiple
+                      value={field.value.filter((code) => code !== baseCurrency)}
+                      onChange={(codes) => field.onChange(codes)}
+                      options={ALL_CURRENCY_CODES.filter((code) => code !== baseCurrency).map((code) => ({
+                        value: code,
+                        label: t(`currencies.names.${code}`),
+                        hint: code,
+                      }))}
+                    />
+                  )}
+                />
+              )}
+            </Field>
           </>
         ) : null}
 
@@ -186,7 +197,7 @@ export function SetupPage() {
           <>
             <p className="text-xs text-ink-3">{t('setup.modulesHint')}</p>
             <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {CHOOSABLE_MODULES.map((module) => (
+              {MODULES.map((module) => (
                 <Checkbox
                   key={module.key}
                   checked={modules.includes(module.key)}

@@ -76,8 +76,7 @@ describe('Partner payments', () => {
     safeId = (await alpha.post('/api/money/accounts').send({ kind: 'safe', name: 'Seyf' }).expect(201)).body.id
     cardId = (await alpha.post('/api/money/accounts').send({ kind: 'card', name: 'Humo', last4: '3073' }).expect(201))
       .body.id
-    const [{ day }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
-    await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 12_650 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(200)
     shiftId = (
       await alpha
         .post('/api/shifts')

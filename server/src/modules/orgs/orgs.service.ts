@@ -7,7 +7,6 @@ import {
   OWNER_ROLE_KEY,
   searchKey,
   cashSteps,
-  DOLLAR,
   type AnyCurrency,
   type LabelTemplate,
   type ModulesInput,
@@ -26,12 +25,13 @@ import { AuditService, diff } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { ActorService } from '../auth/actor.service'
 import { BaseCurrencyService } from '../money/base-currency.service'
+import { CurrenciesService } from '../money/currencies.service'
 import { hashSecret } from '../auth/crypto'
 import { applyStarter, createPriceTypes } from '../catalog/starter'
 import { LocationsService } from '../locations/locations.service'
 import { createMoneyCategories } from '../money/ops.service'
 import { RealtimeService } from '../realtime/realtime.service'
-import { toOrgDto } from './org.mapper'
+import { orgDto } from './org.mapper'
 
 /** A picture has no place in the history: that there is one, and how large, is enough to tell a change by. */
 const pictured = (template: ReceiptTemplate) => ({
@@ -59,11 +59,12 @@ export class OrgsService {
     private readonly realtime: RealtimeService,
     private readonly locations: LocationsService,
     private readonly bases: BaseCurrencyService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async get(actor: Actor): Promise<OrgDto> {
     return this.db.tenant(actor.orgId, async ({ em }) =>
-      toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId })),
+      orgDto(em, await em.findOneByOrFail(Organization, { id: actor.orgId })),
     )
   }
 
@@ -94,7 +95,7 @@ export class OrgsService {
         },
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
-      return toOrgDto(after)
+      return orgDto(em, after)
     })
   }
 
@@ -115,7 +116,7 @@ export class OrgsService {
         ),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
-      return toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId }))
+      return orgDto(em, await em.findOneByOrFail(Organization, { id: actor.orgId }))
     })
   }
 
@@ -136,13 +137,12 @@ export class OrgsService {
         ),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['me']))
-      return toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId }))
+      return orgDto(em, await em.findOneByOrFail(Organization, { id: actor.orgId }))
     })
   }
 
   async setModules(actor: Actor, input: ModulesInput): Promise<OrgDto> {
-    // Dollars beside the base are no module of a business whose base is the dollar.
-    const modules = withRequired(input.modules).filter((key) => key !== 'usd' || actor.base !== DOLLAR)
+    const modules = withRequired(input.modules)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await em.findOneByOrFail(Organization, { id: actor.orgId })
       await em.update(Organization, actor.orgId, { modules })
@@ -158,7 +158,7 @@ export class OrgsService {
         this.actors.invalidate()
         this.realtime.changed(actor.orgId, ['me'])
       })
-      return toOrgDto(after)
+      return orgDto(em, after)
     })
   }
 
@@ -206,9 +206,17 @@ export class OrgsService {
       }
       const base = input.baseCurrency ?? actor.base
 
-      // Dollars beside the base: none where the dollar is the base.
-      const modules = withRequired([...input.modules, ...(input.useUsd && base !== DOLLAR ? ['usd'] : [])])
-      await em.update(Organization, actor.orgId, { name: input.name, modules, setupCompleted: true })
+      // The currencies kept beside it, each written against it; their rates are set on the money screens.
+      for (const code of new Set(input.currencies)) {
+        if (code !== base) {
+          await this.currencies.enableIn(em, actor, code)
+        }
+      }
+      await em.update(Organization, actor.orgId, {
+        name: input.name,
+        modules: withRequired(input.modules),
+        setupCompleted: true,
+      })
       await this.audit.record(em, actor.orgId, actor, {
         action: 'org.setup',
         entity: 'org',
@@ -220,7 +228,7 @@ export class OrgsService {
         this.actors.invalidate()
         this.realtime.changed(actor.orgId, ['me', 'locations', 'attributes', 'categories', 'price-types'])
       })
-      return toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId }))
+      return orgDto(em, await em.findOneByOrFail(Organization, { id: actor.orgId }))
     })
   }
 

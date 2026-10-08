@@ -165,7 +165,7 @@ interface FormProps {
 
 function ProductForm({ product, carry, categories, brands, attributes, priceTypes, onRestart }: FormProps) {
   const { t } = useTranslation()
-  const { can, hasModule } = useSession()
+  const { can, me } = useSession()
   const router = useRouter()
   const queryClient = useQueryClient()
   const confirm = useConfirm()
@@ -173,7 +173,7 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
   const canManage = can('products.manage')
   const canPrice = can('products.prices')
   const canReference = can('products.references')
-  const canUseUsd = hasModule('usd')
+  const canUseUsd = me.org.currencies.includes('USD')
 
   // A draft is only good while the lists it was built from are still there.
   const draft = useMemo(() => {

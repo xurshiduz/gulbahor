@@ -7,6 +7,7 @@ import {
   isRateJump,
   mayBeWrittenAgainst,
   missingRate,
+  rateFormChoices,
   rateWording,
   rebase,
   shownWorth,
@@ -43,21 +44,39 @@ describe('the currencies a business may switch on', () => {
 })
 
 describe('a rate as it is written', () => {
-  it('is named against the dollar where the business has dollars, the way the market names it', () => {
-    expect(usualRateForm('CNY', 'UZS', true)).toEqual({ against: 'USD', way: 'per' })
+  it('reads with the dearer currency first, so the number is a large one', () => {
+    expect(usualRateForm('USD', 'UZS')).toEqual({ against: 'UZS', way: 'in' })
+    expect(rateWording('USD', { against: 'UZS', way: 'in' })).toEqual({ one: 'USD', of: 'UZS' })
+    expect(usualRateForm('CNY', 'UZS')).toEqual({ against: 'UZS', way: 'in' })
+    expect(usualRateForm('RUB', 'KZT')).toEqual({ against: 'KZT', way: 'in' })
+    // Against a dearer one it reads the other way about: "1 $ = 7,25 ¥", "1 $ = 12 650 so'm".
+    expect(usualRateForm('CNY', 'USD')).toEqual({ against: 'USD', way: 'per' })
     expect(rateWording('CNY', { against: 'USD', way: 'per' })).toEqual({ one: 'USD', of: 'CNY' })
-    // The euro is dearer than the dollar and is named the other way about.
-    expect(usualRateForm('EUR', 'UZS', true)).toEqual({ against: 'USD', way: 'in' })
-    expect(rateWording('EUR', { against: 'USD', way: 'in' })).toEqual({ one: 'EUR', of: 'USD' })
-    // The dollar itself is written in the base.
-    expect(usualRateForm('USD', 'UZS', true)).toEqual({ against: 'UZS', way: 'in' })
+    expect(usualRateForm('UZS', 'USD')).toEqual({ against: 'USD', way: 'per' })
+    expect(usualRateForm('EUR', 'USD')).toEqual({ against: 'USD', way: 'in' })
   })
 
-  it('is written straight in the base where the business keeps no dollars', () => {
-    expect(usualRateForm('RUB', 'KZT', false)).toEqual({ against: 'KZT', way: 'in' })
-    expect(rateWording('RUB', { against: 'KZT', way: 'in' })).toEqual({ one: 'RUB', of: 'KZT' })
-    // A business that keeps its books in dollars names the others against its base as the market does.
-    expect(usualRateForm('CNY', 'USD', false)).toEqual({ against: 'USD', way: 'per' })
+  it('may be written against the base or any currency that does not lean on it, both ways round', () => {
+    const forms = {
+      USD: { against: 'UZS' as const, way: 'in' as const },
+      CNY: { against: 'USD' as const, way: 'per' as const },
+      EUR: { against: 'UZS' as const, way: 'in' as const },
+    }
+    expect(rateFormChoices('USD', 'UZS', forms)).toEqual([
+      { against: 'UZS', way: 'in' },
+      { against: 'UZS', way: 'per' },
+      // Not against the yuan: the yuan hangs on the dollar.
+      { against: 'EUR', way: 'per' },
+      { against: 'EUR', way: 'in' },
+    ])
+    expect(rateFormChoices('CNY', 'UZS', forms).map((form) => form.against)).toEqual([
+      'UZS',
+      'UZS',
+      'USD',
+      'USD',
+      'EUR',
+      'EUR',
+    ])
   })
 
   it('keeps six decimals and no more, and is more than nothing', () => {
@@ -207,27 +226,19 @@ describe('another base, taken before any money is written', () => {
     },
   }
 
-  it('gives the dollar its rate in the new base, and the old base a rate of its own', () => {
-    // 12 650 / 26,35 = 480,0759...: tenge for a dollar.
-    expect(rebase(book, 'KZT', true)).toEqual({
-      dollar: 480.075901,
-      old: { against: 'USD', way: 'per', value: 12_650 },
-    })
-    // Without dollars beside it, the so'm is written straight in tenge.
-    expect(rebase(book, 'KZT', false)?.old).toEqual({ against: 'KZT', way: 'in', value: 0.037951 })
-  })
-
-  it('leaves no dollar rate where the dollar becomes the base', () => {
-    expect(rebase(book, 'USD', false)).toEqual({ dollar: null, old: { against: 'USD', way: 'per', value: 12_650 } })
+  it('gives the old base a rate in the new one, the number that was typed where it can', () => {
+    // "1 tenge = 26,35 so'm": the so'm is the cheaper, and reads the other way about.
+    expect(rebase(book, 'KZT')).toEqual({ against: 'KZT', way: 'per', value: 26.35 })
+    expect(rebase(book, 'USD')).toEqual({ against: 'USD', way: 'per', value: 12_650 })
   })
 
   it('carries a dollar business into tenge by the tenge’s rate', () => {
     const dollars: RateBook = { base: 'USD', rates: { KZT: { against: 'USD', way: 'per', value: 480 } } }
-    expect(rebase(dollars, 'KZT', true)).toEqual({ dollar: 480, old: null })
+    expect(rebase(dollars, 'KZT')).toEqual({ against: 'KZT', way: 'in', value: 480 })
   })
 
   it('cannot say anything of a currency it has no rate for', () => {
-    expect(rebase(book, 'RUB', true)).toBeNull()
-    expect(rebase({ base: 'UZS', rates: {} }, 'USD', false)).toBeNull()
+    expect(rebase(book, 'RUB')).toBeNull()
+    expect(rebase({ base: 'UZS', rates: {} }, 'USD')).toBeNull()
   })
 })

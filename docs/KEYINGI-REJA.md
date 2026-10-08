@@ -500,6 +500,38 @@ Faqat so'ralsa: kassada boshqa valyutani qabul qilish; Markaziy bank kursini mas
 - **Tanlash** — "Sozlamalar → Biznes → Asosiy valyuta" (faqat egasi) va yangi biznesning birinchi sozlashida ("Hisob valyutasi", standart — dollar). Qulf: birinchi pul yozuvi (`ledger_lines`), tovar harakati yoki kirim qoralamasi bo'lsa — `BASE_LOCKED`. Almashtirilganda: narx turlari va narxlar kun kursida o'tadi va yangi valyutaning odatiy qadamiga yaxlitlanadi (so'm — 1 000, tenge — 100, qolganlari — 1), sodiqlik pog'onalari, aksiya narxlari va qarz chegarasi ham; qaytim qadami yangi valyutaniki; bo'sh kassa tortmalari, terminallar va tizim hisoblari yangi valyutaga o'tadi. Kurslar: dollarning yangi asosiy valyutadagi kursi eski kitobdan hisoblanadi (`core/currencies.ts` dagi `rebase`), eski asosiy valyuta yoqilgan valyutalar qatoriga o'z kursi bilan o'tadi ("1 $ = 12 650 so'm"). O'tkaziladigan narsa bo'lsa-yu yangi valyutaning kursi yo'q bo'lsa — rad etiladi va qaysi kurs yetishmasligi aytiladi.
 - **Testlar.** `server/src/base-currency.spec.ts`: tenge asosli biznes (yuan kirimi, tenge va dollar bilan sotuv, qaytim, qaytarish, smena, hisobot), dollar asosli biznes, so'm → dollar → so'm almashtirish, qulflar, egasi huquqi, birinchi sozlashda tanlov; core'da tenge va dollar asosli kassa va kirim hisobi, `rebase`; vebda `lib/base.test.tsx`.
 
+### 9-bosqich rejasi: hamma valyuta teng (V9, 2026-10-08, foydalanuvchi "boshla" dedi)
+
+Egasi (2026-10-08): dollarning alohida o'rni eskirgan qoida. Shu bo'lim yuqoridagi "Yakuniy qarorlar" va "5-bosqich qanday qurildi" dagi **ikki rol** (asosiy valyuta + dollar), "yangi valyuta standart holatda dollarga nisbatan", "yangi biznes dollar bilan ochiladi", "kassa va narx faqat asosiy valyuta yoki dollarda" qoidalari o'rnida turadi.
+
+**Qoidalar.**
+1. **Asosiy valyuta** — yangi biznesda standart so'm; birinchi pul yozuvigacha o'zgartiriladi (V5 dagi qulf o'zgarmaydi).
+2. **Dollar oddiy valyuta.** "Valyuta qo'shish" ro'yxatida turadi, kursi boshqalarniki kabi (`currency_rates`), boshqalardek o'chirib qo'yiladi. "Dollar bilan ishlash" (`usd`) moduli va `exchange_rates` jadvali yo'qoladi; mavjud bizneslarda dollar kurs tarixi bilan yoqilgan valyutaga o'tadi.
+3. **Kurs** — standart holatda asosiy valyutada ("1 $ = 12 650 so'm", "1 ¥ = 1 745 so'm"); xohlasa istalgan yoqilgan valyutaga nisbatan (aylana bo'lmasa). Hech bir valyuta tayanch emas.
+4. **Kassa** — har kassa qaysi valyutalarda naqd olishini o'zi belgilaydi (standart — asosiy). Har belgilangan valyutaga tortma va to'lov qatori; kelishilgan qiymat har valyutada; qaytim asosiy valyutada yoki mijoz so'ragan, kassada bor valyutada. Karta va terminal kassa oladigan valyutalarda.
+5. **Smena** — har tortma alohida sanaladi (so'm va dollar ustunlari o'rniga jadval).
+6. **Narx** — narx turining valyutasi istalgan yoqilgan valyuta (standart — asosiy); kassa kun kursida asosiy valyutaga o'giradi.
+7. **Tannarx** — daftar asosiy valyutada. Ikkinchi tannarx — **"Tannarx valyutasi"** (`organizations.cost_currency`; standart — asosiy, ya'ni ikkinchisi yo'q; Gulbahor — $). Bazadagi `…_usd` ustunlar endi "tannarx valyutasida" degani (`…_uzs` — asosiyda degani kabi). Kirim kurslari shu valyuta orqali o'tadi. Qoldiq paydo bo'lgach o'zgarmaydi. **Tovar qaysi valyutada kelgani** ham ko'rinadi (egasi so'radi): har partiya kirim qatoriga bog'langan — qoldiq va tovar sahifasida "45 ¥ da kelgan".
+
+**Bosqichlar.**
+- **9a. Valyutalar va kurslar (~2 kun).** Dollar `org_currencies` va `currency_rates` ga ko'chadi (migratsiya), `usd` moduli va `/money/rates` yo'qoladi; `Actor.currencies` (yoqilgan valyutalar, sessiya bilan); `usualRateForm` — asosiyda; "Kurslar" ekranida hamma valyuta bir xil (dollar qatori qotirilmagan, yozilish shakli — asosiy yoki istalgan boshqa yoqilgan valyuta); yangi biznes formasida asosiy valyuta standart so'm va yoqiladigan valyutalar ro'yxati. Kassa hali "asosiy + dollar" tartibida ishlaydi: dollar yoqilgan bo'lsa, uning kursi kitobdan olinadi.
+- **9b. Narx istalgan valyutada (~1 kun).** Narx turi va narx — istalgan yoqilgan valyuta; kassa, kirim, ommaviy o'zgartirish, asosiy valyuta almashtirish kitob bilan.
+- **9c. Tannarx valyutasi va kirim (~2 kun).** `cost_currency`, kirim hisobi shu valyuta orqali (`costReceipt`), qulf, partiyaning kelgan valyutasi va narxi ekranda.
+- **9d. Kassa (~3–4 kun).** Kassa valyutalari, tortmalar, to'lov qatorlari, kelishilgan qiymat, qaytim istalgan tortma valyutasida (`sales.change_*` → valyuta + summa), qaytarish, chek, kassa konteksti.
+- **9e. Smena va inkassatsiya (~2 kun).** Har tortma sanog'i jadvalda, smena hisoboti, topshirish.
+- **9f. Tekshiruv (~1 kun).** To'liq testlar, ekranda (so'm asosli biznes dollar, yuan bilan; tenge asosli), hujjatlar.
+
+### 9a qanday qurildi (2026-10-08)
+
+- **Dollar — oddiy yoqilgan valyuta.** Migratsiya `1790000037000-dollar-as-currency`: `usd` moduli bor (yoki kurs qo'yilgan) biznesda dollar `org_currencies` ga asosiy valyutada ("1 $ = N so'm") o'tadi, `exchange_rates` dagi hamma kurs `currency_rates` ga ko'chadi, modul ro'yxatdan olinadi, jadval o'chiriladi (`down` teskarisini qiladi). `/money/rates` yo'q: dollar kursi ham `PUT /currencies/USD/rate`.
+- **Sessiyada yoqilgan valyutalar**: `Actor.currencies`, `OrgDto.currencies` (`org.mapper.ts` dagi `orgDto(em, org)`). `takesDollars` shundan o'qiydi. Yoqish va o'chirib qo'yish sessiya keshini tozalaydi va ekranlarga `me` deydi.
+- **Kurs yo'nalishi**: yangi valyuta asosiy valyutada, qimmatrog'i birinchi (`usualRateForm`, `CURRENCY_STRENGTH`). Ekranda har valyuta (dollar ham) bir xil: yozilish shakli — asosiy yoki istalgan boshqa yoqilgan valyutaga nisbatan, ikkala tomonga (`rateFormChoices`), o'chirib qo'yish menyusi. "Bugungi kurs kiritilmagan" eslatmasi olib tashlandi — kassa valyutalari uchun 9d da qaytadi.
+- **O'chirib qo'yish**: pul turgan (`CURRENCY_HELD`), boshqa valyuta bog'langan (`CURRENCY_CARRIES`) yoki **narx turi shu valyutada** (`CURRENCY_PRICED`, yangi) bo'lsa — yo'q.
+- **Asosiy valyutani almashtirish** soddalashdi: `rebase(book, yangi)` faqat eski asosiy valyutaning yangi asosiydagi kursini beradi (yozilgan son o'zgarmay qoladi: "1 $ = 12 650 so'm" ↔ "1 $ = 12 650 so'm"); qolgan valyutalar kursi o'z holicha qoladi (eski asosiyga bog'langanlari endi u orqali o'tadi). Eski asosiy valyuta, unga boshqa valyuta bog'langan bo'lsa ham, qoladi.
+- **Yangi biznes**: asosiy valyuta standart so'm; birinchi sozlashda "Yana qaysi valyutalarda ishlaysiz" (`setup.currencies`) — tanlanganlari asosiy valyutada yoqiladi, kurslari keyin.
+- **Kassa hali "asosiy + dollar"** (9d gacha): `LedgerService.rate` dollarning qiymatini kitobdan hisoblab, tiyingacha yaxlitlab beradi (dollar boshqa valyutaga bog'lansa ham).
+- **Testlar**: `currencies.spec.ts` (yangi standart, dollar menyusi va o'chirib qo'yish, `CURRENCY_PRICED`), `base-currency.spec.ts` (sessiyadagi valyutalar, kurs qaytib o'tishda yozilgan son bilan), core'da `usualRateForm`, `rateFormChoices`, yangi `rebase`; vebda dollar menyusi.
+
 ### Kurs sozlamasi (alohida sahifa)
 
 - Bugungi kurslar jadvali: har yoqilgan valyuta uchun bitta son; yonida kechagi va o'zgarish foizi.

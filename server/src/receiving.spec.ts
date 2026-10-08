@@ -419,7 +419,10 @@ describe('Receiving', () => {
 
     it('owes a supplier in yuan exactly what a yuan receipt says, and another currency at the day’s rate', async () => {
       const [{ day }] = await harness.dataSource.query(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
-      await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
+      await alpha
+        .post('/api/currencies')
+        .send({ code: 'CNY', form: { against: 'USD', way: 'per' } })
+        .expect(200)
       const yiwu = (
         await alpha.post('/api/partners').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201)
       ).body.id
@@ -446,7 +449,7 @@ describe('Receiving', () => {
       const inLira = (await receipt('TRY', 34, 3400)).body
       const none = await alpha.post(`/api/receipts/${inLira.id}/post`).expect(409)
       expect(none.body.error.message).toContain('kursi qo‘yilmagan: yetkazib beruvchi qarzini hisoblab bo‘lmaydi')
-      await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 12_800 }).expect(200)
+      await alpha.put('/api/currencies/USD/rate').send({ value: 12_800 }).expect(200)
       await alpha.put('/api/currencies/CNY/rate').send({ value: 7.25 }).expect(200)
       await alpha.post(`/api/receipts/${inLira.id}/post`).expect(201)
       expect((await statement(yiwu)).balance).toBe(-50_000 - 7250)

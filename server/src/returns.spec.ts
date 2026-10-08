@@ -146,8 +146,7 @@ describe('Returns', () => {
       .body.id
     terminalId = (await alpha.post('/api/money/accounts').send({ kind: 'terminal', name: 'Terminal 1' }).expect(201))
       .body.id
-    const [{ day }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
-    await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 12_850 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 12_850 }).expect(200)
     shiftId = (
       await alpha
         .post('/api/shifts')
@@ -461,7 +460,7 @@ describe('Returns', () => {
     it('is found by its tag, comes back as itself, and can be sold again', async () => {
       await alpha
         .put('/api/org/modules')
-        .send({ modules: ['consignment', 'usd', 'rfid'] })
+        .send({ modules: ['consignment', 'rfid'] })
         .expect(200)
       const labels = (
         await alpha

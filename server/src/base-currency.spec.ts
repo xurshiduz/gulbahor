@@ -46,7 +46,7 @@ describe('A base other than the so’m', () => {
     const agent = await harness.signIn(login)
     await agent
       .post('/api/org/setup')
-      .send({ name, useUsd: true, locations: [{ name: `${name} shop`, kind: 'store' }], modules })
+      .send({ name, currencies: ['USD'], locations: [{ name: `${name} shop`, kind: 'store' }], modules })
       .expect(201)
     const shopId = (await agent.get('/api/locations').expect(200)).body.items[0].id
     const types = (await agent.get('/api/price-types').expect(200)).body as (Business['retail'] & { kind: string })[]
@@ -109,7 +109,7 @@ describe('A base other than the so’m', () => {
     it('opens in tenge: the session, the price types and their rounding say so', async () => {
       const me = (await gamma.agent.get('/api/auth/me').expect(200)).body
       expect(me.org.baseCurrency).toBe('KZT')
-      expect(me.org.modules).toContain('usd')
+      expect(me.org.currencies).toEqual(['USD'])
       // Prices are rounded to a hundred tenge, as tenge are counted.
       expect(gamma.retail).toMatchObject({ currency: 'KZT', roundStep: minor(100) })
       expect(me.org.settings.changeRoundStep).toBe(minor(10))
@@ -133,7 +133,7 @@ describe('A base other than the so’m', () => {
     })
 
     it('buys in yuan and costs the goods in tenge and dollars', async () => {
-      await gamma.agent.put('/api/money/rates').send({ date: today, uzsPerUsd: 480 }).expect(200)
+      await gamma.agent.put('/api/currencies/USD/rate').send({ value: 480 }).expect(200)
       // 10 at 71 ¥ = 710 ¥ = 100 $ = 48 000 ₸.
       const bought = await stocked(gamma, { amount: minor(12_000), currency: 'KZT' }, { usdRate: 7.1, uzsRate: 480 })
       variant = bought.variant
@@ -246,14 +246,13 @@ describe('A base other than the so’m', () => {
       delta = await open('Delta', 'delta', 'USD')
     }, 60_000)
 
-    it('has no dollars beside its dollars: no module, no rate to set', async () => {
+    it('has no dollars beside its dollars: none switched on, no rate to set', async () => {
       const me = (await delta.agent.get('/api/auth/me').expect(200)).body
       expect(me.org.baseCurrency).toBe('USD')
-      expect(me.org.modules).not.toContain('usd')
+      expect(me.org.currencies).toEqual([])
       expect(delta.retail).toMatchObject({ currency: 'USD', roundStep: minor(1) })
-      const rate = await delta.agent.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_650 })
-      expect(rate.status).toBe(400)
-      expect(rate.body.error.fields.uzsPerUsd).toBe('Asosiy valyuta dollar: dollar kursi kerak emas')
+      await delta.agent.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(404)
+      await delta.agent.post('/api/currencies').send({ code: 'USD' }).expect(400)
     })
 
     it('costs the goods once, in dollars, and sells for dollars with change in dollars', async () => {
@@ -300,7 +299,7 @@ describe('A base other than the so’m', () => {
 
     beforeAll(async () => {
       zeta = await open('Zeta', 'zeta', 'UZS', ['terminal', 'loyalty'])
-      await zeta.agent.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_650 }).expect(200)
+      await zeta.agent.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(200)
       product = (
         await zeta.agent
           .post('/api/products')
@@ -357,7 +356,7 @@ describe('A base other than the so’m', () => {
 
       const me = (await zeta.agent.get('/api/auth/me').expect(200)).body
       expect(me.org.baseCurrency).toBe('USD')
-      expect(me.org.modules).not.toContain('usd')
+      expect(me.org.currencies).toEqual(['UZS'])
       // A dollar is counted in whole ones; the debt limit is 5 000 000 / 12 650 = 395,26 $.
       expect(me.org.settings).toMatchObject({ changeRoundStep: minor(1), debtLimit: minor(395) })
 
@@ -380,17 +379,24 @@ describe('A base other than the so’m', () => {
         form: { against: 'USD', way: 'per' },
         rate: expect.objectContaining({ value: 12_650 }),
       })
-      expect(
-        await sql(`SELECT 1 FROM exchange_rates r JOIN organizations o ON o.id = r.org_id WHERE o.name = 'Zeta'`),
-      ).toEqual([])
+      // The base has no rate, and no row among the currencies beside it.
+      expect(currencies.active.map((currency: { code: string }) => currency.code)).toEqual(['USD', 'UZS'])
     })
 
     it('goes back to so’m the same way, the dollar rate written afresh', async () => {
       await zeta.agent.put('/api/currencies/base').send({ currency: 'UZS' }).expect(200)
       const me = (await zeta.agent.get('/api/auth/me').expect(200)).body
-      expect(me.org).toMatchObject({ baseCurrency: 'UZS', settings: { changeRoundStep: minor(1000) } })
-      expect(me.org.modules).toContain('usd')
-      expect((await zeta.agent.get('/api/money/rates').expect(200)).body.current).toMatchObject({ uzsPerUsd: 12_650 })
+      expect(me.org).toMatchObject({
+        baseCurrency: 'UZS',
+        currencies: ['USD'],
+        settings: { changeRoundStep: minor(1000) },
+      })
+      const currencies = (await zeta.agent.get('/api/currencies').expect(200)).body
+      // "1 $ = 12 650 so'm" again: the number that was typed, not one worked out and rounded.
+      expect(currencies.active.find((currency: { code: string }) => currency.code === 'USD')).toMatchObject({
+        form: { against: 'UZS', way: 'in' },
+        rate: expect.objectContaining({ against: 'UZS', way: 'in', value: 12_650 }),
+      })
       const model = (await zeta.agent.get(`/api/products/${product}`).expect(200)).body
       expect(model.prices).toEqual([expect.objectContaining({ amount: minor(127_000), currency: 'UZS' })])
     })
@@ -427,14 +433,17 @@ describe('A base other than the so’m', () => {
         .send({
           name: 'Eta',
           baseCurrency: 'KZT',
-          useUsd: true,
+          currencies: ['USD'],
           locations: [{ name: 'Eta shop', kind: 'store' }],
           modules: [],
         })
         .expect(201)
       const me = (await eta.get('/api/auth/me').expect(200)).body
-      expect(me.org).toMatchObject({ baseCurrency: 'KZT', settings: { changeRoundStep: minor(10) } })
-      expect(me.org.modules).toContain('usd')
+      expect(me.org).toMatchObject({
+        baseCurrency: 'KZT',
+        currencies: ['USD'],
+        settings: { changeRoundStep: minor(10) },
+      })
       const types = (await eta.get('/api/price-types').expect(200)).body as { currency: string; roundStep: number }[]
       expect(types.every((type) => type.currency === 'KZT' && type.roundStep === minor(100))).toBe(true)
       // The so'm it was opened with had nothing to it: it is not left among its currencies.

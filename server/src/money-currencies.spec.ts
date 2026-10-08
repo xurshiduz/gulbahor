@@ -20,7 +20,6 @@ describe('Money in any currency', () => {
   let alpha: Agent
   let manager: Agent
   let dealer: Agent
-  let today: string
 
   let yuanSafe: string
   let yuanCard: string
@@ -73,7 +72,6 @@ describe('Money in any currency', () => {
   beforeAll(async () => {
     harness = await startApp()
     ;({ alpha } = harness)
-    ;[{ day: today }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
     categories = (await alpha.get('/api/money/categories').expect(200)).body
     dollarSafe = (await account({ kind: 'safe', name: 'Dollar seyfi', currency: 'USD' }).expect(201)).body.id
     supplier = (
@@ -121,7 +119,10 @@ describe('Money in any currency', () => {
       const refused = await account({ kind: 'safe', name: 'Yuan seyfi', currency: 'CNY' }).expect(400)
       expect(refused.body.error.fields.currency).toBeDefined()
 
-      await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
+      await alpha
+        .post('/api/currencies')
+        .send({ code: 'CNY', form: { against: 'USD', way: 'per' } })
+        .expect(200)
       const safe = (await account({ kind: 'safe', name: 'Yuan seyfi', currency: 'CNY' }).expect(201)).body as AccountDto
       expect(safe).toMatchObject({ kind: 'safe', currency: 'CNY', balance: 0 })
       yuanSafe = safe.id
@@ -153,7 +154,7 @@ describe('Money in any currency', () => {
       await alpha.put('/api/currencies/CNY/rate').send({ value: 7.25 }).expect(200)
       const half = await op('income', 'Egasi qo‘shdi', [{ accountId: yuanSafe, amount: yuan(10_000) }], 0).expect(400)
       expect(half.body.error.fields['lines.0.amount']).toBe('Dollar kursi qo‘yilmagan')
-      await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_650 }).expect(200)
+      await alpha.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(200)
     })
 
     it('is kept as yuan, and worth in the books what the chain of rates makes of it', async () => {

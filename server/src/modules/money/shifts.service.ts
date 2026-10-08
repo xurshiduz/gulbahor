@@ -312,7 +312,7 @@ export class ShiftsService {
   private async totals(
     em: EntityManager,
     shiftId: string,
-    actor: Pick<Actor, 'base' | 'modules'>,
+    actor: Pick<Actor, 'base' | 'currencies'>,
   ): Promise<ShiftTotals> {
     const { base } = actor
     const dollar = takesDollars(actor) ? DOLLAR : null

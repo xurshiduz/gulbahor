@@ -208,10 +208,17 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 5c. Veb: asosiy valyuta sessiyadan, "so'm" so'zlari valyuta nomi bilan.
      - [x] 5d. Tanlash: API, qulf, narxlarni o'tkazish, sozlamalar va yangi biznes formasi.
      - [x] 5e. Tekshiruv: to'liq testlar, ekranda tenge va dollar asosli biznes, hujjatlar.
+   - [ ] V9. Hamma valyuta teng: dollarning alohida o'rni yo'q (egasi, 2026-10-08); reja — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
+     - [ ] 9a. Valyutalar va kurslar: dollar oddiy valyuta, `usd` moduli va `exchange_rates` yo'q, kurs istalgan valyutaga nisbatan, yangi biznes so'm bilan.
+     - [ ] 9b. Narx istalgan yoqilgan valyutada.
+     - [ ] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
+     - [ ] 9d. Kassa: kassa valyutalari, tortmalar, to'lov, qaytim, qaytarish, chek.
+     - [ ] 9e. Smena va inkassatsiya: har tortma sanog'i.
+     - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
 
-0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: M1 (P1 tayyor) — u 13-banddagi tasdiq va KEYINGI-REJA 16.9 dagi savollarga javobni kutadi.
+0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: V9 (egasi so'radi, 2026-10-08), keyin M1.
 
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula (~9 kun).
@@ -227,7 +234,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-—
+V9 / 9a: dollar oddiy valyuta — kurslar, ro'yxat, modul yo'q, yangi biznes so'm bilan.
 
 ## Ish daraxti nusxalari
 

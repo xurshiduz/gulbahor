@@ -4,7 +4,6 @@ import {
   moneyTransferInputSchema,
   moneyTransferListQuerySchema,
   moneyTransferRejectSchema,
-  rateInputSchema,
   registerInputSchema,
   shiftCloseSchema,
   shiftListQuerySchema,
@@ -15,8 +14,6 @@ import {
   type MoneyTransferInput,
   type MoneyTransferListQuery,
   type Page,
-  type RateDto,
-  type RateInput,
   type RegisterDto,
   type RegisterInput,
   type ShiftCloseInput,
@@ -123,17 +120,6 @@ export class MoneyController {
   @Can('money.manage')
   restoreAccount(@CurrentActor() actor: Actor, @id() accountId: string): Promise<AccountDto> {
     return this.money.setAccountActive(actor, accountId, true)
-  }
-
-  @Get('rates')
-  rates(@CurrentActor() actor: Actor): Promise<{ current: RateDto | null; history: RateDto[] }> {
-    return this.money.rates(actor)
-  }
-
-  @Put('rates')
-  @Can('money.rates')
-  setRate(@CurrentActor() actor: Actor, @Body(zod(rateInputSchema)) input: RateInput): Promise<RateDto> {
-    return this.money.setRate(actor, input)
   }
 }
 

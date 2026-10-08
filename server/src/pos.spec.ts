@@ -154,19 +154,22 @@ describe('Till', () => {
       await cashier.get('/api/money/accounts').expect(403)
     })
 
-    it("sets the day's dollar rate, and leaves past days alone", async () => {
+    it("sets the day's dollar rate as any currency's is set", async () => {
       const today = (await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`))[0]
         .day
-      expect((await alpha.get('/api/money/rates').expect(200)).body.current).toBeNull()
-      await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_800 }).expect(200)
-      const again = (await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_850 }).expect(200)).body
-      expect(again).toMatchObject({ date: today, uzsPerUsd: 12_850, setByName: 'Alpha Owner' })
-      expect((await alpha.get('/api/money/rates').expect(200)).body).toMatchObject({
-        current: { uzsPerUsd: 12_850 },
-        history: [{ date: today }],
-      })
-      expect((await alpha.put('/api/money/rates').send({ date: '2026-01-01', uzsPerUsd: 12_000 })).status).toBe(400)
-      await cashier.put('/api/money/rates').send({ date: today, uzsPerUsd: 1 }).expect(403)
+      const dollar = async () =>
+        ((await alpha.get('/api/currencies').expect(200)).body.active as { code: string; rate: unknown }[]).find(
+          (currency) => currency.code === 'USD',
+        )?.rate
+      expect(await dollar()).toBeNull()
+      await alpha.put('/api/currencies/USD/rate').send({ value: 12_800 }).expect(200)
+      await alpha.put('/api/currencies/USD/rate').send({ value: 12_850 }).expect(200)
+      expect(await dollar()).toMatchObject({ date: today, value: 12_850, setByName: 'Alpha Owner' })
+      // One rate a day: the second was written over the first.
+      expect((await alpha.get('/api/currencies/USD/rates').expect(200)).body).toEqual([
+        expect.objectContaining({ date: today, value: 12_850 }),
+      ])
+      await cashier.put('/api/currencies/USD/rate').send({ value: 1 }).expect(403)
     })
   })
 
@@ -474,7 +477,7 @@ describe('Till', () => {
     it('is sold as itself, once', async () => {
       await alpha
         .put('/api/org/modules')
-        .send({ modules: ['consignment', 'usd', 'rfid'] })
+        .send({ modules: ['consignment', 'rfid'] })
         .expect(200)
       const labels = (
         await alpha

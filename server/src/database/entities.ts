@@ -2965,7 +2965,6 @@ export const ENTITIES = [
   PriceRuleMarkup,
   PriceRevision,
   PriceRevisionLine,
-  ExchangeRate,
   OrgCurrency,
   CurrencyRate,
   Register,

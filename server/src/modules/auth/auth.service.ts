@@ -14,7 +14,7 @@ import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
 import { Organization, Session, User } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
-import { toOrgDto } from '../orgs/org.mapper'
+import { orgDto } from '../orgs/org.mapper'
 import { RealtimeService } from '../realtime/realtime.service'
 import type { Actor } from './actor'
 import { ActorService, REFRESH_TTL_DAYS } from './actor.service'
@@ -183,7 +183,7 @@ export class AuthService {
           allLocations: actor.allLocations,
           locationIds: actor.locationIds,
         },
-        org: toOrgDto(org),
+        org: await orgDto(em, org),
       }
     })
   }

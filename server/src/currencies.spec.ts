@@ -58,15 +58,15 @@ describe('Currencies', () => {
     await harness.close()
   })
 
-  it('are the base and the dollar to begin with: the one has no rate, the other none yet', async () => {
+  it('are the base and what the business switched on: the one has no rate, the dollar none yet', async () => {
     const currencies = await list()
     expect(currencies.base).toBe('UZS')
     expect(currencies.active.map((currency) => currency.code)).toEqual(['UZS', 'USD'])
-    expect(one(currencies, 'UZS')).toMatchObject({ base: true, fixed: true, form: null, rate: null, missing: null })
-    // No rate was ever set: the dollar is worth nothing that can be named — and never one so'm.
+    expect(one(currencies, 'UZS')).toMatchObject({ base: true, form: null, rate: null, missing: null })
+    // A currency like any other, written in the base: no rate was ever set, so it is worth nothing that can be
+    // named — and never one so'm.
     expect(one(currencies, 'USD')).toMatchObject({
       base: false,
-      fixed: true,
       form: { against: 'UZS', way: 'in' },
       rate: null,
       worth: null,
@@ -76,27 +76,31 @@ describe('Currencies', () => {
     expect(currencies.available).toHaveLength(14)
     expect(currencies.available).toEqual(expect.arrayContaining(['CNY', 'EUR', 'RUB', 'KZT', 'TJS', 'GBP']))
 
-    await enable('USD').expect(400)
+    // Switched on again, it is still there once.
+    const again = (await enable('USD').expect(200)).body as CurrenciesDto
+    expect(again.active.map((currency) => currency.code)).toEqual(['UZS', 'USD'])
     await enable('UZS').expect(400)
     await enable('XXX').expect(400)
     await alpha.post('/api/currencies/UZS/archive').expect(404)
-    await alpha.post('/api/currencies/USD/archive').expect(404)
   })
 
-  it('are switched on by whoever runs the money, each named against the dollar as the market names it', async () => {
+  it('are switched on by whoever runs the money, written in the base unless told what else', async () => {
     await enable('CNY', undefined, cashier).expect(403)
     const currencies = (await enable('CNY').expect(200)).body as CurrenciesDto
+    // "1 ¥ = 1 745 so'm": the dearer of the two first, so the number is a large one.
     expect(one(currencies, 'CNY')).toMatchObject({
       base: false,
-      fixed: false,
-      form: { against: 'USD', way: 'per' },
+      form: { against: 'UZS', way: 'in' },
       rate: null,
       missing: 'CNY',
     })
     expect(currencies.available).not.toContain('CNY')
-    // The euro is dearer than the dollar and named in it; a rouble can be told to be written straight in so'm.
-    await enable('EUR').expect(200)
-    const all = (await enable('RUB', { against: 'UZS', way: 'in' }).expect(200)).body as CurrenciesDto
+    // Any currency the business has may be the one a rate is written against: the yuan as the market names it
+    // against the dollar, the euro in dollars; the rouble stays in so'm.
+    await enable('CNY', { against: 'USD', way: 'per' }).expect(200)
+    await enable('EUR', { against: 'USD', way: 'in' }).expect(200)
+    const all = (await enable('RUB').expect(200)).body as CurrenciesDto
+    expect(one(all, 'CNY').form).toEqual({ against: 'USD', way: 'per' })
     expect(one(all, 'EUR').form).toEqual({ against: 'USD', way: 'in' })
     expect(one(all, 'RUB').form).toEqual({ against: 'UZS', way: 'in' })
     // The dollar carries the two written against it.
@@ -120,7 +124,7 @@ describe('Currencies', () => {
   })
 
   it('are worth in the base what the chain of rates makes of them, and follow the dollar', async () => {
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_650 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(200)
     await rate('EUR', 1.08).expect(200)
     let currencies = (await rate('RUB', 135).expect(200)).body as CurrenciesDto
     expect(one(currencies, 'USD')).toMatchObject({ worth: '12650.00', missing: null })
@@ -130,7 +134,7 @@ describe('Currencies', () => {
     expect(one(currencies, 'RUB').worth).toBe('135.00')
 
     // The dollar moves: the yuan and the euro move with it, the rouble does not.
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 13_000 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 13_000 }).expect(200)
     currencies = await list()
     expect(one(currencies, 'CNY').worth).toBe('1793.10')
     expect(one(currencies, 'EUR').worth).toBe('14040.00')
@@ -147,10 +151,10 @@ describe('Currencies', () => {
     expect(one(meant, 'CNY').rate?.value).toBe(9)
 
     // The dollar's own rate is asked about the same way.
-    const dollar = await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 1_300 }).expect(409)
+    const dollar = await alpha.put('/api/currencies/USD/rate').send({ value: 1_300 }).expect(409)
     expect(dollar.body.error.code).toBe('RATE_JUMP')
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 13_100 }).expect(200)
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 9_000, confirmed: true }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 13_100 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 9_000, confirmed: true }).expect(200)
   })
 
   it('keep a rate whole, as it was written, when the business comes to write it another way', async () => {
@@ -215,19 +219,30 @@ describe('Currencies', () => {
     await rate('CNY', 7, undefined, beta).expect(404)
   })
 
-  it('need no dollar where a business keeps none: every rate is written straight in the base', async () => {
-    const me = (await beta.get('/api/auth/me').expect(200)).body
-    const modules = (me.org.modules as string[]).filter((key) => key !== 'usd')
-    await beta.put('/api/org/modules').send({ modules }).expect(200)
-    let currencies = await list(beta)
+  it('put the dollar away like any other, and need none: every rate is then written straight in the base', async () => {
+    let currencies = (await beta.post('/api/currencies/USD/archive').expect(200)).body as CurrenciesDto
     expect(currencies.active.map((currency) => currency.code)).toEqual(['UZS'])
+    expect(currencies.available).toContain('USD')
+    const me = (await beta.get('/api/auth/me').expect(200)).body
+    expect(me.org.currencies).toEqual([])
     currencies = (await enable('CNY', undefined, beta).expect(200)).body
     expect(one(currencies, 'CNY').form).toEqual({ against: 'UZS', way: 'in' })
     // The dollar it does not keep is nothing to lean on.
     await enable('RUB', { against: 'USD', way: 'per' }, beta).expect(400)
     currencies = (await rate('CNY', 1_745, undefined, beta).expect(200)).body
     expect(one(currencies, 'CNY')).toMatchObject({ worth: '1745.00', missing: null })
-    await beta.put('/api/org/modules').send({ modules: me.org.modules }).expect(200)
+    // Back, it is written as it was.
+    currencies = (await enable('USD', undefined, beta).expect(200)).body
+    expect(one(currencies, 'USD').form).toEqual({ against: 'UZS', way: 'in' })
+    expect((await beta.get('/api/auth/me').expect(200)).body.org.currencies).toEqual(['USD', 'CNY'])
+  })
+
+  it('are not put away while prices are set in them', async () => {
+    const types = (await beta.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
+    await sql(`UPDATE price_types SET currency = 'USD' WHERE id = $1`, [types[0].id])
+    const priced = await beta.post('/api/currencies/USD/archive').expect(409)
+    expect(priced.body.error.code).toBe('CURRENCY_PRICED')
+    await sql(`UPDATE price_types SET currency = 'UZS' WHERE id = $1`, [types[0].id])
   })
 
   it('are written into the history: who switched what on, and who set which rate', async () => {
@@ -238,7 +253,9 @@ describe('Currencies', () => {
     expect(rows.map((row) => row.action)).toEqual(
       expect.arrayContaining(['currency.enable', 'currency.update', 'currency.disable']),
     )
-    expect(rows.find((row) => row.action === 'currency.enable')?.summary).toBe('Xitoy yuani (CNY)')
+    expect(rows.filter((row) => row.action === 'currency.enable').map((row) => row.summary)).toEqual(
+      expect.arrayContaining(['AQSH dollari (USD)', 'Xitoy yuani (CNY)']),
+    )
     expect(rows.some((row) => row.summary === `${today}: 1 $ = 7,25 ¥`)).toBe(true)
   })
 })

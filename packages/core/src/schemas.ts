@@ -219,6 +219,8 @@ export interface OrgDto {
   name: string
   timezone: string
   baseCurrency: CurrencyCode
+  /** The currencies switched on beside the base, in the order they were. */
+  currencies: AnyCurrency[]
   modules: string[]
   settings: OrgSettings
   setupCompleted: boolean
@@ -309,7 +311,8 @@ export const setupSchema = z.object({
   name: requiredText(120),
   /** What the books, prices and receipts are kept in: fixed once the first money is written. Left out, as it is. */
   baseCurrency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
-  useUsd: z.boolean(),
+  /** Currencies to switch on beside the base, each written against it ("1 $ = 12 650 so'm"); rates are set later. */
+  currencies: z.array(z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])).max(16),
   locations: z
     .array(z.object({ name: requiredText(80), kind: z.enum(['store', 'warehouse', 'mixed']) }))
     .min(1, { message: 'Kamida bitta do‘kon yoki sklad kiriting' })

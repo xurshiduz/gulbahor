@@ -89,8 +89,7 @@ describe('Agreed sums', () => {
     ).body.id
     card = (await alpha.post('/api/money/accounts').send({ kind: 'card', name: 'Humo', last4: '3073' }).expect(201))
       .body.id
-    const [{ day }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
-    await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 11_800 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 11_800 }).expect(200)
     await alpha
       .post('/api/shifts')
       .send({ registerId, cashUzs: som(20_000_000), cashUsd: usd(2000) })

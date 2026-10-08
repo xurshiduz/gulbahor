@@ -77,6 +77,7 @@ export class ActorService {
         all_locations: boolean
         modules: string[]
         base_currency: AnyCurrency
+        currencies: AnyCurrency[]
         permissions: string[]
         is_owner: boolean
         location_ids: string[]
@@ -84,6 +85,9 @@ export class ActorService {
         `
         SELECT u.id, u.full_name, u.all_locations, o.modules, o.base_currency,
           ${USER_PERMISSIONS} AS permissions,
+          coalesce((
+            SELECT array_agg(c.code ORDER BY c.created_at) FROM org_currencies c WHERE c.org_id = o.id AND c.is_active
+          ), '{}') AS currencies,
           EXISTS (
             SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
             WHERE ur.user_id = u.id AND r.is_system AND r.template_key = $3
@@ -109,6 +113,7 @@ export class ActorService {
         permissions: row.permissions,
         modules: row.modules,
         base: row.base_currency,
+        currencies: row.currencies,
         allLocations: row.all_locations,
         locationIds: row.location_ids,
       }

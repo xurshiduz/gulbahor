@@ -40,8 +40,8 @@ const LOCKED: Record<BaseLock, string> = {
  * promotion prices, the debt limit. Those are carried at the day's rates and
  * prices rounded as the new currency is counted; a till's drawers, terminals
  * and the business's own accounts — all empty — simply take the new
- * currency. The old base stays as one currency more, with the rate it had
- * against the dollar; the dollar's rate is written afresh in the new base.
+ * currency. The old base stays as one currency more, with its rate in the
+ * new base; every other currency keeps its rate as it was written.
  */
 @Injectable()
 export class BaseCurrencyService {
@@ -100,10 +100,9 @@ export class BaseCurrencyService {
     }
 
     const today = await this.ledger.today(em, actor.orgId)
-    const book = await this.currencies.book(em, { orgId: actor.orgId, modules: org.modules }, today)
-    // Dollars are beside the new base where the business had them, or where they were its base.
-    const dollars = next !== DOLLAR && (org.modules.includes('usd') || old === DOLLAR)
-    const rebased = rebase(book, next, dollars)
+    const book = await this.currencies.book(em, actor, today)
+    // The old base's rate in the new one; every other currency keeps its rate as written.
+    const rebased = rebase(book, next)
     const steps = cashSteps(next)
     const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
 
@@ -160,43 +159,35 @@ export class BaseCurrencyService {
       [old, next, next === DOLLAR ? 'dollar' : CURRENCIES[next].symbol],
     )
 
-    // ── The rates: the dollar's in the new base, the old base as a currency beside it ──
-    await em.query(`DELETE FROM exchange_rates`)
-    if (dollars && rebased?.dollar) {
-      await em.query(
-        `INSERT INTO exchange_rates (org_id, rate_date, uzs_per_usd, set_by, set_by_name) VALUES ($1, $2, $3, $4, $5)`,
-        [actor.orgId, today, rebased.dollar, actor.userId, actor.name],
-      )
-    }
+    // ── The rates: the new base has none, the old one is a currency beside it ──
     await em.delete(OrgCurrency, { code: next })
-    // The old base stays beside the new one where there is something to it: a rate it had, or money places and
-    // partners kept in it. A business that only just chose its base is not left with a currency it never had.
+    // The old base stays beside the new one where there is something to it: a rate it had, money places and
+    // partners kept in it, or currencies written against it. A business that only just chose its base is not
+    // left with a currency it never had.
     const [{ held }]: { held: boolean }[] = await em.query(
       `SELECT EXISTS (SELECT 1 FROM accounts WHERE currency = $1) OR EXISTS (SELECT 1 FROM partners WHERE currency = $1)
-         AS held`,
+         OR EXISTS (SELECT 1 FROM org_currencies WHERE against = $1 AND is_active) AS held`,
       [old],
     )
-    if (old !== DOLLAR && (rebased?.old || held)) {
+    if (rebased || held) {
       await em.delete(OrgCurrency, { code: old })
-      const form = rebased?.old ?? usualRateForm(old, next, dollars)
+      const form = rebased ?? usualRateForm(old, next)
       await em.save(
         em.create(OrgCurrency, { orgId: actor.orgId, code: old, against: form.against, way: form.way, isActive: true }),
       )
-      if (rebased?.old) {
+      if (rebased) {
         await em.query(
           `INSERT INTO currency_rates (org_id, code, rate_date, against, way, value, set_by, set_by_name)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (org_id, code, rate_date)
            DO UPDATE SET against = EXCLUDED.against, way = EXCLUDED.way, value = EXCLUDED.value`,
-          [actor.orgId, old, today, rebased.old.against, rebased.old.way, rebased.old.value, actor.userId, actor.name],
+          [actor.orgId, old, today, rebased.against, rebased.way, rebased.value, actor.userId, actor.name],
         )
       }
     }
 
-    const modules = [...org.modules.filter((key) => key !== 'usd'), ...(dollars ? ['usd'] : [])]
     await em.update(Organization, actor.orgId, {
       baseCurrency: next,
-      modules,
       settings: {
         ...org.settings,
         changeRoundStep: steps.change,

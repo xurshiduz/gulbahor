@@ -237,7 +237,7 @@ function PriceTypeDialog({
   onSaved: () => void
 }) {
   const { t } = useTranslation()
-  const { hasModule } = useSession()
+  const { me } = useSession()
   const formId = 'price-type-form'
   const form = useForm<Values>({
     defaultValues: {
@@ -365,7 +365,7 @@ function PriceTypeDialog({
             ) : null}
           </>
         ) : null}
-        {hasModule('usd') || type?.currency === 'USD' ? (
+        {me.org.currencies.includes('USD') || type?.currency === 'USD' ? (
           <Field label={t('references.currency')} hint={t('references.currencyHint')} error={errors.currency?.message}>
             {(id) => (
               <Controller

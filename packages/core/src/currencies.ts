@@ -1,18 +1,18 @@
 import { z } from 'zod'
 
 import { Fraction } from './fraction'
-import { ALL_CURRENCY_CODES, assertMinor, DOLLAR, type AnyCurrency } from './money'
+import { ALL_CURRENCY_CODES, assertMinor, type AnyCurrency } from './money'
 
 /**
  * The currencies a business keeps money in, and what each is worth.
  *
  * A business keeps its books in one currency, its base. Every other
  * currency it switches on has one number: its rate, a sentence of the kind
- * "1 X = so many Y". Y is the base ("1 ₽ = 135 so'm") or another currency
- * the business has ("1 $ = 7,25 ¥") — yuan are bought with dollars, so the
- * yuan is named against the dollar and follows it without being typed
- * again. There is no setting above the currencies that says which is the
- * go-between: each currency says for itself what its rate is written in.
+ * "1 X = so many Y". Y is the base ("1 $ = 12 650 so'm") or any other
+ * currency the business has ("1 $ = 7,25 ¥") — where yuan are bought with
+ * dollars, the yuan may be named against the dollar and follow it without
+ * being typed again. No currency stands above the others: each says for
+ * itself what its rate is written in.
  *
  * Nothing is rounded until the very end. The numbers that were typed are
  * kept as they are, and a sum is carried along the whole chain of them in
@@ -40,20 +40,40 @@ export interface WrittenRate extends RateForm {
   value: number
 }
 
-/** Dearer than the dollar, and so named the other way about. */
-const NAMED_IN_DOLLARS: AnyCurrency[] = ['EUR', 'GBP']
+/**
+ * The currencies from the dearest to the cheapest, roughly as the market
+ * has them. Only for which way round a rate reads best — the dearer one
+ * first, so the number is large: "1 $ = 12 650 so'm", not "1 so'm =
+ * 0,000079 $". Never counted with.
+ */
+export const CURRENCY_STRENGTH: readonly AnyCurrency[] = [
+  'GBP',
+  'EUR',
+  'USD',
+  'AZN',
+  'GEL',
+  'BYN',
+  'TMT',
+  'AED',
+  'CNY',
+  'TJS',
+  'TRY',
+  'UAH',
+  'KGS',
+  'RUB',
+  'KZT',
+  'UZS',
+]
+
+const dearer = (a: AnyCurrency, b: AnyCurrency) => CURRENCY_STRENGTH.indexOf(a) < CURRENCY_STRENGTH.indexOf(b)
 
 /**
- * The way a newly switched on currency's rate is asked for. Where the
- * business has dollars, against the dollar, as the market names it; where
- * it has none, straight in the base.
+ * How a currency's rate against another reads best: the dearer of the two
+ * is the one ("1 $ = 12 650 so'm", "1 $ = 7,25 ¥"). A newly switched on
+ * currency is written against the base so.
  */
-export function usualRateForm(code: AnyCurrency, base: AnyCurrency, dollars: boolean): RateForm {
-  const throughDollar = code !== DOLLAR && (dollars || base === DOLLAR)
-  if (!throughDollar) {
-    return { against: base, way: 'in' }
-  }
-  return { against: DOLLAR, way: NAMED_IN_DOLLARS.includes(code) ? 'in' : 'per' }
+export function usualRateForm(code: AnyCurrency, against: AnyCurrency): RateForm {
+  return { against, way: dearer(code, against) ? 'in' : 'per' }
 }
 
 /** A rate reads "1 `one` = so many `of`". */
@@ -125,40 +145,23 @@ export function exchange(amount: number, from: AnyCurrency, to: AnyCurrency, boo
   return gives && takes ? assertMinor(Number(Fraction.of(assertMinor(amount)).mul(gives).div(takes).toScaled(0))) : null
 }
 
-/** The rates of a business that has taken another base, worked out from those it had. */
-export interface Rebased {
-  /** Units of the new base for a dollar: the till's rate from now on. Null where the new base is the dollar, or the dollar had no rate. */
-  dollar: number | null
-  /** The old base, a currency beside the new one now: its rate, written as such a currency usually is. Null where it is the dollar. */
-  old: WrittenRate | null
-}
-
 const rounded = (value: Fraction) => Number(value.toDecimalString(RATE_DECIMALS))
 
 /**
- * What the rates say once `next` is the base in place of `book.base` — a
- * change made only before any money is written, so the rates are all there
- * is to carry over. The new base must have a rate in the old book (or be the
- * dollar the old base is named against); null where it has none.
+ * The old base's rate once `next` is the base in its place — a change made
+ * only before any money is written, so the rates are all there is to carry
+ * over. Every other currency keeps its rate as it was written: one written
+ * against the old base now hangs on it, and it on the new. The new base
+ * must have a rate in the old book; null where it has none.
  */
-export function rebase(book: RateBook, next: AnyCurrency, dollars: boolean): Rebased | null {
+export function rebase(book: RateBook, next: AnyCurrency): WrittenRate | null {
   const nextWorth = baseWorth(next, book)
   if (!nextWorth) {
     return null
   }
-  const dollarWorth = baseWorth(DOLLAR, book)
-  const dollar = next === DOLLAR || !dollarWorth ? null : rounded(dollarWorth.div(nextWorth))
-  if (book.base === DOLLAR) {
-    return { dollar, old: null }
-  }
-  const form = usualRateForm(book.base, next, dollars)
-  if (form.against === DOLLAR && dollarWorth) {
-    // "1 $ = 12 650 so'm", or — for those named in dollars — "1 € = 1,08 $".
-    const value = form.way === 'per' ? dollarWorth : Fraction.ONE.div(dollarWorth)
-    return { dollar, old: { ...form, value: rounded(value) } }
-  }
-  // "1 so'm = 0,038 tenge": straight in the new base.
-  return { dollar, old: { against: next, way: 'in', value: rounded(Fraction.ONE.div(nextWorth)) } }
+  // "1 tenge = 26,35 so'm", or "1 $ = 480 tenge" for a dollar business going over to tenge.
+  const form = usualRateForm(book.base, next)
+  return { ...form, value: rounded(form.way === 'per' ? nextWorth : Fraction.ONE.div(nextWorth)) }
 }
 
 /** What one of a currency is worth in the base, to show: "1744.83". Never to count with. */
@@ -185,6 +188,25 @@ export function mayBeWrittenAgainst(
     seen.add(at)
   }
   return code !== base
+}
+
+/**
+ * Every way a currency's rate may be written: against the base, or against
+ * any other currency the business has that does not itself lean on it —
+ * each the usual way round first, then the other.
+ */
+export function rateFormChoices(
+  code: AnyCurrency,
+  base: AnyCurrency,
+  forms: Partial<Record<AnyCurrency, RateForm>>,
+): RateForm[] {
+  const others = (Object.keys(forms) as AnyCurrency[]).filter(
+    (other) => other !== code && other !== base && mayBeWrittenAgainst(code, other, forms, base),
+  )
+  return [base, ...others].flatMap((against) => {
+    const usual = usualRateForm(code, against)
+    return [usual, { against, way: usual.way === 'in' ? ('per' as const) : ('in' as const) }]
+  })
 }
 
 /** The rates in force as a screen was given them: what it values money by without asking again. */
@@ -232,7 +254,7 @@ export const rateFormSchema = z.object({ against: currencyCode, way: z.enum(RATE
 /** Switching a currency on, or changing how its rate is written. */
 export const currencyInputSchema = z.object({
   code: currencyCode,
-  /** Left out, it is written the usual way: against the dollar where the business has dollars. */
+  /** Left out, it is written the usual way: against the base, the dearer of the two first. */
   form: rateFormSchema.optional(),
 })
 export type CurrencyInput = z.infer<typeof currencyInputSchema>
@@ -256,8 +278,6 @@ export interface CurrencyDto {
   code: AnyCurrency
   /** The books are kept in it: it has no rate, and is never put away. */
   base: boolean
-  /** The tills count in it beside the base: its rate is the one they use, set where it always was, and it stays. */
-  fixed: boolean
   /** How its rate is asked for; null for the base. */
   form: RateForm | null
   /** The rate in force: the last one set, on whatever day. */

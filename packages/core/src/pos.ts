@@ -186,25 +186,13 @@ export interface RegisterDto {
 
 // ───────────────────────────── Rates ─────────────────────────────
 
-export const rateSchema = z
-  .number()
-  .positive()
-  .max(1_000_000)
-  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
-    message: 'Kursda ko‘pi bilan 2 ta kasr xona bo‘ladi',
-  })
-
-export const rateInputSchema = z.object({
-  date: z.iso.date(),
-  uzsPerUsd: rateSchema,
-  /** The screen asked, and the person said the rate is meant: one far from the last is taken only so. */
-  confirmed: z.boolean().default(false),
-})
-export type RateInput = z.infer<typeof rateInputSchema>
-
+/**
+ * What a dollar is worth in the base on a day, as the till counts it until it takes any currency
+ * (V9, 9d): worked out from the dollar's rate as the business writes it, to the tiyin.
+ */
 export interface RateDto {
   date: string
-  /** So'm for one dollar. */
+  /** Units of the base for one dollar. */
   uzsPerUsd: number
   setByName: string | null
 }

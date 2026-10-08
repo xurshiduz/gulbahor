@@ -27,7 +27,6 @@ describe('Partner sales', () => {
   let alpha: Agent
   let cashier: Agent
   let alphaUserId: string
-  let today: string
 
   let registerId: string
   let shiftId: string
@@ -71,12 +70,7 @@ describe('Partner sales', () => {
     harness = await startApp()
     ;({ alpha } = harness)
     alphaUserId = (await alpha.get('/api/auth/me').expect(200)).body.user.id
-    today = (
-      await sql<{ day: string }[]>(
-        `SELECT (now() AT TIME ZONE timezone)::date::text AS day FROM organizations WHERE name = 'Alpha'`,
-      )
-    )[0].day
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_650 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(200)
     const shopId = (await alpha.get('/api/locations')).body.items[0].id
     const retail = ((await alpha.get('/api/price-types')).body as { id: string; kind: string }[]).find(
       (type) => type.kind === 'retail',
@@ -244,10 +238,10 @@ describe('Partner sales', () => {
       expect((await owes(elaris)).balance).toBe(before + usd(100))
 
       // The dollar is dearer today: the second coat still takes off what the sale wrote.
-      await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 13_000 }).expect(200)
+      await alpha.put('/api/currencies/USD/rate').send({ value: 13_000 }).expect(200)
       await ret(sale, som(1_265_000)).expect(201)
       expect((await owes(elaris)).balance).toBe(before)
-      await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_650 }).expect(200)
+      await alpha.put('/api/currencies/USD/rate').send({ value: 12_650 }).expect(200)
 
       const statement = await owes(elaris)
       expect(statement.lines.slice(-3).map((line) => [line.kind, line.change])).toEqual([

@@ -409,7 +409,7 @@ describe('Customer debts', () => {
   })
 
   it("takes dollars for an agreed sum of so'm, and writes the difference down as the rate's", async () => {
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 11_800 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 11_800 }).expect(200)
     const vault = (
       await alpha.post('/api/money/accounts').send({ kind: 'safe', name: 'Seyf $', currency: 'USD' }).expect(201)
     ).body.id

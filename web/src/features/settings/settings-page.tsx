@@ -148,7 +148,7 @@ function BusinessSettings() {
             />
           )}
         </Field>
-        {me.org.modules.includes('usd') ? (
+        {me.org.currencies.length ? (
           <Field
             label={t('settings.maxRateLoss')}
             hint={t('settings.maxRateLossHint')}

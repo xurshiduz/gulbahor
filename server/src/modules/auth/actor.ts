@@ -13,6 +13,8 @@ export interface Actor {
   modules: string[]
   /** What the business keeps its books, prices and receipts in: every "so'm" in the code is this. */
   base: AnyCurrency
+  /** The currencies switched on beside the base. */
+  currencies: AnyCurrency[]
   allLocations: boolean
   locationIds: string[]
   ip: string | null

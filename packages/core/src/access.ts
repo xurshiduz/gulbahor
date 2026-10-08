@@ -15,12 +15,6 @@ export interface ModuleInfo {
 
 export const MODULES: ModuleInfo[] = [
   {
-    key: 'usd',
-    title: 'Dollar bilan ishlash',
-    description: 'Kassada va hamkorlar bilan hisobda dollar qabul qilinadi, kunlik kurs yuritiladi.',
-    ready: true,
-  },
-  {
     key: 'rfid',
     title: 'RFID',
     description: 'Har dona alohida kuzatiladi: etiketka chop etish, RFID bilan sotish, sanash va darvoza.',

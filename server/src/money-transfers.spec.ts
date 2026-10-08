@@ -64,8 +64,7 @@ describe('Money transfers', () => {
     shopId = (await alpha.get('/api/locations')).body.items[0].id
     registerId = (await alpha.post('/api/money/registers').send({ name: 'Kassa 1', locationId: shopId }).expect(201))
       .body.id
-    const [{ day }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
-    await alpha.put('/api/money/rates').send({ date: day, uzsPerUsd: 12_850 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 12_850 }).expect(200)
 
     const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]
     const hire = async (fullName: string, login: string, templateKey: string) => {

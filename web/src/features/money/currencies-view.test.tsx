@@ -13,7 +13,6 @@ const currency = (code: string, part: Partial<CurrencyDto>): CurrencyDto =>
   ({
     code,
     base: false,
-    fixed: false,
     form: { against: 'USD', way: 'per' },
     rate: null,
     worth: null,
@@ -27,13 +26,12 @@ const currency = (code: string, part: Partial<CurrencyDto>): CurrencyDto =>
 const set = (against: string, way: 'per' | 'in', value: number, date = '2026-10-06') =>
   ({ against, way, value, date, setByName: 'Odiljon' }) as CurrencyDto['rate']
 
-/** A shop in Tashkent: so'm its base, dollars at the tills, yuan named against the dollar, roubles straight in so'm. */
+/** A shop in Tashkent: so'm its base, dollars in so'm, yuan named against the dollar, roubles straight in so'm. */
 const currencies: CurrenciesDto = {
   base: 'UZS',
   active: [
-    currency('UZS', { base: true, fixed: true, form: null }),
+    currency('UZS', { base: true, form: null }),
     currency('USD', {
-      fixed: true,
       form: { against: 'UZS', way: 'in' },
       rate: set('UZS', 'in', 12_650),
       worth: '12650.00',
@@ -49,7 +47,7 @@ const handlers = () => ({ onRate: vi.fn(), onEnable: vi.fn(), onDisable: vi.fn()
 
 const show = (part: Partial<Parameters<typeof CurrenciesView>[0]> = {}, data = currencies) => {
   const on = handlers()
-  render(<CurrenciesView currencies={data} today="2026-10-06" canManage canRate {...on} {...part} />)
+  render(<CurrenciesView currencies={data} canManage canRate {...on} {...part} />)
   return on
 }
 const row = (code: string) => document.querySelector(`[data-currency="${code}"]`) as HTMLElement
@@ -91,7 +89,7 @@ describe('the currencies of a business', () => {
       ...currencies,
       active: [
         currencies.active[0],
-        currency('USD', { fixed: true, form: { against: 'UZS', way: 'in' }, missing: 'USD' }),
+        currency('USD', { form: { against: 'UZS', way: 'in' }, missing: 'USD' }),
         currency('CNY', { rate: set('USD', 'per', 7.25), missing: 'USD' }),
         currency('EUR', {
           form: { against: 'USD', way: 'in' },
@@ -110,13 +108,15 @@ describe('the currencies of a business', () => {
     expect(note('EUR')).toBe('01.09.2026 · Odiljon · uzoq vaqt yangilanmagan')
   })
 
-  it('remind that the tills’ own rate is yesterday’s until today’s is set', () => {
-    show({ today: '2026-10-07' })
-    expect(plain(row('USD').querySelector('[data-note]')?.textContent)).toBe(
-      '06.10.2026 · Odiljon · bugungisi kiritilmagan',
-    )
-    // The others are not asked for every morning.
-    expect(plain(row('CNY').querySelector('[data-note]')?.textContent)).toBe('06.10.2026 · Odiljon')
+  it('give the dollar the same menu as any other: written another way, or put away', async () => {
+    const on = show()
+    await userEvent.click(within(row('USD')).getByRole('button', { name: 'Amallar' }))
+    // Against so'm either way round, or against the rouble that does not lean on it; not against the yuan
+    // that is written against it.
+    const items = screen.getAllByRole('menuitem').map((item) => plain(item.textContent))
+    expect(items).toEqual(['1 $ = … so‘m', '1 so‘m = … $', '1 $ = … ₽', '1 ₽ = … $', 'O‘chirib qo‘yish'])
+    await userEvent.click(screen.getByRole('menuitem', { name: 'O‘chirib qo‘yish' }))
+    expect(on.onDisable.mock.calls[0][0]).toMatchObject({ code: 'USD' })
   })
 
   it('send a rate when it is changed, and nothing when it is not', async () => {

@@ -20,7 +20,6 @@ describe('Money exchange', () => {
   let alpha: Agent
   let manager: Agent
   let cashier: Agent
-  let today: string
 
   let somSafe: string
   let dollarSafe: string
@@ -59,8 +58,7 @@ describe('Money exchange', () => {
   beforeAll(async () => {
     harness = await startApp()
     ;({ alpha } = harness)
-    ;[{ day: today }] = await sql<{ day: string }[]>(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
-    await alpha.put('/api/money/rates').send({ date: today, uzsPerUsd: 12_850 }).expect(200)
+    await alpha.put('/api/currencies/USD/rate').send({ value: 12_850 }).expect(200)
 
     somSafe = await place('Seyf', 'UZS')
     dollarSafe = await place('Seyf $', 'USD')
@@ -177,7 +175,10 @@ describe('Money exchange', () => {
 
   describe('between two currencies that are not the base', () => {
     it('goes along the chain of rates: dollars to yuan and back', async () => {
-      await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
+      await alpha
+        .post('/api/currencies')
+        .send({ code: 'CNY', form: { against: 'USD', way: 'per' } })
+        .expect(200)
       yuanSafe = await place('Seyf ¥', 'CNY')
       // Without the yuan's rate nothing is changed into it, and what is wanting is named.
       const none = await send({ fromAccountId: dollarSafe, toAccountId: yuanSafe, amount: usd(100) }).expect(400)

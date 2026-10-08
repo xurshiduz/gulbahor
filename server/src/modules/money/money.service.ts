@@ -1,15 +1,10 @@
 import {
   ACCOUNT_KIND_LABELS,
   accountShops,
-  CURRENCIES,
-  DOLLAR,
-  isRateJump,
   type AccountDto,
   type AnyCurrency,
   type AccountInput,
   type PaymentAccountDto,
-  type RateDto,
-  type RateInput,
   type RegisterDto,
   type RegisterInput,
 } from '@erp/core'
@@ -18,11 +13,11 @@ import { In, type EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Account, ExchangeRate, Location, Register, Shift } from '../../database/entities'
+import { Account, Location, Register, Shift } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
-import { CurrenciesService, rateJumpError } from './currencies.service'
+import { CurrenciesService } from './currencies.service'
 import { LedgerService } from './ledger.service'
 import { mayUse } from './places'
 
@@ -210,53 +205,6 @@ export class MoneyService {
         afterCommit(() => this.realtime.changed(actor.orgId, ['money']))
       }
       return this.accountRow(em, id, true)
-    })
-  }
-
-  // ───────────────────────────── Rates ─────────────────────────────
-
-  /** Today's rate and the ones before it, newest first. */
-  async rates(actor: Actor): Promise<{ current: RateDto | null; history: RateDto[] }> {
-    return this.db.tenant(actor.orgId, async ({ em }) => {
-      const history = await em.find(ExchangeRate, { order: { rateDate: 'DESC' }, take: 60 })
-      return {
-        current: await this.ledger.rate(em, await this.ledger.today(em, actor.orgId)),
-        history: history.map((rate) => ({ date: rate.rateDate, uzsPerUsd: rate.uzsPerUsd, setByName: rate.setByName })),
-      }
-    })
-  }
-
-  /** Sets the rate of a day; a day already past keeps the rate its sales were made at. */
-  async setRate(actor: Actor, input: RateInput): Promise<RateDto> {
-    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      // Where the dollar is the base, there is nothing to set it against.
-      if (actor.base === DOLLAR) {
-        throw AppError.validation({ uzsPerUsd: 'Asosiy valyuta dollar: dollar kursi kerak emas' })
-      }
-      const today = await this.ledger.today(em, actor.orgId)
-      if (input.date < today) {
-        throw AppError.validation({ date: 'O‘tgan kunning kursi o‘zgartirilmaydi' })
-      }
-      const before = await em.findOneBy(ExchangeRate, { rateDate: input.date })
-      // "1 265" for "12 650" is a slip of the hand more often than a market: asked about before it is taken.
-      const inForce = await this.ledger.rate(em, input.date)
-      if (!input.confirmed && isRateJump(inForce?.uzsPerUsd, input.uzsPerUsd)) {
-        throw rateJumpError((inForce as RateDto).uzsPerUsd, input.uzsPerUsd)
-      }
-      await em.query(
-        `INSERT INTO exchange_rates (org_id, rate_date, uzs_per_usd, set_by, set_by_name) VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (org_id, rate_date)
-         DO UPDATE SET uzs_per_usd = EXCLUDED.uzs_per_usd, set_by = EXCLUDED.set_by, set_by_name = EXCLUDED.set_by_name`,
-        [actor.orgId, input.date, input.uzsPerUsd, actor.userId, actor.name],
-      )
-      await this.audit.record(em, actor.orgId, actor, {
-        action: 'rate.set',
-        entity: 'rate',
-        summary: `${input.date}: 1 $ = ${input.uzsPerUsd} ${CURRENCIES[actor.base].symbol}`,
-        changes: before ? { uzsPerUsd: [before.uzsPerUsd, input.uzsPerUsd] } : null,
-      })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
-      return { date: input.date, uzsPerUsd: input.uzsPerUsd, setByName: actor.name }
     })
   }
 

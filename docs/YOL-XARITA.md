@@ -45,6 +45,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 | 16 | H1–H6. Hisobotlar 10b–10g | Hisobotlar | 12 | M2 | keyinga qoldirilgan |
 | 17 | V5. Asosiy valyutani tanlash | Pul | 10 | M2 | tayyor (2026-10-08; foydalanuvchi so'rovi bilan M2 dan oldin) |
 | 18 | P2–P5. Superadmin, loglar, Telegram, deploy | Platforma | 8 | — | foydalanuvchi bilan |
+| 19 | V9. Hamma valyuta teng (dollarning alohida o'rni yo'q) | Pul | 11–12 | — | boshlandi (2026-10-08, egasi so'radi; M1 dan oldin) |
 
 Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz birlashuvi (u kassa, otlojka va hisobotlarga asos), keyin pul va sklad mayda paketlari, eng oxirida katta va kam so'ralgan ishlar. Jami ~80 kun.
 
@@ -90,6 +91,7 @@ KEYINGI-REJA 16.8 jadvali va `MIJOZLAR-TEXNIK.md` §2 bo'yicha: M2 baza va bitta
 
 - **V6. Terminal → bank — ~2 kun.** Terminal qaysi bank hisobiga tushishi; "Bankka tushdi" amali; komissiya xarajatga.
 - **V8. Komissiya — ~1 kun.** O'tkazma va ayirboshlashda summa yoki foiz; "Bank komissiyasi" xarajatiga o'zi yoziladi.
+- **V9. Hamma valyuta teng — ~11–12 kun.** Dollar oddiy valyuta; kurs istalgan valyutaga nisbatan; har kassa o'z valyutalarida naqd oladi; narx istalgan valyutada; "Tannarx valyutasi". Reja va bosqichlar (9a–9f) — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
 - **V7. Kurs farqi hisoboti — ~1,5 kun.** Kelishilgan summalar va ayirboshlashdan foyda/zarar, davr va xodim bo'yicha.
 - **V5. Asosiy valyutani tanlash — ~10 kun.** "So'm va dollar" → "asosiy va ikkinchi valyuta" butun tizimda (KEYINGI-REJA 8). So'ralganda.
 

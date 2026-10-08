@@ -1,8 +1,8 @@
 import {
   CURRENCIES,
-  DOLLAR,
   formatMoney,
   RATE_DECIMALS,
+  rateFormChoices,
   rateWording,
   type AnyCurrency,
   type CurrenciesDto,
@@ -38,19 +38,15 @@ export function rateSentence(code: AnyCurrency, form: RateForm, value?: number):
 
 const sameForm = (a: RateForm, b: RateForm) => a.against === b.against && a.way === b.way
 
-/** The ways a currency's rate may be written: in the base, or against the dollar where the business has dollars. */
+/** The ways a currency's rate may be written: against the base or any other currency it does not carry. */
 function formsFor(code: AnyCurrency, currencies: CurrenciesDto): RateForm[] {
-  const dollars = code !== DOLLAR && currencies.active.some((currency) => currency.code === DOLLAR)
-  return [
-    ...(dollars
-      ? [
-          { against: DOLLAR, way: 'per' as const },
-          { against: DOLLAR, way: 'in' as const },
-        ]
-      : []),
-    { against: currencies.base, way: 'in' },
-    { against: currencies.base, way: 'per' },
-  ]
+  const forms: Partial<Record<AnyCurrency, RateForm>> = {}
+  for (const currency of currencies.active) {
+    if (currency.form) {
+      forms[currency.code] = currency.form
+    }
+  }
+  return rateFormChoices(code, currencies.base, forms)
 }
 
 interface CurrenciesViewProps {
@@ -59,8 +55,6 @@ interface CurrenciesViewProps {
   canManage: boolean
   /** May set rates. */
   canRate: boolean
-  /** The business's day: a rate the tills count by is asked for afresh each day. */
-  today: string
   /** The currency whose rate is on its way to the server. */
   saving?: AnyCurrency | null
   onRate: (currency: CurrencyDto, value: number) => void
@@ -77,7 +71,6 @@ interface CurrenciesViewProps {
  */
 export function CurrenciesView({
   currencies,
-  today,
   canManage,
   canRate,
   saving,
@@ -95,7 +88,6 @@ export function CurrenciesView({
             key={`${currency.code}:${currency.rate?.value ?? ''}:${currency.form?.against ?? ''}:${currency.form?.way ?? ''}`}
             currency={currency}
             currencies={currencies}
-            today={today}
             canManage={canManage}
             canRate={canRate}
             saving={saving === currency.code}
@@ -132,7 +124,6 @@ interface CurrencyRowProps extends Omit<CurrenciesViewProps, 'saving'> {
 function CurrencyRow({
   currency,
   currencies,
-  today,
   canManage,
   canRate,
   saving,
@@ -160,7 +151,7 @@ function CurrencyRow({
   const { one, of } = rateWording(code, form)
   const others = formsFor(code, currencies)
   const menu: (MenuItem | 'separator')[] = [
-    ...(canManage && !currency.fixed
+    ...(canManage
       ? [
           ...others.map((option) => ({
             label: rateSentence(code, option),
@@ -170,7 +161,7 @@ function CurrencyRow({
           'separator' as const,
         ]
       : []),
-    ...(canManage && !currency.fixed
+    ...(canManage
       ? [
           {
             label: t('currencies.putAway'),
@@ -192,8 +183,7 @@ function CurrencyRow({
     ? [
         current === null ? t('currencies.oldForm', { rate: rateSentence(code, rate, rate.value) }) : null,
         `${formatDay(rate.date)}${rate.setByName ? ` · ${rate.setByName}` : ''}`,
-        // The tills' own rate is set each morning: yesterday's still counts, and is said to be yesterday's.
-        currency.fixed && rate.date < today ? t('currencies.notToday') : currency.stale ? t('currencies.stale') : null,
+        currency.stale ? t('currencies.stale') : null,
       ]
         .filter(Boolean)
         .join(' · ')
@@ -220,8 +210,7 @@ function CurrencyRow({
               className="w-32"
               value={value}
               onChange={setValue}
-              // The dollar is kept to the tiyin, as the tills have always taken it; the others to six places.
-              decimals={currency.fixed ? 2 : RATE_DECIMALS}
+              decimals={RATE_DECIMALS}
               max={1_000_000_000}
               placeholder={current === null ? '' : rateText(current)}
             />
@@ -239,13 +228,7 @@ function CurrencyRow({
         ) : (
           <p className="tabular text-sm">{rate ? rateSentence(code, rate, rate.value) : '—'}</p>
         )}
-        <p
-          className={cn(
-            'text-xs',
-            wanting || currency.stale || (currency.fixed && rate && rate.date < today) ? 'text-warn' : 'text-ink-3',
-          )}
-          data-note
-        >
+        <p className={cn('text-xs', wanting || currency.stale ? 'text-warn' : 'text-ink-3')} data-note>
           {[wanting, stamp].filter(Boolean).join(' · ')}
         </p>
       </div>

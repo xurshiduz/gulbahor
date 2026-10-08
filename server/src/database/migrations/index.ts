@@ -35,6 +35,7 @@ import { PartnerPriceType1790000033000 } from './1790000033000-partner-price-typ
 import { SupplierReturns1790000034000 } from './1790000034000-supplier-returns'
 import { BaseCurrency1790000035000 } from './1790000035000-base-currency'
 import { ExtraPermissions1790000036000 } from './1790000036000-extra-permissions'
+import { DollarAsCurrency1790000037000 } from './1790000037000-dollar-as-currency'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -75,4 +76,5 @@ export const MIGRATIONS = [
   SupplierReturns1790000034000,
   BaseCurrency1790000035000,
   ExtraPermissions1790000036000,
+  DollarAsCurrency1790000037000,
 ]
