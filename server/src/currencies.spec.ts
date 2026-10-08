@@ -220,6 +220,10 @@ describe('Currencies', () => {
   })
 
   it('put the dollar away like any other, and need none: every rate is then written straight in the base', async () => {
+    // Not while the business keeps its costs in dollars; once it keeps them in so'm alone, as any other.
+    const costed = await beta.post('/api/currencies/USD/archive').expect(409)
+    expect(costed.body.error.code).toBe('CURRENCY_COST')
+    await beta.put('/api/currencies/cost').send({ currency: 'UZS' }).expect(200)
     let currencies = (await beta.post('/api/currencies/USD/archive').expect(200)).body as CurrenciesDto
     expect(currencies.active.map((currency) => currency.code)).toEqual(['UZS'])
     expect(currencies.available).toContain('USD')

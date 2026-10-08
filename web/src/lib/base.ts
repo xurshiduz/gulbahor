@@ -17,6 +17,16 @@ export const setBase = (currency: AnyCurrency) => {
 /** The business's base currency. */
 export const base = (): AnyCurrency => current
 
+/** What the business keeps its costs in beside the base: every `…Usd` cost. The base where there is none. */
+let costCurrent: AnyCurrency = 'USD'
+
+export const setCost = (currency: AnyCurrency) => {
+  costCurrent = currency
+}
+
+/** The business's cost currency. Dollars until a session says otherwise (and in tests, which have none). */
+export const cost = (): AnyCurrency => costCurrent
+
 /** Whether a sum in `currency` is dollars beside the base, not the base itself. */
 export const dollarsBeside = (currency: AnyCurrency): boolean => currency === DOLLAR && current !== DOLLAR
 

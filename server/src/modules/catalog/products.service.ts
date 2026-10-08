@@ -13,6 +13,8 @@ import {
   type ProductListQuery,
   type VariantInput,
   type VariantLookupDto,
+  type ProductArrivalDto,
+  type AnyCurrency,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, IsNull, type EntityManager } from 'typeorm'
@@ -177,6 +179,51 @@ export class ProductsService {
 
   async get(actor: Actor, id: string): Promise<ProductDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => this.load(em, id))
+  }
+
+  /** The posted receipts that brought a model's goods, newest first: in what currency and at what price. */
+  async arrivals(actor: Actor, id: string): Promise<ProductArrivalDto[]> {
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      await this.load(em, id)
+      const rows: {
+        receipt_id: string
+        number: string
+        doc_date: string
+        supplier_name: string | null
+        value_names: string[]
+        qty: number
+        price: number
+        currency: AnyCurrency
+        cost_uzs: number | null
+      }[] = await em.query(
+        `SELECT r.id AS receipt_id, r.number, r.doc_date::text, s.name AS supplier_name,
+                array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
+                rl.qty::float8 AS qty, rl.price::float8 AS price, r.currency, rl.cost_uzs::float8 AS cost_uzs
+         FROM receipt_lines rl
+         JOIN receipts r ON r.id = rl.receipt_id AND r.status = 'posted'
+         JOIN product_variants v ON v.id = rl.variant_id
+         LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
+         LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
+         LEFT JOIN attribute_values a3 ON a3.id = v.value3_id
+         LEFT JOIN partners s ON s.id = coalesce(rl.supplier_id, r.supplier_id)
+         WHERE v.product_id = $1
+         ORDER BY r.doc_date DESC, r.number DESC, rl.position
+         LIMIT 100`,
+        [id],
+      )
+      const seesCost = can(actor, 'stock.cost')
+      return rows.map((row) => ({
+        receiptId: row.receipt_id,
+        number: row.number,
+        docDate: row.doc_date,
+        supplierName: row.supplier_name,
+        variantLabel: variantLabel(row.value_names),
+        qty: row.qty,
+        price: row.price,
+        currency: row.currency,
+        unitCost: seesCost && row.cost_uzs !== null && row.qty ? Math.round(row.cost_uzs / row.qty) : null,
+      }))
+    })
   }
 
   /** Which variant a scanned barcode, a typed article or a read RFID tag belongs to. */

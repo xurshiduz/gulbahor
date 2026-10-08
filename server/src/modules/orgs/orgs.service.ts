@@ -212,9 +212,15 @@ export class OrgsService {
           await this.currencies.enableIn(em, actor, code)
         }
       }
+      // Costs beside the base: in one of the currencies just switched on, or in the base alone.
+      const costCurrency =
+        input.costCurrency && input.costCurrency !== base && input.currencies.includes(input.costCurrency)
+          ? input.costCurrency
+          : base
       await em.update(Organization, actor.orgId, {
         name: input.name,
         modules: withRequired(input.modules),
+        costCurrency,
         setupCompleted: true,
       })
       await this.audit.record(em, actor.orgId, actor, {
@@ -252,6 +258,7 @@ export class OrgsService {
           name: input.name,
           timezone: 'Asia/Tashkent',
           baseCurrency: input.baseCurrency ?? 'UZS',
+          costCurrency: input.baseCurrency ?? 'UZS',
           // The shop counts change as the currency is usually counted.
           settings: { changeRoundStep: cashSteps(input.baseCurrency ?? 'UZS').change },
           modules: [],

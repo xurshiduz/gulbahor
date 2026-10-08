@@ -4,6 +4,7 @@ import {
   productInputSchema,
   productListQuerySchema,
   type Page,
+  type ProductArrivalDto,
   type ProductDto,
   type ProductInput,
   type ProductListItemDto,
@@ -42,6 +43,13 @@ export class ProductsController {
   @Can('products.view')
   get(@CurrentActor() actor: Actor, @Param('id', zod(idSchema)) id: string): Promise<ProductDto> {
     return this.products.get(actor, id)
+  }
+
+  /** What receipts brought the model's goods, in what currency and at what price: for those who see receipts. */
+  @Get(':id/arrivals')
+  @Can('receipts.view')
+  arrivals(@CurrentActor() actor: Actor, @Param('id', zod(idSchema)) id: string): Promise<ProductArrivalDto[]> {
+    return this.products.arrivals(actor, id)
   }
 
   @Post()

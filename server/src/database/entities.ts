@@ -58,6 +58,10 @@ export class Organization {
   /** Any currency of the catalogue: what the books, prices and receipts are kept in. */
   baseCurrency: AnyCurrency
 
+  /** What costs are kept in beside the base (`…_usd` columns); the base itself where there is no second one. */
+  @Column('text')
+  costCurrency: AnyCurrency
+
   @Column('text', { array: true })
   modules: string[]
 

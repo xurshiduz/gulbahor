@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { dearer } from './currencies'
 import { Fraction } from './fraction'
 import type { ImageThumb } from './images'
 import { ALL_CURRENCY_CODES, allocateExact, assertMinor, type AnyCurrency, type CurrencyCode } from './money'
@@ -84,7 +85,7 @@ const currencySchema = z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency
 /** Minor units; the ceiling keeps every sum inside what a double holds exactly. */
 const amountSchema = z.number().int().min(0).max(1_000_000_000_000_00)
 
-/** How many units of something one dollar buys. Kept to six decimals. */
+/** How many units of something one of the receipt's go-between currency buys (`pivotOf`). Kept to six decimals. */
 const rateSchema = z
   .number()
   .positive({ message: 'Kurs noldan katta bo‘lishi kerak' })
@@ -135,11 +136,23 @@ export type ReceiptExpenseInput = z.infer<typeof receiptExpenseInputSchema>
 const expensesSchema = z.array(receiptExpenseInputSchema).max(50)
 
 /**
- * An amount on a receipt is in dollars, in the base or in the receipt's own currency: the three it has rates
- * for. Which currency is the base only the server knows, so it is the server that asks.
+ * An amount on a receipt is in the cost currency, in the base or in the receipt's own currency: the three it has
+ * rates for. Which those are only the server knows, so it is the server that asks.
  */
-export const convertible = (currency: AnyCurrency, receiptCurrency: AnyCurrency, base: AnyCurrency) =>
-  currency === 'USD' || currency === base || currency === receiptCurrency
+export const convertible = (
+  currency: AnyCurrency,
+  receiptCurrency: AnyCurrency,
+  base: AnyCurrency,
+  cost: AnyCurrency,
+) => currency === cost || currency === base || currency === receiptCurrency
+
+/**
+ * The currency a receipt's rates are written against: the cost currency where the business keeps one beside
+ * its base ("1 $ = 7,25 ¥", "1 $ = 12 650 so'm"). Where it keeps its costs in the base alone one rate is asked,
+ * written with the dearer of the two first: "1 ¥ = 1 750 so'm", or "1 $ = 7,25 ¥" for a dollar business.
+ */
+export const pivotOf = (base: AnyCurrency, cost: AnyCurrency, receiptCurrency: AnyCurrency): AnyCurrency =>
+  cost !== base ? cost : dearer(receiptCurrency, base) ? receiptCurrency : base
 
 export const receiptInputSchema = z.object({
   locationId: idSchema,
@@ -147,11 +160,12 @@ export const receiptInputSchema = z.object({
   docDate: z.iso.date(),
   /** What the supplier is paid in. */
   currency: currencySchema,
-  /** Units of `currency` per dollar; 1 when the currency is the dollar. */
+  /** Units of `currency` for one of the go-between currency (`pivotOf`); 1 when they are the same. */
   usdRate: rateSchema,
-  /** Units of the base per dollar; 1 where the base is the dollar. */
+  /** Units of the base for one of the go-between currency; 1 where that is the base. */
   uzsRate: rateSchema,
-  extraCurrency: currencySchema.default('USD'),
+  /** Left out, the cost currency. */
+  extraCurrency: currencySchema.optional(),
   note: optionalText(500),
   lines: z.array(receiptLineInputSchema).max(5000),
   expenses: expensesSchema.default([]),
@@ -277,6 +291,8 @@ export interface CostingExpense {
 export interface CostingInput {
   /** What the business keeps its books in: the "so'm" of `uzsRate` and of every `…Uzs` the costing gives. */
   base: AnyCurrency
+  /** What it keeps its costs in beside the base: every `…Usd` the costing gives. The base where it keeps none. */
+  cost: AnyCurrency
   currency: AnyCurrency
   usdRate: number
   uzsRate: number
@@ -312,28 +328,33 @@ const rounded = (value: Fraction) => assertMinor(Number(value.toScaled(0)))
 const scaledQty = (qty: number) => BigInt(Math.round(qty * QTY_SCALE))
 
 /**
- * Works out what every line of a receipt costs, in dollars and in the base ("so'm" below).
+ * Works out what every line of a receipt costs, in the cost currency ("dollars" below) and in the base ("so'm").
+ * Everything goes through the receipt's go-between currency (`pivotOf`): its rates are written against it.
  *
  * Each total is converted once and then split with the largest-remainder
  * method, so the lines always add up to the totals to the last tiyin and
  * cent: nothing is lost or invented by rounding line by line.
  */
 export function costReceipt(input: CostingInput): Costing {
-  const { base } = input
-  const usdRate = input.currency === 'USD' ? Fraction.ONE : rateOf(input.usdRate)
-  // Where the base is the dollar, a dollar is one of it whatever the receipt says.
-  const uzsRate = base === 'USD' ? Fraction.ONE : rateOf(input.uzsRate)
+  const { base, cost } = input
+  const pivot = pivotOf(base, cost, input.currency)
+  const usdRate = input.currency === pivot ? Fraction.ONE : rateOf(input.usdRate)
+  // Where the go-between is the base, one of it is one of the base whatever the receipt says.
+  const uzsRate = base === pivot ? Fraction.ONE : rateOf(input.uzsRate)
 
-  /** An amount in minor units of `currency`, as an exact number of cents. */
-  const toUsd = (minor: number, currency: AnyCurrency): Fraction => {
+  /** An amount in minor units of `currency`, in the go-between currency's minor units, exactly. */
+  const toPivot = (minor: number, currency: AnyCurrency): Fraction => {
     const amount = Fraction.of(minor)
-    if (currency === 'USD') return amount
+    if (currency === pivot) return amount
     if (currency === base) return amount.div(uzsRate)
     return amount.div(usdRate)
   }
-  /** The base goes through no rate at all; everything else goes through the dollar. */
+  /** The base goes through no rate at all; everything else goes through the go-between currency. */
   const toUzs = (minor: number, currency: AnyCurrency): Fraction =>
-    currency === base ? Fraction.of(minor) : toUsd(minor, currency).mul(uzsRate)
+    currency === base ? Fraction.of(minor) : toPivot(minor, currency).mul(uzsRate)
+  /** In the cost currency: the go-between itself, or — where costs are kept in the base alone — the base. */
+  const toUsd = (minor: number, currency: AnyCurrency): Fraction =>
+    cost === base ? toUzs(minor, currency) : toPivot(minor, currency)
 
   const quantities = input.lines.map((line) => scaledQty(line.qty))
   const goods = input.lines.map((line, index) =>

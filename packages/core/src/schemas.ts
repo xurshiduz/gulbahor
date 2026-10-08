@@ -221,6 +221,8 @@ export interface OrgDto {
   baseCurrency: CurrencyCode
   /** The currencies switched on beside the base, in the order they were. */
   currencies: AnyCurrency[]
+  /** What costs are kept in beside the base; the base itself where there is no second one. */
+  costCurrency: AnyCurrency
   modules: string[]
   settings: OrgSettings
   setupCompleted: boolean
@@ -311,6 +313,8 @@ export const setupSchema = z.object({
   name: requiredText(120),
   /** What the books, prices and receipts are kept in: fixed once the first money is written. Left out, as it is. */
   baseCurrency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
+  /** What costs are kept in beside the base: one of the currencies switched on here. Left out, the base alone. */
+  costCurrency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
   /** Currencies to switch on beside the base, each written against it ("1 $ = 12 650 so'm"); rates are set later. */
   currencies: z.array(z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])).max(16),
   locations: z

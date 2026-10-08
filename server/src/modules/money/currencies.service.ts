@@ -136,6 +136,16 @@ export class CurrenciesService {
           `${CURRENCIES[code].name} hali ishlatilmoqda: ${held.map((account) => account.name).join(', ')}. Avval shu hisoblarni bo‘shating`,
         )
       }
+      const [{ cost }]: { cost: AnyCurrency }[] = await em.query(
+        `SELECT cost_currency AS cost FROM organizations WHERE id = $1`,
+        [actor.orgId],
+      )
+      if (cost === code) {
+        throw AppError.conflict(
+          'CURRENCY_COST',
+          `Tannarx ${CURRENCIES[code].name}da yuritiladi: bu valyuta o‘chirib qo‘yilmaydi`,
+        )
+      }
       const priced: { name: string }[] = await em.query(
         `SELECT name FROM price_types WHERE currency = $1 AND is_active ORDER BY sort_order, name LIMIT 5`,
         [code],

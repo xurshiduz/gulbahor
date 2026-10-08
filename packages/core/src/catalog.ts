@@ -466,6 +466,21 @@ export interface VariantDto {
   prices: PriceDto[]
 }
 
+/** One arrival of a model's goods: which receipt brought them, and in what currency and at what price they came. */
+export interface ProductArrivalDto {
+  receiptId: string
+  number: string
+  docDate: string
+  supplierName: string | null
+  variantLabel: string
+  qty: number
+  /** Per piece, in the receipt's currency: what the supplier billed. */
+  price: number
+  currency: AnyCurrency
+  /** Per piece with its share of the expenses, in the base; null for one who may not see costs. */
+  unitCost: number | null
+}
+
 export interface ProductDto {
   id: string
   sku: string

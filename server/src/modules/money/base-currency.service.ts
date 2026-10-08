@@ -10,6 +10,7 @@ import {
   type AnyCurrency,
   type BaseCurrencyDto,
   type BaseLock,
+  type CostCurrencyDto,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
@@ -24,6 +25,12 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { wantingRate } from './agreed'
 import { CurrenciesService } from './currencies.service'
 import { LedgerService } from './ledger.service'
+
+const COST_LOCKED: Record<BaseLock, string> = {
+  money: 'Tovar kirimi bor: tannarx valyutasi endi o‘zgarmaydi',
+  stock: 'Tovar kirimi bor: tannarx valyutasi endi o‘zgarmaydi',
+  drafts: 'Kirim qoralamalari bor: ularning kursi hozirgi tannarx valyutasida. Avval o‘chiring yoki o‘tkazing',
+}
 
 const LOCKED: Record<BaseLock, string> = {
   money: 'Pul yozuvi bor: asosiy valyuta endi o‘zgarmaydi',
@@ -188,6 +195,8 @@ export class BaseCurrencyService {
 
     await em.update(Organization, actor.orgId, {
       baseCurrency: next,
+      // Costs kept in the base alone stay so; costs kept in the new base are now in the base alone.
+      costCurrency: org.costCurrency === old || org.costCurrency === next ? next : org.costCurrency,
       settings: {
         ...org.settings,
         changeRoundStep: steps.change,
@@ -202,6 +211,65 @@ export class BaseCurrencyService {
         prices.length ? `; ${prices.length} ta narx o‘tkazildi` : ''
       }`,
     })
+  }
+
+  /** The currency costs are kept in beside the base, and whether it may still change. */
+  async costState(actor: Actor): Promise<CostCurrencyDto> {
+    return this.db.tenant(actor.orgId, async ({ em }) => this.costStateIn(em, actor.orgId))
+  }
+
+  /**
+   * Keeps costs in another currency beside the base — one switched on — or in the base alone. Only the owner,
+   * and only while nothing has been costed: every cost kept so far would be in the other one.
+   */
+  async changeCost(actor: Actor, next: AnyCurrency): Promise<CostCurrencyDto> {
+    if (!actor.isOwner) {
+      throw AppError.forbidden('Tannarx valyutasini biznes egasi o‘zgartiradi')
+    }
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      await em.query(`SELECT 1 FROM organizations WHERE id = $1 FOR UPDATE`, [actor.orgId])
+      const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      if (next === org.costCurrency) {
+        return this.costStateIn(em, actor.orgId)
+      }
+      const locked = await this.costLock(em)
+      if (locked) {
+        throw AppError.conflict('COST_LOCKED', COST_LOCKED[locked])
+      }
+      const [{ on }]: { on: boolean }[] = await em.query(
+        `SELECT EXISTS (SELECT 1 FROM org_currencies WHERE code = $1 AND is_active) AS on`,
+        [next],
+      )
+      if (next !== org.baseCurrency && !on) {
+        throw AppError.validation({ currency: 'Avval shu valyutani yoqing: Pul → Kurslar' })
+      }
+      await em.update(Organization, actor.orgId, { costCurrency: next })
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'org.cost_currency',
+        entity: 'org',
+        entityId: actor.orgId,
+        summary: `Tannarx valyutasi: ${CURRENCIES[org.costCurrency].name} → ${CURRENCIES[next].name}`,
+      })
+      afterCommit(() => {
+        this.actors.invalidate()
+        this.realtime.changed(actor.orgId, ['me', 'money'])
+      })
+      return this.costStateIn(em, actor.orgId)
+    })
+  }
+
+  private async costStateIn(em: EntityManager, orgId: string): Promise<CostCurrencyDto> {
+    const org = await em.findOneByOrFail(Organization, { id: orgId })
+    return { cost: org.costCurrency, locked: await this.costLock(em) }
+  }
+
+  /** Why the cost currency can no longer change: goods have been costed, or a draft is costed in it. */
+  private async costLock(em: EntityManager): Promise<BaseLock | null> {
+    const [row]: { stock: boolean; drafts: boolean }[] = await em.query(
+      `SELECT EXISTS (SELECT 1 FROM stock_movements) AS stock,
+              EXISTS (SELECT 1 FROM receipts WHERE status = 'draft') AS drafts`,
+    )
+    return row.stock ? 'stock' : row.drafts ? 'drafts' : null
   }
 
   /** Why the base can no longer change; null while it may. */

@@ -28,7 +28,7 @@ import { useSession } from '@/features/auth/session'
 import { useAttributes, useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
 import { matrixOf } from '@/features/receipts/receipt-state'
 import { api } from '@/lib/api'
-import { base } from '@/lib/base'
+import { base, cost } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
@@ -140,7 +140,7 @@ export function StockPage() {
               },
               cell: ({ row }) =>
                 row.original.costUzs ? (
-                  <span title={formatMoney(row.original.costUsd ?? 0, 'USD')}>
+                  <span title={cost() !== base() ? formatMoney(row.original.costUsd ?? 0, cost()) : undefined}>
                     {formatMoney(row.original.costUzs, base(), { minor: 'never' })}
                   </span>
                 ) : (

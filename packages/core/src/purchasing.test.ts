@@ -18,6 +18,7 @@ describe('costReceipt', () => {
   // The cargo from China in docs/REJA.md, section 9.
   const cargo: CostingInput = {
     base: 'UZS',
+    cost: 'USD',
     currency: 'USD',
     usdRate: 1,
     uzsRate: 12_800,
@@ -52,6 +53,7 @@ describe('costReceipt', () => {
   it('adds up to the totals to the last cent when nothing divides evenly', () => {
     const costing = costReceipt({
       base: 'UZS',
+      cost: 'USD',
       currency: 'CNY',
       usdRate: 7.13,
       uzsRate: 12_847.35,
@@ -100,6 +102,7 @@ describe('costReceipt', () => {
   it('costs a local purchase in so’m without touching the dollar rate of the goods', () => {
     const costing = costReceipt({
       base: 'UZS',
+      cost: 'USD',
       currency: 'UZS',
       usdRate: 12_800,
       uzsRate: 12_800,
@@ -118,6 +121,7 @@ describe('costReceipt in another base', () => {
     // 10 pieces at 71 ¥ = 710 ¥ = 100 $ = 48 000 ₸; a delivery of 4 800 ₸ = 10 $.
     const costing = costReceipt({
       base: 'KZT',
+      cost: 'USD',
       currency: 'CNY',
       usdRate: 7.1,
       uzsRate: 480,
@@ -139,6 +143,7 @@ describe('costReceipt in another base', () => {
   it('costs everything once in a dollar business: the dollar is the base, whatever rate is written', () => {
     const costing = costReceipt({
       base: 'USD',
+      cost: 'USD',
       currency: 'CNY',
       usdRate: 7.25,
       // A rate the form had no business sending: one dollar is one dollar.
@@ -151,13 +156,56 @@ describe('costReceipt in another base', () => {
   })
 })
 
+describe('costReceipt with the costs kept in the base alone', () => {
+  it('asks one rate, the receipt’s own currency in the base, and gives the base twice', () => {
+    // 10 pieces at 71 ¥ at 1 750 so'm; a delivery of 50 000 so'm.
+    const costing = costReceipt({
+      base: 'UZS',
+      cost: 'UZS',
+      currency: 'CNY',
+      // Nothing between the yuan and itself.
+      usdRate: 99,
+      uzsRate: 1_750,
+      extraCurrency: 'UZS',
+      lines: [{ qty: 10, price: usd(71), extra: 0, weightG: null }],
+      expenses: [{ amount: usd(50_000), currency: 'UZS', basis: 'quantity' }],
+    })
+    expect(costing.totals).toMatchObject({
+      goods: usd(710),
+      goodsUzs: usd(1_242_500),
+      costUzs: usd(1_292_500),
+      // No second currency: what the cost columns hold is the base again.
+      costUsd: usd(1_292_500),
+    })
+  })
+
+  it('keeps costs in yuan beside so’m: a dollar receipt goes through the yuan', () => {
+    // Costs kept in yuan: "1 ¥ = 1 750 so'm", and a dollar is 7,25 ¥ — written as 0,137931 $ for a yuan.
+    const costing = costReceipt({
+      base: 'UZS',
+      cost: 'CNY',
+      currency: 'USD',
+      usdRate: 0.137931,
+      uzsRate: 1_750,
+      extraCurrency: 'CNY',
+      lines: [{ qty: 2, price: usd(50), extra: 0, weightG: null }],
+      expenses: [],
+    })
+    // 100 $ = 725 ¥ to the fen. A rate written this way round carries six decimals: so'm come within a so'm.
+    expect(costing.totals.goodsUsd).toBe(usd(725))
+    expect(Math.abs(costing.totals.goodsUzs - usd(1_268_750))).toBeLessThan(100)
+  })
+})
+
 describe('convertible', () => {
-  it('takes dollars, the base and the receipt’s own currency', () => {
-    expect(convertible('USD', 'CNY', 'KZT')).toBe(true)
-    expect(convertible('KZT', 'CNY', 'KZT')).toBe(true)
-    expect(convertible('CNY', 'CNY', 'KZT')).toBe(true)
-    expect(convertible('UZS', 'CNY', 'KZT')).toBe(false)
-    expect(convertible('TRY', 'CNY', 'UZS')).toBe(false)
+  it('takes the cost currency, the base and the receipt’s own currency', () => {
+    expect(convertible('USD', 'CNY', 'KZT', 'USD')).toBe(true)
+    expect(convertible('KZT', 'CNY', 'KZT', 'USD')).toBe(true)
+    expect(convertible('CNY', 'CNY', 'KZT', 'USD')).toBe(true)
+    expect(convertible('UZS', 'CNY', 'KZT', 'USD')).toBe(false)
+    expect(convertible('TRY', 'CNY', 'UZS', 'USD')).toBe(false)
+    // Costs in the base alone: no dollar to go through.
+    expect(convertible('USD', 'CNY', 'UZS', 'UZS')).toBe(false)
   })
 })
 
@@ -174,7 +222,8 @@ describe('receiptInputSchema', () => {
 
   it('accepts a draft with nothing but lines, and fills the rest', () => {
     const parsed = receiptInputSchema.parse(base)
-    expect(parsed.extraCurrency).toBe('USD')
+    // Left to the server, which knows the cost currency.
+    expect(parsed.extraCurrency).toBeUndefined()
     expect(parsed.lines[0]).toMatchObject({ extra: 0, retailPrice: null, supplierId: null })
     expect(parsed.expenses).toEqual([])
   })

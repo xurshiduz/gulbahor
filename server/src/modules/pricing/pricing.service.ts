@@ -1,5 +1,4 @@
 import {
-  DOLLAR,
   exchange,
   formatMoney,
   NO_ROUNDING,
@@ -185,7 +184,7 @@ export class PricingService {
       const rate = operation.kind === 'markup' && type.currency === actor.base ? operation.uzsRate : null
       const costs = await this.unitCosts(em, ids, rate, actor.base)
       // A price in another currency is marked up on the cost in it, at today's rates.
-      const book = type.currency === actor.base || type.currency === DOLLAR ? null : await bookToday(em)
+      const book = type.currency === actor.base || type.currency === actor.cost ? null : await bookToday(em)
       const rows = await this.prices(em, ids)
       const priceOf = (productId: string, priceTypeId: string | undefined) =>
         rows.find(
@@ -208,7 +207,7 @@ export class PricingService {
         const unitCost =
           (type.currency === actor.base
             ? cost?.uzs
-            : type.currency === DOLLAR
+            : type.currency === actor.cost
               ? cost?.usd
               : cost?.uzs != null && book
                 ? exchange(cost.uzs, actor.base, type.currency, book)

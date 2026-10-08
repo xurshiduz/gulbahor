@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, baseWords, cost } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -85,7 +85,7 @@ export function RepriceDialog({ filter, scope, priceTypes, uzsRate, seesCost, on
         : kind === 'amount'
           ? { kind, amount: amount === null ? undefined : sign * amount }
           : kind === 'markup'
-            ? { kind, percent, uzsRate: dollarsBeside('USD') && type.currency === base() ? rate : null }
+            ? { kind, percent, uzsRate: cost() !== base() && type.currency === base() ? rate : null }
             : { kind, priceTypeId: source?.id, percent: percent === null ? undefined : sign * percent }
     return repriceSchema.safeParse({ priceTypeId, filter, operation, round, note })
   }, [kind, percent, amount, rate, sign, source, type.currency, priceTypeId, filter, round, note])
@@ -272,8 +272,11 @@ export function RepriceDialog({ filter, scope, priceTypes, uzsRate, seesCost, on
               )}
             </Field>
           )}
-          {kind === 'markup' && type.currency === base() && dollarsBeside('USD') ? (
-            <Field label={t('pricing.rate')} hint={t('pricing.rateHint', baseWords(t))}>
+          {kind === 'markup' && type.currency === base() && cost() !== base() ? (
+            <Field
+              label={t('pricing.rate')}
+              hint={t('pricing.rateHint', { ...baseWords(t), cost: t(`currencies.short.${cost()}`) })}
+            >
               {(id) => <NumberInput id={id} value={rate} onChange={setRate} decimals={2} max={1_000_000} />}
             </Field>
           ) : null}

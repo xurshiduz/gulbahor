@@ -31,14 +31,14 @@ import { Field } from '@/components/ui/field'
 import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
 import { sha256Hex } from '@/lib/sha256'
 import { toast } from '@/lib/toast'
 
-import { DEFAULTS_KEY, NO_DEFAULTS, type ReceiptDefaults } from './receipt-state'
+import { DEFAULTS_KEY, NO_DEFAULTS, ratesAsked, rememberedUzsRate, type ReceiptDefaults } from './receipt-state'
 
 type Cell = string | number | boolean | Date | null
 
@@ -123,8 +123,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   const [docDate, setDocDate] = useState(() => toIsoDate(todayIn(me.org.timezone)))
   const [currency, setCurrency] = useState<AnyCurrency>(defaults.currency)
   const [usdRate, setUsdRate] = useState<number | null>(defaults.usdRates?.[defaults.currency] ?? null)
-  // Where the dollar is the base there is no rate between them.
-  const [uzsRate, setUzsRate] = useState<number | null>(dollarsBeside('USD') ? defaults.uzsRate : 1)
+  const [uzsRate, setUzsRate] = useState<number | null>(() => rememberedUzsRate(defaults, defaults.currency))
 
   const suppliers = useQuery({
     queryKey: ['partners', 'suppliers'],
@@ -141,7 +140,8 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
         )
         .join('|')
     : ''
-  const foreign = currency !== 'USD' && currency !== base()
+  const asked = ratesAsked(currency)
+  const foreign = asked.usd
 
   const open = async (file: File) => {
     setReading(true)
@@ -198,7 +198,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
         docDate,
         currency,
         usdRate: foreign ? usdRate : 1,
-        uzsRate,
+        uzsRate: asked.uzs ? uzsRate : 1,
         fileName: (sheet as Sheet).fileName,
         fileHash: (sheet as Sheet).fileHash,
         rows: read.rows,
@@ -222,7 +222,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   const ready =
     !!sheet &&
     !!locationId &&
-    !!uzsRate &&
+    (!asked.uzs || !!uzsRate) &&
     (!foreign || !!usdRate) &&
     mapping.name !== undefined &&
     mapping.qty !== undefined &&
@@ -353,6 +353,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                     onChange={(value) => {
                       setCurrency(value as AnyCurrency)
                       setUsdRate(defaults.usdRates?.[value as AnyCurrency] ?? null)
+                      setUzsRate(rememberedUzsRate(defaults, value as AnyCurrency))
                       setPreview(null)
                     }}
                     options={ALL_CURRENCY_CODES.map((code) => ({
@@ -363,7 +364,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                 )}
               </Field>
               {foreign ? (
-                <Field label={t('receipts.usdRate', { currency })} required>
+                <Field label={t('receipts.usdRate', { pivot: CURRENCIES[asked.pivot].symbol, currency })} required>
                   {(id) => (
                     <NumberInput
                       id={id}
@@ -375,8 +376,11 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                   )}
                 </Field>
               ) : null}
-              {dollarsBeside('USD') ? (
-                <Field label={t('receipts.uzsRate', baseWords(t))} required>
+              {asked.uzs ? (
+                <Field
+                  label={t('receipts.uzsRate', { ...baseWords(t), pivot: CURRENCIES[asked.pivot].symbol })}
+                  required
+                >
                   {(id) => (
                     <NumberInput
                       id={id}

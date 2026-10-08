@@ -52,7 +52,7 @@ import { useAttributes, usePriceTypes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
 import { LabelDialog } from '@/features/labels/label-dialog'
 import { api, ApiError } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, baseWords, cost as costCurrency } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
@@ -71,6 +71,8 @@ import {
   newBlock,
   nextKey,
   NO_DEFAULTS,
+  ratesAsked,
+  rememberedUzsRate,
   toReceiptProduct,
   type Block,
   type BlockCost,
@@ -187,9 +189,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     docDate: receipt?.docDate ?? toIsoDate(todayIn(me.org.timezone)),
     currency: receipt?.currency ?? defaults.currency,
     usdRate: receipt?.usdRate ?? defaults.usdRates?.[defaults.currency] ?? null,
-    // Where the dollar is the base there is no rate between them: a dollar is one of it.
-    uzsRate: dollarsBeside('USD') ? (receipt?.uzsRate ?? defaults.uzsRate) : 1,
-    extraCurrency: receipt?.extraCurrency ?? 'USD',
+    uzsRate: receipt?.uzsRate ?? rememberedUzsRate(defaults, receipt?.currency ?? defaults.currency),
+    extraCurrency: receipt?.extraCurrency ?? costCurrency(),
     note: receipt?.note ?? '',
   }))
   const [blocks, setBlocks] = useState<Block[]>(() => (receipt ? blocksOf(receipt) : []))
@@ -233,7 +234,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
   }
 
   const cost = useMemo(() => costOf(header, blocks, expenses, products), [header, blocks, expenses, products])
-  const foreign = header.currency !== 'USD' && header.currency !== base()
+  const asked = ratesAsked(header.currency)
+  const foreign = asked.usd
   const retailType = priceTypes.find((type) => type.kind === 'retail' && type.isActive)
   const wholesaleType = priceTypes.find((type) => type.kind === 'wholesale' && type.isActive)
   // Every other price the business keeps has its field too: the floor, a family price, a second wholesale one.
@@ -305,7 +307,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     const { lines } = linesOf(blocks, products)
     return receiptInputSchema.safeParse({
       ...header,
-      usdRate: foreign ? header.usdRate : 1,
+      usdRate: asked.usd ? header.usdRate : 1,
+      uzsRate: asked.uzs ? header.uzsRate : 1,
       lines,
       expenses: expenseInputs(expenses),
     })
@@ -351,7 +354,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     setDefaults({
       locationId: saved.locationId,
       currency: saved.currency,
-      uzsRate: saved.uzsRate,
+      uzsRate: ratesAsked(saved.currency).pivot === costCurrency() ? saved.uzsRate : defaults.uzsRate,
+      uzsRates: { ...defaults.uzsRates, [ratesAsked(saved.currency).pivot]: saved.uzsRate },
       usdRates: { ...defaults.usdRates, [saved.currency]: saved.usdRate },
     })
     setDirty(false)
@@ -482,7 +486,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
 
   // A new receipt starts at the search box once its header is filled in from the last one.
   useEffect(() => {
-    if (!receipt && header.locationId && header.uzsRate) {
+    if (!receipt && header.locationId && (header.uzsRate || !asked.uzs)) {
       pickerRef.current?.focus()
     }
     // Only on opening.
@@ -502,7 +506,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     return partner.id
   }
 
-  const expenseCurrencies = [...new Set<AnyCurrency>(['USD', base(), header.currency])]
+  const expenseCurrencies = [...new Set<AnyCurrency>([costCurrency(), base(), header.currency])]
   const busy = save.isPending || act.isPending
   const totals = cost?.costing.totals
 
@@ -666,11 +670,12 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                             patchHeader({
                               currency: currency as AnyCurrency,
                               usdRate: defaults.usdRates?.[currency as AnyCurrency] ?? null,
+                              uzsRate: rememberedUzsRate(defaults, currency as AnyCurrency),
                               // An extra cost can only be in a currency the receipt has a rate for.
                               extraCurrency:
-                                header.extraCurrency === 'USD' || header.extraCurrency === base()
+                                header.extraCurrency === costCurrency() || header.extraCurrency === base()
                                   ? header.extraCurrency
-                                  : 'USD',
+                                  : costCurrency(),
                             })
                           }
                           options={ALL_CURRENCY_CODES.map((code) => ({
@@ -683,7 +688,14 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     )}
                   </Field>
                   {foreign ? (
-                    <Field label={t('receipts.usdRate', { currency: header.currency })} error={errors.usdRate} required>
+                    <Field
+                      label={t('receipts.usdRate', {
+                        pivot: CURRENCIES[asked.pivot].symbol,
+                        currency: header.currency,
+                      })}
+                      error={errors.usdRate}
+                      required
+                    >
                       {(id) => (
                         <NumberInput
                           id={id}
@@ -697,8 +709,12 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                       )}
                     </Field>
                   ) : null}
-                  {dollarsBeside('USD') ? (
-                    <Field label={t('receipts.uzsRate', baseWords(t))} error={errors.uzsRate} required>
+                  {asked.uzs ? (
+                    <Field
+                      label={t('receipts.uzsRate', { ...baseWords(t), pivot: CURRENCIES[asked.pivot].symbol })}
+                      error={errors.uzsRate}
+                      required
+                    >
                       {(id) => (
                         <NumberInput
                           id={id}
@@ -810,11 +826,11 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                   <Total
                     label={t('receipts.totalGoods')}
                     value={formatMoney(totals.goods, header.currency)}
-                    sub={header.currency === 'USD' ? undefined : formatMoney(totals.goodsUsd, 'USD')}
+                    sub={header.currency === costCurrency() ? undefined : formatMoney(totals.goodsUsd, costCurrency())}
                   />
                   <Total
                     label={t('receipts.totalExpenses')}
-                    value={formatMoney(totals.expensesUsd, 'USD')}
+                    value={formatMoney(totals.expensesUsd, costCurrency())}
                     sub={
                       totals.goodsUsd
                         ? t('receipts.expenseShare', {
@@ -824,8 +840,10 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                     }
                   />
                   <div className="my-1 border-t border-line" />
-                  <Total label={t('receipts.totalCost')} value={formatMoney(totals.costUsd, 'USD')} strong />
-                  <Total label="" value={formatMoney(totals.costUzs, base(), { minor: 'never' })} strong />
+                  <Total label={t('receipts.totalCost')} value={formatMoney(totals.costUsd, costCurrency())} strong />
+                  {costCurrency() !== base() ? (
+                    <Total label="" value={formatMoney(totals.costUzs, base(), { minor: 'never' })} strong />
+                  ) : null}
                 </dl>
               ) : (
                 <p className="text-xs text-ink-3">{t('receipts.ratesNeeded')}</p>
@@ -1059,7 +1077,7 @@ function BlockCard({
               <Total
                 label={t('receipts.unitCost')}
                 value={formatMoney(each, base(), { minor: 'never' })}
-                sub={formatMoney(eachUsd, 'USD')}
+                sub={formatMoney(eachUsd, costCurrency())}
               />
               {markup !== null ? (
                 <Total label={t('receipts.markup')} value={`${markup > 0 ? '+' : ''}${formatNumber(markup)}%`} />
@@ -1105,7 +1123,7 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
   const add = () =>
     onChange([
       ...expenses,
-      { key: nextKey(), name: '', amount: null, currency: 'USD', basis: 'quantity', isEstimate: false },
+      { key: nextKey(), name: '', amount: null, currency: costCurrency(), basis: 'quantity', isEstimate: false },
     ])
 
   return (
@@ -1149,7 +1167,9 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
             />
           </div>
           <span className="tabular w-24 text-right text-xs text-ink-3">
-            {amounts?.[index] && expense.currency !== 'USD' ? formatMoney(amounts[index].amountUsd, 'USD') : ''}
+            {amounts?.[index] && expense.currency !== costCurrency()
+              ? formatMoney(amounts[index].amountUsd, costCurrency())
+              : ''}
           </span>
           {editable ? (
             <Button

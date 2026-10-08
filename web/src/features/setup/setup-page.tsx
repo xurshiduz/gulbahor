@@ -19,7 +19,7 @@ import { cn } from '@/lib/cn'
 
 const PLACE_KINDS = (['store', 'mixed', 'warehouse'] as const).map((kind) => ({ value: kind, label: LOCATION_KIND_LABELS[kind] }))
 
-const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'currencies'], ['locations'], ['modules']]
+const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'currencies', 'costCurrency'], ['locations'], ['modules']]
 
 /** The first-run wizard: three short steps that shape the system to the business. */
 export function SetupPage() {
@@ -43,6 +43,7 @@ export function SetupPage() {
   const places = useFieldArray({ control: form.control, name: 'locations' })
   const modules = form.watch('modules')
   const baseCurrency = form.watch('baseCurrency')
+  const chosen = (form.watch('currencies') ?? []).filter((code) => code !== baseCurrency)
 
   const mutation = useMutation({
     mutationFn: (input: SetupInput) => api.post('/org/setup', input),
@@ -145,6 +146,31 @@ export function SetupPage() {
                 />
               )}
             </Field>
+            {/* Costs beside the base: in one of the currencies just named, or in the base alone. */}
+            {chosen.length ? (
+              <Field label={t('costCurrency.label')} hint={t('costCurrency.hint')}>
+                {(id) => (
+                  <Controller
+                    control={form.control}
+                    name="costCurrency"
+                    render={({ field }) => (
+                      <Select
+                        id={id}
+                        value={field.value && chosen.includes(field.value) ? field.value : (baseCurrency ?? 'UZS')}
+                        onChange={(value) => field.onChange(value)}
+                        options={[baseCurrency ?? 'UZS', ...chosen].map((code) => ({
+                          value: code,
+                          label:
+                            code === (baseCurrency ?? 'UZS')
+                              ? t('costCurrency.none', { base: t(`currencies.names.${code}`) })
+                              : t(`currencies.names.${code}`),
+                        }))}
+                      />
+                    )}
+                  />
+                )}
+              </Field>
+            ) : null}
           </>
         ) : null}
 

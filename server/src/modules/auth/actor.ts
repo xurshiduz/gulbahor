@@ -15,6 +15,8 @@ export interface Actor {
   base: AnyCurrency
   /** The currencies switched on beside the base. */
   currencies: AnyCurrency[]
+  /** What costs are kept in beside the base: what every `…Usd` cost is in. The base where there is none. */
+  cost: AnyCurrency
   allLocations: boolean
   locationIds: string[]
   ip: string | null

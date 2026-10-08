@@ -18,7 +18,7 @@ import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { toast } from '@/lib/toast'
 
-import { BaseCurrencyCard } from './base-currency'
+import { BaseCurrencyCard, CostCurrencyCard } from './base-currency'
 import { LabelSettings } from './label-settings'
 import { ReceiptSettings } from './receipt-settings'
 
@@ -51,6 +51,7 @@ export function SettingsPage() {
         <TabPanel value="business">
           <div className="flex flex-col gap-3">
             <BaseCurrencyCard />
+            <CostCurrencyCard />
             {/* A new base sets new sums (the change step, the debt limit): the form starts again from them. */}
             <BusinessSettings key={me.org.baseCurrency} />
           </div>

@@ -46,7 +46,13 @@ describe('A base other than the so’m', () => {
     const agent = await harness.signIn(login)
     await agent
       .post('/api/org/setup')
-      .send({ name, currencies: ['USD'], locations: [{ name: `${name} shop`, kind: 'store' }], modules })
+      .send({
+        name,
+        currencies: ['USD'],
+        costCurrency: 'USD',
+        locations: [{ name: `${name} shop`, kind: 'store' }],
+        modules,
+      })
       .expect(201)
     const shopId = (await agent.get('/api/locations').expect(200)).body.items[0].id
     const types = (await agent.get('/api/price-types').expect(200)).body as (Business['retail'] & { kind: string })[]

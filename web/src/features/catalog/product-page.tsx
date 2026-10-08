@@ -39,6 +39,8 @@ import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
+
+import { ProductArrivals } from './product-arrivals'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 
@@ -669,6 +671,8 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                 />
               </Disclosure>
             </Card>
+
+            {product && can('receipts.view') ? <ProductArrivals productId={product.id} /> : null}
 
             <Card>
               <Disclosure

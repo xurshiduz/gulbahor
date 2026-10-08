@@ -56,6 +56,7 @@ export async function startApp(): Promise<Harness> {
   const setup = (name: string, shop: string) => ({
     name,
     currencies: ['USD'],
+    costCurrency: 'USD',
     locations: [{ name: shop, kind: 'store' }],
     modules: ['consignment'],
   })

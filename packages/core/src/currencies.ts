@@ -65,7 +65,8 @@ export const CURRENCY_STRENGTH: readonly AnyCurrency[] = [
   'UZS',
 ]
 
-const dearer = (a: AnyCurrency, b: AnyCurrency) => CURRENCY_STRENGTH.indexOf(a) < CURRENCY_STRENGTH.indexOf(b)
+/** Whether one of `a` is worth more than one of `b`, roughly: which way round a rate reads best. */
+export const dearer = (a: AnyCurrency, b: AnyCurrency) => CURRENCY_STRENGTH.indexOf(a) < CURRENCY_STRENGTH.indexOf(b)
 
 /**
  * How a currency's rate against another reads best: the dearer of the two
@@ -312,6 +313,12 @@ export const baseCurrencyInputSchema = z.object({ currency: currencyCode })
 export type BaseCurrencyInput = z.infer<typeof baseCurrencyInputSchema>
 
 /** What taking another base would do, for the screen to say before it is done. */
+/** The currency costs are kept in beside the base, and whether it may still change: until goods are costed. */
+export interface CostCurrencyDto {
+  cost: AnyCurrency
+  locked: BaseLock | null
+}
+
 export interface BaseCurrencyDto {
   base: AnyCurrency
   /** Null while it may still change. */

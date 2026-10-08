@@ -28,7 +28,7 @@ import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
 import { api } from '@/lib/api'
-import { base, baseWords, dollarsBeside } from '@/lib/base'
+import { base, baseWords, cost } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
@@ -276,11 +276,11 @@ export function PricesPage() {
                   ]}
                   className="w-44"
                 />
-                {/* A rate between the base and dollars: none where the dollar is the base. */}
-                {seesCost && dollarsBeside('USD') ? (
+                {/* A rate between the base and the cost currency: none where costs are kept in the base alone. */}
+                {seesCost && cost() !== base() ? (
                   <label
                     className="flex items-center gap-2 text-xs text-ink-3"
-                    title={t('pricing.rateHint', baseWords(t))}
+                    title={t('pricing.rateHint', { ...baseWords(t), cost: t(`currencies.short.${cost()}`) })}
                   >
                     {t('pricing.rate')}
                     <NumberInput

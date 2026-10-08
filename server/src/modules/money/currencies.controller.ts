@@ -6,6 +6,7 @@ import {
   type AnyCurrency,
   type BaseCurrencyDto,
   type BaseCurrencyInput,
+  type CostCurrencyDto,
   type CurrenciesDto,
   type CurrencyInput,
   type CurrencyRateDto,
@@ -50,6 +51,21 @@ export class CurrenciesController {
     @Body(zod(baseCurrencyInputSchema)) input: BaseCurrencyInput,
   ): Promise<BaseCurrencyDto> {
     return this.bases.change(actor, input.currency)
+  }
+
+  /** The currency costs are kept in beside the base, and whether it may still change: until goods are costed. */
+  @Get('cost')
+  cost(@CurrentActor() actor: Actor): Promise<CostCurrencyDto> {
+    return this.bases.costState(actor)
+  }
+
+  @Put('cost')
+  @Can('settings.manage')
+  setCost(
+    @CurrentActor() actor: Actor,
+    @Body(zod(baseCurrencyInputSchema)) input: BaseCurrencyInput,
+  ): Promise<CostCurrencyDto> {
+    return this.bases.changeCost(actor, input.currency)
   }
 
   @Post()

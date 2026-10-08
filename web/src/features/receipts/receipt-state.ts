@@ -1,6 +1,7 @@
 import {
   combinations,
   costReceipt,
+  pivotOf,
   type AnyCurrency,
   type AttributeDto,
   type Costing,
@@ -12,7 +13,7 @@ import {
   type ReceiptProductDto,
 } from '@erp/core'
 
-import { base } from '@/lib/base'
+import { base, cost } from '@/lib/base'
 
 /**
  * A receipt on the screen is a list of blocks, not of lines. A block is one
@@ -64,9 +65,31 @@ export interface Header {
 export interface ReceiptDefaults {
   locationId: string | null
   currency: AnyCurrency
+  /** Units of the base for one of the cost currency. */
   uzsRate: number | null
-  /** Units per dollar, by currency. */
+  /** Units of the base for one of each go-between currency (where costs are kept in the base alone). */
+  uzsRates?: Partial<Record<AnyCurrency, number>>
+  /** Units for one of the go-between currency, by currency. */
   usdRates: Partial<Record<AnyCurrency, number>>
+}
+
+/**
+ * Which rates a receipt in `currency` asks for: the currency against the go-between (`usd`, "1 $ = 7,25 ¥")
+ * and the go-between in the base (`uzs`, "1 $ = 12 650 so'm"). Where costs are kept in the base alone, one:
+ * "1 ¥ = 1 750 so'm".
+ */
+export function ratesAsked(currency: AnyCurrency): { pivot: AnyCurrency; usd: boolean; uzs: boolean } {
+  const pivot = pivotOf(base(), cost(), currency)
+  return { pivot, usd: currency !== pivot && currency !== base(), uzs: base() !== pivot }
+}
+
+/** The base rate a new receipt in `currency` starts from: the last one used for its go-between. */
+export function rememberedUzsRate(defaults: ReceiptDefaults, currency: AnyCurrency): number | null {
+  const { pivot, uzs } = ratesAsked(currency)
+  if (!uzs) {
+    return 1
+  }
+  return defaults.uzsRates?.[pivot] ?? (pivot === cost() ? defaults.uzsRate : null)
 }
 
 export const NO_DEFAULTS: ReceiptDefaults = { locationId: null, currency: 'USD', uzsRate: null, usdRates: {} }
@@ -193,7 +216,8 @@ export function costOf(
   expenses: ExpenseDraft[],
   products: Map<string, ReceiptProductDto>,
 ): { costing: Costing; blocks: BlockCost[] } | null {
-  if (!header.uzsRate || (header.currency !== 'USD' && header.currency !== base() && !header.usdRate)) {
+  const asked = ratesAsked(header.currency)
+  if ((asked.uzs && !header.uzsRate) || (asked.usd && !header.usdRate)) {
     return null
   }
   const { lines, blockOf } = linesOf(blocks, products)
@@ -202,9 +226,10 @@ export function costOf(
 
   const costing = costReceipt({
     base: base(),
+    cost: cost(),
     currency: header.currency,
     usdRate: header.usdRate ?? 1,
-    uzsRate: header.uzsRate,
+    uzsRate: header.uzsRate ?? 1,
     extraCurrency: header.extraCurrency,
     lines: lines.map((line) => ({
       qty: line.qty,
