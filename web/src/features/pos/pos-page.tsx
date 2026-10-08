@@ -41,6 +41,7 @@ import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/ex
 import { useRegisters } from '@/features/money/money-page'
 import { useRateBook } from '@/features/money/rates'
 import { api, ApiError } from '@/lib/api'
+import { base, baseWords, dollarsBeside } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { HotkeyScope, useCovered, useHotkey } from '@/lib/hotkeys'
@@ -90,7 +91,7 @@ const RETAIL = 'retail'
 const NOTHING_OWED = { owed: 0, overdue: 0, dueDate: null }
 const cartKey = (registerId: string) => `gb.pos.cart.${registerId}`
 
-const money = (minor: number, currency: CurrencyCode = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: CurrencyCode = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 function stored<T>(key: string, fallback: T): T {
   try {
@@ -264,7 +265,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [paying, setPaying] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
   const wanted = useRef<TenderKind | 'agreed' | null>(null)
-  const [changeCurrency, setChangeCurrency] = useState<CurrencyCode>('UZS')
+  const [changeCurrency, setChangeCurrency] = useState<CurrencyCode>(base)
   const [text, setText] = useState('')
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
@@ -598,7 +599,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const accountLine =
     crediting && partner
       ? exchangeLine(
-          { id: 'sale', currency: book?.base ?? 'UZS' },
+          { id: 'sale', currency: book?.base ?? base() },
           partner.currency,
           { amount: onAccountNow || null, received: account.received },
           book,
@@ -619,16 +620,18 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const entered = enteredRows(tenders)
   const typed = tendersOf(entered, refunding)
   /** Dollars taken for more over the rate than the shop lets a cashier give alone. */
-  const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent)
+  const overRate = !refunding && !!rate && overRateLoss(typed, rate, context.maxRateLossPercent, base())
   const rateAsk = overRate && !context.mayOverDiscount
   const settlement = settle(toPay - owedNow - onAccountNow, refunding ? [] : typed, {
     uzsPerUsd: rate,
     changeCurrency,
     roundStep: context.changeRoundStep,
+    base: base(),
   })
   const refund = settleRefund(toRefund, refunding ? typed : [], {
     uzsPerUsd: rate,
     roundStep: context.changeRoundStep,
+    base: base(),
   })
   /** What is taken as meant when the cashier types nothing: so'm cash for a sale, the way it was paid for a return. */
   const suggested = useMemo<Record<string, number>>(
@@ -805,7 +808,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           accountId: row.accountId,
           currency: row.currency,
           amount: row.amount,
-          ...(!refunding && row.currency === 'USD' && row.value ? { value: row.value } : {}),
+          ...(!refunding && dollarsBeside(row.currency) && row.value ? { value: row.value } : {}),
           reference: row.reference || null,
         }))
       : tenders.flatMap((row) =>
@@ -820,7 +823,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       !returning.found.free &&
       (toRefund -
         amounts.reduce(
-          (sum, row) => sum + (row.method === 'cash' ? 0 : toBase(row.amount as number, row.currency, rate)),
+          (sum, row) => sum + (row.method === 'cash' ? 0 : toBase(row.amount as number, row.currency, rate, base())),
           0,
         ) >
         returning.found.caps.cash ||
@@ -886,12 +889,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
             : []),
           ...(rateAsk
             ? typed.flatMap((item) =>
-                item.value && overRateLoss([item], rate, context.maxRateLossPercent)
+                item.value && overRateLoss([item], rate, context.maxRateLossPercent, base())
                   ? [
                       t('pos.approvalRate', {
                         usd: money(item.amount, 'USD'),
                         sum: money(item.value),
-                        book: money(toBase(item.amount, 'USD', rate)),
+                        book: money(toBase(item.amount, 'USD', rate, base())),
                       }),
                     ]
                   : [],
@@ -977,14 +980,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
   useHotkey('mod+m', toCustomer, { label: t('pos.customer'), group, enabled: idle })
   // The key it had before: hands that learnt it still find it.
   useHotkey('alt+m', toCustomer, { enabled: idle })
-  useHotkey('f5', () => focusTender('cash'), { label: t('pos.payCash'), group, enabled: idle })
+  useHotkey('f5', () => focusTender('cash'), { label: t('pos.payCash', baseWords(t)), group, enabled: idle })
   useHotkey('f6', () => focusTender('usd'), { label: t('pos.payUsd'), group, enabled: idle && context.usd })
   useHotkey('f7', () => focusTender('card'), { label: t('pos.payCard'), group, enabled: idle })
   useHotkey('f8', () => focusTender('terminal'), { label: t('pos.payTerminal'), group, enabled: idle })
   // F9 takes the till to the money, and from there ends the sale: twice, it is a sale for cash, exactly.
   useHotkey('f9', () => (paying ? complete() : openPay()), { label: t('pos.pay'), group, enabled: idle })
   // Cash, exactly, without looking at the money at all.
-  useHotkey('mod+enter', () => complete(), { label: t('pos.quickSale'), group, enabled: idle })
+  useHotkey('mod+enter', () => complete(), { label: t('pos.quickSale', baseWords(t)), group, enabled: idle })
   useHotkey('escape', () => backToCart(), { enabled: idle && paying })
 
   useEffect(() => {

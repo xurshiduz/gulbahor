@@ -357,7 +357,7 @@ describe('Till', () => {
       })
       expect(over.status).toBe(400)
       const short = await sell({ ...line, payments: [cash(som(30_000))] })
-      expect(short.body.error.fields.payments).toBe(`To‘lov yetarli emas: yana ${formatMoney(som(10_000))}`)
+      expect(short.body.error.fields.payments).toBe(`To‘lov yetarli emas: yana ${formatMoney(som(10_000), 'UZS')}`)
       const elsewhere = await sell({
         ...line,
         payments: [{ method: 'card', accountId: terminalId, amount: som(40_000) }],

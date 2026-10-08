@@ -34,6 +34,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { TagInput } from '@/components/ui/tag-input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { dayCell, fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/format'
@@ -47,7 +48,7 @@ import { LoyaltyTab } from './loyalty-tab'
 
 const route = getRouteApi('/customers')
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 type Listed = PageOf<CustomerDto> & { summary: CustomerSummary }
 
@@ -169,7 +170,7 @@ export function CustomersPage() {
           id: 'purchases',
           header: t('customers.purchases'),
           meta: {
-            export: (row) => moneyCell(row.purchases, 'UZS'),
+            export: (row) => moneyCell(row.purchases, base()),
             className: 'tabular text-right whitespace-nowrap',
             headerClassName: 'text-right',
           },
@@ -184,7 +185,7 @@ export function CustomersPage() {
           id: 'debt',
           header: t('debts.owes'),
           meta: {
-            export: (row) => moneyCell(row.debt, 'UZS'),
+            export: (row) => moneyCell(row.debt, base()),
             className: 'tabular text-right whitespace-nowrap',
             headerClassName: 'text-right',
           },

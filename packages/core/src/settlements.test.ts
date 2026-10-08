@@ -244,7 +244,7 @@ describe('a pair of sums', () => {
 })
 
 describe('a card', () => {
-  const card = (more: object) => accountInputSchema.safeParse({ kind: 'card', name: 'Humo', ...more })
+  const card = (more: object) => accountInputSchema.safeParse({ kind: 'card', name: 'Humo', currency: 'UZS', ...more })
 
   it('is kept by its whole number, typed as it is printed, and called by its last four digits', () => {
     expect(card({ cardNumber: '9860 1234 5678 9012' }).data).toMatchObject({
@@ -261,11 +261,15 @@ describe('a card', () => {
     expect(formatCardNumber('4000123412341234567')).toBe('4000 1234 1234 1234 567')
   })
 
-  it('may hold dollars; a terminal may not, and nothing but a card has a card’s number', () => {
+  it('may hold dollars, and nothing but a card has a card’s number', () => {
     expect(card({ currency: 'USD', cardNumber: '4000123412341234' }).success).toBe(true)
-    expect(accountInputSchema.safeParse({ kind: 'terminal', name: 'POS', currency: 'USD' }).success).toBe(false)
+    // A terminal holds the base: which currency that is, the server knows.
+    expect(accountInputSchema.safeParse({ kind: 'terminal', name: 'POS', currency: 'USD' }).success).toBe(true)
+    // Left out, the currency is the base: the server says which.
+    expect(accountInputSchema.safeParse({ kind: 'safe', name: 'Seyf' }).data?.currency).toBeNull()
     expect(
-      accountInputSchema.safeParse({ kind: 'safe', name: 'Seyf', cardNumber: '9860123456789012' }).data?.cardNumber,
+      accountInputSchema.safeParse({ kind: 'safe', name: 'Seyf', currency: 'UZS', cardNumber: '9860123456789012' }).data
+        ?.cardNumber,
     ).toBeNull()
   })
 })

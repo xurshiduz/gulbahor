@@ -28,6 +28,7 @@ import { Select } from '@/components/ui/controls'
 import { Field } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 
@@ -229,7 +230,7 @@ export function valueLines(
   /** How far from the day's rate anyone may agree a sum, in percent. */
   limit = 0,
 ): ValuedLine[] {
-  const book = ratesOf(rates)
+  const book = ratesOf(rates, base())
   return rows.flatMap((row) => {
     const account = accounts.find((item) => item.id === row.accountId)
     if (!account) {
@@ -237,11 +238,11 @@ export function valueLines(
     }
     const changes = !!currency && account.currency !== currency
     const day = changes && currency ? dayPairRate(account.currency, currency, book) : null
-    // With no rate for the day, so'm and dollars still read the one way anyone reads them.
+    // With no rate for the day, the base and dollars still read the one way anyone reads them.
     const pair: Pair | null = day
       ? { one: day.one, of: day.of }
-      : changes && [account.currency, currency].every((code) => code === 'UZS' || code === 'USD')
-        ? { one: 'USD', of: 'UZS' }
+      : changes && [account.currency, currency].every((code) => code === book.base || code === 'USD')
+        ? { one: 'USD', of: book.base }
         : null
     const rate = row.rate ?? day?.value ?? null
     const plain = {
@@ -445,7 +446,7 @@ export function PaymentLines({
 }: PaymentLinesProps) {
   const { t } = useTranslation()
   // What a difference comes to is said in the currency the books are kept in.
-  const base = ratesOf(dayRate).base
+  const booksIn = ratesOf(dayRate, base()).base
   // Money coming in that is worth more than it settles is the business's gain; going out, the other way round.
   const gainOf = (line: ValuedLine) => (kind === 'in' ? line.fx : -line.fx)
   // A total the lines could not make up is put back as it was.
@@ -542,7 +543,7 @@ export function PaymentLines({
                       onPatch(row.accountId, amount ? { amount, settled: value } : { settled: null })
                     }
                   }}
-                  currency={currency ?? 'UZS'}
+                  currency={currency ?? base()}
                   disabled={!line.dayRate || !account.open}
                   invalid={line.strays && !setsRates}
                 />
@@ -577,7 +578,7 @@ export function PaymentLines({
                   agreed: rate ? rateText(rate) : '—',
                   rate: rateText(line.dayRate),
                   percent: String(line.gap).replace('.', ','),
-                  amount: money(Math.abs(gain), base),
+                  amount: money(Math.abs(gain), booksIn),
                 })}
                 {line.strays && !setsRates ? ` ${t('payments.agreedTooFar')}` : ''}
               </p>
@@ -623,7 +624,7 @@ export function PaymentLines({
               setRefused((count) => count + 1)
             }
           }}
-          currency={currency ?? 'UZS'}
+          currency={currency ?? base()}
           disabled={!currency || !first}
         />
         <span />

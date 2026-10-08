@@ -1,4 +1,4 @@
-import { hasPermission } from '@gulbahor/core'
+import { hasPermission, type AnyCurrency } from '@gulbahor/core'
 import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common'
 import type { Request } from 'express'
 
@@ -11,6 +11,8 @@ export interface Actor {
   isOwner: boolean
   permissions: string[]
   modules: string[]
+  /** What the business keeps its books, prices and receipts in: every "so'm" in the code is this. */
+  base: AnyCurrency
   allLocations: boolean
   locationIds: string[]
   ip: string | null

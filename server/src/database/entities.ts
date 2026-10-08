@@ -55,7 +55,8 @@ export class Organization {
   timezone: string
 
   @Column('text')
-  baseCurrency: 'UZS' | 'USD'
+  /** Any currency of the catalogue: what the books, prices and receipts are kept in. */
+  baseCurrency: AnyCurrency
 
   @Column('text', { array: true })
   modules: string[]

@@ -12,11 +12,12 @@ import {
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { base, dollarsBeside } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/format'
 
 import { changeText } from './pos-state'
 
-const money = (minor: number, currency: AnyCurrency = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 /**
  * What a payment came to, as a receipt says it: dollars with what they paid
@@ -25,11 +26,13 @@ const money = (minor: number, currency: AnyCurrency = 'UZS') => formatMoney(mino
  */
 export function paidText(payment: Pick<SalePaymentDto, 'method' | 'currency' | 'amount' | 'base'>): string {
   if (payment.method === 'partner') {
-    return payment.currency === 'UZS'
+    return payment.currency === base()
       ? money(payment.base)
       : `${money(payment.base)} (${money(payment.amount, payment.currency)})`
   }
-  return payment.currency === 'USD' ? `${money(payment.amount, 'USD')} = ${money(payment.base)}` : money(payment.amount)
+  return dollarsBeside(payment.currency)
+    ? `${money(payment.amount, 'USD')} = ${money(payment.base)}`
+    : money(payment.amount, payment.currency)
 }
 
 interface ReceiptPaperProps {

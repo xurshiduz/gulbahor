@@ -10,6 +10,8 @@ import {
   type RegisterDto,
 } from '@gulbahor/core'
 
+import { base } from '@/lib/base'
+
 /** The two halves every currency is read in: money in hand, and money that is a figure somewhere. */
 export type Holding = 'cash' | 'cashless'
 
@@ -94,7 +96,7 @@ export function moneyStand(
  * a sum with a hole in it is not a sum.
  */
 export function standWorth(stand: StandCurrency[], rates: Rates): number | null {
-  const book = ratesOf(rates)
+  const book = ratesOf(rates, base())
   let sum = 0
   for (const item of stand) {
     const worth = worthInBase(item.total, item.currency, book)

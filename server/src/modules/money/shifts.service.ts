@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
 import {
+  DOLLAR,
   formatMoney,
+  isDollar,
   toBase,
   type AnyCurrency,
   type CurrencyCode,
@@ -24,6 +26,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
+import { takesDollars } from './base'
 import { LedgerService, type Posting } from './ledger.service'
 import { MoneyTransfersService } from './transfers.service'
 
@@ -57,7 +60,7 @@ export class ShiftsService {
       if (await em.findOneBy(Shift, { registerId: register.id, status: 'open' })) {
         throw AppError.conflict('SHIFT_OPEN', 'Bu kassada smena allaqachon ochiq')
       }
-      const usd = actor.modules.includes('usd')
+      const usd = takesDollars(actor)
       if (input.cashUsd && !usd) {
         throw AppError.validation({ cashUsd: 'Dollar bilan ishlash yoqilmagan' })
       }
@@ -80,15 +83,15 @@ export class ShiftsService {
       // The drawer is taken as counted. What differs from the books is a difference found at opening;
       // a drawer that never had anything posted to it simply starts with what is in it.
       await this.bringTo(em, actor, shift, register, 'shift_open', {
-        UZS: input.cashUzs,
-        USD: usd ? input.cashUsd : null,
+        base: input.cashUzs,
+        dollar: usd ? input.cashUsd : null,
       })
 
       await this.audit.record(em, actor.orgId, actor, {
         action: 'shift.open',
         entity: 'shift',
         entityId: shift.id,
-        summary: `${number}: ${register.name}, ${formatMoney(input.cashUzs)}${
+        summary: `${number}: ${register.name}, ${formatMoney(input.cashUzs, actor.base)}${
           input.cashUsd ? `, ${formatMoney(input.cashUsd, 'USD')}` : ''
         }`,
       })
@@ -108,14 +111,14 @@ export class ShiftsService {
         throw AppError.forbidden('Smenani uni ochgan kassir yoki rahbar yopadi')
       }
       const register = await em.findOneByOrFail(Register, { id: shift.registerId })
-      const usd = actor.modules.includes('usd')
+      const usd = takesDollars(actor)
       if (input.cashUsd && !usd) {
         throw AppError.validation({ cashUsd: 'Dollar bilan ishlash yoqilmagan' })
       }
 
       const found = await this.bringTo(em, actor, shift, register, 'shift_close', {
-        UZS: input.cashUzs,
-        USD: usd ? input.cashUsd : null,
+        base: input.cashUzs,
+        dollar: usd ? input.cashUsd : null,
       })
       // What is handed over as the shift ends leaves the drawer now, while the shift is still its own;
       // it reaches the safe when whoever keeps it says so.
@@ -130,7 +133,7 @@ export class ShiftsService {
         }
         const sum = (handed[from.currency] ?? 0) + handover.amount
         handed[from.currency] = sum
-        if (sum > (from.currency === 'USD' ? input.cashUsd : input.cashUzs)) {
+        if (sum > (isDollar(from.currency, actor.base) ? input.cashUsd : input.cashUzs)) {
           throw AppError.validation({ [`handovers.${index}.amount`]: 'Sanalgan puldan ko‘p topshirib bo‘lmaydi' })
         }
         const sent = await this.transfers.sendIn(em, actor, {
@@ -166,14 +169,14 @@ export class ShiftsService {
         closedAt: new Date(),
         countedUzs: input.cashUzs,
         countedUsd: input.cashUsd,
-        expectedUzs: found.UZS.expected,
-        expectedUsd: found.USD.expected,
-        diffUzs: found.UZS.diff,
-        diffUsd: found.USD.diff,
+        expectedUzs: found.base.expected,
+        expectedUsd: found.dollar.expected,
+        diffUzs: found.base.diff,
+        diffUsd: found.dollar.diff,
         note: input.note ?? null,
       })
 
-      const differs = found.UZS.diff || found.USD.diff
+      const differs = found.base.diff || found.dollar.diff
       await this.audit.record(em, actor.orgId, actor, {
         action: 'shift.close',
         entity: 'shift',
@@ -181,8 +184,8 @@ export class ShiftsService {
         summary: `${shift.number}: ${register.name}${
           differs
             ? `, farq ${[
-                found.UZS.diff ? formatMoney(found.UZS.diff) : null,
-                found.USD.diff ? formatMoney(found.USD.diff, 'USD') : null,
+                found.base.diff ? formatMoney(found.base.diff, actor.base) : null,
+                found.dollar.diff ? formatMoney(found.dollar.diff, DOLLAR) : null,
               ]
                 .filter(Boolean)
                 .join(', ')}`
@@ -267,7 +270,7 @@ export class ShiftsService {
       diffUzs: reviews ? shift.diffUzs : null,
       diffUsd: reviews ? shift.diffUsd : null,
       note: shift.note,
-      totals: await this.totals(em, id),
+      totals: await this.totals(em, id, actor),
       terminals: await this.terminals(em, id, reviews),
     }
   }
@@ -305,7 +308,14 @@ export class ShiftsService {
   }
 
   /** The Z-report: what was sold in the shift and how it was paid. */
-  private async totals(em: EntityManager, shiftId: string): Promise<ShiftTotals> {
+  /** What went through a shift. `…Uzs` is the base, `…Usd` dollars beside it: none where the dollar is the base. */
+  private async totals(
+    em: EntityManager,
+    shiftId: string,
+    actor: Pick<Actor, 'base' | 'modules'>,
+  ): Promise<ShiftTotals> {
+    const { base } = actor
+    const dollar = takesDollars(actor) ? DOLLAR : null
     const [sales]: {
       sales: number
       voided: number
@@ -350,7 +360,7 @@ export class ShiftsService {
        WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY p.kind, l.currency`,
       [shiftId],
     )
-    const withPartners = (kind: 'in' | 'out', currency: CurrencyCode) =>
+    const withPartners = (kind: 'in' | 'out', currency: CurrencyCode | null) =>
       partners.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
     const ops: { kind: 'expense' | 'income'; currency: CurrencyCode; amount: number }[] = await em.query(
       `SELECT o.kind, l.currency, sum(l.amount)::float8 AS amount
@@ -358,7 +368,7 @@ export class ShiftsService {
        WHERE l.shift_id = $1 AND o.status = 'posted' GROUP BY o.kind, l.currency`,
       [shiftId],
     )
-    const withOps = (kind: 'expense' | 'income', currency: CurrencyCode) =>
+    const withOps = (kind: 'expense' | 'income', currency: CurrencyCode | null) =>
       ops.find((row) => row.kind === kind && row.currency === currency)?.amount ?? 0
     const debts: { currency: CurrencyCode; amount: number }[] = await em.query(
       `SELECT l.currency, sum(l.amount)::float8 AS amount
@@ -366,7 +376,7 @@ export class ShiftsService {
        WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY l.currency`,
       [shiftId],
     )
-    const withDebts = (currency: CurrencyCode) => debts.find((row) => row.currency === currency)?.amount ?? 0
+    const withDebts = (currency: CurrencyCode | null) => debts.find((row) => row.currency === currency)?.amount ?? 0
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -398,20 +408,20 @@ export class ShiftsService {
       changeUzs: sales.change_uzs,
       changeUsd: sales.change_usd,
       rounding: sales.rounding,
-      outUzs: moved.out.UZS,
-      outUsd: moved.out.USD,
-      inUzs: moved.in.UZS,
-      inUsd: moved.in.USD,
-      partnersInUzs: withPartners('in', 'UZS'),
-      partnersInUsd: withPartners('in', 'USD'),
-      partnersOutUzs: withPartners('out', 'UZS'),
-      partnersOutUsd: withPartners('out', 'USD'),
-      expensesUzs: withOps('expense', 'UZS'),
-      expensesUsd: withOps('expense', 'USD'),
-      incomeUzs: withOps('income', 'UZS'),
-      incomeUsd: withOps('income', 'USD'),
-      debtsUzs: withDebts('UZS'),
-      debtsUsd: withDebts('USD'),
+      outUzs: moved.out[base] ?? 0,
+      outUsd: dollar ? (moved.out[dollar] ?? 0) : 0,
+      inUzs: moved.in[base] ?? 0,
+      inUsd: dollar ? (moved.in[dollar] ?? 0) : 0,
+      partnersInUzs: withPartners('in', base),
+      partnersInUsd: withPartners('in', dollar),
+      partnersOutUzs: withPartners('out', base),
+      partnersOutUsd: withPartners('out', dollar),
+      expensesUzs: withOps('expense', base),
+      expensesUsd: withOps('expense', dollar),
+      incomeUzs: withOps('income', base),
+      incomeUsd: withOps('income', dollar),
+      debtsUzs: withDebts(base),
+      debtsUsd: withDebts(dollar),
       returns: returns.returns,
       returned: returns.returned,
       refunds: refunds.map((row) => ({
@@ -435,28 +445,31 @@ export class ShiftsService {
     shift: Shift,
     register: Register,
     kind: 'shift_open' | 'shift_close',
-    counted: Record<CurrencyCode, number | null>,
-  ): Promise<Record<CurrencyCode, { expected: number; diff: number }>> {
+    counted: Record<'base' | 'dollar', number | null>,
+  ): Promise<Record<'base' | 'dollar', { expected: number; diff: number }>> {
     const today = await this.ledger.today(em, actor.orgId)
     const rate = await this.ledger.rate(em, today)
-    const result = { UZS: { expected: 0, diff: 0 }, USD: { expected: 0, diff: 0 } }
+    const result = { base: { expected: 0, diff: 0 }, dollar: { expected: 0, diff: 0 } }
     const postings: Posting[] = []
 
-    for (const currency of ['UZS', 'USD'] as const) {
-      const amount = counted[currency]
+    for (const [side, currency] of [
+      ['base', actor.base],
+      ['dollar', DOLLAR],
+    ] as const) {
+      const amount = counted[side]
       if (amount === null) {
         continue
       }
       const account = await this.ledger.cashAccount(em, register, currency)
       const diff = amount - account.balance
-      result[currency] = { expected: account.balance, diff }
+      result[side] = { expected: account.balance, diff }
       if (!diff) {
         continue
       }
-      if (currency === 'USD' && !rate) {
+      if (isDollar(currency, actor.base) && !rate) {
         throw AppError.conflict('NO_RATE', 'Dollar kursi qo‘yilmagan. Avval kursni kiriting')
       }
-      const base = toBase(diff, currency, rate?.uzsPerUsd ?? null)
+      const base = toBase(diff, currency, rate?.uzsPerUsd ?? null, actor.base)
       const fresh = kind === 'shift_open' && !(await this.ledger.isUsed(em, account.id))
       const other = await this.ledger.systemAccount(em, actor.orgId, fresh ? 'opening' : 'cash_diff')
       postings.push({ accountId: account.id, amount: diff, base }, { accountId: other.id, amount: -base, base: -base })

@@ -15,8 +15,10 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Card, Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { toast } from '@/lib/toast'
 
+import { BaseCurrencyCard } from './base-currency'
 import { LabelSettings } from './label-settings'
 import { ReceiptSettings } from './receipt-settings'
 
@@ -24,6 +26,7 @@ const route = getRouteApi('/settings')
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const { me } = useSession()
   const { tab } = route.useSearch()
   const navigate = route.useNavigate()
 
@@ -46,7 +49,11 @@ export function SettingsPage() {
           <LabelSettings />
         </TabPanel>
         <TabPanel value="business">
-          <BusinessSettings />
+          <div className="flex flex-col gap-3">
+            <BaseCurrencyCard />
+            {/* A new base sets new sums (the change step, the debt limit): the form starts again from them. */}
+            <BusinessSettings key={me.org.baseCurrency} />
+          </div>
         </TabPanel>
         <TabPanel value="modules">
           <ModuleSettings />
@@ -121,7 +128,7 @@ function BusinessSettings() {
               control={form.control}
               name="settings.changeRoundStep"
               render={({ field }) => (
-                <MoneyInput id={id} value={field.value} onChange={field.onChange} currency="UZS" className="w-40" />
+                <MoneyInput id={id} value={field.value} onChange={field.onChange} currency={base()} className="w-40" />
               )}
             />
           )}
@@ -198,7 +205,7 @@ function BusinessSettings() {
               control={form.control}
               name="settings.debtLimit"
               render={({ field }) => (
-                <MoneyInput id={id} value={field.value} onChange={field.onChange} currency="UZS" className="w-40" />
+                <MoneyInput id={id} value={field.value} onChange={field.onChange} currency={base()} className="w-40" />
               )}
             />
           )}

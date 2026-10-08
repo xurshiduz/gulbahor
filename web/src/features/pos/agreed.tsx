@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Shortcut } from '@/components/ui/feedback'
 import { MoneyInput } from '@/components/ui/money-input'
+import { base } from '@/lib/base'
 
 import { agreedOf, agreedText, badDiscount, roundTotals } from './pos-state'
 
-const plain = (minor: number) => formatMoney(minor, 'UZS', { symbol: false, group: ' ' })
+const plain = (minor: number) => formatMoney(minor, base(), { symbol: false, group: ' ' })
 
 interface AgreedSumProps {
   /** The sale's discount as it is written: "10%", "5000" or "=1 600 000". */

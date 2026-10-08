@@ -309,7 +309,7 @@ export class StockDocsService {
         entity: 'transfer',
         entityId: id,
         summary: lost
-          ? `${doc.number}: ${unscaled(lost)} dona yetib kelmadi (${formatMoney(lostUzs)})`
+          ? `${doc.number}: ${unscaled(lost)} dona yetib kelmadi (${formatMoney(lostUzs, actor.base)})`
           : `${doc.number}: to‘liq qabul qilindi`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock']))
@@ -333,7 +333,7 @@ export class StockDocsService {
       if (doc.kind === 'writeoff') {
         const taken = await this.takeOut(em, actor, doc, lines, 'writeoff', null)
         await em.update(StockDocument, id, taken.cost)
-        summary = `${doc.number}: ${doc.totalQty} dona, ${formatMoney(taken.cost.costUzs)} (${WRITEOFF_REASON_LABELS[doc.reason ?? 'other']})`
+        summary = `${doc.number}: ${doc.totalQty} dona, ${formatMoney(taken.cost.costUzs, actor.base)} (${WRITEOFF_REASON_LABELS[doc.reason ?? 'other']})`
       } else if (doc.kind === 'supplier_return') {
         summary = await this.sendBack(em, actor, doc, lines)
       } else {
@@ -664,7 +664,7 @@ export class StockDocsService {
       await em.insert(StockDocumentItem, items)
     }
     await em.update(StockDocument, doc.id, { diffQty: unscaled(net), costUsd, costUzs })
-    return `${doc.number}: kamomad ${unscaled(short)} dona, ortiqcha ${unscaled(over)} dona, farq ${formatMoney(costUzs)}`
+    return `${doc.number}: kamomad ${unscaled(short)} dona, ortiqcha ${unscaled(over)} dona, farq ${formatMoney(costUzs, actor.base)}`
   }
 
   /** A batch for goods a count found that the books did not know of, valued at the variant's average cost. */

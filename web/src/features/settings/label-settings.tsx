@@ -21,6 +21,7 @@ import { Field } from '@/components/ui/field'
 import { useSession } from '@/features/auth/session'
 import { LabelPreview } from '@/features/labels/label-preview'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { toast } from '@/lib/toast'
 
 const SWITCHES = ['showName', 'showDetails', 'showBarcode', 'showSku', 'showTag', 'bigPrice'] as const
@@ -69,7 +70,7 @@ export function LabelSettings() {
     sku: '8018-08',
     barcode: '2000000000015',
     // A label is printed with ordinary spaces, whatever the screen keeps thousands apart with.
-    price: priced ? formatMoney(910_000_00, 'UZS', { minor: 'auto' }).replace(/\s/g, ' ') : null,
+    price: priced ? formatMoney(910_000_00, base(), { minor: 'auto' }).replace(/\s/g, ' ') : null,
     epc: tagged ? '47554C00000000000000002A' : null,
   }
 

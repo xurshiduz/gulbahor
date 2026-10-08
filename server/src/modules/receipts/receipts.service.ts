@@ -1,5 +1,6 @@
 import {
   allocateExact,
+  convertible,
   costReceipt,
   exchange,
   formatMoney,
@@ -26,6 +27,7 @@ import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Location,
+  Organization,
   Partner,
   PriceType,
   ProductVariant,
@@ -156,7 +158,7 @@ export class ReceiptsService {
         orgId: actor.orgId,
         number,
         status: 'draft',
-        ...header(input),
+        ...header(input, actor.base),
         sourceFile: source?.file ?? null,
         sourceHash: source?.hash ?? null,
         createdBy: actor.userId,
@@ -179,8 +181,8 @@ export class ReceiptsService {
       const receipt = await this.lock(em, actor, id)
       this.assertStatus(receipt, 'draft')
       await this.assertValid(em, actor, input)
-      await em.update(Receipt, id, header(input))
-      await this.saveContents(em, { ...receipt, ...header(input) }, input)
+      await em.update(Receipt, id, header(input, actor.base))
+      await this.saveContents(em, { ...receipt, ...header(input, actor.base) }, input)
       afterCommit(() => this.realtime.changed(actor.orgId, ['receipts']))
       return this.load(em, await this.find(em, actor, id))
     })
@@ -211,7 +213,7 @@ export class ReceiptsService {
       const lines = await em.find(ReceiptLine, { where: { receiptId: id }, order: { position: 'ASC' } })
       const expenses = await em.find(ReceiptExpense, { where: { receiptId: id }, order: { position: 'ASC' } })
       const receipt = await this.createIn(em, actor, {
-        ...header(source),
+        ...header(source, actor.base),
         lines: lines.map(({ variantId, supplierId, qty, price, extra, retailPrice, wholesalePrice, otherPrices }) => ({
           variantId,
           supplierId,
@@ -295,7 +297,7 @@ export class ReceiptsService {
         action: 'receipt.post',
         entity: 'receipt',
         entityId: id,
-        summary: `${receipt.number}: ${costing.totals.qty} dona, ${formatMoney(costing.totals.costUzs)}${
+        summary: `${receipt.number}: ${costing.totals.qty} dona, ${formatMoney(costing.totals.costUzs, actor.base)}${
           priced ? `; ${priced} ta model narxi yangilandi` : ''
         }`,
       })
@@ -443,7 +445,7 @@ export class ReceiptsService {
       ? sums.goods
       : currency === 'USD'
         ? sums.usd
-        : currency === 'UZS'
+        : currency === actor.base
           ? sums.uzs
           : this.dayWorth(em, actor, receipt, sums.usd, currency)
   }
@@ -538,7 +540,7 @@ export class ReceiptsService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const receipt = await this.lock(em, actor, id)
       this.assertStatus(receipt, 'posted')
-      assertConvertible(receipt, input.expenses)
+      assertConvertible(receipt.currency, null, input.expenses, actor.base)
 
       const lines = await em.find(ReceiptLine, { where: { receiptId: id }, order: { position: 'ASC' } })
       await em.delete(ReceiptExpense, { receiptId: id })
@@ -600,7 +602,7 @@ export class ReceiptsService {
         summary: receipt.number,
         changes: {
           expenses: [formatMoney(receipt.expensesUsd, 'USD'), formatMoney(costing.totals.expensesUsd, 'USD')],
-          cost: [formatMoney(receipt.costUzs), formatMoney(costing.totals.costUzs)],
+          cost: [formatMoney(receipt.costUzs, actor.base), formatMoney(costing.totals.costUzs, actor.base)],
         },
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock']))
@@ -764,6 +766,8 @@ export class ReceiptsService {
       fields.supplierId = 'Yetkazib beruvchi topilmadi'
     }
 
+    Object.assign(fields, convertibleFields(input.currency, input.extraCurrency, input.expenses, actor.base))
+
     const variantIds = [...new Set(input.lines.map((line) => line.variantId))]
     const variants = variantIds.length ? await em.findBy(ProductVariant, { id: In(variantIds) }) : []
     const found = new Set(variants.map((variant) => variant.id))
@@ -858,7 +862,10 @@ export class ReceiptsService {
         )
       : []
     const weightOf = new Map(weights.map((row) => [row.id, row.weight_g]))
+    // Costed in the business's base: a receipt does not carry it, the business does.
+    const { baseCurrency } = await em.findOneByOrFail(Organization, { id: receipt.orgId })
     return costReceipt({
+      base: baseCurrency,
       currency: receipt.currency,
       usdRate: receipt.usdRate,
       uzsRate: receipt.uzsRate,
@@ -981,27 +988,49 @@ function header(
     ReceiptInput,
     'locationId' | 'supplierId' | 'docDate' | 'currency' | 'usdRate' | 'uzsRate' | 'extraCurrency' | 'note'
   >,
+  base: AnyCurrency,
 ) {
   return {
     locationId: input.locationId,
     supplierId: input.supplierId,
     docDate: input.docDate,
     currency: input.currency,
-    // A dollar is a dollar, and a so'm receipt has one rate, not two.
-    usdRate: input.currency === 'USD' ? 1 : input.currency === 'UZS' ? input.uzsRate : input.usdRate,
-    uzsRate: input.uzsRate,
+    // A dollar is a dollar, and a receipt in the base has one rate, not two.
+    usdRate: input.currency === 'USD' ? 1 : input.currency === base ? input.uzsRate : input.usdRate,
+    // Where the base is the dollar, there is no rate between them.
+    uzsRate: base === 'USD' ? 1 : input.uzsRate,
     extraCurrency: input.extraCurrency,
     note: input.note,
   }
 }
 
-function assertConvertible(receipt: Receipt, expenses: ReceiptExpenseInput[]) {
+/** An extra cost and every expense are in dollars, the base or the receipt's own currency: those it has rates for. */
+function convertibleFields(
+  receiptCurrency: AnyCurrency,
+  extraCurrency: AnyCurrency | null,
+  expenses: ReceiptExpenseInput[],
+  base: AnyCurrency,
+): Record<string, string> {
   const fields: Record<string, string> = {}
+  const wrong = 'Dollar, asosiy valyuta yoki hujjat valyutasini tanlang'
+  if (extraCurrency && !convertible(extraCurrency, receiptCurrency, base)) {
+    fields.extraCurrency = wrong
+  }
   expenses.forEach((expense, index) => {
-    if (expense.currency !== 'USD' && expense.currency !== 'UZS' && expense.currency !== receipt.currency) {
-      fields[`expenses.${index}.currency`] = 'Dollar, so‘m yoki hujjat valyutasini tanlang'
+    if (!convertible(expense.currency, receiptCurrency, base)) {
+      fields[`expenses.${index}.currency`] = wrong
     }
   })
+  return fields
+}
+
+function assertConvertible(
+  receiptCurrency: AnyCurrency,
+  extraCurrency: AnyCurrency | null,
+  expenses: ReceiptExpenseInput[],
+  base: AnyCurrency,
+) {
+  const fields = convertibleFields(receiptCurrency, extraCurrency, expenses, base)
   if (Object.keys(fields).length) {
     throw AppError.validation(fields)
   }

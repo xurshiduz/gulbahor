@@ -366,7 +366,7 @@ describe('Agreed sums', () => {
       const terminal = await alpha
         .post('/api/money/accounts')
         .send({ kind: 'terminal', name: 'POS $', currency: 'USD' })
-      expect(terminal.body.error.fields.currency).toBe('Terminal faqat so‘mda')
+      expect(terminal.body.error.fields.currency).toBe('Terminal faqat asosiy valyutada')
 
       // Dollars to the card settle a so'm account as dollars in the drawer do: here, as agreed.
       const before = await balances()

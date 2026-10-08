@@ -31,6 +31,7 @@ import { Field } from '@/components/ui/field'
 import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
+import { base, baseWords, dollarsBeside } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
@@ -124,7 +125,8 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   const [docDate, setDocDate] = useState(() => toIsoDate(todayIn(me.org.timezone)))
   const [currency, setCurrency] = useState<AnyCurrency>(defaults.currency)
   const [usdRate, setUsdRate] = useState<number | null>(defaults.usdRates?.[defaults.currency] ?? null)
-  const [uzsRate, setUzsRate] = useState<number | null>(defaults.uzsRate)
+  // Where the dollar is the base there is no rate between them.
+  const [uzsRate, setUzsRate] = useState<number | null>(dollarsBeside('USD') ? defaults.uzsRate : 1)
 
   const suppliers = useQuery({
     queryKey: ['partners', 'suppliers'],
@@ -141,7 +143,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
         )
         .join('|')
     : ''
-  const foreign = currency !== 'USD' && currency !== 'UZS'
+  const foreign = currency !== 'USD' && currency !== base()
 
   const open = async (file: File) => {
     setReading(true)
@@ -375,17 +377,19 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                   )}
                 </Field>
               ) : null}
-              <Field label={t('receipts.uzsRate')} required>
-                {(id) => (
-                  <NumberInput
-                    id={id}
-                    value={uzsRate}
-                    onChange={(value) => (setUzsRate(value), setPreview(null))}
-                    decimals={2}
-                    suffix="so‘m"
-                  />
-                )}
-              </Field>
+              {dollarsBeside('USD') ? (
+                <Field label={t('receipts.uzsRate', baseWords(t))} required>
+                  {(id) => (
+                    <NumberInput
+                      id={id}
+                      value={uzsRate}
+                      onChange={(value) => (setUzsRate(value), setPreview(null))}
+                      decimals={2}
+                      suffix={CURRENCIES[base()].symbol}
+                    />
+                  )}
+                </Field>
+              ) : null}
             </div>
 
             <div>

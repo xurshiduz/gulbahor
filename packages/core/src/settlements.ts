@@ -25,14 +25,18 @@ import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas
 
 /**
  * The rates a line of money is valued by: the whole book of them, or —
- * where only so'm and dollars ever meet — just the dollar's, in so'm.
+ * where only the base and dollars ever meet — just the dollar's, in the base.
  */
 export type Rates = RateBook | number | null
 
-/** A book made of the one rate there is, where that is all that was given. */
-export const ratesOf = (rates: Rates): RateBook =>
+/**
+ * A book made of the one rate there is, where that is all that was given: the dollar's, in `base`. A book
+ * that is not there yet — still on its way to a screen — is an empty one in that base: nothing but the base
+ * is worth anything in it.
+ */
+export const ratesOf = (rates: Rates, base: AnyCurrency = 'UZS'): RateBook =>
   typeof rates === 'number' || rates === null
-    ? { base: 'UZS', rates: rates ? { USD: { against: 'UZS', way: 'in', value: rates } } : {} }
+    ? { base, rates: rates && base !== 'USD' ? { USD: { against: base, way: 'in', value: rates } } : {} }
     : rates
 
 /** What a sum is worth in the base; it is asked only where the rate is known to be there. */
@@ -137,7 +141,7 @@ export interface LineWorth extends Settled {
 
 /**
  * The rate two sums of a pair make between them, read as the pair reads.
- * Without a pair the two are so'm and dollars, and it is so'm for a dollar.
+ * Without a pair the two are the base and dollars, and it is the base for a dollar.
  * Null when it cannot be said.
  */
 export function pairRate(
@@ -146,7 +150,7 @@ export function pairRate(
   settled: number,
   pair?: Pair | null,
 ): number | null {
-  const accountIsOne = pair ? pair.one === accountCurrency : accountCurrency !== 'UZS'
+  const accountIsOne = pair ? pair.one === accountCurrency : accountCurrency === 'USD'
   const [ones, ofs] = accountIsOne ? [amount, settled] : [settled, amount]
   return ones > 0 && ofs > 0 ? shown(ofs / ones) : null
 }

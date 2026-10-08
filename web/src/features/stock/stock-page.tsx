@@ -28,6 +28,7 @@ import { useSession } from '@/features/auth/session'
 import { useAttributes, useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
 import { matrixOf } from '@/features/receipts/receipt-state'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
@@ -140,7 +141,7 @@ export function StockPage() {
               cell: ({ row }) =>
                 row.original.costUzs ? (
                   <span title={formatMoney(row.original.costUsd ?? 0, 'USD')}>
-                    {formatMoney(row.original.costUzs, 'UZS', { minor: 'never' })}
+                    {formatMoney(row.original.costUzs, base(), { minor: 'never' })}
                   </span>
                 ) : (
                   <span className="text-ink-3">—</span>
@@ -416,7 +417,7 @@ function StockMatrix({
           <>
             {' · '}
             {t('stock.unitCost')}:{' '}
-            <span className="tabular text-ink">{formatMoney(unitCost(cost, allQty), 'UZS', { minor: 'never' })}</span>
+            <span className="tabular text-ink">{formatMoney(unitCost(cost, allQty), base(), { minor: 'never' })}</span>
           </>
         ) : null}
       </p>

@@ -41,6 +41,7 @@ import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
 import { api, ApiError } from '@/lib/api'
+import { base } from '@/lib/base'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
@@ -48,7 +49,7 @@ import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/promotions')
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 const TONES: Record<PromotionState, 'ok' | 'info' | 'neutral' | 'warn'> = {
   running: 'ok',
@@ -438,7 +439,7 @@ function PromotionDialog({ promotion, shops, onClose, onSaved }: DialogProps) {
           >
             {(id) =>
               kind === 'price' ? (
-                <MoneyInput id={id} value={value} onChange={setValue} currency="UZS" invalid={!!errors.value} />
+                <MoneyInput id={id} value={value} onChange={setValue} currency={base()} invalid={!!errors.value} />
               ) : (
                 <NumberInput id={id} value={value} onChange={setValue} decimals={2} max={100} suffix="%" />
               )

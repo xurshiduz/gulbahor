@@ -1,5 +1,6 @@
 import {
   formatMoney,
+  tillCurrencies,
   internalBarcode,
   normalizeEpc,
   variantLabel,
@@ -916,6 +917,10 @@ export class ProductsService {
       })
     }
 
+    // Prices are what the till sells at: in the base, or in dollars beside it.
+    if (wanted.some((item) => !tillCurrencies(actor.base).includes(item.currency))) {
+      throw AppError.validation({ prices: 'Narx asosiy valyuta yoki dollarda bo‘ladi' })
+    }
     for (const item of wanted) {
       const existing = current.find((price) => price.priceTypeId === item.priceTypeId)
       if (!existing) {

@@ -48,6 +48,7 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
   const settlement = settle(due - onAccount, tendersOf(enteredRows(rows), false), {
     uzsPerUsd: 12_650,
     changeCurrency: 'UZS',
+    base: 'UZS',
     roundStep: 0,
   })
   return (
@@ -60,7 +61,7 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
       due={due}
       suggested={due - onAccount ? { cash: due - onAccount } : {}}
       settlement={settlement}
-      refund={settleRefund(0, [], { uzsPerUsd: 12_650, roundStep: 0 })}
+      refund={settleRefund(0, [], { uzsPerUsd: 12_650, roundStep: 0, base: 'UZS' })}
       changeCurrency="UZS"
       onChangeCurrency={() => undefined}
       action="Sotish"

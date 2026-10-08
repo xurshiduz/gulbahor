@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { allocateExact } from './money'
-import { costReceipt, receiptInputSchema, unitCost, type CostingInput } from './purchasing'
+import { convertible, costReceipt, receiptInputSchema, unitCost, type CostingInput } from './purchasing'
 
 const usd = (dollars: number) => Math.round(dollars * 100)
 
@@ -17,6 +17,7 @@ describe('allocateExact', () => {
 describe('costReceipt', () => {
   // The cargo from China in docs/REJA.md, section 9.
   const cargo: CostingInput = {
+    base: 'UZS',
     currency: 'USD',
     usdRate: 1,
     uzsRate: 12_800,
@@ -50,6 +51,7 @@ describe('costReceipt', () => {
 
   it('adds up to the totals to the last cent when nothing divides evenly', () => {
     const costing = costReceipt({
+      base: 'UZS',
       currency: 'CNY',
       usdRate: 7.13,
       uzsRate: 12_847.35,
@@ -97,6 +99,7 @@ describe('costReceipt', () => {
 
   it('costs a local purchase in so’m without touching the dollar rate of the goods', () => {
     const costing = costReceipt({
+      base: 'UZS',
       currency: 'UZS',
       usdRate: 12_800,
       uzsRate: 12_800,
@@ -107,6 +110,54 @@ describe('costReceipt', () => {
     expect(costing.totals.goodsUzs).toBe(1_500_000_00)
     expect(costing.totals.costUzs).toBe(1_550_000_00)
     expect(costing.totals.costUsd).toBe(Math.round(1_500_000_00 / 12_800) + Math.round(50_000_00 / 12_800))
+  })
+})
+
+describe('costReceipt in another base', () => {
+  it('costs a yuan purchase in tenge and dollars, the tenge expense through the dollar', () => {
+    // 10 pieces at 71 ¥ = 710 ¥ = 100 $ = 48 000 ₸; a delivery of 4 800 ₸ = 10 $.
+    const costing = costReceipt({
+      base: 'KZT',
+      currency: 'CNY',
+      usdRate: 7.1,
+      uzsRate: 480,
+      extraCurrency: 'USD',
+      lines: [{ qty: 10, price: usd(71), extra: 0, weightG: null }],
+      expenses: [{ amount: usd(4800), currency: 'KZT', basis: 'quantity' }],
+    })
+    expect(costing.totals).toMatchObject({
+      goodsUsd: usd(100),
+      goodsUzs: usd(48_000),
+      expensesUsd: usd(10),
+      expensesUzs: usd(4800),
+      costUsd: usd(110),
+      costUzs: usd(52_800),
+    })
+    expect(costing.expenses).toEqual([{ amountUsd: usd(10), amountUzs: usd(4800) }])
+  })
+
+  it('costs everything once in a dollar business: the dollar is the base, whatever rate is written', () => {
+    const costing = costReceipt({
+      base: 'USD',
+      currency: 'CNY',
+      usdRate: 7.25,
+      // A rate the form had no business sending: one dollar is one dollar.
+      uzsRate: 12_650,
+      extraCurrency: 'USD',
+      lines: [{ qty: 4, price: usd(72.5), extra: 0, weightG: null }],
+      expenses: [{ amount: usd(20), currency: 'USD', basis: 'value' }],
+    })
+    expect(costing.totals).toMatchObject({ goodsUsd: usd(40), goodsUzs: usd(40), costUsd: usd(60), costUzs: usd(60) })
+  })
+})
+
+describe('convertible', () => {
+  it('takes dollars, the base and the receipt’s own currency', () => {
+    expect(convertible('USD', 'CNY', 'KZT')).toBe(true)
+    expect(convertible('KZT', 'CNY', 'KZT')).toBe(true)
+    expect(convertible('CNY', 'CNY', 'KZT')).toBe(true)
+    expect(convertible('UZS', 'CNY', 'KZT')).toBe(false)
+    expect(convertible('TRY', 'CNY', 'UZS')).toBe(false)
   })
 })
 
@@ -128,13 +179,12 @@ describe('receiptInputSchema', () => {
     expect(parsed.expenses).toEqual([])
   })
 
-  it('refuses an expense in a currency the receipt has no rate for', () => {
+  it('leaves the currency of an expense to the server, which knows the base', () => {
     const result = receiptInputSchema.safeParse({
       ...base,
-      expenses: [{ name: 'Kargo', amount: 100, currency: 'TRY', basis: 'weight' }],
+      expenses: [{ name: 'Kargo', amount: 100, currency: 'KZT', basis: 'weight' }],
     })
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0].path).toEqual(['expenses', 0, 'currency'])
+    expect(result.success).toBe(true)
   })
 
   it('refuses a zero quantity and more than three decimals', () => {

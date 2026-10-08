@@ -51,6 +51,7 @@ function Money({
   const settlement = settle(due - owing, tendersOf(entered, false), {
     uzsPerUsd: 12_100,
     changeCurrency: 'UZS',
+    base: 'UZS',
     roundStep: 0,
   })
   return (
@@ -76,7 +77,7 @@ function Money({
             }
           : null
       }
-      refund={settleRefund(0, [], { uzsPerUsd: 12_100, roundStep: 0 })}
+      refund={settleRefund(0, [], { uzsPerUsd: 12_100, roundStep: 0, base: 'UZS' })}
       changeCurrency="UZS"
       onChangeCurrency={() => undefined}
       action="Sotish"

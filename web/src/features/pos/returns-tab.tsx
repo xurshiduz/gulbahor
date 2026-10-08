@@ -11,6 +11,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { SearchInput } from '@/components/ui/page'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
@@ -18,7 +19,7 @@ import { ReturnDialog } from './return-parts'
 
 const route = getRouteApi('/sales')
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 /** Every return made, newest first: what came back on which receipt, and whether it became an exchange. */
 export function ReturnsTab({ locations }: { locations: { id: string; name: string }[] }) {

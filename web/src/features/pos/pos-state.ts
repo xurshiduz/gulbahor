@@ -22,6 +22,7 @@ import {
   type TenderMethod,
 } from '@gulbahor/core'
 
+import { base } from '@/lib/base'
 import { uuid } from '@/lib/uuid'
 
 /** One line of the cart: a thing, how many, and what is taken off as the cashier typed it ("10%", "5000"). */
@@ -103,7 +104,7 @@ export function agreedOf(text: string): number | null {
 }
 
 /** How an agreed sum is written into a discount field. */
-export const agreedText = (minor: number) => `=${formatMoney(minor, 'UZS', { symbol: false, group: ' ' })}`
+export const agreedText = (minor: number) => `=${formatMoney(minor, base(), { symbol: false, group: ' ' })}`
 
 /**
  * The round sums a total is usually brought down to, nearest first:
@@ -232,7 +233,7 @@ export function changeText(changeUzs: number, changeUsd: number): string {
   return [
     // Whole dollars only, so no cents are shown.
     changeUsd ? formatMoney(changeUsd, 'USD', { minor: 'never' }) : null,
-    changeUzs || !changeUsd ? formatMoney(changeUzs, 'UZS', { minor: 'auto' }) : null,
+    changeUzs || !changeUsd ? formatMoney(changeUzs, base(), { minor: 'auto' }) : null,
   ]
     .filter(Boolean)
     .join(' + ')
@@ -251,10 +252,10 @@ export function tenderRows(context: PosContextDto): TenderRow[] {
   })
   // Every card and every terminal of the shop has its own row: none is picked from a list.
   return [
-    row('cash', 'cash', 'UZS', null),
+    row('cash', 'cash', base(), null),
     ...(context.usd ? [row('usd', 'cash', 'USD', null)] : []),
-    ...context.cards.map((card) => row(`account:${card.id}`, 'card', 'UZS', card.id)),
-    ...context.terminals.map((terminal) => row(`account:${terminal.id}`, 'terminal', 'UZS', terminal.id)),
+    ...context.cards.map((card) => row(`account:${card.id}`, 'card', base(), card.id)),
+    ...context.terminals.map((terminal) => row(`account:${terminal.id}`, 'terminal', base(), terminal.id)),
   ]
 }
 
@@ -307,7 +308,7 @@ export function refundRows(context: PosContextDto, found: ReturnableDto): Tender
     ...found.caps.accounts.map((cap) => ({
       key: `account:${cap.accountId}`,
       method: cap.method,
-      currency: 'UZS' as const,
+      currency: base(),
       accountId: cap.accountId,
       amount: null,
       value: null,

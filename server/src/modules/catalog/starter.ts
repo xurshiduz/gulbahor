@@ -1,4 +1,4 @@
-import type { AttributeKind, PriceKind } from '@gulbahor/core'
+import { cashSteps, type AnyCurrency, type AttributeKind, type PriceKind } from '@gulbahor/core'
 import type { EntityManager } from 'typeorm'
 
 import { Attribute, AttributeValue, Category, PriceType } from '../../database/entities'
@@ -89,17 +89,17 @@ function range(from: number, to: number, step: number): number[] {
   return result
 }
 
-/** Every business needs its price types from the first day. */
-export async function createPriceTypes(em: EntityManager, orgId: string): Promise<void> {
+/** Every business needs its price types from the first day, in the currency it keeps its books in. */
+export async function createPriceTypes(em: EntityManager, orgId: string, base: AnyCurrency): Promise<void> {
   await em.insert(
     PriceType,
     PRICE_TYPES.map((type, index) => ({
       orgId,
       name: type.name,
       kind: type.kind,
-      currency: 'UZS' as const,
-      // Prices in so'm are round thousands unless the business says otherwise.
-      roundStep: 100_000,
+      currency: base,
+      // Prices are as round as the currency is usually counted in (so'm in thousands) unless the business says otherwise.
+      roundStep: cashSteps(base).price,
       roundEnding: 0,
       sortOrder: index + 1,
       isActive: true,

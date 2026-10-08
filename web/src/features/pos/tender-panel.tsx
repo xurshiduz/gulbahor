@@ -1,4 +1,5 @@
 import {
+  CURRENCIES,
   formatMoney,
   toBase,
   worthOf,
@@ -21,12 +22,13 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { ReceivedInput, ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
 import { pairSentence, rateText, type ValuedLine } from '@/features/partners/payment-lines'
+import { base, baseWords, dollarsBeside } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 import { changeText, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
 import { TakenInput, TakenNote } from './taken-for'
 
-const money = (minor: number, currency: CurrencyCode = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: CurrencyCode = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 /**
  * A row of the panel, as a row of the payment window: what is paid with, the sum, and — where the sum is in
@@ -41,7 +43,7 @@ const UNDER = 'text-right text-xs text-ink-3 @xl:hidden'
 /** The four ways money changes hands at a till; each has its key. */
 export type TenderKind = 'cash' | 'usd' | 'card' | 'terminal'
 export const kindOf = (row: TenderRow): TenderKind =>
-  row.method === 'cash' ? (row.currency === 'USD' ? 'usd' : 'cash') : row.method
+  row.method === 'cash' ? (dollarsBeside(row.currency) ? 'usd' : 'cash') : row.method
 const KIND_LABELS: Record<TenderKind, string> = {
   cash: 'pos.payCash',
   usd: 'pos.payUsd',
@@ -163,13 +165,13 @@ export function TenderPanel({
   const restFor = (row: TenderRow): number => {
     const others = typed
       .filter((_, index) => entered[index].key !== row.key)
-      .reduce((sum, item) => sum + worthOf(item, rate), 0)
+      .reduce((sum, item) => sum + worthOf(item, rate, base()), 0)
     return Math.max(0, due - owing - others)
   }
   /** What a row would have to hold to cover the rest: what "=" fills in. */
   const fillOf = (row: TenderRow): number => {
     const rest = restFor(row)
-    return row.currency === 'USD' && rate ? Math.ceil((rest * 100) / Math.round(rate * 100)) : rest
+    return dollarsBeside(row.currency) && rate ? Math.ceil((rest * 100) / Math.round(rate * 100)) : rest
   }
 
   // A field gives up what was typed into it on the same Enter that asks what to do next. What the rows
@@ -196,7 +198,7 @@ export function TenderPanel({
     onChange: (value: number | null) => onPatch(row.key, { value }),
   })
   // Somewhere on the panel a sum has a second one beside it: the columns are named then.
-  const paired = (!!rate && rows.some((row) => row.currency === 'USD')) || !!onAccount?.line
+  const paired = (!!rate && rows.some((row) => dollarsBeside(row.currency))) || !!onAccount?.line
 
   /** Enter and ↓ go on to the next sum, ↑ back to the one before; Enter with nothing left to type ends the sale. */
   const walk = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -276,7 +278,7 @@ export function TenderPanel({
             <span>{t('pos.tenderWay')}</span>
             <span className="text-right">{refunding ? t('pos.toRefund') : t('pos.tenderGiven')}</span>
             <span className="text-right">{t('payments.rate')}</span>
-            <span className="text-right">{t('pos.tenderWorth')}</span>
+            <span className="text-right">{t('pos.tenderWorth', baseWords(t))}</span>
           </div>
         ) : null}
         {rows.map((row) => {
@@ -286,7 +288,7 @@ export function TenderPanel({
           const account = refunding
             ? cap
             : [...context.cards, ...context.terminals].find((item) => item.id === row.accountId)
-          const noRate = row.currency === 'USD' && !rate
+          const noRate = dollarsBeside(row.currency) && !rate
           // How much may go back this way, for someone who must hand it back the way it was paid.
           const limit =
             refunding && returning && !returning.found.free
@@ -313,12 +315,12 @@ export function TenderPanel({
                         {account.last4 ? <span className="font-code text-ink-3"> *{account.last4}</span> : null}
                       </>
                     ) : (
-                      t(KIND_LABELS[kind])
+                      t(KIND_LABELS[kind], baseWords(t))
                     )}
                     {limit !== null && kind !== 'usd' ? (
                       <span className="tabular text-ink-3">
                         {' ≤ '}
-                        {formatMoney(limit, 'UZS', { minor: 'auto', symbol: false })}
+                        {formatMoney(limit, base(), { minor: 'auto', symbol: false })}
                       </span>
                     ) : null}
                   </span>
@@ -343,16 +345,16 @@ export function TenderPanel({
                         : undefined
                   }
                 />
-                {row.currency === 'USD' && rate ? (
+                {dollarsBeside(row.currency) && rate ? (
                   // The pair: the dollars, the day's rate, and what they are taken for in so'm.
                   <>
                     <span className={RATE} title={`1 $ = ${money(Math.round(rate * 100))}`}>
-                      {formatMoney(Math.round(rate * 100), 'UZS', { minor: 'auto', symbol: false })}
+                      {formatMoney(Math.round(rate * 100), base(), { minor: 'auto', symbol: false })}
                     </span>
-                    <span className={UNDER}>{t('pos.takenFor')}</span>
+                    <span className={UNDER}>{t('pos.takenFor', baseWords(t))}</span>
                     {refunding ? (
                       <span className="tabular pr-2.5 text-right text-[13px] text-ink-3">
-                        {row.amount ? money(toBase(row.amount, 'USD', rate)) : ''}
+                        {row.amount ? money(toBase(row.amount, 'USD', rate, base())) : ''}
                       </span>
                     ) : (
                       // Enter walks the sums given; what they are taken for is a Tab away.
@@ -374,7 +376,7 @@ export function TenderPanel({
                   />
                 </div>
               ) : null}
-              {row.currency === 'USD' && rate && !refunding ? <TakenNote {...takenFor(row)} /> : null}
+              {dollarsBeside(row.currency) && rate && !refunding ? <TakenNote {...takenFor(row)} /> : null}
             </div>
           )
         })}
@@ -388,7 +390,7 @@ export function TenderPanel({
           </div>
         ) : null}
         {!entered.length ? (
-          <p className="text-xs text-ink-3">{t(refunding ? 'pos.enterHintRefund' : 'pos.enterHint')}</p>
+          <p className="text-xs text-ink-3">{t(refunding ? 'pos.enterHintRefund' : 'pos.enterHint', baseWords(t))}</p>
         ) : refunding ? (
           refund.problem === 'over' ? (
             <p className="text-bad">{t('pos.refundOver')}</p>
@@ -414,7 +416,7 @@ export function TenderPanel({
                   value={changeCurrency}
                   onChange={(value) => onChangeCurrency(value as CurrencyCode)}
                   options={[
-                    { value: 'UZS', label: 'so‘m' },
+                    { value: base(), label: CURRENCIES[base()].symbol },
                     { value: 'USD', label: '$' },
                   ]}
                   className="h-7 w-20 text-xs"
@@ -448,7 +450,7 @@ export function TenderPanel({
               id={lendId}
               value={lend.amount}
               onChange={lend.onAmount}
-              currency="UZS"
+              currency={base()}
               fillValue={Math.min(lend.max, (lend.amount ?? 0) + settlement.due)}
               invalid={(lend.amount ?? 0) > lend.max}
             />
@@ -482,7 +484,7 @@ export function TenderPanel({
               value={onAccount.sums.amount}
               // What goes there in the sale's money is the anchor: typed, the partner's sum follows afresh.
               onChange={(amount) => onAccount.onChange({ amount, received: null })}
-              currency="UZS"
+              currency={base()}
               fillValue={Math.min(onAccount.max, (onAccount.sums.amount ?? 0) + settlement.due)}
               invalid={(onAccount.sums.amount ?? 0) > onAccount.max}
             />

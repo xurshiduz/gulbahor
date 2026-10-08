@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 
+import { BaseCurrencyService } from './base-currency.service'
 import { CurrenciesController } from './currencies.controller'
 import { CurrenciesService } from './currencies.service'
 import { LedgerService } from './ledger.service'
@@ -14,7 +15,23 @@ import { MoneyTransfersService } from './transfers.service'
   // The transfers and the expenses come first: `money/transfers` and `money/ops` must not be read as an id
   // by the routes under `money`.
   controllers: [MoneyTransfersController, MoneyOpsController, MoneyController, ShiftsController, CurrenciesController],
-  providers: [LedgerService, MoneyService, MoneyTransfersService, MoneyOpsService, ShiftsService, CurrenciesService],
-  exports: [LedgerService, MoneyService, MoneyTransfersService, MoneyOpsService, ShiftsService, CurrenciesService],
+  providers: [
+    LedgerService,
+    MoneyService,
+    MoneyTransfersService,
+    MoneyOpsService,
+    ShiftsService,
+    CurrenciesService,
+    BaseCurrencyService,
+  ],
+  exports: [
+    LedgerService,
+    MoneyService,
+    MoneyTransfersService,
+    MoneyOpsService,
+    ShiftsService,
+    CurrenciesService,
+    BaseCurrencyService,
+  ],
 })
 export class MoneyModule {}

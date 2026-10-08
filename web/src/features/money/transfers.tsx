@@ -30,6 +30,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { SearchInput } from '@/components/ui/page'
 import { currencyShort, placeName } from '@/features/partners/payment-lines'
 import { api, ApiError } from '@/lib/api'
+import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -469,7 +470,7 @@ export function TransferDialog({
                 value={sums.amount}
                 // What leaves is the anchor: typed, what enters follows from the rate afresh.
                 onChange={(amount) => setSums({ amount, received: null })}
-                currency={from?.currency ?? 'UZS'}
+                currency={from?.currency ?? base()}
                 fillValue={from?.balance ?? undefined}
                 invalid={!!errors.amount}
               />

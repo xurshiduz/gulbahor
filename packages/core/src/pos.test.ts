@@ -98,18 +98,65 @@ describe('the floor', () => {
 
 describe('dollars', () => {
   it("are worth what the day's rate says, to the tiyin", () => {
-    expect(toBase(usd(100), 'USD', 12_850)).toBe(som(1_285_000))
-    expect(toBase(usd(0.01), 'USD', 12_850.55)).toBe(12_851)
-    expect(toBase(som(5000), 'UZS', null)).toBe(som(5000))
-    expect(() => toBase(usd(1), 'USD', null)).toThrow(RangeError)
+    expect(toBase(usd(100), 'USD', 12_850, 'UZS')).toBe(som(1_285_000))
+    expect(toBase(usd(0.01), 'USD', 12_850.55, 'UZS')).toBe(12_851)
+    expect(toBase(som(5000), 'UZS', null, 'UZS')).toBe(som(5000))
+    expect(() => toBase(usd(1), 'USD', null, 'UZS')).toThrow(RangeError)
     expect(fromBase(som(1_285_000), 12_850)).toBe(usd(100))
     expect(fromBase(som(150_000), 12_850)).toBe(usd(11.67))
   })
 })
 
+describe('a till in another base', () => {
+  const tenge = (amount: number) => amount * 100
+  const kzt = { uzsPerUsd: 480, changeCurrency: null, roundStep: tenge(10), base: 'KZT' as const }
+
+  it('counts the base as itself and dollars at the base’s rate', () => {
+    expect(toBase(tenge(5000), 'KZT', null, 'KZT')).toBe(tenge(5000))
+    expect(toBase(usd(10), 'USD', 480, 'KZT')).toBe(tenge(4800))
+    expect(() => toBase(usd(10), 'USD', null, 'KZT')).toThrow(RangeError)
+  })
+
+  it('settles a tenge sale paid partly in dollars, the change in tenge rounded to the step', () => {
+    const tenders: Tender[] = [
+      { method: 'cash', currency: 'KZT', amount: tenge(2000) },
+      { method: 'cash', currency: 'USD', amount: usd(20) },
+    ]
+    // 2 000 + 9 600 = 11 600 against 11 248: 352 over, 350 handed back, 2 left with the shop.
+    expect(settle(tenge(11_248), tenders, kzt)).toMatchObject({
+      paid: tenge(11_600),
+      changeUzs: tenge(350),
+      changeUsd: 0,
+      rounding: tenge(2),
+      problem: null,
+    })
+    // Whole dollars first when the customer asks for them.
+    expect(
+      settle(tenge(1600), [{ method: 'cash', currency: 'USD', amount: usd(10) }], { ...kzt, changeCurrency: 'USD' }),
+    ).toMatchObject({ changeUsd: usd(6), changeUzs: tenge(320), rounding: 0 })
+  })
+
+  it('takes no rate where the dollar is the base, and gives no change in dollars beside it', () => {
+    const dollarsOnly = { uzsPerUsd: null, changeCurrency: 'USD' as const, roundStep: usd(1), base: 'USD' as const }
+    expect(settle(usd(37.6), [{ method: 'cash', currency: 'USD', amount: usd(50) }], dollarsOnly)).toMatchObject({
+      paid: usd(50),
+      changeUzs: usd(12),
+      changeUsd: 0,
+      rounding: usd(0.4),
+      problem: null,
+    })
+    expect(worthOf({ method: 'cash', currency: 'USD', amount: usd(50) }, null, 'USD')).toBe(usd(50))
+    expect(settleRefund(usd(12.4), [{ method: 'cash', currency: 'USD', amount: usd(12) }], dollarsOnly)).toMatchObject({
+      due: 0,
+      rounding: usd(0.4),
+      problem: null,
+    })
+  })
+})
+
 describe('settle', () => {
   const cash = (amount: number, currency: 'UZS' | 'USD' = 'UZS'): Tender => ({ method: 'cash', currency, amount })
-  const options = { uzsPerUsd: 12_850, changeCurrency: 'UZS' as const, roundStep: som(1000) }
+  const options = { uzsPerUsd: 12_850, changeCurrency: 'UZS' as const, roundStep: som(1000), base: 'UZS' as const }
 
   it('says what is still to pay, in both currencies', () => {
     const result = settle(som(285_000), [cash(som(100_000))], options)
@@ -174,19 +221,19 @@ describe('settle', () => {
 
 describe('dollars taken for an agreed worth', () => {
   const dollars = (amount: number, value?: number): Tender => ({ method: 'cash', currency: 'USD', amount, value })
-  const options = { uzsPerUsd: 12_100, changeCurrency: 'UZS' as const, roundStep: som(1000) }
+  const options = { uzsPerUsd: 12_100, changeCurrency: 'UZS' as const, roundStep: som(1000), base: 'UZS' as const }
 
   it('count for what was agreed, and the rate keeps the difference', () => {
     // 50 $ are 605 000 at 12 100.
-    expect(worthOf(dollars(usd(50)), 12_100)).toBe(som(605_000))
-    expect(rateGain(dollars(usd(50)), 12_100)).toBe(0)
+    expect(worthOf(dollars(usd(50)), 12_100, 'UZS')).toBe(som(605_000))
+    expect(rateGain(dollars(usd(50)), 12_100, 'UZS')).toBe(0)
     // "Call them 600 000": the shop is left with 5 000 more than the sale took.
-    expect(worthOf(dollars(usd(50), som(600_000)), 12_100)).toBe(som(600_000))
-    expect(rateGain(dollars(usd(50), som(600_000)), 12_100)).toBe(som(5000))
+    expect(worthOf(dollars(usd(50), som(600_000)), 12_100, 'UZS')).toBe(som(600_000))
+    expect(rateGain(dollars(usd(50), som(600_000)), 12_100, 'UZS')).toBe(som(5000))
     // At 11 800 the same 50 $ are 590 000: calling them 600 000 costs the shop 10 000.
-    expect(rateGain(dollars(usd(50), som(600_000)), 11_800)).toBe(-som(10_000))
+    expect(rateGain(dollars(usd(50), som(600_000)), 11_800, 'UZS')).toBe(-som(10_000))
     // So'm are so'm.
-    expect(rateGain({ method: 'cash', currency: 'UZS', amount: som(1000) }, null)).toBe(0)
+    expect(rateGain({ method: 'cash', currency: 'UZS', amount: som(1000) }, null, 'UZS')).toBe(0)
   })
 
   it('pay the sale with what was agreed', () => {
@@ -210,15 +257,15 @@ describe('dollars taken for an agreed worth', () => {
 
   it('need a word once the loss is past the limit, each tender for itself', () => {
     // 590 000 at 11 800: 600 000 is 1,7% over, 602 000 is 2,03% over.
-    expect(overRateLoss([dollars(usd(50), som(600_000))], 11_800, 2)).toBe(false)
-    expect(overRateLoss([dollars(usd(50), som(601_800))], 11_800, 2)).toBe(false)
-    expect(overRateLoss([dollars(usd(50), som(602_000))], 11_800, 2)).toBe(true)
+    expect(overRateLoss([dollars(usd(50), som(600_000))], 11_800, 2, 'UZS')).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(601_800))], 11_800, 2, 'UZS')).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(602_000))], 11_800, 2, 'UZS')).toBe(true)
     // A gain is the shop's and is never over anything.
-    expect(overRateLoss([dollars(usd(50), som(300_000))], 11_800, 2)).toBe(false)
-    expect(overRateLoss([dollars(usd(50), som(300_000)), dollars(usd(50), som(650_000))], 11_800, 2)).toBe(true)
+    expect(overRateLoss([dollars(usd(50), som(300_000))], 11_800, 2, 'UZS')).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(300_000)), dollars(usd(50), som(650_000))], 11_800, 2, 'UZS')).toBe(true)
     // With a limit of nothing, any loss needs it.
-    expect(overRateLoss([dollars(usd(50), som(590_001))], 11_800, 0)).toBe(true)
-    expect(overRateLoss([dollars(usd(50))], 11_800, 0)).toBe(false)
+    expect(overRateLoss([dollars(usd(50), som(590_001))], 11_800, 0, 'UZS')).toBe(true)
+    expect(overRateLoss([dollars(usd(50))], 11_800, 0, 'UZS')).toBe(false)
   })
 })
 
@@ -246,15 +293,16 @@ describe('saleInputSchema', () => {
 
   it('fills in what a plain cash sale leaves out', () => {
     const sale = saleInputSchema.parse(base)
-    expect(sale).toMatchObject({ discount: 0, changeCurrency: 'UZS', sellerId: null })
+    // No currency is a so'm the schema knows of: left out, it is the business's base, for the server to say.
+    expect(sale).toMatchObject({ discount: 0, changeCurrency: null, sellerId: null })
     expect(sale.lines[0]).toMatchObject({ discount: 0, epc: null })
-    expect(sale.payments[0]).toMatchObject({ currency: 'UZS', accountId: null })
+    expect(sale.payments[0]).toMatchObject({ currency: null, accountId: null })
   })
 
-  it("wants a card or a terminal named, and only so'm on them", () => {
+  it('wants a card or a terminal named, and leaves what it may hold to the server, which knows the base', () => {
     expect(refused({ ...base, payments: [{ method: 'card', amount: 1 }] })).toEqual(['payments.0.accountId'])
     expect(refused({ ...base, payments: [{ method: 'terminal', accountId: ID, currency: 'USD', amount: 1 }] })).toEqual(
-      ['payments.0.currency'],
+      [],
     )
     expect(refused({ ...base, payments: [{ method: 'cash', amount: 0 }] })).toEqual(['payments.0.amount'])
   })
@@ -273,7 +321,7 @@ describe('saleInputSchema', () => {
 
 describe('returns', () => {
   const cash = (amount: number, currency: 'UZS' | 'USD' = 'UZS'): Tender => ({ method: 'cash', currency, amount })
-  const options = { uzsPerUsd: 12_850, roundStep: som(1000) }
+  const options = { uzsPerUsd: 12_850, roundStep: som(1000), base: 'UZS' as const }
 
   it('values what comes back at what was paid for it, and the parts add up', () => {
     // Three shirts sold for 256 500 after a discount: 85 500 each.

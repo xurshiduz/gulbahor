@@ -8,6 +8,7 @@ import {
   mayBeWrittenAgainst,
   missingRate,
   rateWording,
+  rebase,
   shownWorth,
   usualRateForm,
   worthInBase,
@@ -110,7 +111,7 @@ describe('what a currency is worth in the base', () => {
     for (const amount of [1, 33, 9_999, 123_456_789, -4_550]) {
       for (const rate of [12_650, 11_821.18, 12_999.99]) {
         const dollars: RateBook = { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: rate } } }
-        expect(worthInBase(amount, 'USD', dollars)).toBe(toBase(amount, 'USD', rate))
+        expect(worthInBase(amount, 'USD', dollars)).toBe(toBase(amount, 'USD', rate, 'UZS'))
       }
     }
     expect(worthInBase(som(1_500_000), 'UZS', { base: 'UZS', rates: {} })).toBe(som(1_500_000))
@@ -192,5 +193,41 @@ describe('a rate far from the one before it', () => {
     expect(isRateJump(7.25, 0.138)).toBe(true)
     // The first rate ever has nothing to be far from.
     expect(isRateJump(null, 12_650)).toBe(false)
+  })
+})
+
+describe('another base, taken before any money is written', () => {
+  /** So'm the base, the dollar 12 650, the tenge 26,35 so'm, the yuan named against the dollar. */
+  const book: RateBook = {
+    base: 'UZS',
+    rates: {
+      USD: { against: 'UZS', way: 'in', value: 12_650 },
+      KZT: { against: 'UZS', way: 'in', value: 26.35 },
+      CNY: { against: 'USD', way: 'per', value: 7.25 },
+    },
+  }
+
+  it('gives the dollar its rate in the new base, and the old base a rate of its own', () => {
+    // 12 650 / 26,35 = 480,0759...: tenge for a dollar.
+    expect(rebase(book, 'KZT', true)).toEqual({
+      dollar: 480.075901,
+      old: { against: 'USD', way: 'per', value: 12_650 },
+    })
+    // Without dollars beside it, the so'm is written straight in tenge.
+    expect(rebase(book, 'KZT', false)?.old).toEqual({ against: 'KZT', way: 'in', value: 0.037951 })
+  })
+
+  it('leaves no dollar rate where the dollar becomes the base', () => {
+    expect(rebase(book, 'USD', false)).toEqual({ dollar: null, old: { against: 'USD', way: 'per', value: 12_650 } })
+  })
+
+  it('carries a dollar business into tenge by the tenge’s rate', () => {
+    const dollars: RateBook = { base: 'USD', rates: { KZT: { against: 'USD', way: 'per', value: 480 } } }
+    expect(rebase(dollars, 'KZT', true)).toEqual({ dollar: 480, old: null })
+  })
+
+  it('cannot say anything of a currency it has no rate for', () => {
+    expect(rebase(book, 'RUB', true)).toBeNull()
+    expect(rebase({ base: 'UZS', rates: {} }, 'USD', false)).toBeNull()
   })
 })

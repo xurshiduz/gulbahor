@@ -6,6 +6,7 @@ import {
   type ReturnableDto,
   type ReturnDto,
   type SaleLineDto,
+  type AnyCurrency,
 } from '@gulbahor/core'
 import { useQuery } from '@tanstack/react-query'
 import { Printer, Search } from 'lucide-react'
@@ -21,6 +22,7 @@ import { controlClass, Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
+import { base, dollarsBeside } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
@@ -29,7 +31,7 @@ import { toast } from '@/lib/toast'
 
 import type { Returning } from './pos-state'
 
-const money = (minor: number, currency: 'UZS' | 'USD' = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 const leftOf = (line: SaleLineDto) => Math.round((line.qty - line.returnedQty) * 1000) / 1000
 
@@ -331,7 +333,7 @@ export function ReturnDialog({ returnId, onClose }: { returnId: string; onClose:
                 // What came off a debt was never money: it is not said to have been handed back.
                 label={refund.method === 'debt' ? t('pos.offDebt') : `${t('sales.refunded')}: ${paymentLabel(refund)}`}
                 value={
-                  refund.currency === 'USD'
+                  dollarsBeside(refund.currency)
                     ? `${money(refund.amount, 'USD')} = ${money(refund.base)}`
                     : money(refund.amount)
                 }

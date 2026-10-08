@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { ImageThumb, ProductImageDto } from './images'
-import { CURRENCY_CODES, type CurrencyCode } from './money'
+import { ALL_CURRENCY_CODES, type AnyCurrency, type CurrencyCode } from './money'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
 /**
@@ -261,7 +261,8 @@ export const priceTypeInputSchema = z
   .object({
     name: requiredText(60),
     kind: z.enum(PRICE_KINDS),
-    currency: z.enum(CURRENCY_CODES as [CurrencyCode, ...CurrencyCode[]]),
+    /** The base or the dollar (`tillCurrencies`): the server, which knows the base, refuses any other. */
+    currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]),
     /** Prices worked out by rule move in steps of this (minor units); 0 leaves them as worked out. */
     roundStep: z.number().int().min(0).max(1_000_000_000_00).default(0),
     /** What such a price ends with inside a step: 9 000 with a step of 10 000 gives 49 000, 59 000... */
@@ -300,7 +301,8 @@ const amountSchema = z.number().int().min(0).max(1_000_000_000_000_00)
 export const priceInputSchema = z.object({
   priceTypeId: idSchema,
   amount: amountSchema,
-  currency: z.enum(CURRENCY_CODES as [CurrencyCode, ...CurrencyCode[]]),
+  /** The base or the dollar, as a price type's. */
+  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]),
 })
 export type PriceInput = z.infer<typeof priceInputSchema>
 

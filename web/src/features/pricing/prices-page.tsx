@@ -28,6 +28,7 @@ import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
 import { api } from '@/lib/api'
+import { base, baseWords, dollarsBeside } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
@@ -150,7 +151,7 @@ export function PricesPage() {
                 row.original.unitCostUzs === null ? (
                   <span className="text-ink-3">—</span>
                 ) : (
-                  formatMoney(row.original.unitCostUzs, 'UZS', { minor: 'never' })
+                  formatMoney(row.original.unitCostUzs, base(), { minor: 'never' })
                 ),
             } satisfies ColumnDef<PriceListItemDto>,
           ]
@@ -168,7 +169,7 @@ export function PricesPage() {
           if (amount === undefined) {
             return <span className="text-ink-3">—</span>
           }
-          const cost = type.currency === 'UZS' ? row.original.unitCostUzs : row.original.unitCostUsd
+          const cost = type.currency === base() ? row.original.unitCostUzs : row.original.unitCostUsd
           const margin = marginPercent(amount, cost)
           return (
             <span className="inline-flex items-baseline gap-2">
@@ -275,8 +276,12 @@ export function PricesPage() {
                   ]}
                   className="w-44"
                 />
-                {seesCost ? (
-                  <label className="flex items-center gap-2 text-xs text-ink-3" title={t('pricing.rateHint')}>
+                {/* A rate between the base and dollars: none where the dollar is the base. */}
+                {seesCost && dollarsBeside('USD') ? (
+                  <label
+                    className="flex items-center gap-2 text-xs text-ink-3"
+                    title={t('pricing.rateHint', baseWords(t))}
+                  >
                     {t('pricing.rate')}
                     <NumberInput
                       value={uzsRate}

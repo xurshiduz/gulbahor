@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { Fraction } from './fraction'
-import { ALL_CURRENCY_CODES, assertMinor, type AnyCurrency } from './money'
+import { ALL_CURRENCY_CODES, assertMinor, DOLLAR, type AnyCurrency } from './money'
 
 /**
  * The currencies a business keeps money in, and what each is worth.
@@ -20,9 +20,6 @@ import { ALL_CURRENCY_CODES, assertMinor, type AnyCurrency } from './money'
  * shown. And a currency without a rate is worth nothing that can be named —
  * never one for one.
  */
-
-/** What most currencies are named against, wherever a business has dollars at all. */
-export const DOLLAR: AnyCurrency = 'USD'
 
 /**
  * Which way a rate reads:
@@ -126,6 +123,42 @@ export function exchange(amount: number, from: AnyCurrency, to: AnyCurrency, boo
   }
   const [gives, takes] = [baseWorth(from, book), baseWorth(to, book)]
   return gives && takes ? assertMinor(Number(Fraction.of(assertMinor(amount)).mul(gives).div(takes).toScaled(0))) : null
+}
+
+/** The rates of a business that has taken another base, worked out from those it had. */
+export interface Rebased {
+  /** Units of the new base for a dollar: the till's rate from now on. Null where the new base is the dollar, or the dollar had no rate. */
+  dollar: number | null
+  /** The old base, a currency beside the new one now: its rate, written as such a currency usually is. Null where it is the dollar. */
+  old: WrittenRate | null
+}
+
+const rounded = (value: Fraction) => Number(value.toDecimalString(RATE_DECIMALS))
+
+/**
+ * What the rates say once `next` is the base in place of `book.base` — a
+ * change made only before any money is written, so the rates are all there
+ * is to carry over. The new base must have a rate in the old book (or be the
+ * dollar the old base is named against); null where it has none.
+ */
+export function rebase(book: RateBook, next: AnyCurrency, dollars: boolean): Rebased | null {
+  const nextWorth = baseWorth(next, book)
+  if (!nextWorth) {
+    return null
+  }
+  const dollarWorth = baseWorth(DOLLAR, book)
+  const dollar = next === DOLLAR || !dollarWorth ? null : rounded(dollarWorth.div(nextWorth))
+  if (book.base === DOLLAR) {
+    return { dollar, old: null }
+  }
+  const form = usualRateForm(book.base, next, dollars)
+  if (form.against === DOLLAR && dollarWorth) {
+    // "1 $ = 12 650 so'm", or — for those named in dollars — "1 € = 1,08 $".
+    const value = form.way === 'per' ? dollarWorth : Fraction.ONE.div(dollarWorth)
+    return { dollar, old: { ...form, value: rounded(value) } }
+  }
+  // "1 so'm = 0,038 tenge": straight in the new base.
+  return { dollar, old: { against: next, way: 'in', value: rounded(Fraction.ONE.div(nextWorth)) } }
 }
 
 /** What one of a currency is worth in the base, to show: "1744.83". Never to count with. */
@@ -247,4 +280,22 @@ export interface CurrenciesDto {
   active: CurrencyDto[]
   /** What can still be switched on. */
   available: AnyCurrency[]
+}
+
+// ───────────────────────────── The base ─────────────────────────────
+
+/** Why a business may no longer take another base: money has been written, or goods valued in it. */
+export const BASE_LOCKS = ['money', 'stock', 'drafts'] as const
+export type BaseLock = (typeof BASE_LOCKS)[number]
+
+export const baseCurrencyInputSchema = z.object({ currency: currencyCode })
+export type BaseCurrencyInput = z.infer<typeof baseCurrencyInputSchema>
+
+/** What taking another base would do, for the screen to say before it is done. */
+export interface BaseCurrencyDto {
+  base: AnyCurrency
+  /** Null while it may still change. */
+  locked: BaseLock | null
+  /** Prices in the base now: carried across to the new one at the rates of the day. */
+  prices: number
 }

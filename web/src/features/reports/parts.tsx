@@ -12,11 +12,12 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DateInput } from '@/components/ui/date-input'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 
 /** A sum in full: "1 250 000 so'm". */
-export const som = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+export const som = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 /**
  * A sum for an axis or a tight corner, where the exact figure is beside the

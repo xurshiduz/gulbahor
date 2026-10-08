@@ -6,6 +6,9 @@ import {
   ROLE_TEMPLATES,
   OWNER_ROLE_KEY,
   searchKey,
+  cashSteps,
+  DOLLAR,
+  type AnyCurrency,
   type LabelTemplate,
   type ModulesInput,
   type OrgDto,
@@ -22,6 +25,7 @@ import { Location, Organization, Role, User } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { ActorService } from '../auth/actor.service'
+import { BaseCurrencyService } from '../money/base-currency.service'
 import { hashSecret } from '../auth/crypto'
 import { applyStarter, createPriceTypes } from '../catalog/starter'
 import { LocationsService } from '../locations/locations.service'
@@ -42,6 +46,8 @@ const given = <T extends object>(values: T): Partial<T> =>
 export interface NewOrganization {
   name: string
   owner: { fullName: string; login: string; password: string }
+  /** What the books, prices and receipts are kept in; so'm unless said. */
+  baseCurrency?: AnyCurrency
 }
 
 @Injectable()
@@ -52,6 +58,7 @@ export class OrgsService {
     private readonly actors: ActorService,
     private readonly realtime: RealtimeService,
     private readonly locations: LocationsService,
+    private readonly bases: BaseCurrencyService,
   ) {}
 
   async get(actor: Actor): Promise<OrgDto> {
@@ -134,7 +141,8 @@ export class OrgsService {
   }
 
   async setModules(actor: Actor, input: ModulesInput): Promise<OrgDto> {
-    const modules = withRequired(input.modules)
+    // Dollars beside the base are no module of a business whose base is the dollar.
+    const modules = withRequired(input.modules).filter((key) => key !== 'usd' || actor.base !== DOLLAR)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await em.findOneByOrFail(Organization, { id: actor.orgId })
       await em.update(Organization, actor.orgId, { modules })
@@ -192,8 +200,14 @@ export class OrgsService {
       }
 
       await applyStarter(em, actor.orgId)
+      // The base is chosen here, the one time the business is asked; nothing has been written in it yet.
+      if (input.baseCurrency) {
+        await this.bases.changeIn(em, actor, input.baseCurrency)
+      }
+      const base = input.baseCurrency ?? actor.base
 
-      const modules = withRequired([...input.modules, ...(input.useUsd ? ['usd'] : [])])
+      // Dollars beside the base: none where the dollar is the base.
+      const modules = withRequired([...input.modules, ...(input.useUsd && base !== DOLLAR ? ['usd'] : [])])
       await em.update(Organization, actor.orgId, { name: input.name, modules, setupCompleted: true })
       await this.audit.record(em, actor.orgId, actor, {
         action: 'org.setup',
@@ -204,7 +218,7 @@ export class OrgsService {
 
       afterCommit(() => {
         this.actors.invalidate()
-        this.realtime.changed(actor.orgId, ['me', 'locations', 'attributes', 'categories'])
+        this.realtime.changed(actor.orgId, ['me', 'locations', 'attributes', 'categories', 'price-types'])
       })
       return toOrgDto(await em.findOneByOrFail(Organization, { id: actor.orgId }))
     })
@@ -229,14 +243,15 @@ export class OrgsService {
         em.create(Organization, {
           name: input.name,
           timezone: 'Asia/Tashkent',
-          baseCurrency: 'UZS',
+          baseCurrency: input.baseCurrency ?? 'UZS',
+          // The shop counts change as the currency is usually counted.
+          settings: { changeRoundStep: cashSteps(input.baseCurrency ?? 'UZS').change },
           modules: [],
-          settings: {},
           setupCompleted: false,
         }),
       )
       const roles = await this.createRoles(em, org.id)
-      await createPriceTypes(em, org.id)
+      await createPriceTypes(em, org.id, org.baseCurrency)
       await createMoneyCategories(em, org.id)
       const owner = await em.save(
         em.create(User, {

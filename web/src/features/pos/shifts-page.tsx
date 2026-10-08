@@ -1,4 +1,12 @@
-import { formatMoney, SHIFT_STATUS_LABELS, SHIFT_STATUSES, type Page as PageOf, type ShiftDto } from '@gulbahor/core'
+import {
+  CURRENCIES,
+  formatMoney,
+  SHIFT_STATUS_LABELS,
+  SHIFT_STATUSES,
+  type Page as PageOf,
+  type ShiftDto,
+  type AnyCurrency,
+} from '@gulbahor/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -12,6 +20,7 @@ import { Badge, EmptyState } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
@@ -24,7 +33,7 @@ interface LocationOption {
   name: string
 }
 
-const money = (minor: number, currency: 'UZS' | 'USD' = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 /**
  * The shifts worked at the tills: who opened and closed each, what was sold
@@ -118,13 +127,13 @@ export function ShiftsPage() {
         ? ([
             {
               id: 'diffUzs',
-              header: `${t('pos.diff')} (so‘m)`,
+              header: `${t('pos.diff')} (${CURRENCIES[base()].symbol})`,
               meta: {
                 export: (row) => moneyCell(row.diffUzs),
                 className: 'tabular text-right whitespace-nowrap',
                 headerClassName: 'text-right',
               },
-              cell: ({ row }) => <Diff value={row.original.diffUzs} currency="UZS" />,
+              cell: ({ row }) => <Diff value={row.original.diffUzs} currency={base()} />,
             },
             {
               id: 'diffUsd',
@@ -219,7 +228,7 @@ export function ShiftsPage() {
 }
 
 /** A count against the books: short in red, over in green, nothing when it matched or is not known yet. */
-function Diff({ value, currency }: { value: number | null; currency: 'UZS' | 'USD' }) {
+function Diff({ value, currency }: { value: number | null; currency: AnyCurrency }) {
   if (!value) {
     return value === 0 ? <span className="text-ink-3">0</span> : null
   }

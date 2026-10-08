@@ -37,12 +37,13 @@ import {
   type PaymentRow,
 } from '@/features/partners/payment-lines'
 import { api, ApiError } from '@/lib/api'
+import { base, baseWords } from '@/lib/base'
 import { formatPhone } from '@/lib/format'
 import { toast } from '@/lib/toast'
 import { useRateBook } from '@/features/money/rates'
 
 const uuid = () => crypto.randomUUID()
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 interface DebtPayDialogProps {
   customer: { id: string; name: string; phone: string }
@@ -178,7 +179,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
   }
 
   const typeTotal = (wanted: number) => {
-    const taken = spreadTotal(valued, wanted, 'UZS')
+    const taken = spreadTotal(valued, wanted, base())
     if (!taken) {
       toast.error(t(valued.some((line) => line.account.open) ? 'payments.totalTooSmall' : 'payments.pickAccount'))
       return false
@@ -226,7 +227,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
             kind="in"
             lines={valued}
             spare={sparePlaces(places, shown)}
-            currency="UZS"
+            currency={base()}
             owed={owed > 0 ? owed : null}
             onPatch={patch}
             onAdd={(accountId) => {
@@ -240,7 +241,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
             problems={problems}
             autoFocus
             focusId={added}
-            headings={{ ours: t('ops.cameIn'), theirs: t('ops.inSom') }}
+            headings={{ ours: t('ops.cameIn'), theirs: t('ops.inBase', baseWords(t)) }}
           />
         )}
 

@@ -20,6 +20,7 @@ import { Badge, EmptyState } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
 
@@ -140,7 +141,7 @@ function SalesTab({ locations }: { locations: LocationOption[] }) {
           className: 'tabular text-right whitespace-nowrap text-ink-2',
           headerClassName: 'text-right',
         },
-        cell: ({ row }) => (row.original.discount ? formatMoney(row.original.discount, 'UZS', { minor: 'auto' }) : ''),
+        cell: ({ row }) => (row.original.discount ? formatMoney(row.original.discount, base(), { minor: 'auto' }) : ''),
       },
       {
         id: 'total',
@@ -151,7 +152,7 @@ function SalesTab({ locations }: { locations: LocationOption[] }) {
           headerClassName: 'text-right',
         },
         cell: ({ row }) => (
-          <span className="font-medium">{formatMoney(row.original.total, 'UZS', { minor: 'auto' })}</span>
+          <span className="font-medium">{formatMoney(row.original.total, base(), { minor: 'auto' })}</span>
         ),
       },
       ...(seesCost
@@ -165,7 +166,7 @@ function SalesTab({ locations }: { locations: LocationOption[] }) {
                 headerClassName: 'text-right',
               },
               cell: ({ row }) =>
-                row.original.costUzs === null ? '' : formatMoney(row.original.costUzs, 'UZS', { minor: 'never' }),
+                row.original.costUzs === null ? '' : formatMoney(row.original.costUzs, base(), { minor: 'never' }),
             },
           ] satisfies ColumnDef<SaleListItemDto>[])
         : []),
@@ -178,7 +179,7 @@ function SalesTab({ locations }: { locations: LocationOption[] }) {
           headerClassName: 'text-right',
         },
         cell: ({ row }) =>
-          row.original.returnedTotal ? `−${formatMoney(row.original.returnedTotal, 'UZS', { minor: 'auto' })}` : '',
+          row.original.returnedTotal ? `−${formatMoney(row.original.returnedTotal, base(), { minor: 'auto' })}` : '',
       },
       {
         id: 'paidBy',

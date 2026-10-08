@@ -1,4 +1,4 @@
-import { OWNER_ROLE_KEY } from '@gulbahor/core'
+import { OWNER_ROLE_KEY, type AnyCurrency } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 
@@ -63,7 +63,7 @@ export class ActorService {
     return actor
   }
 
-  /** Call after anything that changes what people may do: roles, users, modules, sessions. */
+  /** Call after anything that changes what people may do: roles, users, modules, sessions, the base currency. */
   invalidate() {
     this.cache.clear()
   }
@@ -75,12 +75,13 @@ export class ActorService {
         full_name: string
         all_locations: boolean
         modules: string[]
+        base_currency: AnyCurrency
         permissions: string[]
         is_owner: boolean
         location_ids: string[]
       }[] = await em.query(
         `
-        SELECT u.id, u.full_name, u.all_locations, o.modules,
+        SELECT u.id, u.full_name, u.all_locations, o.modules, o.base_currency,
           coalesce((
             SELECT array_agg(DISTINCT permission)
             FROM user_roles ur
@@ -112,6 +113,7 @@ export class ActorService {
         isOwner: row.is_owner,
         permissions: row.permissions,
         modules: row.modules,
+        base: row.base_currency,
         allLocations: row.all_locations,
         locationIds: row.location_ids,
       }

@@ -46,6 +46,7 @@ import { Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { rateText } from '@/features/partners/payment-lines'
 import { api } from '@/lib/api'
+import { base as baseCurrency } from '@/lib/base'
 import { useHotkey } from '@/lib/hotkeys'
 import { LIST_DEFAULTS } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
@@ -575,7 +576,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
     defaultValues: {
       kind: (account?.kind as PaymentAccountKind | undefined) ?? 'card',
       name: account?.name ?? '',
-      currency: account?.currency ?? 'UZS',
+      currency: account?.currency ?? baseCurrency(),
       locationIds: account?.locationIds ?? [],
       cardNumber: account?.cardNumber ? formatCardNumber(account.cardNumber) : '',
       bank: account?.bank ?? '',
@@ -585,7 +586,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
   const kind = form.watch('kind')
   // Money is kept in any currency the business has switched on; a terminal takes what the tills sell in.
   const currencies = useCurrencies()
-  const base = currencies.data?.base ?? 'UZS'
+  const base = currencies.data?.base ?? baseCurrency()
   const kept = currencies.data?.active.map((currency) => currency.code) ?? [base]
   const choosesCurrency = kind !== 'terminal' && kept.length > 1
   const shared = SHARED_ACCOUNT_KINDS.includes(kind)

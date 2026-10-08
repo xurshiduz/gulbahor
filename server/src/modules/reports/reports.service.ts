@@ -123,7 +123,7 @@ export class ReportsService {
              SELECT p.method, p.currency, p.amount, p.base
              FROM sale_payments p JOIN sales s ON s.id = p.sale_id WHERE ${SOLD} AND p.method <> 'exchange'
              UNION ALL
-             SELECT 'cash', 'UZS', -s.change_uzs, -s.change_uzs FROM sales s WHERE ${SOLD} AND s.change_uzs > 0
+             SELECT 'cash', $4::text, -s.change_uzs, -s.change_uzs FROM sales s WHERE ${SOLD} AND s.change_uzs > 0
              UNION ALL
              SELECT 'cash', 'USD', -s.change_usd, -round(s.change_usd * coalesce(s.uzs_per_usd, 0))
              FROM sales s WHERE ${SOLD} AND s.change_usd > 0
@@ -134,7 +134,8 @@ export class ReportsService {
            ) x GROUP BY x.method, x.currency
            HAVING sum(x.amount) <> 0 OR sum(x.base) <> 0
            ORDER BY sum(x.base) DESC`,
-          scope,
+          // Change given in the base is cash in the base.
+          [...scope, actor.base],
         )
 
       const cashiers: { id: string | null; name: string; receipts: number; sold: number }[] = await em.query(

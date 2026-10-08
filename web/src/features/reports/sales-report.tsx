@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/ui/feedback'
 import { Card } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
+import { baseWords, dollarsBeside } from '@/lib/base'
 import { formatNumber } from '@/lib/format'
 
 import { BarChart, bucketLabel, dayLabel, rangeLabel, ShareList, shortSom, som, Stat, type ChartBar } from './parts'
@@ -176,10 +177,10 @@ export function SalesReport({ data }: { data: SalesReportDto }) {
               key: `${payment.method}:${payment.currency}`,
               name:
                 payment.method === 'cash'
-                  ? t(payment.currency === 'USD' ? 'pos.payUsd' : 'pos.payCash')
+                  ? t(dollarsBeside(payment.currency) ? 'pos.payUsd' : 'pos.payCash', baseWords(t))
                   : PAYMENT_METHOD_LABELS[payment.method],
               // Dollars are counted in so'm with the rest; how many of them there were stands beside.
-              note: payment.currency === 'USD' ? `${formatNumber(payment.amount / 100)} $` : undefined,
+              note: dollarsBeside(payment.currency) ? `${formatNumber(payment.amount / 100)} $` : undefined,
               value: payment.base,
             }))}
           />

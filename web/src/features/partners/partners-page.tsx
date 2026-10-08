@@ -41,6 +41,7 @@ import { usePriceTypes } from '@/features/catalog/catalog'
 import { currencyName } from '@/features/money/currencies-view'
 import { useCurrencies } from '@/features/money/rates'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { formatPhone } from '@/lib/format'
@@ -415,14 +416,14 @@ function PartnerDialog({
       phone: partner?.phone ?? '',
       isSupplier: partner?.isSupplier ?? true,
       isBuyer: partner?.isBuyer ?? false,
-      currency: partner?.currency ?? 'UZS',
+      currency: partner?.currency ?? base(),
       priceTypeId: partner?.priceTypeId ?? RETAIL,
       note: partner?.note ?? '',
     },
   })
   const errors = form.formState.errors
   const currencies = useCurrencies()
-  const kept = currencies.data?.active.map((currency) => currency.code) ?? ['UZS', 'USD']
+  const kept = currencies.data?.active.map((currency) => currency.code) ?? [base()]
   // The price they buy at the till at: any the business sells at beside the retail one, but never the floor.
   const priceTypes = usePriceTypes()
   const prices = (priceTypes.data ?? []).filter(

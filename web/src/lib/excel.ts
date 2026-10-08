@@ -3,6 +3,8 @@ import type { SheetData } from 'write-excel-file/browser'
 
 import { api } from './api'
 
+import { base } from '@/lib/base'
+
 /**
  * Lists as spreadsheets. A list says, column by column, what each row holds
  * as a plain value; numbers go out as numbers and dates as dates, so the
@@ -27,11 +29,11 @@ export const MAX_EXPORT_ROWS = 50_000
 const PAGE = 200
 
 /** Money as a number in whole units; tiyin and cents show only when there are any. */
-export function moneyCell(minor: number | null | undefined, currency: AnyCurrency = 'UZS'): ExportCell {
+export function moneyCell(minor: number | null | undefined, currency: AnyCurrency = base()): ExportCell {
   if (minor === null || minor === undefined) {
     return { value: null }
   }
-  return { value: minor / 100, format: minor % 100 === 0 && currency === 'UZS' ? '#,##0' : '#,##0.00' }
+  return { value: minor / 100, format: minor % 100 === 0 && currency === base() ? '#,##0' : '#,##0.00' }
 }
 
 /** A calendar day ("2026-10-01") as a date the sheet can sort and filter by. */

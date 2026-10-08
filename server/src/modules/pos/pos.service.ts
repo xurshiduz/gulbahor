@@ -1,6 +1,8 @@
 import {
   DEFAULT_ORG_SETTINGS,
   normalizeEpc,
+  tillCurrencies,
+  type AnyCurrency,
   type PosContextDto,
   type PosItemDto,
   type PosPartnerDto,
@@ -13,6 +15,7 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import { Organization, Partner, PriceType, Register, Shift } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
+import { takesDollars } from '../money/base'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { servesShop } from '../money/places'
@@ -44,7 +47,7 @@ export class PosService {
       const open = await em.findOneBy(Shift, { registerId, status: 'open' })
       const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
       const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
-      const usd = actor.modules.includes('usd')
+      const usd = takesDollars(actor)
       const accounts = (await this.money.accountRows(em, false)).filter(
         (account) => account.isActive && servesShop(account, register.locationId),
       )
@@ -64,17 +67,18 @@ export class PosService {
         shift: open ? await this.shifts.load(em, actor, open.id) : null,
         rate: usd ? await this.ledger.rate(em, await this.ledger.today(em, actor.orgId)) : null,
         usd,
-        // A sale is in so'm, and so is the card it is paid to; dollar cards are for the payment windows.
-        cards: accounts.filter((account) => account.kind === 'card' && account.currency === 'UZS'),
+        // A sale is in the base, and so is the card it is paid to; dollar cards are for the payment windows.
+        cards: accounts.filter((account) => account.kind === 'card' && account.currency === actor.base),
         terminals: accounts.filter((account) => account.kind === 'terminal'),
         sellers,
         approvers: await this.approvals.approversAt(em, register.locationId, actor.userId),
         priceTypes: await this.priceTypes(em, actor),
         promoCodes: await this.takesCodes(em, actor, register),
-        drawers: {
-          UZS: drawers.find((account) => account.currency === 'UZS')?.id ?? null,
-          USD: drawers.find((account) => account.currency === 'USD')?.id ?? null,
-        },
+        drawers: Object.fromEntries(
+          tillCurrencies(actor.base)
+            .filter((currency) => currency === actor.base || usd)
+            .map((currency) => [currency, drawers.find((account) => account.currency === currency)?.id ?? null]),
+        ),
         // Cash goes to a safe of its own currency, or — changed on the way — to one of another.
         safes: drawers.length ? accounts.filter((account) => account.kind === 'safe') : [],
         transfers: await this.transfers.waitingAt(em, actor, registerId),
@@ -256,11 +260,13 @@ export class PosService {
     })
   }
 
-  private async rateNow(em: EntityManager, actor: Actor): Promise<number | null> {
-    if (!actor.modules.includes('usd')) {
-      return null
+  /** The base, and the dollar's rate in it where the business takes dollars: what the till's prices are shown by. */
+  private async rateNow(em: EntityManager, actor: Actor): Promise<{ base: AnyCurrency; uzsPerUsd: number | null }> {
+    if (!takesDollars(actor)) {
+      return { base: actor.base, uzsPerUsd: null }
     }
-    return (await this.ledger.rate(em, await this.ledger.today(em, actor.orgId)))?.uzsPerUsd ?? null
+    const rate = await this.ledger.rate(em, await this.ledger.today(em, actor.orgId))
+    return { base: actor.base, uzsPerUsd: rate?.uzsPerUsd ?? null }
   }
 
   /** The till a person is working at, when they may work there. */

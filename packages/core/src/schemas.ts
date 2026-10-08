@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { MODULE_KEYS } from './access'
 import type { LabelTemplate } from './labels'
-import type { CurrencyCode } from './money'
+import { ALL_CURRENCY_CODES, type AnyCurrency, type CurrencyCode } from './money'
 import { parsePhone } from './phone'
 import type { ReceiptTemplate } from './receipt-template'
 
@@ -307,6 +307,8 @@ export type LocationListQuery = z.infer<typeof locationListQuerySchema>
 
 export const setupSchema = z.object({
   name: requiredText(120),
+  /** What the books, prices and receipts are kept in: fixed once the first money is written. Left out, as it is. */
+  baseCurrency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
   useUsd: z.boolean(),
   locations: z
     .array(z.object({ name: requiredText(80), kind: z.enum(['store', 'warehouse', 'mixed']) }))

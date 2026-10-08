@@ -212,7 +212,7 @@ describe('Catalogue', () => {
       const history = await alpha.get('/api/audit').query({ entity: 'product' })
       const update = history.body.items.find((item: { action: string }) => item.action === 'product.update')
       expect(update.changes.sku).toEqual(['1001', 'POLO-22'])
-      expect(update.changes['Narx: Chakana']).toEqual([formatMoney(120_000_00), formatMoney(125_000_00)])
+      expect(update.changes['Narx: Chakana']).toEqual([formatMoney(120_000_00, 'UZS'), formatMoney(125_000_00, 'UZS')])
       expect(update.changes.barcodes).toEqual([null, '4006381333931'])
       expect(update.changes.variantsRemoved).toEqual(['Oq, S', null])
       expect(update.changes.variantsAdded).toEqual([null, 'Oq, L'])

@@ -9,6 +9,7 @@ import {
   searchKey,
   settleRefund,
   toBase,
+  type AnyCurrency,
   UNIT_INFO,
   variantLabel,
   type Page,
@@ -47,6 +48,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
+import { takesDollars, tillCurrencyProblem } from '../money/base'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
@@ -190,7 +192,8 @@ export class ReturnsService {
 
       const settings = await this.settings(em, actor.orgId)
       const today = await this.ledger.today(em, actor.orgId)
-      const usd = actor.modules.includes('usd')
+      const { base } = actor
+      const usd = takesDollars(actor)
       const rate = usd ? ((await this.ledger.rate(em, today))?.uzsPerUsd ?? null) : null
       // What a cashier may not do alone goes through on their own right, or on a manager's PIN given with it.
       const own = can(actor, 'pos.return_any')
@@ -389,32 +392,34 @@ export class ReturnsService {
       const refunds: {
         method: TenderMethod
         account: Account
-        currency: 'UZS' | 'USD'
+        currency: AnyCurrency
         amount: number
         base: number
         reference: string | null
       }[] = []
       for (const [index, refund] of input.refunds.entries()) {
-        if (refund.currency === 'USD' && !usd) {
-          fields[`refunds.${index}.currency`] = 'Dollar bilan ishlash yoqilmagan'
+        const currency = refund.currency ?? base
+        const problem = tillCurrencyProblem(currency, actor, rate)
+        if (problem) {
+          fields[`refunds.${index}.currency`] = problem
           continue
         }
-        if (refund.currency === 'USD' && !rate) {
-          fields[`refunds.${index}.currency`] = 'Dollar kursi qo‘yilmagan'
+        if (refund.method !== 'cash' && currency !== base) {
+          fields[`refunds.${index}.currency`] = 'Karta va terminal faqat asosiy valyutada'
           continue
         }
         let account: Account | undefined
         if (refund.method === 'cash') {
-          account = await this.ledger.cashAccount(em, register, refund.currency)
+          account = await this.ledger.cashAccount(em, register, currency)
         } else {
           account = accounts.find((item) => item.id === refund.accountId)
           const paidHere = caps.accounts.some((cap) => cap.accountId === account?.id)
           otherwise ||= !paidHere
-          // A sale is in so'm: what is handed back for it goes to a so'm card, never a dollar one.
+          // A sale is in the base: what is handed back for it goes to a card in the base, never a dollar one.
           const fits =
             account &&
             account.kind === refund.method &&
-            account.currency === 'UZS' &&
+            account.currency === base &&
             account.isActive &&
             (free || paidHere)
           if (!fits) {
@@ -426,20 +431,20 @@ export class ReturnsService {
         refunds.push({
           method: refund.method,
           account: account as Account,
-          currency: refund.currency,
+          currency,
           amount: refund.amount,
-          base: toBase(refund.amount, refund.currency, rate),
+          base: toBase(refund.amount, currency, rate, base),
           reference: refund.reference ?? null,
         })
       }
       throwIfAny(fields)
 
-      const settlement = settleRefund(due, refunds, { uzsPerUsd: rate, roundStep: settings.changeRoundStep })
+      const settlement = settleRefund(due, refunds, { uzsPerUsd: rate, roundStep: settings.changeRoundStep, base })
       if (settlement.problem === 'over') {
-        throw AppError.validation({ refunds: `Qaytariladigan pul ${formatMoney(due)} dan oshmasligi kerak` })
+        throw AppError.validation({ refunds: `Qaytariladigan pul ${formatMoney(due, base)} dan oshmasligi kerak` })
       }
       if (settlement.due > 0) {
-        throw AppError.validation({ refunds: `Yana ${formatMoney(settlement.due)} qaytarilishi kerak` })
+        throw AppError.validation({ refunds: `Yana ${formatMoney(settlement.due, base)} qaytarilishi kerak` })
       }
       const elsewhere = refunds.reduce((sum, refund) => sum + (refund.method === 'cash' ? 0 : refund.base), 0)
       if (due - elsewhere > caps.cash) {
@@ -447,7 +452,7 @@ export class ReturnsService {
         if (!free) {
           throw AppError.badRequest(
             'REFUND_METHOD',
-            `Naqd ko‘pi bilan ${formatMoney(caps.cash)} qaytariladi: qolgani to‘langan usulda qaytadi`,
+            `Naqd ko‘pi bilan ${formatMoney(caps.cash, base)} qaytariladi: qolgani to‘langan usulda qaytadi`,
             { refunds: 'Pul to‘langan usulda qaytariladi' },
           )
         }
@@ -459,7 +464,7 @@ export class ReturnsService {
           if (!free) {
             throw AppError.badRequest(
               'REFUND_METHOD',
-              `«${cap.name}»ga ko‘pi bilan ${formatMoney(cap.left)} qaytariladi`,
+              `«${cap.name}»ga ko‘pi bilan ${formatMoney(cap.left, base)} qaytariladi`,
               { refunds: 'Pul to‘langan usulda qaytariladi' },
             )
           }
@@ -493,7 +498,7 @@ export class ReturnsService {
           position: refunds.length,
           method: 'debt',
           accountId: receivables.id,
-          currency: 'UZS',
+          currency: base,
           amount: offDebt,
           base: offDebt,
           reference: null,
@@ -559,7 +564,7 @@ export class ReturnsService {
         action: 'return.create',
         entity: 'return',
         entityId: made.id,
-        summary: `${number}: ${sale.number} dan ${made.qty} dona, ${formatMoney(total)}${
+        summary: `${number}: ${sale.number} dan ${made.qty} dona, ${formatMoney(total, base)}${
           exchange ? `, almashtirildi (${exchange.number})` : ''
         }${late ? ', muddati o‘tgan' : ''}${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${
           input.reason ? `. ${input.reason}` : ''

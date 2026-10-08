@@ -2,10 +2,11 @@ import { formatMoney, overRateLoss, rateGain, toBase, type Tender } from '@gulba
 import { useTranslation } from 'react-i18next'
 
 import { MoneyInput } from '@/components/ui/money-input'
+import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
-const plain = (minor: number) => formatMoney(minor, 'UZS', { symbol: false, group: ' ' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
+const plain = (minor: number) => formatMoney(minor, base(), { symbol: false, group: ' ' })
 
 interface TakenForProps {
   /** The dollars tendered, in cents; null while none have been typed yet. */
@@ -34,9 +35,9 @@ function reading({
 }: Pick<TakenForProps, 'dollars' | 'value' | 'rate' | 'limit' | 'alone'>) {
   const tender: Tender | null = dollars ? { method: 'cash', currency: 'USD', amount: dollars, value } : null
   return {
-    book: dollars ? toBase(dollars, 'USD', rate) : null,
-    gain: tender ? rateGain(tender, rate) : 0,
-    over: !alone && !!tender && overRateLoss([tender], rate, limit),
+    book: dollars ? toBase(dollars, 'USD', rate, base()) : null,
+    gain: tender ? rateGain(tender, rate, base()) : 0,
+    over: !alone && !!tender && overRateLoss([tender], rate, limit, base()),
   }
 }
 
@@ -50,7 +51,7 @@ export function TakenInput({ className, ...props }: TakenForProps & { className?
   const { book, over } = reading(props)
   return (
     <MoneyInput
-      aria-label={t('pos.takenFor')}
+      aria-label={t('pos.takenFor', baseWords(t))}
       value={dollars ? value : null}
       // Typed as what the rate makes them, nothing was agreed; nor is anything agreed for no dollars.
       onChange={(next) => onChange(next === null || next === book || !dollars ? null : next)}
@@ -73,7 +74,7 @@ export function TakenNote(props: TakenForProps) {
         <p className={cn('tabular text-right text-xs', gain > 0 ? 'text-ok' : over ? 'text-bad' : 'text-warn')}>
           {t(gain > 0 ? 'pos.rateGain' : 'pos.rateLoss', {
             // So'm for a dollar, as the agreed worth makes it.
-            rate: formatMoney(Math.round((value * 100) / dollars), 'UZS', { minor: 'auto', symbol: false }),
+            rate: formatMoney(Math.round((value * 100) / dollars), base(), { minor: 'auto', symbol: false }),
             amount: money(Math.abs(gain)),
           })}
         </p>
@@ -98,7 +99,7 @@ export function TakenFor(props: TakenForProps) {
   return (
     <div data-enter-skip className="flex flex-col gap-1">
       <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-ink-3">{t('pos.takenFor')}</span>
+        <span className="text-xs text-ink-3">{t('pos.takenFor', baseWords(t))}</span>
         <TakenInput {...props} className="w-40" />
       </div>
       <TakenNote {...props} />

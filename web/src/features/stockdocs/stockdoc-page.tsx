@@ -44,6 +44,7 @@ import { useAttributes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
 import { matrixOf, toReceiptProduct } from '@/features/receipts/receipt-state'
 import { api, ApiError } from '@/lib/api'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
@@ -773,7 +774,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
               <span className="text-ink-3">
                 {t('stockdocs.value')}:{' '}
                 <span className="tabular font-semibold text-ink">
-                  {formatMoney(doc.costUzs, 'UZS', { minor: 'never' })}
+                  {formatMoney(doc.costUzs, base(), { minor: 'never' })}
                 </span>
               </span>
             ) : null}

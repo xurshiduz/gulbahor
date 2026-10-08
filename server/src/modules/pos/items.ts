@@ -1,8 +1,10 @@
 import {
   imageUrl,
+  isDollar,
   toBase,
   UNIT_INFO,
   variantLabel,
+  type AnyCurrency,
   type CurrencyCode,
   type ImageFormat,
   type PosItemDto,
@@ -93,7 +95,8 @@ export async function sellables(
   em: EntityManager,
   what: { ids: string[] } | { search: string; limit: number },
   locationId: string,
-  uzsPerUsd: number | null,
+  /** Prices are in the base or in dollars; a dollar price is shown in the base at the day's rate. */
+  money: { base: AnyCurrency; uzsPerUsd: number | null },
   priceTypeId: string | null = null,
   running: RunningPromotions | null = null,
 ): Promise<PosItemDto[]> {
@@ -139,13 +142,14 @@ export async function sellables(
       .setParameter('exact', what.search.trim())
   }
 
+  const { base, uzsPerUsd } = money
   const inSom = (priced: Priced | null): number | null =>
     !priced
       ? null
-      : priced.currency === 'UZS'
+      : priced.currency === base
         ? Number(priced.amount)
-        : uzsPerUsd
-          ? toBase(Number(priced.amount), 'USD', uzsPerUsd)
+        : isDollar(priced.currency, base) && uzsPerUsd
+          ? toBase(Number(priced.amount), priced.currency, uzsPerUsd, base)
           : null
 
   const rows: Row[] = await qb.getRawMany()

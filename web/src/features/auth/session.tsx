@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/feedback'
 import { setLanguage } from '@/i18n'
 import { api, ApiError, setSignedOutHandler } from '@/lib/api'
+import { setBase } from '@/lib/base'
 import { useRealtime } from '@/lib/realtime'
 import { toast } from '@/lib/toast'
 
@@ -117,6 +118,8 @@ export function SessionGate({ setup, children }: { setup: ReactNode; children: R
   if (!me || !session) {
     return <LoginPage onSignedIn={() => queryClient.invalidateQueries({ queryKey: ME_KEY })} />
   }
+  // Before anything below renders a sum: every sum without a currency of its own is in the base.
+  setBase(me.org.baseCurrency)
 
   let content = children
   if (me.user.mustChangePassword) {

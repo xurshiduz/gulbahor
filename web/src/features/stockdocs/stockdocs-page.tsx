@@ -22,6 +22,7 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDay, formatNumber } from '@/lib/format'
@@ -264,7 +265,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
                 row.original.costUzs === null ? (
                   <span className="text-ink-3">—</span>
                 ) : (
-                  formatMoney(row.original.costUzs, 'UZS', { minor: 'never' })
+                  formatMoney(row.original.costUzs, base(), { minor: 'never' })
                 ),
             } satisfies ColumnDef<StockDocListItemDto>,
           ]

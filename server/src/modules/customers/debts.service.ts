@@ -11,6 +11,7 @@ import {
   type DebtSummary,
   type Page,
   type PaymentAccountDto,
+  type AnyCurrency,
 } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
@@ -248,8 +249,8 @@ export class CustomerDebtsService {
       const { parts, rest } = spreadOverDebts(debts, total)
       if (rest > 0) {
         throw AppError.validation(
-          { total: `Qarzi ${formatMoney(owed)}` },
-          `${customer.name}ning qarzi ${formatMoney(owed)}: undan ko‘p olinmaydi`,
+          { total: `Qarzi ${formatMoney(owed, actor.base)}` },
+          `${customer.name}ning qarzi ${formatMoney(owed, actor.base)}: undan ko‘p olinmaydi`,
         )
       }
 
@@ -327,7 +328,7 @@ export class CustomerDebtsService {
         action: 'debt.pay',
         entity: 'customer',
         entityId: customer.id,
-        summary: `${number}: ${customer.name}, ${formatMoney(total)} (${paidBy})${input.note ? ` — ${input.note}` : ''}`,
+        summary: `${number}: ${customer.name}, ${formatMoney(total, actor.base)} (${paidBy})${input.note ? ` — ${input.note}` : ''}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, payment)
@@ -395,7 +396,7 @@ export class CustomerDebtsService {
         action: 'debt.pay_cancel',
         entity: 'customer',
         entityId: payment.customerId,
-        summary: `${payment.number}: ${formatMoney(payment.total)}${reason ? ` — ${reason}` : ''}`,
+        summary: `${payment.number}: ${formatMoney(payment.total, actor.base)}${reason ? ` — ${reason}` : ''}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, await em.findOneByOrFail(DebtPayment, { id }))
@@ -424,7 +425,7 @@ export class CustomerDebtsService {
     const customer = await em.findOneByOrFail(Customer, { id: payment.customerId })
     const lines: {
       account_name: string
-      currency: 'UZS' | 'USD'
+      currency: AnyCurrency
       amount: number
       base: number
       fx: number

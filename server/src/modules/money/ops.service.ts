@@ -328,7 +328,7 @@ export class MoneyOpsService {
         action: `money_op.${input.kind}`,
         entity: 'money_op',
         entityId: op.id,
-        summary: `${number}: ${category.name}, ${formatMoney(total)} (${paidBy})${input.note ? ` — ${input.note}` : ''}`,
+        summary: `${number}: ${category.name}, ${formatMoney(total, actor.base)} (${paidBy})${input.note ? ` — ${input.note}` : ''}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, op)

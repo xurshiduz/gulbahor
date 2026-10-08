@@ -1,8 +1,11 @@
 import {
   ACCOUNT_KIND_LABELS,
   accountShops,
+  CURRENCIES,
+  DOLLAR,
   isRateJump,
   type AccountDto,
+  type AnyCurrency,
   type AccountInput,
   type PaymentAccountDto,
   type RateDto,
@@ -25,8 +28,16 @@ import { mayUse } from './places'
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
 
+/** An account as it is asked for, in a currency: the base, where none was named. */
+type KeptAccount = Omit<AccountInput, 'currency'> & { currency: AnyCurrency }
+
+const kept = (input: AccountInput, actor: Pick<Actor, 'base'>): KeptAccount => ({
+  ...input,
+  currency: input.currency ?? actor.base,
+})
+
 /** An account as it is kept: the shops it serves, and the one shop of an account that has exactly one. */
-function placed(input: AccountInput) {
+function placed(input: KeptAccount) {
   const { locationIds: _asked, ...rest } = input
   const shops = accountShops(input)
   return { ...rest, locationIds: shops, locationId: shops.length === 1 ? shops[0] : null }
@@ -140,7 +151,8 @@ export class MoneyService {
     return this.db.tenant(actor.orgId, async ({ em }) => this.accountRows(em, can(actor, 'money.view')))
   }
 
-  async createAccount(actor: Actor, input: AccountInput): Promise<AccountDto> {
+  async createAccount(actor: Actor, asked: AccountInput): Promise<AccountDto> {
+    const input = kept(asked, actor)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       await this.assertAccount(em, actor, input)
       const saved = await em.save(
@@ -157,7 +169,8 @@ export class MoneyService {
     })
   }
 
-  async updateAccount(actor: Actor, id: string, input: AccountInput): Promise<AccountDto> {
+  async updateAccount(actor: Actor, id: string, asked: AccountInput): Promise<AccountDto> {
+    const input = kept(asked, actor)
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.findAccount(em, id)
       const changes = before.kind !== input.kind || before.currency !== input.currency
@@ -216,6 +229,10 @@ export class MoneyService {
   /** Sets the rate of a day; a day already past keeps the rate its sales were made at. */
   async setRate(actor: Actor, input: RateInput): Promise<RateDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      // Where the dollar is the base, there is nothing to set it against.
+      if (actor.base === DOLLAR) {
+        throw AppError.validation({ uzsPerUsd: 'Asosiy valyuta dollar: dollar kursi kerak emas' })
+      }
       const today = await this.ledger.today(em, actor.orgId)
       if (input.date < today) {
         throw AppError.validation({ date: 'O‘tgan kunning kursi o‘zgartirilmaydi' })
@@ -235,7 +252,7 @@ export class MoneyService {
       await this.audit.record(em, actor.orgId, actor, {
         action: 'rate.set',
         entity: 'rate',
-        summary: `${input.date}: 1 $ = ${input.uzsPerUsd} so‘m`,
+        summary: `${input.date}: 1 $ = ${input.uzsPerUsd} ${CURRENCIES[actor.base].symbol}`,
         changes: before ? { uzsPerUsd: [before.uzsPerUsd, input.uzsPerUsd] } : null,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
@@ -419,10 +436,14 @@ export class MoneyService {
     }
   }
 
-  private async assertAccount(em: EntityManager, actor: Actor, input: AccountInput, exceptId?: string) {
+  private async assertAccount(em: EntityManager, actor: Actor, input: KeptAccount, exceptId?: string) {
     // Money is kept in a currency the business has switched on, and in no other.
     if (!(await this.currencies.kept(em, actor)).includes(input.currency)) {
       throw AppError.validation({ currency: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+    }
+    // A terminal takes what the tills sell in.
+    if (input.kind === 'terminal' && input.currency !== actor.base) {
+      throw AppError.validation({ currency: 'Terminal faqat asosiy valyutada' })
     }
     const shops = accountShops(input)
     if (shops.length) {

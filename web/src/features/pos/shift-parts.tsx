@@ -1,4 +1,5 @@
 import {
+  CURRENCIES,
   formatMoney,
   paymentLabel,
   shiftCloseSchema,
@@ -19,11 +20,12 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { api } from '@/lib/api'
+import { base, baseWords, dollarsBeside } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
 import { toast } from '@/lib/toast'
 
-import { emptyHandings, HandoverFields, handoversOf, ownSafes } from './handover'
+import { emptyHandings, handingIn, HandoverFields, handoversOf, ownSafes } from './handover'
 
 const refreshTill = (queryClient: ReturnType<typeof useQueryClient>) => {
   void queryClient.invalidateQueries({ queryKey: ['pos'] })
@@ -63,8 +65,8 @@ export function OpenShift({ context }: { context: PosContextDto }) {
         </div>
         <p className="mb-4 text-[13px] text-ink-2">{t('pos.openShiftHint')}</p>
         <Form onSubmit={() => open.mutate()}>
-          <Field label={t('pos.drawerUzs')} required>
-            {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency="UZS" />}
+          <Field label={t('pos.drawerUzs', baseWords(t))} required>
+            {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency={base()} />}
           </Field>
           {context.usd ? (
             <Field label={t('pos.drawerUsd')}>
@@ -110,7 +112,10 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
       return
     }
     const handovers = handoversOf(handings)
-    if ((handings.UZS.amount ?? 0) > cashUzs || (handings.USD.amount ?? 0) > (cashUsd ?? 0)) {
+    if (
+      (handingIn(handings, base()).amount ?? 0) > cashUzs ||
+      (handings.USD && dollarsBeside('USD') ? (handings.USD.amount ?? 0) : 0) > (cashUsd ?? 0)
+    ) {
       toast.error(t('pos.handoverOver'))
       return
     }
@@ -142,8 +147,8 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
     >
       <Form id="close-shift-form" onSubmit={submit}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('pos.drawerUzs')} required>
-            {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency="UZS" />}
+          <Field label={t('pos.drawerUzs', baseWords(t))} required>
+            {(id) => <MoneyInput id={id} autoFocus value={cashUzs} onChange={setCashUzs} currency={base()} />}
           </Field>
           {context.usd ? (
             <Field label={t('pos.drawerUsd')}>
@@ -152,7 +157,12 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
           ) : null}
         </div>
         {/* What of the counted cash goes to the safe now; the rest stays in the drawer for the next shift. */}
-        <HandoverFields safes={safes} value={handings} onChange={setHandings} limits={{ UZS: cashUzs, USD: cashUsd }} />
+        <HandoverFields
+          safes={safes}
+          value={handings}
+          onChange={setHandings}
+          limits={{ [base()]: cashUzs, ...(dollarsBeside('USD') ? { USD: cashUsd } : {}) }}
+        />
         {context.terminals.length ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {context.terminals.map((terminal) => (
@@ -162,7 +172,7 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
                     id={id}
                     value={slips[terminal.id] ?? null}
                     onChange={(amount) => setSlips((current) => ({ ...current, [terminal.id]: amount }))}
-                    currency="UZS"
+                    currency={base()}
                   />
                 )}
               </Field>
@@ -199,7 +209,7 @@ const Row = ({
   </div>
 )
 
-const money = (minor: number, currency: AnyCurrency = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 /** The Z-report: what was sold in a shift and how it was paid; for those who check it, the count against the books. */
 export function ShiftReport({ shift }: { shift: ShiftDto }) {
@@ -208,10 +218,10 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
   if (!totals) {
     return null
   }
-  const diff = (value: number | null, currency: 'UZS' | 'USD') =>
+  const diff = (value: number | null, currency: AnyCurrency) =>
     value === null ? null : (
       <Row
-        label={`${t('pos.diff')} (${currency === 'USD' ? '$' : 'so‘m'})`}
+        label={`${t('pos.diff')} (${CURRENCIES[currency].symbol})`}
         value={`${value > 0 ? '+' : ''}${money(value, currency)}`}
         strong
         tone={value < 0 ? 'bad' : value > 0 ? 'ok' : undefined}
@@ -248,7 +258,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
                   : paymentLabel(payment)
               }
               value={
-                payment.method === 'partner' && payment.currency !== 'UZS'
+                payment.method === 'partner' && payment.currency !== base()
                   ? `${money(payment.base)} (${money(payment.amount, payment.currency)})`
                   : money(payment.amount, payment.currency)
               }
@@ -288,7 +298,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
                   strong
                 />
                 {terminal.expected !== null ? <Row label={t('pos.expected')} value={money(terminal.expected)} /> : null}
-                {diff(terminal.diff, 'UZS')}
+                {diff(terminal.diff, base())}
               </div>
             ))}
           </div>
@@ -312,7 +322,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             {totals.expensesUzs ? <Row label={t('pos.expensesOut')} value={`−${money(totals.expensesUzs)}`} /> : null}
             {shift.countedUzs !== null ? <Row label={t('pos.counted')} value={money(shift.countedUzs)} strong /> : null}
             {shift.expectedUzs !== null ? <Row label={t('pos.expected')} value={money(shift.expectedUzs)} /> : null}
-            {diff(shift.diffUzs, 'UZS')}
+            {diff(shift.diffUzs, base())}
           </div>
           {shift.openingUsd ||
           shift.countedUsd ||

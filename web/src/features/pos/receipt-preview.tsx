@@ -2,11 +2,12 @@ import { formatMoney, gross } from '@gulbahor/core'
 import { Undo2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { base } from '@/lib/base'
 import { formatNumber } from '@/lib/format'
 
 import type { BackLine, Cart, CartTotals } from './pos-state'
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 interface ReceiptPreviewProps {
   /** The shop's name and the till's, as the receipt will head them. */

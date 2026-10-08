@@ -5,16 +5,14 @@ import { Fraction } from './fraction'
  * so'm, cents for dollars. Every currency here has two minor digits.
  */
 
-/** What the business keeps its own money and prices in. */
-export type CurrencyCode = 'UZS' | 'USD'
-
 /**
  * The currencies the system knows: a list that is given, never typed in by a business — so that none comes
  * to be there twice under two names, and each has a sign of its own. A business switches on those it uses.
  * A new one is a line here.
  */
 export type AnyCurrency =
-  | CurrencyCode
+  | 'UZS'
+  | 'USD'
   | 'EUR'
   | 'CNY'
   | 'RUB'
@@ -58,15 +56,45 @@ export const CURRENCIES: Record<AnyCurrency, CurrencyInfo> = {
   GBP: { code: 'GBP', minorDigits: 2, symbol: '£', name: 'Britaniya funti', alwaysShowMinor: true },
 }
 
-export const CURRENCY_CODES: CurrencyCode[] = ['UZS', 'USD']
-
 export const ALL_CURRENCY_CODES = Object.keys(CURRENCIES) as AnyCurrency[]
 
-const MINOR_SCALE = 2
+/**
+ * A currency a business keeps its own money and prices in, or takes at the till: its base — whichever of
+ * the catalogue it chose (`organizations.base_currency`) — or the dollar beside it. The two roles, not two
+ * codes: a so'm business has so'm and dollars, a tenge one tenge and dollars, a dollar one dollars alone.
+ * Where a name in the code or a column in the database still says `uzs`, it means the base.
+ */
+export type CurrencyCode = AnyCurrency
 
-export function isCurrencyCode(value: unknown): value is CurrencyCode {
-  return value === 'UZS' || value === 'USD'
+/** The dollar: the one currency every business may hold beside its own and keep its costs in. */
+export const DOLLAR: AnyCurrency = 'USD'
+
+/** Whether a sum in `currency` is dollars beside the base — dollars are no second currency where they are the base. */
+export const isDollar = (currency: AnyCurrency, base: AnyCurrency): boolean => currency === DOLLAR && base !== DOLLAR
+
+/** The currencies a business prices in and takes at the till: its base, and dollars where they are another. */
+export const tillCurrencies = (base: AnyCurrency): AnyCurrency[] => (base === DOLLAR ? [base] : [base, DOLLAR])
+
+/** In minor units: what prices worked out by rule are rounded to, and the smallest change a till hands back. */
+export interface CashSteps {
+  price: number
+  change: number
 }
+
+const CASH_STEPS: Partial<Record<AnyCurrency, CashSteps>> = {
+  UZS: { price: 1000_00, change: 1000_00 },
+  KZT: { price: 100_00, change: 10_00 },
+  KGS: { price: 10_00, change: 1_00 },
+  RUB: { price: 10_00, change: 1_00 },
+}
+
+/**
+ * How a shop usually counts in a currency, for a business that keeps its books in it: so'm in thousands,
+ * tenge in hundreds and tens, the rest in whole units. Only where a business starts; it sets its own after.
+ */
+export const cashSteps = (currency: AnyCurrency): CashSteps => CASH_STEPS[currency] ?? { price: 1_00, change: 1_00 }
+
+const MINOR_SCALE = 2
 
 export function assertMinor(value: number): number {
   if (!Number.isSafeInteger(value)) {
@@ -206,17 +234,18 @@ export function parseRate(rate: string): Fraction {
 }
 
 /**
- * Converts an amount between so'm and dollars with a so'm-per-dollar rate.
- * The result is rounded once, half away from zero, to minor units.
+ * Converts an amount between a business's base and dollars with a rate of
+ * base units per dollar. The result is rounded once, half away from zero, to
+ * minor units.
  */
-export function convert(minor: number, from: CurrencyCode, to: CurrencyCode, uzsPerUsd: string): number {
+export function convert(minor: number, from: CurrencyCode, to: CurrencyCode, basePerUsd: string): number {
   assertMinor(minor)
   if (from === to) {
     return minor
   }
-  const rate = parseRate(uzsPerUsd)
+  const rate = parseRate(basePerUsd)
   const amount = Fraction.of(minor)
-  if (from === 'USD' && to === 'UZS') {
+  if (from === DOLLAR) {
     return assertMinor(Number(amount.mul(rate).toScaled(0)))
   }
   return assertMinor(Number(amount.div(rate).toScaled(0)))
@@ -232,7 +261,7 @@ export interface FormatMoneyOptions {
 }
 
 /** 125000050 UZS -> "1 250 000,50 so'm"; 7905 USD -> "79,05 $" */
-export function formatMoney(minor: number, currency: AnyCurrency = 'UZS', options: FormatMoneyOptions = {}): string {
+export function formatMoney(minor: number, currency: AnyCurrency, options: FormatMoneyOptions = {}): string {
   const { symbol = true, group = ' ', minor: minorMode = 'auto' } = options
   const info = CURRENCIES[currency]
   const negative = minor < 0

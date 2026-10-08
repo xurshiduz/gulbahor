@@ -1,6 +1,6 @@
 import {
+  cashSteps,
   CURRENCIES,
-  CURRENCY_CODES,
   formatMoney,
   PRICE_KIND_LABELS,
   PRICE_KINDS,
@@ -8,6 +8,7 @@ import {
   TILL_ACCESS,
   TILL_ACCESS_LABELS,
   TILL_PRICE_KINDS,
+  tillCurrencies,
   type CurrencyCode,
   type PriceKind,
   type PriceTypeDto,
@@ -33,6 +34,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { PageActions } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 
@@ -241,9 +243,9 @@ function PriceTypeDialog({
     defaultValues: {
       name: type?.name ?? '',
       kind: type?.kind ?? (taken.has('wholesale') ? 'other' : 'wholesale'),
-      currency: type?.currency ?? 'UZS',
-      // A new so'm price type rounds to the thousand, as the ready-made ones do.
-      roundStep: type ? type.roundStep : 100_000,
+      currency: type?.currency ?? base(),
+      // A new price type rounds as the ready-made ones do: so'm to the thousand, tenge to the hundred.
+      roundStep: type ? type.roundStep : cashSteps(base()).price,
       roundEnding: type?.roundEnding ?? 0,
       tillAccess: type?.tillAccess ?? 'none',
       skipsFloor: type?.skipsFloor ?? false,
@@ -374,7 +376,7 @@ function PriceTypeDialog({
                     id={id}
                     value={field.value}
                     onChange={field.onChange}
-                    options={CURRENCY_CODES.map((code) => ({ value: code, label: CURRENCIES[code].symbol }))}
+                    options={tillCurrencies(base()).map((code) => ({ value: code, label: CURRENCIES[code].symbol }))}
                   />
                 )}
               />

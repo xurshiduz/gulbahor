@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/controls'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { currencyShort, placeName, rateText } from '@/features/partners/payment-lines'
 import { Stat } from '@/features/reports/parts'
+import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 import { transferSums } from './exchange'
@@ -50,7 +51,7 @@ interface MoneyStandViewProps {
  */
 export function MoneyStandView({ accounts, registers, waiting, rates, shops, shopId, onShop }: MoneyStandViewProps) {
   const { t } = useTranslation()
-  const book = ratesOf(rates)
+  const book = ratesOf(rates, base())
   const stand = moneyStand(accounts, registers, waiting, shopId)
   const worth = standWorth(stand, book)
   // With one currency beside the base its rate is said; with several there is no one rate to say.
@@ -90,11 +91,11 @@ export function MoneyStandView({ accounts, registers, waiting, rates, shops, sho
                 tone={item.total < 0 ? 'bad' : undefined}
               />
             ))}
-            {/* Several currencies read as one sum: what the business holds, were it all so'm today. */}
+            {/* Several currencies read as one sum: what the business holds, were it all in the base today. */}
             {stand.length > 1 ? (
               <Stat
-                label={t('stand.allInSom')}
-                value={worth === null ? '—' : money(worth, 'UZS')}
+                label={t('stand.allInBase', baseWords(t))}
+                value={worth === null ? '—' : money(worth, book.base)}
                 note={
                   worth === null
                     ? t('stand.noRate')

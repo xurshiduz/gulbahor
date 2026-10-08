@@ -23,6 +23,7 @@ import {
   type RepriceResult,
   type RepriceSkip,
   type Season,
+  type AnyCurrency,
 } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager, type SelectQueryBuilder } from 'typeorm'
@@ -116,7 +117,7 @@ export class PricingService {
         .getRawAndEntities()
 
       const ids = entities.map((product) => product.id)
-      const costs = await this.unitCosts(em, ids, query.uzsRate ?? null)
+      const costs = await this.unitCosts(em, ids, query.uzsRate ?? null, actor.base)
       const prices = await this.prices(em, ids)
       const seesCost = can(actor, 'stock.cost')
 
@@ -178,8 +179,8 @@ export class PricingService {
       const parents = byRule ? await this.categoryParents(em) : new Map<string, string | null>()
       const [retail] = byRule ? await em.findBy(PriceType, { kind: 'retail' }) : []
 
-      const rate = operation.kind === 'markup' && type.currency === 'UZS' ? operation.uzsRate : null
-      const costs = await this.unitCosts(em, ids, rate)
+      const rate = operation.kind === 'markup' && type.currency === actor.base ? operation.uzsRate : null
+      const costs = await this.unitCosts(em, ids, rate, actor.base)
       const rows = await this.prices(em, ids)
       const priceOf = (productId: string, priceTypeId: string | undefined) =>
         rows.find(
@@ -199,7 +200,7 @@ export class PricingService {
       for (const subject of subjects) {
         const old = priceOf(subject.id, type.id)
         const cost = costs.get(subject.id)
-        const unitCost = (type.currency === 'UZS' ? cost?.uzs : cost?.usd) ?? null
+        const unitCost = (type.currency === actor.base ? cost?.uzs : cost?.usd) ?? null
         const worked = this.work(operation, {
           old,
           unitCost,
@@ -687,12 +688,13 @@ export class PricingService {
     em: EntityManager,
     productIds: string[],
     uzsRate: number | null,
+    base: AnyCurrency,
   ): Promise<Map<string, UnitCost>> {
     if (!productIds.length) {
       return new Map()
     }
     const uzs = (alias: string) =>
-      `CASE WHEN $2::numeric IS NOT NULL AND r.currency IS NOT NULL AND r.currency <> 'UZS'
+      `CASE WHEN $2::numeric IS NOT NULL AND r.currency IS NOT NULL AND r.currency <> $3
             THEN round(${alias}.cost_usd * $2::numeric) ELSE ${alias}.cost_uzs END`
     const origin = `LEFT JOIN receipt_lines rl ON rl.id = b.receipt_line_id LEFT JOIN receipts r ON r.id = rl.receipt_id`
     const rows: { product_id: string; qty: number; unit_uzs: number | null; unit_usd: number | null }[] =
@@ -719,7 +721,7 @@ export class PricingService {
        FROM unnest($1::uuid[]) AS p
        LEFT JOIN held h ON h.product_id = p
        LEFT JOIN last l ON l.product_id = p`,
-        [productIds, uzsRate],
+        [productIds, uzsRate, base],
       )
     const whole = (value: number | null) => (value === null ? null : Math.round(value))
     return new Map(

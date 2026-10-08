@@ -20,6 +20,7 @@ import { Badge, EmptyState, Shortcut, Tooltip } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
@@ -136,7 +137,7 @@ export function ReceiptsPage() {
           headerClassName: 'text-right',
         },
         cell: ({ row }) => (
-          <span className="font-medium">{formatMoney(row.original.totals.costUzs, 'UZS', { minor: 'never' })}</span>
+          <span className="font-medium">{formatMoney(row.original.totals.costUzs, base(), { minor: 'never' })}</span>
         ),
       },
       {

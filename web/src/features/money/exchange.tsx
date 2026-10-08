@@ -20,6 +20,7 @@ import {
   valueLines,
   type ValuedLine,
 } from '@/features/partners/payment-lines'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 /**
@@ -55,7 +56,7 @@ export function exchangeLine(
   const row = { accountId: from.id, amount: sums.amount, rate: null, settled: sums.received }
   // A place money leaves always takes it here: whether it may is the server's to say.
   const place = { ...from, open: true, till: null } as PaymentAccountDto
-  return valueLines([row], [place], toCurrency, book ?? ratesOf(null), limit)[0] ?? null
+  return valueLines([row], [place], toCurrency, book ?? ratesOf(null, base()), limit)[0] ?? null
 }
 
 /** What typing the sum that enters makes of the pair. */
@@ -105,7 +106,7 @@ export function ReceivedNote({
   if (!line.agreed || line.gap < 0.1 || !line.dayRate) {
     return null
   }
-  const base = ratesOf(book).base
+  const booksIn = ratesOf(book, base()).base
   // Money leaving that is worth more than what enters is the business's loss.
   const gain = -line.fx
   const tooFar = line.strays && !setsRates
@@ -115,7 +116,7 @@ export function ReceivedNote({
         agreed: line.rate ? rateText(line.rate) : '—',
         rate: rateText(line.dayRate),
         percent: String(line.gap).replace('.', ','),
-        amount: money(Math.abs(gain), base),
+        amount: money(Math.abs(gain), booksIn),
       })}
       {tooFar ? ` ${t('payments.agreedTooFar')}` : ''}
     </p>

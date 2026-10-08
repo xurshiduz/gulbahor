@@ -12,6 +12,7 @@ import { Form } from '@/components/ui/form'
 import { controlClass, Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { api, ApiError } from '@/lib/api'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatPhone } from '@/lib/format'
 import { toast } from '@/lib/toast'
@@ -31,7 +32,7 @@ export interface CustomerPickerHandle {
   focus: () => void
 }
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 /** Digits alone are a phone being typed; anything else is a name. */
 const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())

@@ -10,6 +10,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { useSession } from '@/features/auth/session'
 import { api, ApiError } from '@/lib/api'
+import { base } from '@/lib/base'
 import { toast } from '@/lib/toast'
 
 interface Row {
@@ -28,7 +29,7 @@ export function tiersOf(rows: Row[]): LoyaltyTier[] {
     .sort((a, b) => a.from - b.from)
 }
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 /**
  * The loyalty programme: a ladder of sums, and what having bought for each
@@ -102,7 +103,7 @@ export function LoyaltyTab() {
           {rows.map((item) =>
             canManage ? (
               <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_8rem_1.75rem] items-center gap-2">
-                <MoneyInput value={item.from} onChange={(from) => patch(item.key, { from })} currency="UZS" />
+                <MoneyInput value={item.from} onChange={(from) => patch(item.key, { from })} currency={base()} />
                 <NumberInput
                   value={item.percent}
                   onChange={(percent) => patch(item.key, { percent })}

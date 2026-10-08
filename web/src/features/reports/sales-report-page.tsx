@@ -18,6 +18,7 @@ import { Skeleton, Tooltip } from '@/components/ui/feedback'
 import { Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { moneyCell, saveExcel, type ExportColumn } from '@/lib/excel'
 
 import { bucketLabel, dayLabel, PeriodPicker } from './parts'
@@ -85,9 +86,9 @@ export function SalesReportPage() {
         value: (point) => (data.bucket === 'day' ? dayLabel(point.key) : bucketLabel(point.key, data.bucket)),
       },
       { title: t('reports.receipts'), value: (point) => point.receipts },
-      { title: t('reports.net'), value: (point) => moneyCell(point.net, 'UZS') },
+      { title: t('reports.net'), value: (point) => moneyCell(point.net, base()) },
       ...(data.totals.profit !== null
-        ? [{ title: t('reports.profit'), value: (point: SalesPoint) => moneyCell(point.profit, 'UZS') }]
+        ? [{ title: t('reports.profit'), value: (point: SalesPoint) => moneyCell(point.profit, base()) }]
         : []),
     ]
     void saveExcel(`${t('reports.salesTitle')} ${data.from}_${data.to}`, columns, data.series)

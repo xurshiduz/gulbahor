@@ -12,6 +12,8 @@ import {
   type ReceiptProductDto,
 } from '@gulbahor/core'
 
+import { base } from '@/lib/base'
+
 /**
  * A receipt on the screen is a list of blocks, not of lines. A block is one
  * model at one price: its quantities are typed into a colour × size grid,
@@ -191,7 +193,7 @@ export function costOf(
   expenses: ExpenseDraft[],
   products: Map<string, ReceiptProductDto>,
 ): { costing: Costing; blocks: BlockCost[] } | null {
-  if (!header.uzsRate || (header.currency !== 'USD' && header.currency !== 'UZS' && !header.usdRate)) {
+  if (!header.uzsRate || (header.currency !== 'USD' && header.currency !== base() && !header.usdRate)) {
     return null
   }
   const { lines, blockOf } = linesOf(blocks, products)
@@ -199,6 +201,7 @@ export function costOf(
   products.forEach((product) => product.variants.forEach((variant) => variantProduct.set(variant.id, product)))
 
   const costing = costReceipt({
+    base: base(),
     currency: header.currency,
     usdRate: header.usdRate ?? 1,
     uzsRate: header.uzsRate,

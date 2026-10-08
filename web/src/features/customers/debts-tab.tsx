@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { SearchInput } from '@/components/ui/page'
 import { api } from '@/lib/api'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { dayCell, fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatDay, formatPhone } from '@/lib/format'
@@ -29,7 +30,7 @@ import { DebtPayDialog } from './debt-pay'
 
 const route = getRouteApi('/customers')
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 /** Who owes: the name, and under it the number they are rung on. */
 function Who({ name, phone }: { name: string; phone: string }) {
@@ -108,7 +109,7 @@ export function DebtsTab() {
         id: 'amount',
         header: t('debts.amount'),
         meta: {
-          export: (row) => moneyCell(row.amount, 'UZS'),
+          export: (row) => moneyCell(row.amount, base()),
           className: 'tabular text-right whitespace-nowrap',
           headerClassName: 'text-right',
         },
@@ -118,7 +119,7 @@ export function DebtsTab() {
         id: 'paid',
         header: t('debts.paidSum'),
         meta: {
-          export: (row) => moneyCell(row.paid + row.returned, 'UZS'),
+          export: (row) => moneyCell(row.paid + row.returned, base()),
           className: 'tabular text-right whitespace-nowrap text-ink-2',
           headerClassName: 'text-right',
         },
@@ -141,7 +142,7 @@ export function DebtsTab() {
         id: 'left',
         header: t('debts.left'),
         meta: {
-          export: (row) => moneyCell(row.left, 'UZS'),
+          export: (row) => moneyCell(row.left, base()),
           className: 'tabular text-right whitespace-nowrap',
           headerClassName: 'text-right',
         },
@@ -298,7 +299,7 @@ export function DebtPaymentsTab() {
         id: 'total',
         header: t('payments.total'),
         meta: {
-          export: (row) => moneyCell(row.total, 'UZS'),
+          export: (row) => moneyCell(row.total, base()),
           className: 'tabular text-right whitespace-nowrap',
           headerClassName: 'text-right',
         },

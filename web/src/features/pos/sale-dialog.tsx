@@ -1,4 +1,11 @@
-import { DEFAULT_RECEIPT_TEMPLATE, formatMoney, paymentLabel, SALE_STATUS_LABELS, type SaleDto } from '@gulbahor/core'
+import {
+  DEFAULT_RECEIPT_TEMPLATE,
+  formatMoney,
+  paymentLabel,
+  SALE_STATUS_LABELS,
+  type SaleDto,
+  type AnyCurrency,
+} from '@gulbahor/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Ban, Printer, Undo2 } from 'lucide-react'
@@ -13,6 +20,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
+import { base, dollarsBeside } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
 
@@ -21,7 +29,7 @@ import { toast } from '@/lib/toast'
 
 import { changeText } from './pos-state'
 
-const money = (minor: number, currency: 'UZS' | 'USD' = 'UZS') => formatMoney(minor, currency, { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 /**
  * One sale as its receipt: what was sold, what was taken off, how it was
@@ -249,7 +257,7 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   ) : null}
                 </>
               ) : null}
-              {sale.uzsPerUsd && sale.payments.some((payment) => payment.currency === 'USD') ? (
+              {sale.uzsPerUsd && sale.payments.some((payment) => dollarsBeside(payment.currency)) ? (
                 <Line label={t('pos.rate')} value={`1 $ = ${money(Math.round(sale.uzsPerUsd * 100))}`} />
               ) : null}
               {/* Between the shop and its books, not the customer's business: it stays off the paper. */}

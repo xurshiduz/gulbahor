@@ -1,15 +1,15 @@
-import { SYSTEM_ACCOUNT_LABELS, type CurrencyCode, type RateDto, type SystemAccount } from '@gulbahor/core'
+import { CURRENCIES, SYSTEM_ACCOUNT_LABELS, type CurrencyCode, type RateDto, type SystemAccount } from '@gulbahor/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
-import { Account, ExchangeRate, LedgerEntry, type Partner, type Register } from '../../database/entities'
+import { Account, ExchangeRate, LedgerEntry, Organization, type Partner, type Register } from '../../database/entities'
 
-/** One side of a movement: so much into an account (or, negative, out of it), and its worth in so'm. */
+/** One side of a movement: so much into an account (or, negative, out of it), and its worth in the base. */
 export interface Posting {
   accountId: string
   /** In the account's own currency. */
   amount: number
-  /** In so'm. */
+  /** In the business's base. */
   base: number
 }
 
@@ -26,7 +26,7 @@ export interface EntryHead {
  * The money ledger. `post` is the only way an account's balance changes: it
  * writes the lines of one movement and moves the balances by the same
  * amounts in the caller's transaction. The lines of an entry, valued in
- * so'm, add up to nothing; one that would not is a bug and is refused here
+ * the base, add up to nothing; one that would not is a bug and is refused here
  * before the database refuses it at commit.
  */
 @Injectable()
@@ -105,19 +105,20 @@ export class LedgerService {
     )
   }
 
-  /** One of the business's own accounts; made the first time it is needed. */
+  /** One of the business's own accounts, kept in its base; made the first time it is needed. */
   async systemAccount(em: EntityManager, orgId: string, key: SystemAccount): Promise<Account> {
     const existing = await em.findOneBy(Account, { systemKey: key })
     if (existing) {
       return existing
     }
+    const { baseCurrency } = await em.findOneByOrFail(Organization, { id: orgId })
     return em.save(
       em.create(Account, {
         orgId,
         kind: 'system',
         systemKey: key,
         name: SYSTEM_ACCOUNT_LABELS[key],
-        currency: 'UZS',
+        currency: baseCurrency,
         balance: 0,
         isActive: true,
       }),
@@ -153,7 +154,7 @@ export class LedgerService {
       em.create(Account, {
         orgId: register.orgId,
         kind: 'cash',
-        name: `${register.name} (${currency === 'USD' ? 'dollar' : 'so‘m'})`,
+        name: `${register.name} (${currency === 'USD' ? 'dollar' : CURRENCIES[currency].symbol})`,
         currency,
         locationId: register.locationId,
         locationIds: [register.locationId],

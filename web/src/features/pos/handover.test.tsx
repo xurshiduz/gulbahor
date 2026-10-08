@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { emptyHandings, HandoverFields, handingLine, handoversOf, type Handings } from './handover'
+import { emptyHandings, handingIn, HandoverFields, handingLine, handoversOf, type Handings } from './handover'
 
 const som = (amount: number) => amount * 100
 
@@ -19,8 +19,8 @@ describe('handing cash over', () => {
       USD: { amount: null, toAccountId: 's2', received: null },
     })
     // No safe for dollars: there is nowhere to hand them over to — unless they may be changed on the way.
-    expect(emptyHandings([safes[0]]).USD.toAccountId).toBeNull()
-    expect(emptyHandings([safes[0]], true).USD.toAccountId).toBe('s1')
+    expect(emptyHandings([safes[0]]).USD?.toAccountId).toBeNull()
+    expect(emptyHandings([safes[0]], true).USD?.toAccountId).toBe('s1')
   })
 
   it('sends only what holds a sum', () => {
@@ -70,6 +70,8 @@ describe('handing cash over', () => {
     await userEvent.clear(into)
     await userEvent.type(into, '78{Tab}')
     expect(latest).toMatchObject({ UZS: { amount: som(1_000_000), toAccountId: 's2', received: 7800 } })
-    expect(handingLine('UZS', (latest as unknown as Handings).UZS, safes, changing)).toMatchObject({ agreed: true })
+    expect(handingLine('UZS', handingIn(latest as unknown as Handings, 'UZS'), safes, changing)).toMatchObject({
+      agreed: true,
+    })
   })
 })

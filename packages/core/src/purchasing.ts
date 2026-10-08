@@ -134,44 +134,28 @@ export type ReceiptExpenseInput = z.infer<typeof receiptExpenseInputSchema>
 
 const expensesSchema = z.array(receiptExpenseInputSchema).max(50)
 
-/** An amount on a receipt is in dollars, in so'm or in the receipt's own currency: the three it has rates for. */
-const convertible = (currency: AnyCurrency, receiptCurrency: AnyCurrency) =>
-  currency === 'USD' || currency === 'UZS' || currency === receiptCurrency
+/**
+ * An amount on a receipt is in dollars, in the base or in the receipt's own currency: the three it has rates
+ * for. Which currency is the base only the server knows, so it is the server that asks.
+ */
+export const convertible = (currency: AnyCurrency, receiptCurrency: AnyCurrency, base: AnyCurrency) =>
+  currency === 'USD' || currency === base || currency === receiptCurrency
 
-export const receiptInputSchema = z
-  .object({
-    locationId: idSchema,
-    supplierId: nullableId,
-    docDate: z.iso.date(),
-    /** What the supplier is paid in. */
-    currency: currencySchema,
-    /** Units of `currency` per dollar; 1 when the currency is the dollar. */
-    usdRate: rateSchema,
-    /** So'm per dollar. */
-    uzsRate: rateSchema,
-    extraCurrency: currencySchema.default('USD'),
-    note: optionalText(500),
-    lines: z.array(receiptLineInputSchema).max(5000),
-    expenses: expensesSchema.default([]),
-  })
-  .superRefine((receipt, context) => {
-    if (!convertible(receipt.extraCurrency, receipt.currency)) {
-      context.addIssue({
-        code: 'custom',
-        path: ['extraCurrency'],
-        message: 'Dollar, so‘m yoki hujjat valyutasini tanlang',
-      })
-    }
-    receipt.expenses.forEach((expense, index) => {
-      if (!convertible(expense.currency, receipt.currency)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['expenses', index, 'currency'],
-          message: 'Dollar, so‘m yoki hujjat valyutasini tanlang',
-        })
-      }
-    })
-  })
+export const receiptInputSchema = z.object({
+  locationId: idSchema,
+  supplierId: nullableId,
+  docDate: z.iso.date(),
+  /** What the supplier is paid in. */
+  currency: currencySchema,
+  /** Units of `currency` per dollar; 1 when the currency is the dollar. */
+  usdRate: rateSchema,
+  /** Units of the base per dollar; 1 where the base is the dollar. */
+  uzsRate: rateSchema,
+  extraCurrency: currencySchema.default('USD'),
+  note: optionalText(500),
+  lines: z.array(receiptLineInputSchema).max(5000),
+  expenses: expensesSchema.default([]),
+})
 export type ReceiptInput = z.infer<typeof receiptInputSchema>
 
 /** A bill that arrives after the goods are in: the expenses of a posted receipt can still change. */
@@ -291,6 +275,8 @@ export interface CostingExpense {
 }
 
 export interface CostingInput {
+  /** What the business keeps its books in: the "so'm" of `uzsRate` and of every `…Uzs` the costing gives. */
+  base: AnyCurrency
   currency: AnyCurrency
   usdRate: number
   uzsRate: number
@@ -326,26 +312,28 @@ const rounded = (value: Fraction) => assertMinor(Number(value.toScaled(0)))
 const scaledQty = (qty: number) => BigInt(Math.round(qty * QTY_SCALE))
 
 /**
- * Works out what every line of a receipt costs, in dollars and in so'm.
+ * Works out what every line of a receipt costs, in dollars and in the base ("so'm" below).
  *
  * Each total is converted once and then split with the largest-remainder
  * method, so the lines always add up to the totals to the last tiyin and
  * cent: nothing is lost or invented by rounding line by line.
  */
 export function costReceipt(input: CostingInput): Costing {
+  const { base } = input
   const usdRate = input.currency === 'USD' ? Fraction.ONE : rateOf(input.usdRate)
-  const uzsRate = rateOf(input.uzsRate)
+  // Where the base is the dollar, a dollar is one of it whatever the receipt says.
+  const uzsRate = base === 'USD' ? Fraction.ONE : rateOf(input.uzsRate)
 
   /** An amount in minor units of `currency`, as an exact number of cents. */
   const toUsd = (minor: number, currency: AnyCurrency): Fraction => {
     const amount = Fraction.of(minor)
     if (currency === 'USD') return amount
-    if (currency === 'UZS') return amount.div(uzsRate)
+    if (currency === base) return amount.div(uzsRate)
     return amount.div(usdRate)
   }
-  /** So'm go through no rate at all; everything else goes through the dollar. */
+  /** The base goes through no rate at all; everything else goes through the dollar. */
   const toUzs = (minor: number, currency: AnyCurrency): Fraction =>
-    currency === 'UZS' ? Fraction.of(minor) : toUsd(minor, currency).mul(uzsRate)
+    currency === base ? Fraction.of(minor) : toUsd(minor, currency).mul(uzsRate)
 
   const quantities = input.lines.map((line) => scaledQty(line.qty))
   const goods = input.lines.map((line, index) =>

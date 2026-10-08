@@ -54,6 +54,7 @@ import {
   switchTill,
   TillField,
 } from '@/features/partners/payment-lines'
+import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { api, ApiError } from '@/lib/api'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
@@ -65,7 +66,7 @@ import { useRateBook } from './rates'
 
 const route = getRouteApi('/money')
 
-const money = (minor: number) => formatMoney(minor, 'UZS', { minor: 'auto' })
+const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 const KIND_KEYS: Record<MoneyOpKind, string> = { expense: 'ops.expense', income: 'ops.income' }
 
@@ -268,7 +269,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
   }
 
   const typeTotal = (wanted: number) => {
-    const taken = spreadTotal(valued, wanted, 'UZS')
+    const taken = spreadTotal(valued, wanted, base())
     if (!taken) {
       toast.error(t(valued.some((line) => line.account.open) ? 'payments.totalTooSmall' : 'payments.pickAccount'))
       return false
@@ -357,7 +358,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
             kind={kind === 'income' ? 'in' : 'out'}
             lines={valued}
             spare={sparePlaces(places, shown)}
-            currency="UZS"
+            currency={base()}
             owed={null}
             onPatch={patch}
             onAdd={(accountId) => {
@@ -373,7 +374,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
             focusId={added}
             headings={{
               ours: t(kind === 'income' ? 'ops.cameIn' : 'ops.wentOut'),
-              theirs: t('ops.inSom'),
+              theirs: t('ops.inBase', baseWords(t)),
             }}
           />
         )}
@@ -454,7 +455,7 @@ export function MoneyOpsTab() {
         id: 'total',
         header: t('money.amount'),
         meta: {
-          export: (row) => moneyCell(row.kind === 'expense' ? -row.total : row.total, 'UZS'),
+          export: (row) => moneyCell(row.kind === 'expense' ? -row.total : row.total, base()),
           className: 'tabular text-right font-medium whitespace-nowrap',
           headerClassName: 'text-right',
         },

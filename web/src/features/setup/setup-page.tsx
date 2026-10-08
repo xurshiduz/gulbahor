@@ -1,4 +1,4 @@
-import { LOCATION_KIND_LABELS, MODULES, setupSchema, type SetupInput } from '@gulbahor/core'
+import { ALL_CURRENCY_CODES, LOCATION_KIND_LABELS, MODULES, setupSchema, type SetupInput } from '@gulbahor/core'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Plus, Trash2 } from 'lucide-react'
@@ -21,7 +21,7 @@ const PLACE_KINDS = (['store', 'mixed', 'warehouse'] as const).map((kind) => ({ 
 // Dollars are asked about on the first step, in plain words, rather than listed among the modules.
 const CHOOSABLE_MODULES = MODULES.filter((module) => module.key !== 'usd')
 
-const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'useUsd'], ['locations'], ['modules']]
+const STEP_FIELDS: (keyof SetupInput)[][] = [['name', 'baseCurrency', 'useUsd'], ['locations'], ['modules']]
 
 /** The first-run wizard: three short steps that shape the system to the business. */
 export function SetupPage() {
@@ -34,6 +34,8 @@ export function SetupPage() {
     resolver: zodResolver(setupSchema),
     defaultValues: {
       name: me.org.name === 'Namuna biznes' ? '' : me.org.name,
+      // A new business is asked once what it keeps its books in; the dollar unless it says otherwise.
+      baseCurrency: 'USD',
       useUsd: true,
       locations: [{ name: '', kind: 'store' }],
       modules: [],
@@ -42,6 +44,7 @@ export function SetupPage() {
   const errors = form.formState.errors
   const places = useFieldArray({ control: form.control, name: 'locations' })
   const modules = form.watch('modules')
+  const baseCurrency = form.watch('baseCurrency')
 
   const mutation = useMutation({
     mutationFn: (input: SetupInput) => api.post('/org/setup', input),
@@ -104,11 +107,33 @@ export function SetupPage() {
             <Field label={t('setup.businessName')} hint={t('setup.businessNameHint')} error={errors.name?.message} required>
               {(id) => <Input id={id} autoFocus invalid={!!errors.name} {...form.register('name')} />}
             </Field>
-            <Controller
-              control={form.control}
-              name="useUsd"
-              render={({ field }) => <Switch checked={field.value} onChange={field.onChange} label={t('setup.useUsd')} hint={t('setup.useUsdHint')} />}
-            />
+            <Field label={t('setup.baseCurrency')} hint={t('setup.baseCurrencyHint')} required>
+              {(id) => (
+                <Controller
+                  control={form.control}
+                  name="baseCurrency"
+                  render={({ field }) => (
+                    <Select
+                      id={id}
+                      value={field.value ?? 'USD'}
+                      onChange={field.onChange}
+                      options={ALL_CURRENCY_CODES.map((code) => ({
+                        value: code,
+                        label: `${t(`currencies.names.${code}`)} (${code})`,
+                      }))}
+                    />
+                  )}
+                />
+              )}
+            </Field>
+            {/* Dollars beside the base: nothing to ask where the dollar is the base. */}
+            {baseCurrency !== 'USD' ? (
+              <Controller
+                control={form.control}
+                name="useUsd"
+                render={({ field }) => <Switch checked={field.value} onChange={field.onChange} label={t('setup.useUsd')} hint={t('setup.useUsdHint')} />}
+              />
+            ) : null}
           </>
         ) : null}
 

@@ -284,7 +284,10 @@ export class MoneyTransfersService {
   }
 
   /** What a shift's drawers gave out and took in, by currency: transfers refused or taken back moved nothing. */
-  async ofShift(em: EntityManager, shiftId: string): Promise<Record<'out' | 'in', Record<CurrencyCode, number>>> {
+  async ofShift(
+    em: EntityManager,
+    shiftId: string,
+  ): Promise<Record<'out' | 'in', Partial<Record<CurrencyCode, number>>>> {
     // An exchange leaves a drawer in one currency and enters another in its own.
     const rows: { side: 'out' | 'in'; currency: CurrencyCode; amount: number }[] = await em.query(
       `SELECT 'out' AS side, currency, sum(amount)::float8 AS amount FROM money_transfers
@@ -294,7 +297,7 @@ export class MoneyTransfersService {
        WHERE to_shift_id = $1 AND status = 'received' GROUP BY to_currency`,
       [shiftId],
     )
-    const totals = { out: { UZS: 0, USD: 0 }, in: { UZS: 0, USD: 0 } }
+    const totals: Record<'out' | 'in', Partial<Record<CurrencyCode, number>>> = { out: {}, in: {} }
     for (const row of rows) {
       totals[row.side][row.currency] = row.amount
     }

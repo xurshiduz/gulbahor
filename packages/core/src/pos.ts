@@ -2,18 +2,19 @@ import { z } from 'zod'
 
 import { saleDebtSchema } from './debts'
 import type { ImageThumb } from './images'
-import { ALL_CURRENCY_CODES, allocateExact, roundToStep, type AnyCurrency, type CurrencyCode } from './money'
+import { ALL_CURRENCY_CODES, allocateExact, isDollar, roundToStep, type AnyCurrency, type CurrencyCode } from './money'
 import type { PromoOffer } from './promotions'
 import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
 
 /**
  * The till: where money is kept, the shift a cashier works, and the sale.
  *
- * Money lives in accounts: a till's cash in so'm, its cash in dollars, a
+ * Money lives in accounts: a till's cash in the base, its cash in dollars, a
  * card, a terminal's money on its way to the bank. Every movement is written
  * twice, out of one account and into another, so nothing appears from
- * nowhere. A sale is reckoned in so'm; a dollar handed over is worth what the
- * day's rate says, and stays a dollar in the till.
+ * nowhere. A sale is reckoned in the base; a dollar handed over is worth what
+ * the day's rate says, and stays a dollar in the till. "So'm" in the names
+ * below is the base: whichever currency the business keeps its books in.
  */
 
 // ───────────────────────────── Accounts ─────────────────────────────
@@ -87,9 +88,12 @@ export const accountInputSchema = z
     name: requiredText(60),
     /**
      * What it holds: any currency the business has switched on — whether it has is for the server to say.
-     * A terminal holds what the tills sell in.
+     * Left out, the base. A terminal holds what the tills sell in: the base.
      */
-    currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).default('UZS'),
+    currency: z
+      .enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
+      .nullish()
+      .transform((value) => value ?? null),
     /** The shop it belongs to; none for one shared by all. */
     locationId: idSchema.nullish().transform((value) => value ?? null),
     /**
@@ -117,9 +121,6 @@ export const accountInputSchema = z
     bank: optionalText(60),
   })
   .superRefine((account, context) => {
-    if (account.currency !== 'UZS' && account.kind === 'terminal') {
-      context.addIssue({ code: 'custom', path: ['currency'], message: 'Terminal faqat so‘mda' })
-    }
     // A terminal and a safe stand in one place; a card and a bank account go wherever their owner does.
     if (new Set(account.locationIds).size > 1 && !SHARED_ACCOUNT_KINDS.includes(account.kind)) {
       context.addIssue({
@@ -207,9 +208,12 @@ export interface RateDto {
   setByName: string | null
 }
 
-/** What `amount` of a currency is worth in so'm tiyin at a rate of so'm per dollar. */
-export function toBase(amount: number, currency: CurrencyCode, uzsPerUsd: number | null): number {
-  if (currency === 'UZS') {
+/**
+ * What `amount` is worth in the base, at a rate of base units per dollar: the base is worth itself, dollars
+ * beside it go through the rate. A till's money is in one or the other.
+ */
+export function toBase(amount: number, currency: CurrencyCode, uzsPerUsd: number | null, base: AnyCurrency): number {
+  if (!isDollar(currency, base)) {
     return amount
   }
   if (!uzsPerUsd) {
@@ -343,9 +347,9 @@ export interface Tender {
   value?: number | null
 }
 
-/** What a tender counts for against the sum, in so'm: what was agreed, or what the day's rate makes it. */
-export function worthOf(tender: Tender, uzsPerUsd: number | null): number {
-  return tender.value ?? toBase(tender.amount, tender.currency, uzsPerUsd)
+/** What a tender counts for against the sum, in the base: what was agreed, or what the day's rate makes it. */
+export function worthOf(tender: Tender, uzsPerUsd: number | null, base: AnyCurrency): number {
+  return tender.value ?? toBase(tender.amount, tender.currency, uzsPerUsd, base)
 }
 
 /**
@@ -353,8 +357,8 @@ export function worthOf(tender: Tender, uzsPerUsd: number | null): number {
  * (−) against the day's rate: the drawer holds the notes at the rate, the
  * sale was paid with what was agreed, and the difference is the rate's.
  */
-export function rateGain(tender: Tender, uzsPerUsd: number | null): number {
-  return toBase(tender.amount, tender.currency, uzsPerUsd) - worthOf(tender, uzsPerUsd)
+export function rateGain(tender: Tender, uzsPerUsd: number | null, base: AnyCurrency): number {
+  return toBase(tender.amount, tender.currency, uzsPerUsd, base) - worthOf(tender, uzsPerUsd, base)
 }
 
 /**
@@ -362,10 +366,15 @@ export function rateGain(tender: Tender, uzsPerUsd: number | null): number {
  * makes it. Each tender stands for itself: a gain on one does not pay for a
  * loss on another.
  */
-export function overRateLoss(tenders: readonly Tender[], uzsPerUsd: number | null, limitPercent: number): boolean {
+export function overRateLoss(
+  tenders: readonly Tender[],
+  uzsPerUsd: number | null,
+  limitPercent: number,
+  base: AnyCurrency,
+): boolean {
   return tenders.some((tender) => {
-    const loss = -rateGain(tender, uzsPerUsd)
-    return loss > 0 && loss * 100 > toBase(tender.amount, tender.currency, uzsPerUsd) * limitPercent
+    const loss = -rateGain(tender, uzsPerUsd, base)
+    return loss > 0 && loss * 100 > toBase(tender.amount, tender.currency, uzsPerUsd, base) * limitPercent
   })
 }
 
@@ -419,19 +428,21 @@ export interface Settlement {
 
 export interface SettleOptions {
   uzsPerUsd: number | null
-  changeCurrency: CurrencyCode
+  /** The dollar: hand back whole dollars first. Anything else: all of it in the base. */
+  changeCurrency: CurrencyCode | null
   /** Change in so'm is given in steps of this: there is no smaller note in the till. */
   roundStep: number
+  base: AnyCurrency
 }
 
 /** What has been paid against a total, what is left, and the change. */
 export function settle(total: number, tenders: readonly Tender[], options: SettleOptions): Settlement {
-  const { uzsPerUsd, roundStep } = options
+  const { uzsPerUsd, roundStep, base } = options
   const none = { paid: 0, due: total, dueUsd: null, changeUzs: 0, changeUsd: 0, changeBase: 0, rounding: 0 }
-  if (tenders.some((tender) => tender.currency === 'USD') && !uzsPerUsd) {
+  if (tenders.some((tender) => isDollar(tender.currency, base)) && !uzsPerUsd) {
     return { ...none, problem: 'rate' }
   }
-  const worth = tenders.map((tender) => worthOf(tender, uzsPerUsd))
+  const worth = tenders.map((tender) => worthOf(tender, uzsPerUsd, base))
   const paid = worth.reduce((sum, value) => sum + value, 0)
   const nonCash = tenders.reduce((sum, tender, index) => sum + (tender.method === 'cash' ? 0 : worth[index]), 0)
   const dueUsd = (due: number) => (uzsPerUsd ? Math.ceil((due * 100) / Math.round(uzsPerUsd * 100)) : null)
@@ -446,9 +457,10 @@ export function settle(total: number, tenders: readonly Tender[], options: Settl
 
   const over = paid - total
   // Change asked for in dollars is whole dollars; what is left of it is given in so'm, like any other change.
-  const dollar = options.changeCurrency === 'USD' && uzsPerUsd ? toBase(100, 'USD', uzsPerUsd) : 0
+  const inDollarsFirst = options.changeCurrency !== null && isDollar(options.changeCurrency, base)
+  const dollar = inDollarsFirst && uzsPerUsd ? toBase(100, options.changeCurrency!, uzsPerUsd, base) : 0
   const changeUsd = dollar ? Math.floor(over / dollar) * 100 : 0
-  const inDollars = changeUsd ? toBase(changeUsd, 'USD', uzsPerUsd) : 0
+  const inDollars = changeUsd ? toBase(changeUsd, options.changeCurrency!, uzsPerUsd, base) : 0
   const changeUzs = roundToStep(over - inDollars, roundStep)
   const changeBase = inDollars + changeUzs
   return {
@@ -486,12 +498,21 @@ export const saleLineInputSchema = z.object({
 })
 export type SaleLineInput = z.infer<typeof saleLineInputSchema>
 
+const changeCurrencySchema = z
+  .enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
+  .nullish()
+  .transform((value) => value ?? null)
+
 export const salePaymentInputSchema = z
   .object({
     method: z.enum(TENDER_METHODS),
     /** The card or the terminal; cash goes to the till's own drawer. */
     accountId: idSchema.nullish().transform((value) => value ?? null),
-    currency: z.enum(['UZS', 'USD']).default('UZS'),
+    /** Left out, the base. The base or the dollar: the server, which knows the base, refuses others. */
+    currency: z
+      .enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
+      .nullish()
+      .transform((value) => value ?? null),
     amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
     /** Dollars taken for an agreed worth in so'm; left out, they are worth what the day's rate makes them. */
     value: amountSchema
@@ -507,9 +528,6 @@ export const salePaymentInputSchema = z
     }
     if (payment.method !== 'cash' && !payment.accountId) {
       context.addIssue({ code: 'custom', path: ['accountId'], message: 'Karta yoki terminalni tanlang' })
-    }
-    if (payment.method !== 'cash' && payment.currency !== 'UZS') {
-      context.addIssue({ code: 'custom', path: ['currency'], message: 'Karta va terminal faqat so‘mda' })
     }
   })
 export type SalePaymentInput = z.infer<typeof salePaymentInputSchema>
@@ -584,8 +602,8 @@ export const saleInputSchema = z
     payments: z.array(salePaymentInputSchema).max(10).default([]),
     /** What of it the customer is to pay later, and by when. The rest is paid now. */
     debt: saleDebtSchema.nullish().transform((value) => value ?? null),
-    /** `USD`: hand back whole dollars first, the rest in so'm. */
-    changeCurrency: z.enum(['UZS', 'USD']).default('UZS'),
+    /** `USD`: hand back whole dollars first, the rest in the base. Left out, all of it in the base. */
+    changeCurrency: changeCurrencySchema,
     /** What the till showed as the total: if prices have changed since, the sale is refused rather than made at another sum. */
     total: amountSchema,
     note: optionalText(300),
@@ -797,15 +815,16 @@ export interface RefundSettlement {
 export function settleRefund(
   due: number,
   refunds: readonly Tender[],
-  options: { uzsPerUsd: number | null; roundStep: number },
+  options: { uzsPerUsd: number | null; roundStep: number; base: AnyCurrency },
 ): RefundSettlement {
-  if (refunds.some((refund) => refund.currency === 'USD') && !options.uzsPerUsd) {
+  const { base } = options
+  if (refunds.some((refund) => isDollar(refund.currency, base)) && !options.uzsPerUsd) {
     return { paid: 0, due, rounding: 0, problem: 'rate' }
   }
-  const worth = refunds.map((refund) => toBase(refund.amount, refund.currency, options.uzsPerUsd))
+  const worth = refunds.map((refund) => toBase(refund.amount, refund.currency, options.uzsPerUsd, base))
   const paid = worth.reduce((sum, value) => sum + value, 0)
   const cash = refunds.reduce(
-    (sum, refund, index) => sum + (refund.method === 'cash' && refund.currency === 'UZS' ? worth[index] : 0),
+    (sum, refund, index) => sum + (refund.method === 'cash' && !isDollar(refund.currency, base) ? worth[index] : 0),
     0,
   )
   const forCash = due - (paid - cash)
@@ -837,7 +856,7 @@ export const exchangeInputSchema = z
     discount: amountSchema.default(0),
     /** For the difference, when the new goods are worth more. */
     payments: z.array(salePaymentInputSchema).max(10).default([]),
-    changeCurrency: z.enum(['UZS', 'USD']).default('UZS'),
+    changeCurrency: changeCurrencySchema,
     total: amountSchema,
   })
   .superRefine(taggedOnce)
@@ -1051,8 +1070,8 @@ export interface PosContextDto {
   priceTypes: { id: string; name: string; needsWord: boolean }[]
   /** Some promotion running here today asks for a code: the till has a field for it. */
   promoCodes: boolean
-  /** The till's own cash accounts by currency; one that has never held money does not exist yet. */
-  drawers: Record<CurrencyCode, string | null>
+  /** The till's own cash accounts by currency (the base, dollars); one that has never held money does not exist yet. */
+  drawers: Partial<Record<AnyCurrency, string | null>>
   /** Where cash from this till can be handed over to: the shop's safes in any currency, without their balances. */
   safes: AccountDto[]
   /** Money on its way from this till or to it, waiting to be confirmed. */

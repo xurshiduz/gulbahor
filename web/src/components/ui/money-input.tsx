@@ -17,6 +17,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 export interface MoneyInputProps {
@@ -66,7 +67,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     id,
     value,
     onChange,
-    currency = 'UZS',
+    currency = base(),
     onCurrencyChange,
     fillValue,
     invalid,
@@ -231,7 +232,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
             type="button"
             tabIndex={-1}
             disabled={disabled}
-            onClick={() => onCurrencyChange(currency === 'UZS' ? 'USD' : 'UZS')}
+            onClick={() => onCurrencyChange(currency === 'USD' ? base() : 'USD')}
             className="mr-1 flex h-6 shrink-0 items-center rounded px-1.5 text-xs font-medium text-ink-2 hover:bg-sunken"
           >
             {symbol}

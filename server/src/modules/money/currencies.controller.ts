@@ -1,8 +1,11 @@
 import {
+  baseCurrencyInputSchema,
   currencyCodeSchema,
   currencyInputSchema,
   currencyRateInputSchema,
   type AnyCurrency,
+  type BaseCurrencyDto,
+  type BaseCurrencyInput,
   type CurrenciesDto,
   type CurrencyInput,
   type CurrencyRateDto,
@@ -12,6 +15,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/commo
 
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, CurrentActor } from '../auth/actor'
+import { BaseCurrencyService } from './base-currency.service'
 import { CurrenciesService } from './currencies.service'
 
 const code = () => Param('code', zod(currencyCodeSchema))
@@ -23,11 +27,29 @@ const code = () => Param('code', zod(currencyCodeSchema))
  */
 @Controller('currencies')
 export class CurrenciesController {
-  constructor(private readonly currencies: CurrenciesService) {}
+  constructor(
+    private readonly currencies: CurrenciesService,
+    private readonly bases: BaseCurrencyService,
+  ) {}
 
   @Get()
   list(@CurrentActor() actor: Actor): Promise<CurrenciesDto> {
     return this.currencies.list(actor)
+  }
+
+  /** The base, and whether it may still change: until the first money is written. */
+  @Get('base')
+  base(@CurrentActor() actor: Actor): Promise<BaseCurrencyDto> {
+    return this.bases.state(actor)
+  }
+
+  @Put('base')
+  @Can('settings.manage')
+  setBase(
+    @CurrentActor() actor: Actor,
+    @Body(zod(baseCurrencyInputSchema)) input: BaseCurrencyInput,
+  ): Promise<BaseCurrencyDto> {
+    return this.bases.change(actor, input.currency)
   }
 
   @Post()
