@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildLabelZpl,
+  DEFAULT_LABEL_SIZE,
   DEFAULT_LABEL_TEMPLATE,
   labelTemplateSchema,
   labelTextWidth,
@@ -182,6 +183,24 @@ describe('a label laid out by the template', () => {
     expect(y(narrow, '1001-06  #00002A')).toBe(172)
     expect(bars(narrow)).toMatchObject({ y: 90, height: 44 })
     expect(labelTextWidth('95 000 so‘m', 30)).toBe(150)
+  })
+
+  it('lays the shop’s own 54 × 34 mm roll out in full, every part inside the edge', () => {
+    expect(DEFAULT_LABEL_SIZE).toBe('54x34')
+    const layout = layoutLabel(label, { size: '54x34', dpi: 203 })
+    expect(layout).toMatchObject({ width: 432, height: 272 })
+    // Two lines of the name, the details, the bars, and the price beside the article at the foot, 2 mm from the edge.
+    expect(
+      layout.items.map((item) =>
+        item.kind === 'text' ? [item.text, item.y, item.font] : ['bars', item.y, item.height],
+      ),
+    ).toEqual([
+      ['Futbolka Polo', 12, 30],
+      ['Qora · M', 76, 24],
+      ['bars', 106, 80],
+      ["95 000 so'm", 216, 40],
+      ['1001-06  #00002A', 238, 18],
+    ])
   })
 
   it('needs something to know the goods by', () => {

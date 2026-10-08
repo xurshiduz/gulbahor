@@ -22,9 +22,11 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-08 da foydalanuvchi aytgach bulut sessiyasining `cloud/exchange-partners` branchi (V4, V3) ekranda tekshirilgan UI tuzatishlar bilan birga commit qilindi va `v2` ga qo'shildi (fast-forward). Push qilinmagan.
 
+2026-10-09 da foydalanuvchi aytgach V9 ning 9a, 9b, 9c, 9d, 9c′, 9e, 9e+ va 9e++ (kassa tortmasi) bo'laklari ish daraxti nusxalaridan alohida commit bo'ldi, oxirgisi — etiketka 54×34 standart; `main` `origin` ga push qilindi.
+
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-08, 9c dan keyin: core 210, web 215, agent 17, server 386 (33 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-09, etiketka 54×34 dan keyin: core 217, web 218, agent 17, server 395 (34 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -216,7 +218,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 9c′. Tannarx faqat asosiy valyutada: tannarx valyutasi sozlamasi va ikkinchi tannarx ustunlari olib tashlanadi, kirimda bitta kurs, xarajat istalgan valyutada, "bugungi kursda tannarx" (egasi tasdiqladi).
      - [x] 9e. Smena va inkassatsiya: har tortma sanog'i.
      - [x] 9e+. Standart holatda hamma valyuta va hisob ko'rinadi, keraksizi xodimning o'zi uchun yashiriladi (egasi so'radi, 2026-10-09).
-     - [ ] 9e++. Kassa tortmasi — kassaga biriktirilgan "Naqd" hisob: egasi o'zi ochadi, nomlaydi, arxivlaydi; kassa formasida "Naqd valyutalar" yo'q (egasi so'radi, 2026-10-09).
+     - [x] 9e++. Kassa tortmasi — kassaga biriktirilgan "Naqd" hisob: egasi o'zi ochadi, nomlaydi, arxivlaydi; kassa formasida "Naqd valyutalar" yo'q (egasi so'radi, 2026-10-09).
      - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
    - [ ] V6. Terminal → bank tushumi.
@@ -267,3 +269,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `a49e88f36e064452bb7bf3165039f9d949667afb` | V9 / 9c′: tannarx faqat asosiy valyutada — cost_currency va 14 ta jadvaldagi …_usd tannarx ustunlari olib tashlandi, kirimda bitta kurs (rate, rate_way; kun kursi o'zi turadi), xarajat istalgan yoqilgan valyutada kirim sanasining kursida, bugungi kursda tannarx, /currencies/book |
 | `16d94e84b1e685186924a2a3ba549bc7247f60f8` | V9 / 9e: smena sanog'i har tortma valyutasida (shift_counts), ochish/yopish cash: {valyuta: summa}, Z-hisobot har valyuta (ShiftTotals.cash), topshirish kassa valyutalaridan, Smenalar ro'yxatida har valyuta farqi; valyuta yoqilganda hamma kassaga qo'shiladi |
 | `4e9e222e8e743166db2176f1e786f40b78182788` | Kassa va to'lov oynalarida hamma valyuta va hisob standart holatda ko'rinadi; xodim o'zi uchun yashiradi (places.hidden: cash:CNY yoki hisob), kassada ko'z belgisi va Yashirilgan: …, oynalarda X va Yana hisob…; har kassa hamma valyutada (migratsiya 42000), dollar tortmasi ($); Pul holatida hamma valyuta va har kurs |
+| `e9bb62c755d03b8499898fff9b22db72bdd4f0b1` | V9 / kassa tortmasi = kassaga biriktirilgan Naqd hisob (accounts.register_id, accounts_till, syncTills, registers.currencies — kesh; BASE_DRAWER, DRAWER_HELD, SHIFT_OPEN), migratsiya 43000, hisob formasida Kassa maydoni va Naqd birinchi, kassa formasida Naqd valyutalar yo'q; asosiy valyuta almashtirilganda tortma o'chirilmaydi va egasi bergan nom qoladi |

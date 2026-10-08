@@ -87,12 +87,14 @@ export const UNIT_STATUS_LABELS: Record<UnitStatus, string> = {
 export const LABEL_SIZES = {
   '40x30': { width: 40, height: 30 },
   '50x30': { width: 50, height: 30 },
+  '54x34': { width: 54, height: 34 },
   '60x40': { width: 60, height: 40 },
   '70x40': { width: 70, height: 40 },
 } as const
 export type LabelSizeKey = keyof typeof LABEL_SIZES
 export const LABEL_SIZE_KEYS = Object.keys(LABEL_SIZES) as [LabelSizeKey, ...LabelSizeKey[]]
-export const DEFAULT_LABEL_SIZE: LabelSizeKey = '50x30'
+/** The shop's own roll: 54 × 34 mm RFID labels (UCODE 9). */
+export const DEFAULT_LABEL_SIZE: LabelSizeKey = '54x34'
 
 export const PRINTER_DPIS = [203, 300] as const
 export type PrinterDpi = (typeof PRINTER_DPIS)[number]
