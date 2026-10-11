@@ -26,20 +26,12 @@ import { pairSentence, rateText, type ValuedLine } from '@/features/money/paymen
 import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
-import { changeText, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
+import { ChangeRows, type ChangePanel } from './change-rows'
+import { changeOf, changeWords, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
 import { TakenInput, TakenNote } from './taken-for'
+import { RATE, ROW, UNDER } from './tender-grid'
 
 const money = (minor: number, currency: CurrencyCode = base()) => formatMoney(minor, currency, { minor: 'auto' })
-
-/**
- * A row of the panel, as a row of the payment window: what is paid with, the sum, and — where the sum is in
- * another currency than what it pays — the rate and the second sum of the pair. In a panel too narrow for
- * four columns the second sum goes under the first.
- */
-const ROW = 'grid grid-cols-[minmax(0,1fr)_11rem] items-center gap-2 @xl:grid-cols-[minmax(0,1fr)_11rem_6.5rem_11rem]'
-const RATE = 'tabular hidden pr-2.5 text-right text-xs text-ink-3 @xl:block'
-/** Says what the second sum is where there is no heading over it. */
-const UNDER = 'text-right text-xs text-ink-3 @xl:hidden'
 
 /** The four ways money changes hands at a till: cash in the base, cash in another currency, a card, a terminal. */
 export type TenderKind = 'cash' | 'other' | 'card' | 'terminal'
@@ -74,8 +66,8 @@ interface TenderPanelProps {
   suggested: Record<string, number>
   settlement: Settlement
   refund: RefundSettlement
-  changeCurrency: CurrencyCode
-  onChangeCurrency: (currency: CurrencyCode) => void
+  /** How the change goes back when not all of it is cash in the base; without it, all of it is. */
+  change?: ChangePanel | null
   /** What the button that ends it says: "Sotish", "Qaytarish", "Almashtirish". */
   action: string
   busy: boolean
@@ -135,8 +127,7 @@ export function TenderPanel({
   suggested,
   settlement,
   refund,
-  changeCurrency,
-  onChangeCurrency,
+  change = null,
   action,
   busy,
   onComplete,
@@ -211,7 +202,9 @@ export function TenderPanel({
   // A field gives up what was typed into it on the same Enter that asks what to do next. What the rows
   // hold after that key is known only once they have been drawn again, so it is read from here.
   const state = {
-    held: rows.map((row) => `${row.key}:${row.amount ?? ''}:${row.value ?? ''}`).join('|'),
+    held: [...rows, ...(change?.rows ?? [])]
+      .map((row) => `${row.key}:${row.amount ?? ''}:${row.value ?? ''}`)
+      .join('|'),
     ready: !entered.length || covered,
     covered,
   }
@@ -475,8 +468,8 @@ export function TenderPanel({
           ) : refund.due > 0 ? (
             <p className="text-bad">{t('pos.refundDue', { amount: money(refund.due) })}</p>
           ) : null
-        ) : settlement.problem === 'non_cash_over' ? (
-          <p className="text-bad">{t('pos.nonCashOver')}</p>
+        ) : settlement.problem === 'terminal_over' ? (
+          <p className="text-bad">{t('pos.terminalOver')}</p>
         ) : settlement.due > 0 ? (
           <div className="flex items-baseline justify-between text-bad">
             <span>{t('pos.due')}</span>
@@ -486,22 +479,39 @@ export function TenderPanel({
             </span>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-ink-3">{t('pos.change')}</span>
-            <span className="flex items-center gap-2">
-              {others.length ? (
-                <Select
-                  value={changeCurrency}
-                  onChange={(value) => onChangeCurrency(value as CurrencyCode)}
-                  options={[base(), ...others].map((code) => ({ value: code, label: CURRENCIES[code].symbol }))}
-                  className="h-7 w-20 text-xs"
-                />
-              ) : null}
-              <span className="tabular text-lg font-semibold text-ok">
-                {changeText(settlement.changeUzs, settlement.changeOther, settlement.changeCurrency)}
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-ink-3">
+                {t('pos.change')}
+                {/* Seldom wanted: the rows stay folded until asked for. */}
+                {change && change.rows.length && change.over > 0 ? (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => change.onOpen(!change.open)}
+                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-accent-ink hover:bg-accent-soft"
+                  >
+                    {change.open ? t('pos.changeAllCash') : t('pos.splitChange')}
+                    {change.open ? null : <Shortcut combo="f10" />}
+                  </button>
+                ) : null}
               </span>
-            </span>
-          </div>
+              <span
+                className={cn(
+                  'tabular text-right text-lg font-semibold',
+                  settlement.problem === 'change_over' ? 'text-bad' : 'text-ok',
+                )}
+              >
+                {changeWords(changeOf(settlement), t) || money(0)}
+              </span>
+            </div>
+            {settlement.problem === 'change_over' ? (
+              <p className="text-bad">{t('pos.changeOver', { amount: money(change?.over ?? 0) })}</p>
+            ) : null}
+            {change?.open && change.over > 0 ? (
+              <ChangeRows context={context} change={change} settlement={settlement} onKeyDown={walk} />
+            ) : null}
+          </>
         )}
       </div>
 

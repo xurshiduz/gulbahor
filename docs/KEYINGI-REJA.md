@@ -1286,6 +1286,8 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 6-bo'lim.
 
 ### 16.14. Kassada qaytim: boshqa valyutada va mijoz hisobiga (reja; egasi, 2026-10-11)
 
+> Shu kunning o'zida kengaytirildi: bir nechta valyutada qaytim, kartadan qaytim va qolgan pul yo'llari — **17-bo'lim** (17.2 shu rejaning o'rnini oladi).
+
 **Egasining talabi.** Mijoz 100 000 so'm berdi, tovar 75 000 — qaytim 25 000. (1) Kassada so'm tugagan bo'lsa qaytim boshqa valyutada beriladi: kassir "2 $" deb yozadi va bu 25 000 so'm o'rniga ketayotganini kurs bilan ko'radi. (2) Qaytim to'liq yoki qisman mijoz hisobiga yoziladi: "10 000 berdim, 15 000 hisobiga — keyingi safar oladi". (3) Mijozning asosiy valyutasi kassada ko'rinib turadi va shu sotuv uchun o'zgartiriladi (hisob valyutasi tanlovi M2-4 da qilindi).
 
 **Hozir qanday.** Qaytim faqat naqd: asosiy valyutada yoki tanlangan bitta boshqa valyutada — tizim butun birliklarni kun kursida o'zi hisoblaydi, qolganini asosiy valyutada beradi. Summani kassir yozmaydi, kelishilgan qiymat yo'q, hisobga yozib bo'lmaydi.
@@ -1320,3 +1322,145 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 6-bo'lim.
 - *3-savol.* Tushunarsiz bo'lgan — oddiyroq qilib qayta so'raldi (javob kutilmoqda).
 
 Texnik tafsilotlar (jadvallar, migratsiyalar, fayllar, testlar) — `docs/MIJOZLAR-TEXNIK.md`.
+
+## 17. Pul oqimi: katta reja (egasi, 2026-10-11)
+
+Egasining so'rovi: qaytim (bir nechta valyutada, hisobga, kartadan), qaytarishda pulni qaytarish yo'llari, mijozdan mijozga o'tkazish, kassalar va hisoblar orasidagi o'tkazmada bank komissiyasi, to'lov oynalarining ko'rinishi — hammasi bitta reja bilan; kam ishlatiladigan narsa ko'zga tashlanmasin. Bu bo'lim 16.14 ni almashtiradi. Kod egasi tasdiqlagach boshlanadi.
+
+### 17.1. Hayotda valyuta qanday yuradi
+
+- **Chakana xaridor** — bitta valyuta: narxlar valyutasi (asosiy). Qarzi ham, haqi ham shunda. Tizimda: mijoz ochilganda asosiy valyuta o'zi turadi, boshqa valyuta hech qayerda so'ralmaydi.
+- **Ulgurji xaridor va yetkazib beruvchi** — hisob ko'pincha dollarda yuritiladi (kurs o'zgarsa qarz "erib ketmasligi" uchun), pul esa qo'lda bor valyutada keladi va kun kursida yoki kelishilgan kursda hisobga o'tadi. Tizimda: mijozning asosiy valyutasi — dollar; to'lov oynasidagi juft maydon aynan shu.
+- **Ikki valyutada qoldiq** — kam, lekin bo'ladi (tovar so'mda olingan, eski qarz dollarda). Tizimda: har valyutada alohida hisob; kerak bo'lsa "Hisob ichida almashtirish" bilan bittaga yig'iladi.
+- **Qoida o'zgarmaydi**: har hujjat bitta valyutadagi hisobga tegadi; mijozning asosiy valyutasi — faqat standart tanlov, istalgan hujjatda almashtiriladi.
+- **Ko'rinish qoidasi (yangi)**: valyuta tanlovi doim bor, lekin ko'zga tashlanmaydi — qoldiq yonidagi kichik tugma. Biznes bitta valyuta yuritsa, u umuman chiqmaydi.
+
+### 17.2. Kassa: qaytim (Q1)
+
+- Qaytim — to'lov qatorlari bilan bir xil ko'rinishdagi qatorlar:
+  1. **Naqd** — kassaning har tortmasi uchun bitta qator, asosiy valyuta birinchi. Bir chekda bir nechta valyutada qaytim berish mumkin.
+  2. **Mijoz hisobiga** — to'liq yoki qisman; avval qarzini yopadi, ortgani haqi bo'ladi. Mijoz tanlangan bo'lishi shart, tasdiq so'ralmaydi.
+  3. **Kartadan o'tkazildi** — tortmada pul bo'lmaganda do'kon kartasidan mijozga o'tkazma. O'tkazmani odam bank ilovasida qiladi, tizim faqat yozadi — shuning uchun rahbar PIN'i yoki "pulni boshqa usulda qaytarish" ruxsati (`pos.return_any`) bilan.
+- **Standart holat o'zgarmaydi**: hech narsa yozilmasa hammasi asosiy valyutada naqd qaytadi. Qolgan qatorlar "Qaytimni bo'lish" bosilganda ochiladi; tortmada yetmasligi aytilsa o'zi ochiladi.
+- Boshqa valyutadagi qator — juft maydon: beriladigan summa va uning asosiy valyutadagi qiymati (kun kursi; ustidan yozilsa kelishilgan qiymat — "2 $ ni 25 000 deb berdim"). Farq "Kurs farqi"ga; kun kursidan `maxRateLossPercent` dan uzoq kelishuv rahbar tasdig'i bilan. Hisob boshqa valyutada bo'lsa, "Mijoz hisobiga" ham juft.
+- Yaxlitlash faqat asosiy valyutadagi naqd qismga tegadi (`changeRoundStep`).
+- **Kartaga ortiqcha to'lov** (mijoz kartaga yaxlit summa o'tkazadi) — ruxsat: ortig'i shu qaytim qatorlari bilan yopiladi. Terminal aniq summada qoladi.
+- Baza: `sale_changes` (chek, yo'l: `cash` | `account` | `card`, hisob, valyuta, summa, asosiy valyutadagi qiymati, kurs farqi). Chekdagi eski to'rt ustun (`change_uzs`, `change_other`, `change_currency`, `change_other_base`) migratsiyada shu qatorlarga ko'chadi.
+- Chek va smena hisoboti: "Qaytim: 10 000 so'm", "Qaytim: 2 $ (25 000 so'm o'rniga)", "Hisobiga yozildi: 15 000 so'm", "Kartadan qaytarildi: …".
+
+**Q1 qanday qurildi (2026-10-11).** Egasi "nomni keyinroq qo'yaman, ishni davom ettir" dedi — 17.9 dagi 2- va 3-savol tavsiya bo'yicha olindi.
+
+- **Core** (`pos.ts`): `CHANGE_WAYS` (`cash` | `account` | `card`), `ChangeLine { way, currency, amount, value? }`; `settle(total, tenders, { book, change?, roundStep })` — yozilgan qismlarni baholaydi (`given`: `base` — qaytimning qancha qismi, `fx` = `base` − kun kursidagi qiymat, + do'kon foydasi), qolgani asosiy valyutada naqd (`changeUzs`, faqat shu yaxlitlanadi). Muammolar: `terminal_over` (terminal chekdan ortiq olmaydi; karta oladi), `change_over` (yozilgani ortiqcha to'lovdan ko'p), `rate`. `wholeNotes(over, valyuta, book)` — sig'adigan butun birliklar («=» shuni taklif qiladi), `overChangeLoss(given, foiz)` — qaytim kursdan chegaradan ko'p arzonga berildimi. `changeCurrency` olib tashlandi.
+- **So'rov**: sotuvda (va almashtirishdagi yangi chekda) `change: [{ way, accountId?, currency?, amount, value? }]`. Asosiy valyutadagi naqd qator yozilmaydi (o'zi hisoblanadi). `account` — mijoz shart, yetkazib beruvchi emas, shu chekda `onAccount` bilan birga emas; valyuta berilmasa mijozning asosiysi. `card` — do'konga xizmat qiladigan faol karta.
+- **Server** (`sales.service.ts`): `cardByWord` — `pos.return_any` yo'q bo'lsa tasdiqlovchi kerak (`CHANGE_NEEDS_WORD`); kursdan `maxRateLossPercent` dan ko'p zarar — `pos.discount` yoki tasdiq (`RATE_LOSS_OVER_LIMIT`). Daftar: har qism o'z hisobidan `−amount`, asosiy qiymati kun kursida; farqlar `fx` ga. Hisobga yozilgan qism mijoz hisobini kamaytiradi (avval qarz, ortgani haqi) — muddat yozilmaydi, hisob-kitobda `sale` manbali manfiy qator. Bekor qilish — `ledger.reverse` hammasini qaytaradi.
+- **Baza**: `sale_changes` (migratsiya `1790000048000-sale-changes`); eski to'rt ustun shu qatorlarga ko'chdi va olib tashlandi. `SaleDto.change: SaleChangeDto[]` (hisobning nomi chekda aytilmaydi).
+- **Smena**: `ShiftCashMoves.change` — har tortmadan chiqqani; `ShiftTotals.changes` — tortmadan chiqmagani (hisobga yozilgan — kimniki ekani aytilmaydi; kartadan). **Hisobot**: to'lov usullari bo'yicha tushumdan qaytim o'z yo'li bo'yicha ayiriladi.
+- **Kassa** (`features/pos/change-rows.tsx`, `tender-grid.ts`; holat — `pos-state.ts` dagi `changeRows`, `changeLines`, `changeOf`, `changeText`, `changeWords`): "Qaytim" qatorida "Qaytimni bo'lish" (F10) — bosilmaguncha hammasi naqd. Ochilganda: har boshqa tortma (o'z valyutasida yoziladi, ikkinchi maydon — nimaga hisoblangani), "Hisobiga · ism" (asosiy valyutada yoziladi; hisob boshqa valyutada bo'lsa ikkinchi maydon), har karta, va "Naqd … — qolgani" (o'zi hisoblanadi). Kursdagi qiymati qolgan qaytimdan ko'p bo'lgan valyuta qolgan qaytim o'rniga ketadi ("2 $ — 25 000 so'm o'rniga") va farq qator ostida aytiladi. Ortiqcha to'lov o'zgarsa yozilgan qismlar tozalanadi. `PosContextDto.mayReturnAny`.
+- **Chek**: har qism alohida qator — "Qaytim: 2,00 $ = 25 000 so'm", "Hisobiga yozildi: …", "Kartadan qaytarildi: …".
+- Testlar: core `pos.test` (change in parts), server `sale-change.spec.ts` (16 ta), veb `tender-panel.test` (the change), `pos-state.test`.
+- Ekranda: to'lov paneli vaqtinchalik sahifada ko'rildi (ochilishi, dollar va hisobga yozish); F10 va rahbar tasdig'i oynasi kirilgan kassada ko'rilmadi.
+
+### 17.3. Qaytarish: pulni qaytarish yo'llari (Q2 = M2-5 bilan birga)
+
+- Tartib o'zgarmaydi: avval chekning hisobga yozilgan qismi ayiriladi, keyin pul.
+- Pul qaytarish qatorlari qaytim bilan **bir xil**: tortma valyutalari (juft maydon bilan), "Mijoz hisobiga" (pul berilmaydi — keyingi xaridga qoladi; kiyim do'konida eng ko'p ishlatiladigan yo'l), "Kartadan o'tkazildi".
+- Standart — to'langan usulda (hozirgi chegaralar). Boshqa usul yoki valyutada — hozirgidek "istalgan usulda qaytarish" ruxsati yoki rahbar PIN'i. "Mijoz hisobiga" — tasdiqsiz.
+- M2-5 ning qolgani shu bo'lakda: almashtirish zanjiri; bekor qilingan chekka tushgan to'lov avans bo'lib qoladi.
+
+### 17.4. O'tkazma: bank komissiyasi va terminal tushumi (O1 = V8 + V6)
+
+- Bir xil valyutadagi ikki joy orasidagi o'tkazmada ham **ikki summa** bo'lishi mumkin: "Chiqadi" va "Kiradi". Farqi — komissiya: 101 000 chiqdi, 100 000 kirdi → 1 000 so'm "Bank komissiyasi" xarajatiga o'zi yoziladi. Standart holatda bitta summa; ikkinchisi "Komissiya bor" bosilganda ochiladi (foiz yozsa ham bo'ladi: `1%`).
+- Komissiya o'tkazmaning o'zida saqlanadi va u bilan birga yuradi: rad etilsa yoki qaytarib olinsa, xarajat ham qaytadi.
+- Naqd → karta (bankomat), karta → naqd (yechish), karta → karta, kassa → kassa — hammasi shu bitta oyna. Valyutalar har xil bo'lsa kurs farqi alohida, komissiya alohida ko'rsatiladi.
+- **"Bankka tushdi"**: terminal hisobidan bank hisobiga o'tkazma, ekvayring komissiyasi bilan (foizi terminal kartasida, summasi o'zi chiqadi, tuzatsa bo'ladi).
+
+### 17.5. Mijozdan mijozga o'tkazish (O2)
+
+- Hayotdagi holatlar: (1) biri ikkinchisi uchun to'laydi — A ning haqisi B ning qarziga; (2) "menga bermang, falonchiga o'tkazing" — xaridorning qarzi bizning yetkazib beruvchiga qarzimizga qarshi yopiladi (o'zaro hisob); (3) to'lov adashib boshqa mijozga yozilgan.
+- Bitta hujjat (TL-, turi "Mijozlar orasida o'tkazma"): A hisobidan chiqadi, B hisobiga kiradi; valyutalar har xil bo'lsa juft maydon va kurs farqi. Ikkala mijozning hisob-kitobida bitta raqam bilan ko'rinadi, bekor qilinadi.
+- Ruxsat — "Hisob tuzatish" (`customers.adjust`): pul yurmaydi, lekin ikki kishining hisobi o'zgaradi.
+- Qayerdan: mijoz qatori menyusi va hisob-kitob oynasi.
+
+### 17.6. To'lov oynalari: ko'rinish (U1)
+
+1. **Bitta ko'rinish hamma joyda** — to'lov olish va berish, xarajat va kirim, kassadagi to'lov, qaytim, qaytarish, o'tkazma: chapda joy nomi, keyin summa, kurs, ikkinchi summa.
+2. **Kam ishlatiladigani yashirin, bir bosishda ochiladi**: boshqa valyutadagi joylar ("Boshqa valyutalar (2)"), komissiya, hisob valyutasi, qoldiqni kechish, qaytimni bo'lish. Xodim o'zi yashirgan joylar (bor) shu qoidaning davomi.
+3. **Oddiy yo'lda hech narsa tanlanmaydi**: summa yozildi — Enter.
+4. **Mijoz valyutasi**: mijoz tanlanganda uning asosiy valyutasidagi qator tepaga chiqadi, "To'lanadi" yonida shu valyutadagi qiymat turadi; hisob valyutasi qoldiq yonidagi kichik tugma bilan almashtiriladi.
+5. "Turi" ro'yxati o'rniga ikkita tugma (Olish / Berish). Ctrl+Enter kursor belgilash katakchasida turganda ham saqlaydi (hozir saqlamaydi).
+6. Har bo'lak o'z oynasini shu qoidada chiqaradi; oxirida hamma oyna bir marta yonma-yon solishtirib chiqiladi.
+
+### 17.7. Tartib va hajm
+
+| № | Bo'lak | ~kun | Izoh |
+|---|---|---|---|
+| N0 | Tizim nomi | 0,5 | egasi tanlagach: nom, kirish sahifasi, sarlavhalar, chek osti yozuvi |
+| Q1 | Kassada qaytim | 2,5 | 17.2 |
+| Q2 | Qaytarish (M2-5 bilan) | 3 | 17.3 |
+| O1 | Komissiya va terminal tushumi | 2 | 17.4 |
+| O2 | Mijozdan mijozga | 1,5 | 17.5 |
+| U1 | Oynalar ko'rinishi | 2 | 17.6; har bo'lak bilan birga, oxirida umumiy o'tish |
+
+Jami ~11,5 kun. Keyin: M4 (birlashtirish, akt-sverka, Excel'dan qoldiq), M5, uskuna sinovi (K3), etiketka shrifti, to'rt til (T1), narx formulalari (M1), hisobotlar.
+
+### 17.8. Tizim nomi: nomzodlar (2026-10-11)
+
+Mezon: qisqa, apostrofsiz (domen va login uchun), o'zbek va rus tilida bir xil o'qiladi, savdo va hisob ma'nosi bor, shu nomda savdo dasturi yo'q. Tekshiruv — internet qidiruvi (2026-10-11); `.uz` domeni va tovar belgisi ro'yxati tekshirilmagan.
+
+| Nom | Ma'nosi | Izoh |
+|---|---|---|
+| **Sarhisob** | hammasini hisoblab yakun chiqarish | tavsiya; shu nomda dastur topilmadi |
+| **Andoza** | tikuv andozasi; namuna, standart | kiyimga yaqin; topilmadi |
+| **Mizon** | tarozi, me'yor | eng qisqa; topilmadi |
+| **Hisobdon** | hisobni yaxshi biladigan odam | topilmadi |
+| **Javon** | tovar turadigan joy, tartib | ma'nosi torroq; topilmadi |
+| Daftar | savdogarning daftari | **band**: "Daftar.uz" nomli do'kon POS ilovasi va "pDaftar" qarz ilovasi bor |
+
+Egasi (2026-10-11): nom **ERP ga mosroq** bo'lsin — boshqaruv, bir butunlik, tartib ma'nosida. Ikkinchi ro'yxat ("… ERP" bilan o'qiladi):
+
+| Nom | Ma'nosi | Izoh |
+|---|---|---|
+| **Unum** | ishning unumi; lotincha "bir" | tavsiya: 4 harf, har tilda bir xil o'qiladi; AQShda shu nomli sug'urta kompaniyasi bor (boshqa soha) |
+| **Yaxlit** | bir butun | ERP ning o'zi shu ma'noda; chet elda "x" qiyin o'qiladi |
+| **Vazir** | rahbarning o'ng qo'li: hisobni yuritadi, nazorat qiladi | esda qoladi, chet elda ham tanish so'z |
+| **Negiz** | asos, o'zak | biznesning asosi |
+| **Devon** | tarixda hisob-kitob va boshqaruv idorasi | inglizcha joy nomi bilan bir xil yoziladi |
+| **Tadbir** | ishni oqilona yuritish | "tadbirkor" so'zidan |
+| **Idora** | boshqaruv | umumiyroq so'z |
+
+Bularning hech biri nomida O'zbekistonda ERP yoki savdo dasturi qidiruvda topilmadi (qidiruv o'zbek saytlarini to'liq qamramaydi; domen va tovar belgisi tekshirilmagan).
+
+Egasi (2026-10-11): **noodatiyroq** bo'lsin. Uchinchi ro'yxat — kam uchraydigan, tarixiy ildizli so'zlar:
+
+| Nom | Ma'nosi | Izoh |
+|---|---|---|
+| **Mirob** | suvni dalalar orasida taqsimlovchi | tavsiya: "resursni rejalash" ning o'zbekcha timsoli — ERP ning aynan ma'nosi |
+| **Sarbon** | karvonboshi | savdo karvonini boshqaradi |
+| **Mehvar** | o'q | hamma narsa shu atrofida aylanadi |
+| **Rasad** | kuzatuv (rasadxona) | hammasi ko'z ostida |
+| **Zij** | Ulug'bekning aniq jadvallar kitobi | 3 harf; ma'nosini tushuntirish kerak bo'ladi |
+| **Bitik** | qadimiy turkiy "yozuv, qayd" | qardosh tillarda ham tushunarli; "Bito" nomli o'zbek ERP platformasiga ohangdosh |
+| **Abjad** | qadimiy hisob tizimi | hisob va tizim birga |
+| **Toqi** | Buxoroning savdo gumbazi | savdo merosi |
+
+Qidiruvda bu nomlar bilan dastur topilmadi (o'sha cheklovlar bilan).
+
+Egasi (2026-10-11): **inglizcha yoki raqamli** nom ham bo'ladimi? Bo'ladi: nom bitta joyda (`APP_NAME`) va faqat lotin harfi bilan raqamdan iborat nom domen, login va printer shriftiga eng qulayi. Shartlar: yozilganidek o'qilsin (do'konda o'zbekcha va ruscha aytiladi), raqamning ma'nosi bo'lsin, nom yolg'iz raqam yoki umumiy so'z bo'lmasin (qidiruvda topilmaydi, tovar belgisi sifatida kuchsiz). To'rtinchi ro'yxat:
+
+| Nom | Ma'nosi | Izoh |
+|---|---|---|
+| **Yetti** (belgisi "7") | "Yetti o'lchab, bir kes" — tikuvchining maqoli, hisobdagi aniqlik | tavsiya: raqam ma'noli, kiyimga ham, hisobga ham tegishli; topilmadi |
+| **Ikat** | abrbandi mato naqshining xalqaro nomi | 4 harf, har tilda bir xil o'qiladi; topilmadi |
+| **Tillo** | inglizcha "till" (kassa tortmasi) + o'zbekcha "tillo" | so'z o'yini; topilmadi |
+| **Fifo** | tizim tannarxni shu usulda hisoblaydi | atama — qidiruvda dastur emas, usul chiqadi |
+| **Weft** | to'quvda matoni birlashtiruvchi ko'ndalang ip | o'zbek va rus tilida aytish qiyin |
+| Atlas | o'zbek matosi; inglizcha "hammasining xaritasi" | **band**: chet elda "Atlas ERP" nomli bir nechta dastur bor |
+| Onebook | "yagona daftar" | **band**: "OneBook" nomli bulut ERP bor |
+| "… 360", "… 24" | nomga qo'shimcha | ma'nosi siyqa; savdo ilovalarida ko'p ("…24", "…360") |
+
+### 17.9. Egasidan kutilayotgan qarorlar
+
+1. Tizim nomi (17.8) — egasi keyinroq qo'yadi (2026-10-11).
+2. Kartadan qaytim berish — tavsiya bo'yicha qurildi: `pos.return_any` egasi o'zi, kassir rahbar PIN'i bilan. Egasi boshqacha desa — bitta shart.
+3. Kartaga chekdan ortiq to'lov — tavsiya bo'yicha qurildi: karta oladi, terminal yo'q.
+4. Rejaning tartibi (17.7): Q1 → Q2 → O1 → O2, U1 har biri bilan.

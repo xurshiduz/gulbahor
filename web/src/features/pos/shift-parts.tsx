@@ -336,6 +336,14 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
               value={`−${money(moves.change, moves.currency)}`}
             />
           ))}
+        {/* Change that came out of no drawer: kept on customers' accounts (never said whose), sent from a card. */}
+        {(totals.changes ?? []).map((row) => (
+          <Row
+            key={`changes:${row.way}:${row.accountName}:${row.currency}`}
+            label={row.way === 'account' ? t('pos.changeKept') : `${t('pos.changeSent')}: ${row.accountName}`}
+            value={`−${money(row.amount, row.currency)}`}
+          />
+        ))}
         {totals.rounding ? (
           <Row label={t('pos.rounding')} value={`${totals.rounding > 0 ? '+' : ''}${money(totals.rounding)}`} />
         ) : null}

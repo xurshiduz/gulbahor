@@ -193,8 +193,7 @@ describe('A base other than the so’m', () => {
       ).body
       expect(sale).toMatchObject({
         total: minor(12_000),
-        changeUzs: minor(2000),
-        changeOther: 0,
+        change: [expect.objectContaining({ way: 'cash', currency: 'KZT', amount: minor(2000) })],
         rounding: 0,
         costUzs: minor(4800),
       })
@@ -288,7 +287,10 @@ describe('A base other than the so’m', () => {
           .expect(201)
       ).body
       // 12,40 $ over: 12 $ handed back, a dollar being the smallest the till gives.
-      expect(sale).toMatchObject({ changeUzs: minor(12), changeOther: 0, rounding: minor(0.4) })
+      expect(sale).toMatchObject({
+        change: [expect.objectContaining({ way: 'cash', currency: 'USD', amount: minor(12) })],
+        rounding: minor(0.4),
+      })
       expect(sale.payments).toEqual([expect.objectContaining({ currency: 'USD', amount: minor(50) })])
       const agreed = await delta.agent.post('/api/sales').send({
         clientKey: randomUUID(),

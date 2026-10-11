@@ -16,6 +16,7 @@ import type {
   MoneyOpKind,
   MoneyOpStatus,
   CustomerPaymentKind,
+  ChangeWay,
   CustomerPaymentStatus,
   PaymentMethod,
   TillAccess,
@@ -1896,20 +1897,7 @@ export class Sale {
   @Column('numeric', { nullable: true, transformer: numericAsNumber })
   uzsPerUsd: number | null
 
-  @Column('bigint', { transformer: bigintAsNumber })
-  changeUzs: number
-
-  /** Change in another currency the customer asked for: whole notes of it, in its smallest coin. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  changeOther: number
-
-  @Column('text', { nullable: true })
-  changeCurrency: AnyCurrency | null
-
-  /** What `changeOther` was worth in the base when it was handed back. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  changeOtherBase: number
-
+  /** What rounding the change left with the shop (+) or cost it (−); the change itself is in `sale_changes`. */
   @Column('bigint', { transformer: bigintAsNumber })
   rounding: number
 
@@ -2109,6 +2097,43 @@ export class SalePayment {
 
   @Column('text', { nullable: true })
   reference: string | null
+}
+
+/** A part of what was paid over a sale's sum, going back: out of a drawer, onto the customer's account, from a card. */
+@Entity('sale_changes')
+export class SaleChange {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  saleId: string
+
+  @Column('int')
+  position: number
+
+  @Column('text')
+  way: ChangeWay
+
+  /** The drawer or the card it came out of, or the customer's account it was put on. */
+  @Column('uuid')
+  accountId: string
+
+  @Column('text')
+  currency: AnyCurrency
+
+  @Column('bigint', { transformer: bigintAsNumber })
+  amount: number
+
+  /** What of the change it stood for, in the base. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  base: number
+
+  /** Given for an agreed worth: what that left the shop with (+) or cost it (−) against the rate. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  fx: number
 }
 
 @Entity('sale_returns')
@@ -2810,6 +2835,7 @@ export const ENTITIES = [
   SaleLine,
   SaleItem,
   SalePayment,
+  SaleChange,
   SaleReturn,
   SaleReturnLine,
   SaleReturnPayment,

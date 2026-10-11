@@ -337,14 +337,12 @@ export class ShiftsService {
    * any other currency something moved in.
    */
   private async totals(em: EntityManager, shiftId: string, drawers: AnyCurrency[]): Promise<ShiftTotals> {
-    const base = drawers[0]
     const [sales]: {
       sales: number
       voided: number
       qty: number
       discount: number
       total: number
-      change_uzs: number
       rounding: number
     }[] = await em.query(
       `SELECT count(*) FILTER (WHERE status = 'completed')::int AS sales,
@@ -352,15 +350,25 @@ export class ShiftsService {
               coalesce(sum(qty) FILTER (WHERE status = 'completed'), 0)::float8 AS qty,
               coalesce(sum(discount) FILTER (WHERE status = 'completed'), 0)::float8 AS discount,
               coalesce(sum(total) FILTER (WHERE status = 'completed'), 0)::float8 AS total,
-              coalesce(sum(change_uzs) FILTER (WHERE status = 'completed'), 0)::float8 AS change_uzs,
               coalesce(sum(rounding) FILTER (WHERE status = 'completed'), 0)::float8 AS rounding
        FROM sales WHERE shift_id = $1`,
       [shiftId],
     )
+    // Out of the drawers; what was kept on customers' accounts or sent from a card is told apart below.
     const change: { currency: AnyCurrency; amount: number }[] = await em.query(
-      `SELECT change_currency AS currency, sum(change_other)::float8 AS amount FROM sales
-       WHERE shift_id = $1 AND status = 'completed' AND change_currency IS NOT NULL AND change_other <> 0
-       GROUP BY change_currency`,
+      `SELECT c.currency, sum(c.amount)::float8 AS amount
+       FROM sale_changes c JOIN sales s ON s.id = c.sale_id
+       WHERE s.shift_id = $1 AND s.status = 'completed' AND c.way = 'cash'
+       GROUP BY c.currency`,
+      [shiftId],
+    )
+    const changes: ShiftTotals['changes'] = await em.query(
+      `SELECT c.way, CASE WHEN c.way = 'account' THEN '' ELSE a.name END AS "accountName", c.currency,
+              sum(c.amount)::float8 AS amount
+       FROM sale_changes c JOIN sales s ON s.id = c.sale_id JOIN accounts a ON a.id = c.account_id
+       WHERE s.shift_id = $1 AND s.status = 'completed' AND c.way <> 'cash'
+       GROUP BY c.way, 2, c.currency
+       ORDER BY array_position(ARRAY['account', 'card'], c.way), c.currency DESC, 2`,
       [shiftId],
     )
     const payments: {
@@ -429,7 +437,7 @@ export class ShiftsService {
     ]
     const cash: ShiftCashMoves[] = [...new Set(seen)].map((currency) => ({
       currency,
-      change: currency === base ? sales.change_uzs : (change.find((row) => row.currency === currency)?.amount ?? 0),
+      change: change.find((row) => row.currency === currency)?.amount ?? 0,
       out: moved.out[currency] ?? 0,
       in: moved.in[currency] ?? 0,
       customersIn: customers.find((row) => row.kind === 'in' && row.currency === currency)?.amount ?? 0,
@@ -462,6 +470,7 @@ export class ShiftsService {
         base: row.base,
       })),
       customers: beside,
+      changes,
     }
   }
 

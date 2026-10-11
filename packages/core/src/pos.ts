@@ -394,23 +394,56 @@ export function belowFloor(
 }
 
 export type SettleProblem =
-  /** Money was tendered in a currency that cannot be valued: a rate is wanting (`wanting` says whose). */
+  /** Money is tendered, or handed back, in a currency that cannot be valued: a rate is wanting (`wanting` says whose). */
   | 'rate'
-  /** Cards and the terminal took more than the sale comes to: they cannot give change. */
-  | 'non_cash_over'
+  /** A terminal took more than the sale comes to: its slip is for the sum, and nothing comes back out of it. */
+  | 'terminal_over'
+  /** More is handed back than was paid over the sum. */
+  | 'change_over'
+
+/**
+ * How what was paid over the sum goes back: notes out of a drawer, onto the
+ * customer's account (their debt first, the rest theirs to spend), or sent
+ * from one of the shop's cards when the drawer has nothing to give.
+ */
+export const CHANGE_WAYS = ['cash', 'account', 'card'] as const
+export type ChangeWay = (typeof CHANGE_WAYS)[number]
+
+export const CHANGE_WAY_LABELS: Record<ChangeWay, string> = {
+  cash: 'Qaytim',
+  account: 'Hisobiga yozildi',
+  card: 'Kartadan qaytarildi',
+}
+
+/** A part of the change the cashier names: so much, this way. What nobody names goes back as cash in the base. */
+export interface ChangeLine {
+  way: ChangeWay
+  currency: AnyCurrency
+  /** In its own currency. */
+  amount: number
+  /**
+   * What of the change it stands for, in the base, when that was agreed and is not what the day's rate makes
+   * it: "two dollars for the 25 000".
+   */
+  value?: number | null
+}
+
+/** A part of the change as given: what it stood for, and what that left the shop with (+) or cost it (−) against the rate. */
+export interface ChangeGiven extends ChangeLine {
+  base: number
+  fx: number
+}
 
 export interface Settlement {
   /** Everything tendered, in the base. */
   paid: number
   /** Still to pay, in the base; 0 once covered. */
   due: number
-  /** To hand back in the base. */
+  /** The parts of the change the cashier named, each with what it stands for. */
+  given: ChangeGiven[]
+  /** The rest of it: cash in the base, rounded to the till's step. */
   changeUzs: number
-  /** To hand back in `changeCurrency`, in its smallest coin: whole notes only, a till keeps no coins of it. */
-  changeOther: number
-  /** What `changeOther` is in; null when all of it is handed back in the base. */
-  changeCurrency: AnyCurrency | null
-  /** Both together, in the base. */
+  /** All of it together, in the base. */
   changeBase: number
   /** What rounding the change left with the shop (+) or cost it (−), in the base. */
   rounding: number
@@ -422,8 +455,8 @@ export interface Settlement {
 export interface SettleOptions {
   /** The day's rates. */
   book: RateBook
-  /** A currency the till keeps beside the base: whole notes of it first. The base or none: all of it in the base. */
-  changeCurrency: CurrencyCode | null
+  /** The parts of the change that go back otherwise than as cash in the base; the rest is cash in the base. */
+  change?: readonly ChangeLine[]
   /** Change in the base is given in steps of this: there is no smaller note in the till. */
   roundStep: number
 }
@@ -431,16 +464,7 @@ export interface SettleOptions {
 /** What has been paid against a total, what is left, and the change. */
 export function settle(total: number, tenders: readonly Tender[], options: SettleOptions): Settlement {
   const { book, roundStep } = options
-  const none = {
-    paid: 0,
-    due: total,
-    changeUzs: 0,
-    changeOther: 0,
-    changeCurrency: null,
-    changeBase: 0,
-    rounding: 0,
-    wanting: null,
-  }
+  const none = { paid: 0, due: total, given: [], changeUzs: 0, changeBase: 0, rounding: 0, wanting: null }
   const worth = tenders.map((tender) => worthOf(tender, book))
   const unvalued = tenders.find((_tender, index) => worth[index] === null)
   if (unvalued) {
@@ -448,34 +472,52 @@ export function settle(total: number, tenders: readonly Tender[], options: Settl
   }
   const counted = worth as number[]
   const paid = counted.reduce((sum, value) => sum + value, 0)
-  const nonCash = tenders.reduce((sum, tender, index) => sum + (tender.method === 'cash' ? 0 : counted[index]), 0)
-
-  if (nonCash > total) {
-    return { ...none, paid, due: 0, problem: 'non_cash_over' }
+  // A card takes whatever was sent to it, and what is over goes back as change; a terminal's slip is for the sum.
+  const terminal = tenders.reduce((sum, tender, index) => sum + (tender.method === 'terminal' ? counted[index] : 0), 0)
+  if (terminal > total) {
+    return { ...none, paid, due: 0, problem: 'terminal_over' }
   }
-  if (paid <= total) {
+  const lines = options.change ?? []
+  const over = paid - total
+  if (over < 0 || (!over && !lines.length)) {
     return { ...none, paid, due: total - paid, problem: null }
   }
 
-  const over = paid - total
-  // Change asked for in another currency is whole notes of it; what is left is given in the base, like any change.
-  const other = options.changeCurrency && options.changeCurrency !== book.base ? options.changeCurrency : null
-  const note = other ? tillWorth(100, other, book) : null
-  const changeOther = other && note ? Math.floor(over / note) * 100 : 0
-  const inOther = changeOther ? (tillWorth(changeOther, other as AnyCurrency, book) as number) : 0
-  const changeUzs = roundToStep(over - inOther, roundStep)
-  const changeBase = inOther + changeUzs
-  return {
-    paid,
-    due: 0,
-    changeUzs,
-    changeOther,
-    changeCurrency: changeOther ? other : null,
-    changeBase,
-    rounding: over - changeBase,
-    problem: null,
-    wanting: null,
+  const given: ChangeGiven[] = []
+  for (const line of lines) {
+    const atRate = tillWorth(line.amount, line.currency, book)
+    if (atRate === null) {
+      return { ...none, paid, due: 0, problem: 'rate', wanting: line.currency }
+    }
+    const base = line.value ?? atRate
+    given.push({ ...line, base, fx: base - atRate })
   }
+  const named = given.reduce((sum, line) => sum + line.base, 0)
+  if (named > over) {
+    return { ...none, paid, due: 0, given, problem: 'change_over' }
+  }
+  // What nobody named is cash in the base, and only that is rounded: there is no smaller note in the till.
+  const changeUzs = roundToStep(over - named, roundStep)
+  const changeBase = named + changeUzs
+  return { paid, due: 0, given, changeUzs, changeBase, rounding: over - changeBase, problem: null, wanting: null }
+}
+
+/**
+ * The most of `currency` that fits in `over` of the base as whole notes: a
+ * till keeps no coins of another currency, so this is what "=" offers there.
+ */
+export function wholeNotes(over: number, currency: AnyCurrency, book: RateBook): number {
+  const note = tillWorth(100, currency, book)
+  return note && over > 0 ? Math.floor(over / note) * 100 : 0
+}
+
+/**
+ * Whether change went back for less than the limit allows under what the
+ * rate makes it — the shop's loss, as money taken for too much is. Each part
+ * stands for itself.
+ */
+export function overChangeLoss(given: readonly ChangeGiven[], limitPercent: number): boolean {
+  return given.some((line) => line.fx < 0 && -line.fx * 100 > (line.base - line.fx) * limitPercent)
 }
 
 const amountSchema = z.number().int().min(0).max(1_000_000_000_000_00)
@@ -501,10 +543,36 @@ export const saleLineInputSchema = z.object({
 })
 export type SaleLineInput = z.infer<typeof saleLineInputSchema>
 
-const changeCurrencySchema = z
-  .enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
-  .nullish()
-  .transform((value) => value ?? null)
+/** A part of the change that does not go back as cash in the base. */
+export const saleChangeInputSchema = z
+  .object({
+    way: z.enum(CHANGE_WAYS),
+    /** The card it is sent from; a drawer and the customer's account are found by their currency. */
+    accountId: idSchema.nullish().transform((value) => value ?? null),
+    /** The drawer's, or the customer's account's (left out: their main one). A card's is its own. */
+    currency: z
+      .enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
+      .nullish()
+      .transform((value) => value ?? null),
+    /** In that currency. */
+    amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
+    /** What of the change it stands for, in the base, where that was agreed; left out, what the day's rate makes it. */
+    value: amountSchema
+      .refine((value) => value > 0, { message: 'Summani kiriting' })
+      .nullish()
+      .transform((value) => value ?? null),
+  })
+  .superRefine((line, context) => {
+    if (line.way === 'card' && !line.accountId) {
+      context.addIssue({ code: 'custom', path: ['accountId'], message: 'Kartani tanlang' })
+    }
+    if (line.way === 'cash' && !line.currency) {
+      context.addIssue({ code: 'custom', path: ['currency'], message: 'Valyutani tanlang' })
+    }
+  })
+export type SaleChangeInput = z.infer<typeof saleChangeInputSchema>
+
+const changeField = z.array(saleChangeInputSchema).max(10).default([])
 
 export const salePaymentInputSchema = z
   .object({
@@ -608,8 +676,11 @@ export const saleInputSchema = z
     /** Off the whole sale, on top of what each line has. */
     discount: amountSchema.default(0),
     payments: z.array(salePaymentInputSchema).max(10).default([]),
-    /** A currency the till keeps beside the base: hand back whole notes of it first, the rest in the base. Left out, all of it in the base. */
-    changeCurrency: changeCurrencySchema,
+    /**
+     * How what is paid over the sum goes back, where not all of it is cash in the base: another drawer's notes,
+     * the customer's account, one of the shop's cards. What is left of it is cash in the base.
+     */
+    change: changeField,
     /** What the till showed as the total: if prices have changed since, the sale is refused rather than made at another sum. */
     total: amountSchema,
     note: optionalText(300),
@@ -623,6 +694,22 @@ export const saleInputSchema = z
     }
     if (sale.onAccount && !sale.customerId) {
       context.addIssue({ code: 'custom', path: ['customerId'], message: 'Hisobiga yozish uchun mijozni tanlang' })
+    }
+    const kept = sale.change.some((line) => line.way === 'account')
+    if (kept && !sale.customerId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['customerId'],
+        message: 'Qaytimni hisobiga yozish uchun mijozni tanlang',
+      })
+    }
+    // Lending part of a sale and keeping change from it at once is one sum written twice.
+    if (kept && sale.onAccount) {
+      context.addIssue({
+        code: 'custom',
+        path: ['change'],
+        message: 'Chekning bir qismi hisobiga yozilgan: qaytimni hisobiga yozish o‘rniga o‘sha summani kamaytiring',
+      })
     }
   })
 export type SaleInput = z.infer<typeof saleInputSchema>
@@ -713,6 +800,18 @@ export interface SalePaymentDto {
   reference: string | null
 }
 
+export interface SaleChangeDto {
+  way: ChangeWay
+  /** The drawer or the card it came out of; the customer's account is theirs, not a place. */
+  accountName: string
+  currency: AnyCurrency
+  amount: number
+  /** What of the change it stood for, in the base: its worth at the sale's rate, or what was agreed. */
+  base: number
+  /** Given for an agreed worth: what that left the shop with (+) or cost it (−) against the rate. */
+  fx: number
+}
+
 export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
   shiftId: string
   shiftNumber: string
@@ -720,10 +819,8 @@ export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
   locationAddress: string | null
   locationPhone: string | null
   subtotal: number
-  /** Handed back in the base, and in another currency the customer asked for (`changeCurrency`). */
-  changeUzs: number
-  changeOther: number
-  changeCurrency: AnyCurrency | null
+  /** How what was paid over the sum went back: out of the drawers, onto the customer's account, from a card. */
+  change: SaleChangeDto[]
   rounding: number
   /**
    * When what it put on the customer's account as a debt falls due (null: never), for whoever may see it; null
@@ -857,7 +954,7 @@ export const exchangeInputSchema = z
     discount: amountSchema.default(0),
     /** For the difference, when the new goods are worth more. */
     payments: z.array(salePaymentInputSchema).max(10).default([]),
-    changeCurrency: changeCurrencySchema,
+    change: changeField,
     total: amountSchema,
   })
   .superRefine(taggedOnce)
@@ -1073,6 +1170,8 @@ export interface PosContextDto {
   maxRateLossPercent: number
   /** This person may go over the discount limit. */
   mayOverDiscount: boolean
+  /** This person may hand money back otherwise than it was paid: change sent from a card needs no second word. */
+  mayReturnAny: boolean
 }
 
 // ───────────────────────────── Shifts ─────────────────────────────
@@ -1154,6 +1253,11 @@ export interface ShiftTotals {
     currency: AnyCurrency
     amount: number
   }[]
+  /**
+   * Change that came out of no drawer: put on customers' accounts, sent from a card. What came out of a drawer
+   * is in `cash`.
+   */
+  changes: { way: 'account' | 'card'; accountName: string; currency: AnyCurrency; amount: number }[]
 }
 
 /** One drawer of a shift: what it opened with and what the closing count found. */

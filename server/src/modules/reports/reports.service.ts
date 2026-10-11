@@ -114,7 +114,7 @@ export class ReportsService {
         })
         .sort((a, b) => b.net - a.net || a.name.localeCompare(b.name))
 
-      // What each way of paying brought, with the change given out of the cash and the refunds taken off it.
+      // What each way of paying brought, with the change taken off the way it went back and the refunds off theirs.
       // An exchange pays with goods, not money: it is no tender.
       const payments: { method: PaymentMethod; currency: CurrencyCode; amount: number; base: number }[] =
         await em.query(
@@ -123,10 +123,8 @@ export class ReportsService {
              SELECT p.method, p.currency, p.amount, p.base
              FROM sale_payments p JOIN sales s ON s.id = p.sale_id WHERE ${SOLD} AND p.method <> 'exchange'
              UNION ALL
-             SELECT 'cash', $4::text, -s.change_uzs, -s.change_uzs FROM sales s WHERE ${SOLD} AND s.change_uzs > 0
-             UNION ALL
-             SELECT 'cash', s.change_currency, -s.change_other, -s.change_other_base
-             FROM sales s WHERE ${SOLD} AND s.change_other > 0
+             SELECT c.way, c.currency, -c.amount, -c.base
+             FROM sale_changes c JOIN sales s ON s.id = c.sale_id WHERE ${SOLD}
              UNION ALL
              SELECT p.method, p.currency, -p.amount, -p.base
              FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
@@ -134,8 +132,7 @@ export class ReportsService {
            ) x GROUP BY x.method, x.currency
            HAVING sum(x.amount) <> 0 OR sum(x.base) <> 0
            ORDER BY sum(x.base) DESC`,
-          // Change given in the base is cash in the base.
-          [...scope, actor.base],
+          scope,
         )
 
       const cashiers: { id: string | null; name: string; receipts: number; sold: number }[] = await em.query(

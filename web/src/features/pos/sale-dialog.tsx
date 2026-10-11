@@ -25,10 +25,8 @@ import { base } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
 import { printElement } from '@/lib/print'
 
-import { paidText, ReceiptPaper } from './receipt-paper'
+import { changeLabel, changePartText, paidText, ReceiptPaper } from './receipt-paper'
 import { toast } from '@/lib/toast'
-
-import { changeText } from './pos-state'
 
 const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
@@ -52,8 +50,10 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
     queryFn: ({ signal }) => api.get<SaleDto>(`/sales/${saleId}`, undefined, signal),
   })
   const sale = query.data
-  /** What dollars taken for an agreed worth left the shop with (+) or cost it (−). */
-  const rateDiff = sale ? sale.payments.reduce((sum, payment) => sum + payment.fx, 0) : 0
+  /** What money taken, or change given, for an agreed worth left the shop with (+) or cost it (−). */
+  const rateDiff = sale
+    ? sale.payments.reduce((sum, payment) => sum + payment.fx, 0) + sale.change.reduce((sum, part) => sum + part.fx, 0)
+    : 0
 
   const voidSale = useMutation({
     mutationFn: () => api.post<SaleDto>(`/sales/${saleId}/void`, { reason }),
@@ -266,13 +266,9 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   <Line label={t('pos.rateDiff')} value={`${rateDiff > 0 ? '+' : '−'}${money(Math.abs(rateDiff))}`} />
                 </div>
               ) : null}
-              {sale.changeUzs || sale.changeOther ? (
-                <Line
-                  label={t('pos.change')}
-                  value={changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency)}
-                  strong
-                />
-              ) : null}
+              {sale.change.map((part, index) => (
+                <Line key={`change:${index}`} label={t(changeLabel(part))} value={changePartText(part)} strong />
+              ))}
             </div>
             {sale.note ? <p className="mt-2 text-xs text-ink-2">{sale.note}</p> : null}
             {sale.returns.length ? (

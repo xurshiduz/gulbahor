@@ -12,7 +12,18 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { cartTotals, enteredRows, tenderRows, tendersOf, type Cart, type TenderRow } from './pos-state'
+import {
+  cartTotals,
+  changeLines,
+  changeRows,
+  enteredRows,
+  tenderRows,
+  tendersOf,
+  type Cart,
+  type ChangeRow,
+  type TenderRow,
+  type WrittenChange,
+} from './pos-state'
 import { ReceiptPreview } from './receipt-preview'
 import { TenderPanel } from './tender-panel'
 
@@ -60,7 +71,6 @@ function Money({
   const prepaid = borrower ? Math.min(owing, Math.max(0, -borrower.balance)) : 0
   const settlement = settle(due - owing, tendersOf(entered, false), {
     book,
-    changeCurrency: 'UZS',
     roundStep: 0,
   })
   return (
@@ -95,8 +105,6 @@ function Money({
           : null
       }
       refund={settleRefund(0, [], { book, roundStep: 0 })}
-      changeCurrency="UZS"
-      onChangeCurrency={() => undefined}
       action="Sotish"
       busy={false}
       onComplete={() => onComplete(entered, owing)}
@@ -107,6 +115,68 @@ function Money({
 
 const field = (key: string) =>
   document.querySelector<HTMLInputElement>(`[data-tender="${key}"] input`) as HTMLInputElement
+
+/**
+ * The money for a sale of `due` with the change kept the way the till keeps it: what was paid over the sum
+ * may go back in parts. `keeper` is the customer whose account part of it may be kept on.
+ */
+function Change({
+  due,
+  onComplete,
+  keeper,
+  mayReturnAny = false,
+}: {
+  due: number
+  onComplete: (change: WrittenChange[]) => void
+  keeper?: { name: string; balance: number; currency: 'UZS' | 'USD' }
+  mayReturnAny?: boolean
+}) {
+  const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
+  const [giving, setGiving] = useState<Record<string, Partial<ChangeRow>>>({})
+  const [open, setOpen] = useState(false)
+  const rows = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
+  const typed = tendersOf(enteredRows(rows), false)
+  const allCash = settle(due, typed, { book, roundStep: som(1000) })
+  const over = allCash.problem ? 0 : allCash.changeBase + allCash.rounding
+  const changing = changeRows(context, keeper?.currency ?? null).map((row) => ({ ...row, ...giving[row.key] }))
+  const handed = over > 0 ? changeLines(changing, over, book) : []
+  const settlement = handed.length ? settle(due, typed, { book, change: handed, roundStep: som(1000) }) : allCash
+  return (
+    <TenderPanel
+      context={{ ...context, mayReturnAny }}
+      rows={rows}
+      onPatch={(key, patch) => setPaid((current) => ({ ...current, [key]: { ...current[key], ...patch } }))}
+      returning={null}
+      refunding={false}
+      due={due}
+      suggested={{ cash: due }}
+      settlement={settlement}
+      refund={settleRefund(0, [], { book, roundStep: 0 })}
+      change={{
+        rows: changing,
+        onPatch: (key, patch) => setGiving((current) => ({ ...current, [key]: { ...current[key], ...patch } })),
+        open,
+        onOpen: (next) => {
+          setOpen(next)
+          if (!next) {
+            setGiving({})
+          }
+        },
+        over,
+        keeper: keeper ? { name: keeper.name, balance: keeper.balance } : null,
+        cardAsks: !mayReturnAny,
+      }}
+      action="Sotish"
+      busy={false}
+      onComplete={() => onComplete(handed)}
+      onBack={() => undefined}
+    />
+  )
+}
+
+const changeField = (key: string, nth = 0) =>
+  document.querySelectorAll<HTMLInputElement>(`[data-change-row="${key}"] input`)[nth] as HTMLInputElement
+const changeSaid = () => plain(screen.getByText('Qaytim').parentElement?.textContent)
 
 describe('the rows money is paid into', () => {
   it('are one for each way of paying, every card and terminal with its own', () => {
@@ -133,6 +203,113 @@ describe('the rows money is paid into', () => {
     expect(row('account:pos')).toContain('F8')
     // Nothing typed: so'm cash for the lot is what is meant, and it shows faintly.
     expect(plain(field('cash').placeholder)).toBe('200 000')
+  })
+})
+
+describe('the change', () => {
+  it('is cash in the base, with the other ways folded away until asked for', async () => {
+    render(<Change due={som(75_000)} onComplete={() => undefined} />)
+    // Nothing over yet: nothing to split.
+    expect(screen.queryByText('Qaytimni bo‘lish')).toBeNull()
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await waitFor(() => expect(changeSaid()).toContain('25 000 so‘m'))
+    expect(document.querySelector('[data-change]')).toBeNull()
+    await userEvent.click(screen.getByText('Qaytimni bo‘lish'))
+    // A row for the other drawer and for each card; no account without a customer.
+    expect(
+      [...document.querySelectorAll('[data-change-row]')].map((row) => row.getAttribute('data-change-row')),
+    ).toEqual(['cash:USD', 'card:humo', 'card:uzcard'])
+    expect(plain(document.querySelector('[data-change]')?.textContent)).toContain('Naqd so‘m — qolgani')
+  })
+
+  it('is all cash again once the rows are folded away', async () => {
+    render(<Change due={som(75_000)} onComplete={() => undefined} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    await userEvent.type(changeField('card:humo'), '5000')
+    await userEvent.tab()
+    await waitFor(() => expect(changeSaid()).toContain('20 000 so‘m, kartadan 5 000 so‘m'))
+    await userEvent.click(screen.getByText('Hammasi naqd'))
+    expect(changeSaid()).toContain('25 000 so‘m')
+    expect(changeSaid()).not.toContain('kartadan')
+  })
+
+  it('goes back in dollars for what is left to give, and says what the rate makes of it', async () => {
+    const sold = vi.fn()
+    // 76 000 paid with 100 000: 24 000 over. Two dollars are 24 200 at 12 100.
+    render(<Change due={som(76_000)} onComplete={sold} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    // "=" offers whole notes: of 24 000 one dollar fits, the second is 200 short.
+    await userEvent.type(changeField('cash:USD'), '=')
+    expect(changeField('cash:USD').value).toBe('1,00')
+    await userEvent.clear(changeField('cash:USD'))
+    await userEvent.type(changeField('cash:USD'), '2{Enter}')
+    await waitFor(() => expect(changeSaid()).toContain('2 $'))
+    expect(changeSaid()).not.toContain('so‘m')
+    const row = () => plain(document.querySelector('[data-change-row="cash:USD"]')?.textContent)
+    expect(row()).toContain('Kun kursida 24 200 so‘m · farq do‘kon zarariga 200 so‘m')
+    // What it goes for shows faintly in the second sum; under 2% off the rate nobody is asked.
+    expect(plain(changeField('cash:USD', 1).placeholder)).toBe('24 000')
+    expect(row()).not.toContain('rahbar tasdig‘i')
+    // The next Enter, with nothing more typed, sells.
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+    expect(sold.mock.calls[0][0]).toEqual([
+      { key: 'cash:USD', way: 'cash', currency: 'USD', accountId: null, amount: 200, value: som(24_000) },
+    ])
+  })
+
+  it('warns where a worth typed gives away more than a cashier may, and where a card will need a word', async () => {
+    render(<Change due={som(76_000)} onComplete={() => undefined} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    await userEvent.type(changeField('cash:USD'), '2')
+    // Two dollars for 20 000: 4 200 under the rate, 17%.
+    await userEvent.type(changeField('cash:USD', 1), '20000')
+    await userEvent.tab()
+    const row = (key: string) => plain(document.querySelector(`[data-change-row="${key}"]`)?.textContent)
+    await waitFor(() => expect(row('cash:USD')).toContain('farq do‘kon zarariga 4 200 so‘m'))
+    expect(row('cash:USD')).toContain('Kursdan farq 2% dan oshdi: sotishda rahbar tasdig‘i so‘raladi')
+    // The rest is cash: 4 000 so'm.
+    expect(changeSaid()).toContain('2 $ + 4 000 so‘m')
+    await userEvent.type(changeField('card:uzcard'), '4000')
+    await userEvent.tab()
+    await waitFor(() => expect(row('card:uzcard')).toContain('Kartadan qaytim: sotishda rahbar tasdig‘i so‘raladi'))
+    expect(changeSaid()).toContain('2 $, kartadan 4 000 so‘m')
+  })
+
+  it('says so when more is named than there is to give', async () => {
+    const sold = vi.fn()
+    render(<Change due={som(75_000)} onComplete={sold} mayReturnAny />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    await userEvent.type(changeField('card:humo'), '30000{Enter}')
+    await waitFor(() => expect(screen.getByText(/dan oshmasligi kerak/)).toBeTruthy())
+    // Whoever may hand money back any way is not told a word will be asked.
+    expect(plain(document.querySelector('[data-change]')?.textContent)).not.toContain('rahbar tasdig‘i')
+    await userEvent.keyboard('{Enter}')
+    expect(sold).not.toHaveBeenCalled()
+  })
+
+  it('is kept on the customer’s account, in the sale’s money, whatever the account is kept in', async () => {
+    const sold = vi.fn()
+    render(<Change due={som(75_000)} onComplete={sold} keeper={{ name: 'Elaris', balance: 5000, currency: 'USD' }} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    const row = () => plain(document.querySelector('[data-change-row="account"]')?.textContent)
+    expect(row()).toContain('Hisobiga · Elaris')
+    expect(row()).toContain('qarzi 50,00 $')
+    // 12 100 of the change is a dollar on their account at the day's rate.
+    await userEvent.type(changeField('account'), '12100{Enter}')
+    await waitFor(() => expect(changeSaid()).toContain('hisobiga 1,00 $'))
+    expect(changeSaid()).toContain('13 000 so‘m')
+    expect(plain(changeField('account', 1).placeholder)).toBe('1,00')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+    expect(sold.mock.calls[0][0]).toEqual([
+      { key: 'account', way: 'account', currency: 'USD', accountId: null, amount: 100, value: som(12_100) },
+    ])
   })
 })
 
@@ -375,10 +552,8 @@ describe('rows kept out of sight', () => {
           refunding={false}
           due={som(100_000)}
           suggested={{ cash: som(100_000) }}
-          settlement={settle(som(100_000), [], { book, changeCurrency: 'UZS', roundStep: 0 })}
+          settlement={settle(som(100_000), [], { book, roundStep: 0 })}
           refund={settleRefund(0, [], { book, roundStep: 0 })}
-          changeCurrency="UZS"
-          onChangeCurrency={() => undefined}
           action="Sotish"
           busy={false}
           onComplete={() => undefined}

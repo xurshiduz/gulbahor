@@ -7,6 +7,7 @@ import {
   dueIn,
   floorOf,
   gross,
+  overChangeLoss,
   overRateLoss,
   rateGain,
   returnInputSchema,
@@ -16,7 +17,9 @@ import {
   settle,
   settleRefund,
   tillWorth,
+  wholeNotes,
   worthOf,
+  type ChangeLine,
   type Tender,
   shiftCloseSchema,
   shiftOpenSchema,
@@ -120,7 +123,7 @@ describe('dollars', () => {
 
 describe('a till in another base', () => {
   const tenge = (amount: number) => amount * 100
-  const kzt = { book: book(480, 'KZT'), changeCurrency: null, roundStep: tenge(10) }
+  const kzt = { book: book(480, 'KZT'), roundStep: tenge(10) }
 
   it('counts the base as itself and dollars at the base’s rate', () => {
     expect(tillWorth(tenge(5000), 'KZT', book(null, 'KZT'))).toBe(tenge(5000))
@@ -137,22 +140,26 @@ describe('a till in another base', () => {
     expect(settle(tenge(11_248), tenders, kzt)).toMatchObject({
       paid: tenge(11_600),
       changeUzs: tenge(350),
-      changeOther: 0,
+      given: [],
       rounding: tenge(2),
       problem: null,
     })
-    // Whole dollars first when the customer asks for them.
+    // Whole dollars when the customer asks for them: 3 200 over is 6 $ and 320 tenge.
+    expect(wholeNotes(tenge(3200), 'USD', kzt.book)).toBe(usd(6))
     expect(
-      settle(tenge(1600), [{ method: 'cash', currency: 'USD', amount: usd(10) }], { ...kzt, changeCurrency: 'USD' }),
-    ).toMatchObject({ changeOther: usd(6), changeUzs: tenge(320), rounding: 0 })
+      settle(tenge(1600), [{ method: 'cash', currency: 'USD', amount: usd(10) }], {
+        ...kzt,
+        change: [{ way: 'cash', currency: 'USD', amount: usd(6) }],
+      }),
+    ).toMatchObject({ given: [{ amount: usd(6), base: tenge(2880), fx: 0 }], changeUzs: tenge(320), rounding: 0 })
   })
 
   it('takes no rate where the dollar is the base, and gives no change in dollars beside it', () => {
-    const dollarsOnly = { book: book(null, 'USD'), changeCurrency: 'USD' as const, roundStep: usd(1) }
+    const dollarsOnly = { book: book(null, 'USD'), roundStep: usd(1) }
     expect(settle(usd(37.6), [{ method: 'cash', currency: 'USD', amount: usd(50) }], dollarsOnly)).toMatchObject({
       paid: usd(50),
       changeUzs: usd(12),
-      changeOther: 0,
+      given: [],
       rounding: usd(0.4),
       problem: null,
     })
@@ -175,7 +182,7 @@ describe('a till that takes yuan beside so’m and dollars', () => {
     },
   }
   const yuan = (amount: number) => Math.round(amount * 100)
-  const options = { book: yuanBook, changeCurrency: null, roundStep: som(1000) }
+  const options = { book: yuanBook, roundStep: som(1000) }
 
   it('counts yuan at the day’s rate, and says what is still to pay in yuan', () => {
     const result = settle(som(500_000), [{ method: 'cash', currency: 'CNY', amount: yuan(200) }], options)
@@ -186,13 +193,13 @@ describe('a till that takes yuan beside so’m and dollars', () => {
 
   it('gives change in whole yuan when asked, the rest in so’m', () => {
     // 300 ¥ = 525 000 against 400 000: 125 000 over is 71 ¥ (124 250) and 750 so'm, handed back as 1 000.
+    expect(wholeNotes(som(125_000), 'CNY', yuanBook)).toBe(yuan(71))
     const result = settle(som(400_000), [{ method: 'cash', currency: 'CNY', amount: yuan(300) }], {
       ...options,
-      changeCurrency: 'CNY',
+      change: [{ way: 'cash', currency: 'CNY', amount: yuan(71) }],
     })
     expect(result).toMatchObject({
-      changeOther: yuan(71),
-      changeCurrency: 'CNY',
+      given: [{ currency: 'CNY', amount: yuan(71), base: som(124_250) }],
       changeUzs: som(1000),
       changeBase: som(125_250),
       rounding: -som(250),
@@ -217,11 +224,11 @@ describe('a till that takes yuan beside so’m and dollars', () => {
 
 describe('settle', () => {
   const cash = (amount: number, currency: 'UZS' | 'USD' = 'UZS'): Tender => ({ method: 'cash', currency, amount })
-  const options = { book: book(12_850, 'UZS'), changeCurrency: 'UZS' as const, roundStep: som(1000) }
+  const options = { book: book(12_850, 'UZS'), roundStep: som(1000) }
 
   it('says what is still to pay, in both currencies', () => {
     const result = settle(som(285_000), [cash(som(100_000))], options)
-    expect(result).toMatchObject({ paid: som(100_000), due: som(185_000), changeUzs: 0, changeOther: 0, problem: null })
+    expect(result).toMatchObject({ paid: som(100_000), due: som(185_000), changeUzs: 0, given: [], problem: null })
     // 185 000 / 12 850 = 14,396...: a cent more covers it.
     expect(dueIn(result.due, 'USD', options.book)).toBe(usd(14.4))
   })
@@ -238,7 +245,7 @@ describe('settle', () => {
       paid: som(288_500),
       due: 0,
       changeUzs: som(4000),
-      changeOther: 0,
+      given: [],
       changeBase: som(4000),
       rounding: -som(500),
       problem: null,
@@ -252,37 +259,121 @@ describe('settle', () => {
 
   it("gives change in dollars as whole dollars, and what is left of it in so'm", () => {
     // 100 $ = 1 285 000 against 950 000: 335 000 over is 26 $ (334 100) and 900 so'm, handed back as 1 000.
-    const result = settle(som(950_000), [cash(usd(100), 'USD')], { ...options, changeCurrency: 'USD' })
+    expect(wholeNotes(som(335_000), 'USD', options.book)).toBe(usd(26))
+    const result = settle(som(950_000), [cash(usd(100), 'USD')], {
+      ...options,
+      change: [{ way: 'cash', currency: 'USD', amount: usd(26) }],
+    })
     expect(result).toMatchObject({
-      changeOther: usd(26),
+      given: [{ amount: usd(26), base: som(334_100), fx: 0 }],
       changeUzs: som(1000),
       changeBase: som(335_100),
       rounding: -som(100),
     })
     expect(result.paid - result.changeBase - result.rounding).toBe(som(950_000))
-    // Less than a dollar over: all of it in so'm.
-    expect(settle(som(950_000), [cash(usd(74), 'USD')], { ...options, changeCurrency: 'USD' })).toMatchObject({
-      changeOther: 0,
-      changeUzs: som(1000),
-    })
+    // Less than a dollar over: no whole note of it, all of it in so'm.
+    expect(wholeNotes(som(900), 'USD', options.book)).toBe(0)
+    expect(settle(som(950_000), [cash(usd(74), 'USD')], options)).toMatchObject({ given: [], changeUzs: som(1000) })
   })
 
-  it('refuses a card that takes more than the sale, and dollars without a rate', () => {
-    const card: Tender = { method: 'terminal', currency: 'UZS', amount: som(300_000) }
-    expect(settle(som(285_000), [card], options).problem).toBe('non_cash_over')
+  it('refuses a terminal that takes more than the sale, and dollars without a rate', () => {
+    const slip: Tender = { method: 'terminal', currency: 'UZS', amount: som(300_000) }
+    expect(settle(som(285_000), [slip], options).problem).toBe('terminal_over')
     expect(settle(som(285_000), [cash(usd(30), 'USD')], { ...options, book: book(null) }).problem).toBe('rate')
-    // Exactly covered by a card is fine.
-    expect(settle(som(285_000), [{ ...card, amount: som(285_000) }], options)).toMatchObject({
+    // Exactly covered by a terminal is fine.
+    expect(settle(som(285_000), [{ ...slip, amount: som(285_000) }], options)).toMatchObject({
       due: 0,
       changeUzs: 0,
       problem: null,
     })
   })
+
+  it('gives change for what a card was sent over the sum', () => {
+    // The customer sent a round 300 000 to the shop's card for 285 000 of goods.
+    const sent: Tender = { method: 'card', currency: 'UZS', amount: som(300_000) }
+    expect(settle(som(285_000), [sent], options)).toMatchObject({ due: 0, changeUzs: som(15_000), problem: null })
+    // A terminal beside it still takes no more than the sum.
+    const slip: Tender = { method: 'terminal', currency: 'UZS', amount: som(285_000) }
+    expect(settle(som(285_000), [slip, { ...sent, amount: som(10_000) }], options)).toMatchObject({
+      changeUzs: som(10_000),
+      problem: null,
+    })
+  })
+})
+
+describe('change in parts', () => {
+  const options = { book: book(12_850, 'UZS'), roundStep: som(1000) }
+  // 75 000 of goods paid with a 100 000 note: 25 000 to come back.
+  const back = (change: ChangeLine[]) =>
+    settle(som(75_000), [{ method: 'cash', currency: 'UZS', amount: som(100_000) }], { ...options, change })
+
+  it('is all cash in the base when nobody says otherwise', () => {
+    expect(back([])).toMatchObject({ given: [], changeUzs: som(25_000), changeBase: som(25_000), rounding: 0 })
+  })
+
+  it('hands dollars back for what was agreed, and the rate keeps the difference', () => {
+    // No so'm in the drawer: two dollars for the 25 000, though the rate makes them 25 700.
+    const result = back([{ way: 'cash', currency: 'USD', amount: usd(2), value: som(25_000) }])
+    expect(result).toMatchObject({
+      given: [{ amount: usd(2), base: som(25_000), fx: -som(700) }],
+      changeUzs: 0,
+      changeBase: som(25_000),
+      rounding: 0,
+      problem: null,
+    })
+    // 700 on 25 700 is 2,7%: past a limit of two, within one of three.
+    expect(overChangeLoss(result.given, 2)).toBe(true)
+    expect(overChangeLoss(result.given, 3)).toBe(false)
+    // Handed back for more than the rate makes them, the shop loses nothing.
+    expect(overChangeLoss(back([{ way: 'cash', currency: 'USD', amount: usd(1), value: som(20_000) }]).given, 0)).toBe(
+      false,
+    )
+  })
+
+  it('does not hand back more than was paid over the sum', () => {
+    // Two dollars at the rate are 25 700: more than the 25 000 there is to give.
+    expect(back([{ way: 'cash', currency: 'USD', amount: usd(2) }]).problem).toBe('change_over')
+    expect(back([{ way: 'account', currency: 'UZS', amount: som(30_000) }]).problem).toBe('change_over')
+    // Nothing over, nothing to name.
+    expect(
+      settle(som(75_000), [{ method: 'cash', currency: 'UZS', amount: som(75_000) }], {
+        ...options,
+        change: [{ way: 'account', currency: 'UZS', amount: som(1000) }],
+      }).problem,
+    ).toBe('change_over')
+    // Still short, what is short is said first.
+    expect(
+      settle(som(75_000), [{ method: 'cash', currency: 'UZS', amount: som(50_000) }], {
+        ...options,
+        change: [{ way: 'account', currency: 'UZS', amount: som(1000) }],
+      }),
+    ).toMatchObject({ due: som(25_000), problem: null })
+  })
+
+  it('puts part on the account, part from a card, and the rest in the hand', () => {
+    const result = back([
+      { way: 'account', currency: 'UZS', amount: som(15_000) },
+      { way: 'card', currency: 'UZS', amount: som(4_600) },
+    ])
+    // 5 400 left: 5 000 in the hand, and 400 stays with the shop.
+    expect(result).toMatchObject({ changeUzs: som(5000), changeBase: som(24_600), rounding: som(400), problem: null })
+    expect(result.paid - result.changeBase - result.rounding).toBe(som(75_000))
+    // An account kept in dollars takes its share at the rate: 1 $ for 12 850 of the change.
+    expect(back([{ way: 'account', currency: 'USD', amount: usd(1) }])).toMatchObject({
+      given: [{ base: som(12_850), fx: 0 }],
+      changeUzs: som(12_000),
+      rounding: som(150),
+    })
+  })
+
+  it('names the currency whose rate is wanting', () => {
+    expect(back([{ way: 'cash', currency: 'CNY', amount: 1000 }])).toMatchObject({ problem: 'rate', wanting: 'CNY' })
+  })
 })
 
 describe('dollars taken for an agreed worth', () => {
   const dollars = (amount: number, value?: number): Tender => ({ method: 'cash', currency: 'USD', amount, value })
-  const options = { book: book(12_100, 'UZS'), changeCurrency: 'UZS' as const, roundStep: som(1000) }
+  const options = { book: book(12_100, 'UZS'), roundStep: som(1000) }
 
   it('count for what was agreed, and the rate keeps the difference', () => {
     // 50 $ are 605 000 at 12 100.
@@ -357,7 +448,7 @@ describe('saleInputSchema', () => {
   it('fills in what a plain cash sale leaves out', () => {
     const sale = saleInputSchema.parse(base)
     // No currency is a so'm the schema knows of: left out, it is the business's base, for the server to say.
-    expect(sale).toMatchObject({ discount: 0, changeCurrency: null, sellerId: null })
+    expect(sale).toMatchObject({ discount: 0, change: [], sellerId: null })
     expect(sale.lines[0]).toMatchObject({ discount: 0, epc: null })
     expect(sale.payments[0]).toMatchObject({ currency: null, accountId: null })
   })
@@ -368,6 +459,24 @@ describe('saleInputSchema', () => {
       [],
     )
     expect(refused({ ...base, payments: [{ method: 'cash', amount: 0 }] })).toEqual(['payments.0.amount'])
+  })
+
+  it('takes change in parts, each with what it needs to be found', () => {
+    const back = (line: Record<string, unknown>, more: Record<string, unknown> = {}) => ({
+      ...base,
+      ...more,
+      change: [line],
+    })
+    expect(refused(back({ way: 'cash', currency: 'USD', amount: usd(2), value: som(25_000) }))).toEqual([])
+    expect(refused(back({ way: 'cash', amount: usd(2) }))).toEqual(['change.0.currency'])
+    expect(refused(back({ way: 'card', amount: som(5000) }))).toEqual(['change.0.accountId'])
+    expect(refused(back({ way: 'card', accountId: ID, amount: 0 }))).toEqual(['change.0.amount'])
+    // Onto an account there must be someone whose it is, and not one the sale itself lends to.
+    expect(refused(back({ way: 'account', amount: som(5000) }))).toEqual(['customerId'])
+    expect(refused(back({ way: 'account', amount: som(5000) }, { customerId: ID }))).toEqual([])
+    expect(
+      refused(back({ way: 'account', amount: som(5000) }, { customerId: ID, onAccount: { amount: som(10_000) } })),
+    ).toEqual(['change'])
   })
 
   it('sells a tagged piece once, one at a time', () => {

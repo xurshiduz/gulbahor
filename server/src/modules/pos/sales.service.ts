@@ -9,6 +9,7 @@ import {
   floorOf,
   cartAutos,
   formatMoney,
+  overChangeLoss,
   overDiscountLimit,
   overRateLoss,
   PAYMENT_METHOD_LABELS,
@@ -24,11 +25,13 @@ import {
   worthOf,
   type AccountBar,
   type AnyCurrency,
+  type ChangeWay,
   type LineAuto,
   type LocalDate,
   type LineWorth,
   type Page,
   type PosItemDto,
+  type SaleChangeDto,
   type SaleDto,
   type SaleInput,
   type SaleListItemDto,
@@ -51,6 +54,7 @@ import {
   PriceType,
   Register,
   Sale,
+  SaleChange,
   SaleItem,
   SaleLine,
   SalePayment,
@@ -121,7 +125,9 @@ export class SalesService {
         return this.loadIn(em, actor, again)
       }
       const { sale } = await this.createIn(em, actor, input, 0, approver)
-      afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'stock', 'shifts', 'money', 'pos']))
+      // A sale to someone on the books moves what stands on their account: lent, spent, or change kept there.
+      const touched = ['sales', 'stock', 'shifts', 'money', 'pos', ...(input.customerId ? ['customers'] : [])]
+      afterCommit(() => this.realtime.changed(actor.orgId, touched))
       return this.loadIn(em, actor, sale)
     })
   }
@@ -501,27 +507,135 @@ export class SalesService {
               : toIsoDate(addDays(fromIsoDate(today) as LocalDate, customer.dueDays ?? settings.debtDays))
       }
     }
-    const vouched =
-      ((overLimit || under.length > 0 || overRate || accountOverRate) && !alone) || pricedByWord || soldByWord
+
+    // ── The change, where not all of it goes back as cash in the base: each part, and where it comes out of.
+    // Another drawer's notes, one of the shop's cards, or the customer's own account. ──
+    const sending = input.change.flatMap((line) => (line.way === 'card' && line.accountId ? [line.accountId] : []))
+    const senders = sending.length ? await em.findBy(Account, { id: In(sending) }) : []
+    const back: { way: ChangeWay; account: Account; currency: AnyCurrency; amount: number; value: number | null }[] = []
+    for (const [index, line] of input.change.entries()) {
+      let account: Account
+      if (line.way === 'cash') {
+        const currency = line.currency ?? base
+        if (currency === base) {
+          fields[`change.${index}.currency`] = 'Asosiy valyutadagi naqd qaytim o‘zi hisoblanadi'
+          continue
+        }
+        const problem = tillCurrencyProblem(currency, till, book)
+        if (problem) {
+          fields[`change.${index}.currency`] = problem
+          continue
+        }
+        account = await this.ledger.cashAccount(em, register, currency)
+      } else if (line.way === 'card') {
+        const card = senders.find((item) => item.id === line.accountId)
+        if (!card || card.kind !== 'card' || !card.isActive || !servesShop(card, register.locationId)) {
+          fields[`change.${index}.accountId`] = 'Karta topilmadi'
+          continue
+        }
+        if (line.currency && line.currency !== card.currency) {
+          fields[`change.${index}.currency`] = 'Kartaning valyutasi boshqa'
+          continue
+        }
+        account = card
+      } else {
+        if (!customer) {
+          throw AppError.validation({ customerId: 'Qaytimni hisobiga yozish uchun mijozni tanlang' })
+        }
+        // A supplier's account is the business's dealings with them, kept out of the till's hands.
+        if (customer.isSupplier) {
+          fields[`change.${index}.way`] = `${customer.name} — yetkazib beruvchi: hisobiga qaytim yozilmaydi`
+          continue
+        }
+        if (input.onAccount) {
+          fields[`change.${index}.way`] = 'Chekning bir qismi hisobiga yozilgan: o‘sha summani kamaytiring'
+          continue
+        }
+        const currency = line.currency ?? customer.currency ?? base
+        if (currency !== base && !actor.currencies.includes(currency)) {
+          fields[`change.${index}.currency`] = 'Bu valyuta yoqilmagan: Pul → Kurslar'
+          continue
+        }
+        const wanting = wantingRate(book, book.base, currency)
+        if (wanting) {
+          fields[`change.${index}.currency`] = wanting
+          continue
+        }
+        // A sale and a payment to one customer wait for each other, as where the sale lends.
+        await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
+        account = await this.ledger.customerAccount(em, customer, currency)
+      }
+      if (account.currency === base && line.value !== null && line.value !== line.amount) {
+        fields[`change.${index}.value`] = 'Kelishilgan qiymat chet valyuta uchun yoziladi'
+        continue
+      }
+      back.push({ way: line.way, account, currency: account.currency, amount: line.amount, value: line.value })
+    }
+    throwIfAny(fields)
 
     const settlement = settle(
       totals.total - used - onAccount,
       payments.map((payment) => ({ ...payment, value: payment.base })),
       {
         book,
-        // Change is handed back in a currency the till keeps; anything else asked for is all in the base.
-        changeCurrency: input.changeCurrency && till.includes(input.changeCurrency) ? input.changeCurrency : null,
+        change: back.map((line) => ({
+          way: line.way,
+          currency: line.currency,
+          amount: line.amount,
+          value: line.value,
+        })),
         roundStep: settings.changeRoundStep,
       },
     )
-    if (settlement.problem === 'non_cash_over') {
+    if (settlement.problem === 'terminal_over') {
       throw AppError.validation({
-        payments: 'Karta va terminal summasi chekdan oshmasligi kerak: ulardan qaytim berilmaydi',
+        payments: 'Terminal summasi chekdan oshmasligi kerak: undan qaytim berilmaydi',
+      })
+    }
+    if (settlement.problem === 'rate') {
+      throw AppError.validation({
+        change: (settlement.wanting && wantingRate(book, book.base, settlement.wanting)) ?? 'Kurs qo‘yilmagan',
       })
     }
     if (settlement.due > 0) {
       throw AppError.validation({ payments: `To‘lov yetarli emas: yana ${formatMoney(settlement.due, base)}` })
     }
+    if (settlement.problem === 'change_over') {
+      const over = settlement.paid - (totals.total - used - onAccount)
+      throw AppError.validation({
+        change: over
+          ? `Qaytim ${formatMoney(over, base)} dan oshmasligi kerak`
+          : 'Ortiqcha to‘lov yo‘q: qaytim berilmaydi',
+      })
+    }
+    // Change sent from a card is money handed back otherwise than it was paid, and nothing in the till shows
+    // that it went: this person's own right, or someone's word.
+    const cardByWord = back.some((line) => line.way === 'card') && !can(actor, 'pos.return_any')
+    if (cardByWord && !allows(approver, 'pos.return_any')) {
+      throw AppError.badRequest(
+        'CHANGE_NEEDS_WORD',
+        approver
+          ? `${approver.name} kartadan qaytim berishni tasdiqlay olmaydi`
+          : 'Kartadan qaytim berish uchun rahbar tasdig‘i kerak',
+        { change: 'Rahbar tasdig‘i kerak' },
+      )
+    }
+    // Notes handed back for less than the rate makes them give away what a discount would: the same word.
+    const changeOverRate = overChangeLoss(settlement.given, settings.maxRateLossPercent)
+    if (changeOverRate && !allowed) {
+      throw AppError.badRequest(
+        'RATE_LOSS_OVER_LIMIT',
+        approver
+          ? `${approver.name} kun kursidan uzoq qaytimni tasdiqlay olmaydi`
+          : `Qaytim kun kursidan ${settings.maxRateLossPercent}% dan ko‘proq arzonga berilmoqda: rahbar tasdig‘i kerak`,
+        { change: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
+      )
+    }
+    const vouched =
+      ((overLimit || under.length > 0 || overRate || accountOverRate || changeOverRate) && !alone) ||
+      pricedByWord ||
+      soldByWord ||
+      cardByWord
 
     const seller = input.sellerId ? await em.findOneBy(User, { id: input.sellerId, isActive: true }) : null
     if (input.sellerId && !seller) {
@@ -561,10 +675,6 @@ export class SalesService {
         discount: totals.discount,
         total: totals.total,
         uzsPerUsd: null,
-        changeUzs: settlement.changeUzs,
-        changeOther: settlement.changeOther,
-        changeCurrency: settlement.changeCurrency,
-        changeOtherBase: settlement.changeBase - settlement.changeUzs,
         rounding: settlement.rounding,
         costUzs: 0,
         paidBy,
@@ -696,29 +806,49 @@ export class SalesService {
       SalePayment,
       paid.map((payment, position) => ({ ...payment, orgId: actor.orgId, saleId: sale.id, position })),
     )
-    // The drawer holds the notes at the day's rate, whatever they were taken for.
-    const postings: Posting[] = paid.map((payment) => ({
-      accountId: payment.accountId as string,
-      amount: payment.amount as number,
-      base: (payment.base as number) + (payment.fx ?? 0),
-    }))
+    // The change as it went: the parts that were named, then what is left of it as cash in the base.
+    const changed: Pick<SaleChange, 'way' | 'accountId' | 'currency' | 'amount' | 'base' | 'fx'>[] =
+      settlement.given.map((line, index) => ({
+        way: line.way,
+        accountId: back[index].account.id,
+        currency: line.currency,
+        amount: line.amount,
+        base: line.base,
+        fx: line.fx,
+      }))
+    if (settlement.changeUzs) {
+      const drawer = await this.ledger.cashAccount(em, register, base)
+      changed.push({
+        way: 'cash',
+        accountId: drawer.id,
+        currency: base,
+        amount: settlement.changeUzs,
+        base: settlement.changeUzs,
+        fx: 0,
+      })
+    }
+    if (changed.length) {
+      await em.insert(
+        SaleChange,
+        changed.map((line, position) => ({ ...line, orgId: actor.orgId, saleId: sale.id, position })),
+      )
+    }
+    // The drawer holds the notes at the day's rate, whatever they were taken for — and gives them up at it.
+    const postings: Posting[] = [
+      ...paid.map((payment) => ({
+        accountId: payment.accountId as string,
+        amount: payment.amount as number,
+        base: (payment.base as number) + (payment.fx ?? 0),
+      })),
+      ...changed.map((line) => ({ accountId: line.accountId, amount: -line.amount, base: -(line.base - line.fx) })),
+    ]
     const gained =
-      payments.reduce((sum, payment) => sum + payment.fx, 0) + (accountWorth ? accountWorth.partnerBase - onAccount : 0)
+      payments.reduce((sum, payment) => sum + payment.fx, 0) +
+      (accountWorth ? accountWorth.partnerBase - onAccount : 0) +
+      changed.reduce((sum, line) => sum + line.fx, 0)
     if (gained) {
       const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
       postings.push({ accountId: fx.id, amount: -gained, base: -gained })
-    }
-    if (settlement.changeUzs) {
-      const drawer = await this.ledger.cashAccount(em, register, base)
-      postings.push({ accountId: drawer.id, amount: -settlement.changeUzs, base: -settlement.changeUzs })
-    }
-    if (settlement.changeOther && settlement.changeCurrency) {
-      const drawer = await this.ledger.cashAccount(em, register, settlement.changeCurrency)
-      postings.push({
-        accountId: drawer.id,
-        amount: -settlement.changeOther,
-        base: -(settlement.changeBase - settlement.changeUzs),
-      })
     }
     const revenue = await this.ledger.systemAccount(em, actor.orgId, 'sales')
     postings.push({ accountId: revenue.id, amount: -totals.total, base: -totals.total })
@@ -741,7 +871,13 @@ export class SalesService {
         totals.discount ? `, chegirma ${formatMoney(totals.discount, base)}` : ''
       } (${paidBy})${priceType ? `, narx: ${priceType.name}` : ''}${
         gained ? `, kurs farqi ${gained > 0 ? '+' : '−'}${formatMoney(Math.abs(gained), base)}` : ''
-      }${vouched && approver ? `, tasdiqladi: ${approver.name}` : ''}`,
+      }${changed
+        .filter((line) => line.way !== 'cash')
+        .map(
+          (line) =>
+            `, ${line.way === 'account' ? 'qaytim hisobiga yozildi' : 'qaytim kartadan berildi'}: ${formatMoney(line.amount, line.currency)}`,
+        )
+        .join('')}${vouched && approver ? `, tasdiqladi: ${approver.name}` : ''}`,
     })
     return { sale: await em.findOneByOrFail(Sale, { id: sale.id }), credit: used }
   }
@@ -926,6 +1062,13 @@ export class SalesService {
       ? await em.find(SaleReturn, { where: { saleId: sale.id }, order: { returnedAt: 'ASC' } })
       : []
     const due = await em.findOneBy(CustomerDue, { saleId: sale.id })
+    const change: SaleChangeDto[] = await em.query(
+      `SELECT c.way, CASE WHEN c.way = 'account' THEN '' ELSE a.name END AS "accountName", c.currency,
+              c.amount::float8 AS amount, c.base::float8 AS base, c.fx::float8 AS fx
+       FROM sale_changes c JOIN accounts a ON a.id = c.account_id
+       WHERE c.sale_id = $1 ORDER BY c.position`,
+      [sale.id],
+    )
 
     return {
       ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
@@ -934,9 +1077,7 @@ export class SalesService {
       shiftId: sale.shiftId,
       shiftNumber: shift.number,
       subtotal: sale.subtotal,
-      changeUzs: sale.changeUzs,
-      changeOther: sale.changeOther,
-      changeCurrency: sale.changeCurrency,
+      change,
       rounding: sale.rounding,
       due: due && sale.status === 'completed' ? { id: due.id, dueDate: due.dueDate } : null,
       note: sale.note,

@@ -112,13 +112,14 @@ describe('A till in any currency', () => {
     // 300 ¥ = 525 000 against 400 000: 71 ¥ back (124 250) and 750 so'm, handed back as 1 000.
     const sale = (
       await sell([{ method: 'cash', currency: 'CNY', amount: minor(300) }], minor(400_000), {
-        changeCurrency: 'CNY',
+        change: [{ way: 'cash', currency: 'CNY', amount: minor(71) }],
       }).expect(201)
     ).body
     expect(sale).toMatchObject({
-      changeOther: minor(71),
-      changeCurrency: 'CNY',
-      changeUzs: minor(1000),
+      change: [
+        expect.objectContaining({ way: 'cash', currency: 'CNY', amount: minor(71), base: minor(124_250) }),
+        expect.objectContaining({ way: 'cash', currency: 'UZS', amount: minor(1000) }),
+      ],
       rounding: -minor(250),
     })
     expect(sale.payments).toEqual([

@@ -1,4 +1,4 @@
-import type { PosContextDto, PosItemDto, ReturnableDto, SaleLineDto } from '@erp/core'
+import type { PosContextDto, PosItemDto, RateBook, ReturnableDto, SaleLineDto } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,6 +9,8 @@ import {
   backLines,
   badDiscount,
   cartTotals,
+  changeLines,
+  changeRows,
   changeText,
   discountOf,
   EMPTY_CART,
@@ -254,11 +256,60 @@ describe('the search field', () => {
 describe('change', () => {
   it("is said in the other currency first, then so'm", () => {
     const plain = (text: string) => text.replace(/\s/g, ' ')
-    expect(plain(changeText(som(10_000), 0, null))).toBe('10 000 so‘m')
-    expect(plain(changeText(som(11_000), 600, 'USD'))).toBe('6 $ + 11 000 so‘m')
-    expect(plain(changeText(0, 600, 'USD'))).toBe('6 $')
-    expect(plain(changeText(0, 7100, 'CNY'))).toBe('71 ¥')
-    expect(plain(changeText(0, 0, null))).toBe('0 so‘m')
+    const cash = (amount: number, currency: 'UZS' | 'USD' | 'CNY' = 'UZS') => ({
+      way: 'cash' as const,
+      currency,
+      amount,
+    })
+    expect(plain(changeText([cash(som(10_000))]))).toBe('10 000 so‘m')
+    expect(plain(changeText([cash(som(11_000)), cash(600, 'USD')]))).toBe('6 $ + 11 000 so‘m')
+    expect(plain(changeText([cash(650, 'USD')]))).toBe('6,50 $')
+    expect(plain(changeText([cash(7100, 'CNY')]))).toBe('71 ¥')
+    // What is kept on an account or sent from a card is no cash to count out.
+    expect(changeText([{ way: 'account', currency: 'UZS', amount: som(5000) }])).toBe('')
+    expect(changeText([])).toBe('')
+  })
+
+  const book: RateBook = { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: 12_650 } } }
+  const till = {
+    book,
+    currencies: ['UZS', 'USD', 'CNY'],
+    cards: [{ id: 'humo', currency: 'UZS' }],
+  } as unknown as PosContextDto
+
+  it('can go back from every drawer that has a rate, onto the customer’s account, from every card', () => {
+    // The yuan has no rate today: nothing can be counted in it.
+    expect(changeRows(till, 'USD').map((row) => [row.key, row.way, row.currency, row.accountId])).toEqual([
+      ['cash:USD', 'cash', 'USD', null],
+      ['account', 'account', 'USD', null],
+      ['card:humo', 'card', 'UZS', 'humo'],
+    ])
+    expect(changeRows(till, null).map((row) => row.key)).toEqual(['cash:USD', 'card:humo'])
+  })
+
+  it('is written as it will be sent: notes for what is left to give, an account at the rate', () => {
+    const typed = (patch: Record<string, { amount?: number; value?: number }>, account: 'UZS' | 'USD' | null = null) =>
+      changeLines(
+        changeRows(till, account).map((row) => ({ ...row, ...patch[row.key] })),
+        som(25_000),
+        book,
+      ).map((line) => [line.key, line.amount, line.value])
+    // One dollar is 12 650: within what there is to give, it goes at the rate.
+    expect(typed({ 'cash:USD': { amount: 100 } })).toEqual([['cash:USD', 100, null]])
+    // Two are 25 300: they go for the 25 000 there is, and for less once a card has sent part.
+    expect(typed({ 'cash:USD': { amount: 200 } })).toEqual([['cash:USD', 200, som(25_000)]])
+    expect(typed({ 'cash:USD': { amount: 200 }, 'card:humo': { amount: som(5000) } })).toEqual([
+      ['cash:USD', 200, som(20_000)],
+      ['card:humo', som(5000), null],
+    ])
+    // A worth typed is the worth.
+    expect(typed({ 'cash:USD': { amount: 200, value: som(24_000) } })).toEqual([['cash:USD', 200, som(24_000)]])
+    // Kept on an account in the base it is the sum itself; in dollars, what the rate makes of it or what was agreed.
+    expect(typed({ account: { value: som(15_000) } }, 'UZS')).toEqual([['account', som(15_000), null]])
+    expect(typed({ account: { value: som(12_650) } }, 'USD')).toEqual([['account', 100, som(12_650)]])
+    expect(typed({ account: { value: som(13_000), amount: 100 } }, 'USD')).toEqual([['account', 100, som(13_000)]])
+    // Nothing typed, nothing sent.
+    expect(typed({}, 'USD')).toEqual([])
   })
 })
 

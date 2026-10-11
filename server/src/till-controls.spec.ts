@@ -411,7 +411,7 @@ describe('Till controls', () => {
           total: som(200_000),
         }).expect(201)
       ).body
-      expect(sale).toMatchObject({ total: som(200_000), changeUzs: 0, rounding: 0, approvedByName: null })
+      expect(sale).toMatchObject({ total: som(200_000), change: [], rounding: 0, approvedByName: null })
       expect(sale.payments).toEqual([
         expect.objectContaining({ currency: 'UZS', amount: som(80_000), base: som(80_000), fx: 0 }),
         expect.objectContaining({ currency: 'USD', amount: usd(10), base: som(120_000), fx: som(1000) }),

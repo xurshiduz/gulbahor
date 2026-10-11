@@ -6,6 +6,7 @@ import {
   dueIn,
   formatMoney,
   overDiscountLimit,
+  overChangeLoss,
   overRateLoss,
   saleNumberOf,
   settle,
@@ -63,7 +64,10 @@ import {
   backLines,
   badDiscount,
   cartTotals,
-  changeText,
+  changeLines,
+  changeOf,
+  changeRows,
+  changeWords,
   EMPTY_CART,
   enteredRows,
   linesTotal,
@@ -74,6 +78,7 @@ import {
   tendersOf,
   underFloor,
   type Cart,
+  type ChangeRow,
   type Returning,
   type TenderRow,
 } from './pos-state'
@@ -276,7 +281,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [peek, setPeek] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
   const wanted = useRef<TenderKind | 'agreed' | null>(null)
-  const [changeCurrency, setChangeCurrency] = useState<CurrencyCode>(base)
+  /** How the change goes back when not all of it is cash in the base: what was typed, and whether the rows are out. */
+  const [giving, setGiving] = useState<Record<string, Partial<ChangeRow>>>({})
+  const [splitting, setSplitting] = useState(false)
   const [text, setText] = useState('')
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
@@ -652,11 +659,25 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** Money of another currency taken for more over the rate than the shop lets a cashier give alone. */
   const overRate = !refunding && overRateLoss(typed, book, context.maxRateLossPercent)
   const rateAsk = overRate && !context.mayOverDiscount
-  const settlement = settle(toPay - onAccountNow, refunding ? [] : typed, {
-    book,
-    changeCurrency,
-    roundStep: context.changeRoundStep,
-  })
+  const owed = toPay - onAccountNow
+  const allCash = settle(owed, refunding ? [] : typed, { book, roundStep: context.changeRoundStep })
+  /** What was paid over the sum: there to be handed back. */
+  const over = allCash.problem ? 0 : allCash.changeBase + allCash.rounding
+  // Part of it may be kept on the account the sale would go on — unless part of the sale goes there already.
+  const keeps = !!buyer && !buyer.supplier && !onAccountNow
+  const changing = useMemo(
+    () => changeRows(context, keeps ? accountCurrency : null).map((row) => ({ ...row, ...giving[row.key] })),
+    [context, keeps, accountCurrency, giving],
+  )
+  // What was written for one sum over means nothing for another.
+  useEffect(() => setGiving({}), [over])
+  const handed = over > 0 && !refunding ? changeLines(changing, over, book) : []
+  const settlement = handed.length
+    ? settle(owed, typed, { book, change: handed, roundStep: context.changeRoundStep })
+    : allCash
+  /** Change given for less than the rate makes it, past what a cashier may give alone; change sent from a card. */
+  const changeRateAsk = overChangeLoss(settlement.given, context.maxRateLossPercent) && !context.mayOverDiscount
+  const cardAsk = settlement.given.some((line) => line.way === 'card') && !context.mayReturnAny
   const refund = settleRefund(toRefund, refunding ? typed : [], { book, roundStep: context.changeRoundStep })
   /** What is taken as meant when the cashier types nothing: so'm cash for a sale, the way it was paid for a return. */
   const suggested = useMemo<Record<string, number>>(
@@ -717,6 +738,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setPaying(true)
     // Each payment starts with what is hidden out of sight again.
     setPeek(false)
+    setSplitting(false)
+  }
+  /** F10: the change goes back in parts — the rows come out and the cursor goes to the first. */
+  const splitChange = () => {
+    setSplitting(true)
+    window.setTimeout(() => {
+      const field = document.querySelector<HTMLInputElement>('[data-change] input:not(:disabled)')
+      field?.focus()
+      field?.select()
+    })
   }
   /** Back to the cart; what was typed for the money stays. */
   const backToCart = (to: 'agreed' | null = null) => {
@@ -759,6 +790,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
     clientKey.current = uuid()
     setCart(EMPTY_CART)
     setPaid({})
+    setGiving({})
+    setSplitting(false)
     setAccount({ amount: null, received: null })
     setAccountDue(undefined)
     setReturning(null)
@@ -784,11 +817,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
       reset()
       setLast({ kind: 'sale', id: sale.id, number: sale.number })
       toast.success(
-        sale.changeUzs || sale.changeOther
-          ? t('pos.soldWithChange', {
-              number: sale.number,
-              change: changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency),
-            })
+        sale.change.length
+          ? t('pos.soldWithChange', { number: sale.number, change: changeWords(sale.change, t) })
           : t('pos.sold', { number: sale.number }),
       )
     },
@@ -837,9 +867,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
     }
     if (entered.length && !refunding && (settlement.problem || settlement.due > 0)) {
       toast.error(
-        settlement.problem === 'non_cash_over'
-          ? t('pos.nonCashOver')
-          : t('pos.stillDue', { amount: money(settlement.due) }),
+        settlement.problem === 'terminal_over'
+          ? t('pos.terminalOver')
+          : settlement.problem === 'change_over'
+            ? t('pos.changeOver', { amount: money(over) })
+            : t('pos.stillDue', { amount: money(settlement.due) }),
       )
       return
     }
@@ -883,13 +915,23 @@ function Till({ context, registers, onSwitch }: TillProps) {
     }
     if (
       !approval &&
-      (overLimit || underAsk || rateAsk || priceAsk || late || beyond || barred || accountAsk || accountRateAsk)
+      (overLimit ||
+        underAsk ||
+        rateAsk ||
+        priceAsk ||
+        late ||
+        beyond ||
+        barred ||
+        accountAsk ||
+        accountRateAsk ||
+        changeRateAsk ||
+        cardAsk)
     ) {
       const who = context.approvers.filter(
         (approver) =>
-          (!(overLimit || underAsk || rateAsk || accountRateAsk) || approver.discount) &&
+          (!(overLimit || underAsk || rateAsk || accountRateAsk || changeRateAsk) || approver.discount) &&
           (!priceAsk || approver.prices) &&
-          (!(late || beyond || barred) || approver.returns) &&
+          (!(late || beyond || barred || cardAsk) || approver.returns) &&
           (!accountAsk || approver.debts),
       )
       if (!who.length) {
@@ -938,6 +980,24 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 percent: String(accountLine.gap).replace('.', ','),
               })
             : null,
+          ...(changeRateAsk
+            ? settlement.given.flatMap((line) =>
+                overChangeLoss([line], context.maxRateLossPercent)
+                  ? [
+                      t('pos.approvalChangeRate', {
+                        given: money(line.amount, line.currency),
+                        sum: money(line.base),
+                        book: money(line.base - line.fx),
+                      }),
+                    ]
+                  : [],
+              )
+            : []),
+          cardAsk
+            ? t('pos.approvalCardChange', {
+                amount: money(settlement.given.reduce((sum, line) => sum + (line.way === 'card' ? line.base : 0), 0)),
+              })
+            : null,
         ]
           .filter(Boolean)
           .join('. '),
@@ -956,7 +1016,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
         epc: line.item.epc,
       })),
       discount: totals.saleDiscount,
-      changeCurrency,
+      change: handed.map(({ way, currency, accountId, amount, value }) => ({
+        way,
+        currency,
+        accountId,
+        amount,
+        value,
+      })),
       total: totals.total,
     }
     if (!returning) {
@@ -989,10 +1055,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
         exchange: cart.lines.length ? { ...goods, payments: refunding ? [] : amounts } : null,
         approval,
       },
-      change:
-        !refunding && (settlement.changeUzs || settlement.changeOther)
-          ? changeText(settlement.changeUzs, settlement.changeOther, settlement.changeCurrency)
-          : '',
+      change: !refunding && settlement.changeBase ? changeWords(changeOf(settlement), t) : '',
     })
   }
 
@@ -1024,6 +1087,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
   useHotkey('f8', () => focusTender('terminal'), { label: t('pos.payTerminal'), group, enabled: idle })
   // F9 takes the till to the money, and from there ends the sale: twice, it is a sale for cash, exactly.
   useHotkey('f9', () => (paying ? complete() : openPay()), { label: t('pos.pay'), group, enabled: idle })
+  useHotkey('f10', splitChange, {
+    label: t('pos.splitChange'),
+    group,
+    enabled: idle && paying && over > 0 && changing.length > 0,
+  })
   // Cash, exactly, without looking at the money at all.
   useHotkey('mod+enter', () => complete(), { label: t('pos.quickSale', baseWords(t)), group, enabled: idle })
   useHotkey('escape', () => backToCart(), { enabled: idle && paying })
@@ -1336,8 +1404,32 @@ function Till({ context, registers, onSwitch }: TillProps) {
               suggested={suggested}
               settlement={settlement}
               refund={refund}
-              changeCurrency={changeCurrency}
-              onChangeCurrency={setChangeCurrency}
+              change={
+                refunding
+                  ? null
+                  : {
+                      rows: changing,
+                      onPatch: (key, patch) =>
+                        setGiving((current) => ({ ...current, [key]: { ...current[key], ...patch } })),
+                      open: splitting,
+                      // Folded away, all of it is cash again.
+                      onOpen: (open) => {
+                        setSplitting(open)
+                        if (!open) {
+                          setGiving({})
+                        }
+                      },
+                      over,
+                      keeper:
+                        keeps && buyer
+                          ? {
+                              name: buyer.name,
+                              balance: accounts.find((item) => item.currency === accountCurrency)?.balance ?? null,
+                            }
+                          : null,
+                      cardAsks: !context.mayReturnAny,
+                    }
+              }
               action={
                 returning ? (cart.lines.length ? t('pos.exchangeAction') : t('pos.returnAction')) : t('pos.complete')
               }

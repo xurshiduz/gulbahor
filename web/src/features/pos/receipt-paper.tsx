@@ -6,6 +6,7 @@ import {
   receiptColumnMm,
   type AnyCurrency,
   type ReceiptTemplate,
+  type SaleChangeDto,
   type SaleDto,
   type SalePaymentDto,
 } from '@erp/core'
@@ -14,8 +15,6 @@ import { useTranslation } from 'react-i18next'
 
 import { base } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/format'
-
-import { changeText } from './pos-state'
 
 const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
@@ -33,6 +32,17 @@ export function paidText(payment: Pick<SalePaymentDto, 'method' | 'currency' | '
   return payment.currency !== base()
     ? `${money(payment.amount, payment.currency)} = ${money(payment.base)}`
     : money(payment.amount, payment.currency)
+}
+
+/** What a part of the change is called: handed back, kept on the customer's account, sent from a card. */
+export const changeLabel = (part: Pick<SaleChangeDto, 'way'>) =>
+  part.way === 'cash' ? 'pos.change' : part.way === 'account' ? 'pos.changeKept' : 'pos.changeSent'
+
+/** A part of the change as a receipt says it: in another currency, with what of the change it stood for. */
+export function changePartText(part: Pick<SaleChangeDto, 'currency' | 'amount' | 'base'>): string {
+  return part.currency !== base()
+    ? `${money(part.amount, part.currency)} = ${money(part.base)}`
+    : money(part.amount, part.currency)
 }
 
 interface ReceiptPaperProps {
@@ -134,9 +144,9 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
         ))}
         {/* The day the customer has agreed to: on the paper they take away. */}
         {sale.due?.dueDate ? <Row label={t('pos.debtDue')} value={formatDay(sale.due.dueDate)} /> : null}
-        {sale.changeUzs || sale.changeOther ? (
-          <Row label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency)} />
-        ) : null}
+        {sale.change.map((part, index) => (
+          <Row key={`change:${index}`} label={t(changeLabel(part))} value={changePartText(part)} />
+        ))}
         {template.showSavings && sale.discount ? (
           <p className="mt-1 text-center font-medium">{t('receipt.saved', { amount: money(sale.discount) })}</p>
         ) : null}

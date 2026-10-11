@@ -284,8 +284,9 @@ describe('Till', () => {
         subtotal: som(230_000),
         discount: 0,
         total: som(230_000),
-        changeUzs: som(20_000),
-        changeOther: 0,
+        change: [
+          expect.objectContaining({ way: 'cash', currency: 'UZS', amount: som(20_000), base: som(20_000), fx: 0 }),
+        ],
         rounding: 0,
         // Two shirts at 48 000 and a scarf at 20 000.
         costUzs: som(116_000),
@@ -342,7 +343,7 @@ describe('Till', () => {
         }).expect(201)
       ).body
       // 5 $ = 64 250, + 30 000 + 1 000 = 95 250: 250 over, too little to hand back.
-      expect(sale).toMatchObject({ changeUzs: 0, changeOther: 0, changeCurrency: null, rounding: som(250) })
+      expect(sale).toMatchObject({ change: [], rounding: som(250) })
       expect(sale.payments.map((payment: { base: number }) => payment.base)).toEqual([
         som(64_250),
         som(30_000),
@@ -399,7 +400,7 @@ describe('Till', () => {
       expect(sale).toMatchObject({
         cashierName: 'Dilnoza Kassir',
         discount: som(9500),
-        changeUzs: som(1000),
+        change: [expect.objectContaining({ way: 'cash', amount: som(1000) })],
         rounding: -som(500),
       })
       expect(await balances()).toMatchObject({ cash_UZS: som(516_000), sales: -som(410_500), rounding: som(250) })
@@ -725,15 +726,16 @@ describe('Till', () => {
         await sell({
           lines: [{ variantId: scarf, qty: 1 }],
           payments: [cash(usd(10), 'USD')],
-          changeCurrency: 'USD',
+          change: [{ way: 'cash', currency: 'USD', amount: usd(6) }],
           total: som(40_000),
         }).expect(201)
       ).body
       // 10 $ = 128 500 against 40 000: 88 500 over is 6 $ (77 100) and 11 400 so'm, handed back as 11 000.
       expect(sale).toMatchObject({
-        changeOther: usd(6),
-        changeCurrency: 'USD',
-        changeUzs: som(11_000),
+        change: [
+          expect.objectContaining({ way: 'cash', currency: 'USD', amount: usd(6), base: som(77_100), fx: 0 }),
+          expect.objectContaining({ way: 'cash', currency: 'UZS', amount: som(11_000) }),
+        ],
         rounding: som(400),
       })
 
@@ -753,7 +755,7 @@ describe('Till', () => {
       const sale = (
         await sell({ lines: [{ variantId: scarf, qty: 1, discount: som(40_000) }], payments: [], total: 0 }).expect(201)
       ).body
-      expect(sale).toMatchObject({ total: 0, discount: som(40_000), changeUzs: 0, payments: [] })
+      expect(sale).toMatchObject({ total: 0, discount: som(40_000), change: [], payments: [] })
       expect(await onHand(scarf)).toBe(stock - 1)
       const after = await balances()
       expect(after.cash_UZS).toBe(before.cash_UZS)

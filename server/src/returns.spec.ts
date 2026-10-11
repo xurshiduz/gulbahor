@@ -410,7 +410,11 @@ describe('Returns', () => {
       expect([await onHand(shirt), await onHand(jacket)]).toEqual([stock[0] + 1, stock[1] - 1])
 
       const taken = (await alpha.get(`/api/sales/${made.exchangeSaleId}`).expect(200)).body
-      expect(taken).toMatchObject({ number: made.exchangeSaleNumber, total: som(300_000), changeUzs: som(5000) })
+      expect(taken).toMatchObject({
+        number: made.exchangeSaleNumber,
+        total: som(300_000),
+        change: [expect.objectContaining({ way: 'cash', amount: som(5000) })],
+      })
       expect(
         taken.payments.map((payment: { method: string; amount: number }) => [payment.method, payment.amount]),
       ).toEqual([

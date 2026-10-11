@@ -1,5 +1,6 @@
 import {
   belowFloor,
+  exchange,
   floorOf,
   formatMoney,
   cartAutos,
@@ -9,18 +10,24 @@ import {
   returnShare,
   roundToStep,
   saleTotals,
+  tillWorth,
+  type ChangeLine,
+  type ChangeWay,
   type CurrencyCode,
   type LineAuto,
   type PosContextDto,
   type PosCustomerDto,
   type PosItemDto,
+  type RateBook,
   type ReturnableDto,
   type SaleLineDto,
   type SaleTotals,
+  type Settlement,
   type Tender,
   type TenderMethod,
   type AnyCurrency,
 } from '@erp/core'
+import type { TFunction } from 'i18next'
 
 import { base } from '@/lib/base'
 import { uuid } from '@/lib/uuid'
@@ -226,15 +233,131 @@ export function splitMultiplier(text: string): { qty: number | null; rest: strin
   return { qty: qty > 0 ? qty : null, rest: match[2].trim() }
 }
 
-/** The change in words: "3 $ + 10 000 so'm". The other currency comes first: it is counted out first. */
-export function changeText(changeUzs: number, changeOther: number, changeCurrency: AnyCurrency | null): string {
+/**
+ * A part of the change as the cashier is writing it: what goes back otherwise than as cash in the base — another
+ * drawer's notes, a sum kept on the customer's account, a sum sent from one of the shop's cards.
+ */
+export interface ChangeRow {
+  key: string
+  way: ChangeWay
+  currency: AnyCurrency
+  /** The card it is sent from; null for a drawer and for the customer's account. */
+  accountId: string | null
+  /** In the row's own currency: typed for a drawer or a card; for the customer's account, only where it was agreed. */
+  amount: number | null
+  /** In the base: typed for the customer's account; for a drawer or a card, only where it was agreed. */
+  value: number | null
+}
+
+/**
+ * The ways change can go back beside cash in the base: each other drawer that has a rate, the customer's
+ * account when there is one to keep it on (`account` is its currency), each of the shop's cards.
+ */
+export function changeRows(context: PosContextDto, account: AnyCurrency | null): ChangeRow[] {
+  const row = (key: string, way: ChangeWay, currency: AnyCurrency, accountId: string | null): ChangeRow => ({
+    key,
+    way,
+    currency,
+    accountId,
+    amount: null,
+    value: null,
+  })
   return [
-    // Whole notes only, so no cents are shown.
-    changeOther && changeCurrency ? formatMoney(changeOther, changeCurrency, { minor: 'never' }) : null,
-    changeUzs || !changeOther ? formatMoney(changeUzs, base(), { minor: 'auto' }) : null,
+    ...context.currencies
+      .filter((code) => code !== base() && tillWorth(100, code, context.book) !== null)
+      .map((code) => row(`cash:${code}`, 'cash', code, null)),
+    ...(account ? [row('account', 'account', account, null)] : []),
+    ...context.cards.map((card) => row(`card:${card.id}`, 'card', card.currency, card.id)),
+  ]
+}
+
+/** A part of the change as it is counted and sent: which row it is, and the card where there is one. */
+export type WrittenChange = ChangeLine & { key: string; accountId: string | null }
+
+/**
+ * The parts written, as the sale sends them. `over` is what was paid over the sum. Notes of another currency
+ * worth more than what is left to give go for what is left — "two dollars for the 25 000" — and the rate keeps
+ * the difference, as it does where the worth was typed.
+ */
+export function changeLines(rows: readonly ChangeRow[], over: number, book: RateBook): WrittenChange[] {
+  const foreign = (row: ChangeRow) => row.currency !== book.base
+  // What each row stands for with nothing fitted to what is left.
+  const plain = rows.map((row) => {
+    if (row.way === 'account') {
+      return row.value ?? 0
+    }
+    if (!row.amount) {
+      return 0
+    }
+    return foreign(row) ? (row.value ?? tillWorth(row.amount, row.currency, book) ?? 0) : row.amount
+  })
+  const all = plain.reduce((sum, value) => sum + value, 0)
+  return rows.flatMap((row, index): WrittenChange[] => {
+    const part = { key: row.key, way: row.way, currency: row.currency, accountId: row.accountId }
+    if (row.way === 'account') {
+      // What is kept there is typed in the base; an account in another currency takes it at the rate, or as agreed.
+      if (!row.value) {
+        return []
+      }
+      if (!foreign(row)) {
+        return [{ ...part, amount: row.value, value: null }]
+      }
+      const amount = row.amount ?? exchange(row.value, book.base, row.currency, book)
+      return amount ? [{ ...part, amount, value: row.value }] : []
+    }
+    if (!row.amount) {
+      return []
+    }
+    if (!foreign(row)) {
+      return [{ ...part, amount: row.amount, value: null }]
+    }
+    const rest = over - (all - plain[index])
+    return [{ ...part, amount: row.amount, value: row.value ?? (rest > 0 && plain[index] > rest ? rest : null) }]
+  })
+}
+
+/** A part of the change as a sale wrote it, or as a settlement is about to. */
+export interface ChangePart {
+  way: ChangeWay
+  currency: AnyCurrency
+  amount: number
+}
+
+/** The parts a settlement's change goes back in: what was named, then the cash in the base. */
+export const changeOf = (settlement: Settlement): ChangePart[] => [
+  ...settlement.given,
+  ...(settlement.changeUzs ? [{ way: 'cash' as const, currency: base(), amount: settlement.changeUzs }] : []),
+]
+
+/**
+ * The cash of the change in words: "3 $ + 10 000 so'm". Another currency comes first: it is counted out
+ * first. Empty when none of it is cash.
+ */
+export function changeText(parts: readonly ChangePart[]): string {
+  const cash = parts.filter((part) => part.way === 'cash')
+  // Whole notes of another currency are said without their cents: "6 $", but "6,50 $".
+  const said = (part: ChangePart) =>
+    formatMoney(part.amount, part.currency, {
+      minor: part.currency === base() ? 'auto' : part.amount % 100 ? 'always' : 'never',
+    })
+  return [...cash.filter((part) => part.currency !== base()), ...cash.filter((part) => part.currency === base())]
+    .map(said)
+    .join(' + ')
+}
+
+/** All of the change in a line: "2 $ + 10 000 so'm, hisobiga 15 000 so'm, kartadan 5 000 so'm". */
+export function changeWords(parts: readonly ChangePart[], t: TFunction): string {
+  const elsewhere = parts.filter((part) => part.way !== 'cash')
+  return [
+    changeText(parts),
+    ...elsewhere.map((part) =>
+      t(part.way === 'account' ? 'pos.changeKeptWords' : 'pos.changeSentWords', {
+        amount: formatMoney(part.amount, part.currency, { minor: 'auto' }),
+      }),
+    ),
   ]
     .filter(Boolean)
-    .join(' + ')
+    .join(', ')
 }
 
 /** The ways of paying a till takes, each with its own field: cash always, the rest when the shop has them. */
