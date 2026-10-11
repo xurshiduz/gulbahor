@@ -11,6 +11,7 @@ import {
   returnLookupSchema,
   saleInputSchema,
   saleListQuerySchema,
+  saleCustomerSchema,
   saleVoidSchema,
   type CustomerInput,
   type Page,
@@ -26,6 +27,7 @@ import {
   type SaleInput,
   type SaleListItemDto,
   type SaleListQuery,
+  type SaleCustomerInput,
   type SaleVoidInput,
 } from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common'
@@ -102,7 +104,15 @@ export class PosController {
     // are for those who keep the book.
     const saved = await this.customers.create(
       actor,
-      { ...customer, groupIds: [], tags: [], priceTypeId: null, isSupplier: false, currency: undefined, terms: undefined },
+      {
+        ...customer,
+        groupIds: [],
+        tags: [],
+        priceTypeId: null,
+        isSupplier: false,
+        currency: undefined,
+        terms: undefined,
+      },
       locationId,
     )
     return this.customers.forTill(actor, saved.id)
@@ -166,6 +176,19 @@ export class SalesController {
     @Body(zod(saleVoidSchema)) input: SaleVoidInput,
   ): Promise<SaleDto> {
     return this.sales.void(actor, saleId, input)
+  }
+
+  /** The receipt was rung up to the wrong customer: what it put on their account goes to the right one's. */
+  @Post(':id/customer')
+  @HttpCode(200)
+  @Can('customers.adjust')
+  customer(
+    @CurrentActor() actor: Actor,
+    @id() saleId: string,
+    @Body(zod(saleCustomerSchema)) input: SaleCustomerInput,
+  ): Promise<SaleDto> {
+    seesSales(actor)
+    return this.sales.giveTo(actor, saleId, input.customerId)
   }
 }
 

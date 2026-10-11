@@ -1297,6 +1297,10 @@ export const uz = {
     voidReason: 'Bekor qilish sababi',
     voidReasonNeeded: 'Sababini yozing',
     voidHint: 'Tovar qoldiqqa, pul kassaga qaytadi. Smena yopilgandan keyin chek bekor qilinmaydi.',
+    changeCustomer: 'Mijozni almashtirish',
+    changeCustomerHint:
+      'Chek noto‘g‘ri mijozga urilgan bo‘lsa. Hisobga yozilgan qarz yoki haqi, to‘lash muddati bilan birga, yangi mijozga o‘tadi. Bo‘sh qoldirilsa — chek mijozsiz qoladi.',
+    customerChanged: 'Chek {{number}}: mijoz almashtirildi',
     tabSales: 'Cheklar',
     tabReturns: 'Qaytarishlar',
     returnOne: 'Qaytarish',

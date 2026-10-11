@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-12, Q1, Q2a, O1, O2, Q2b-1 dan keyin: core 232, web 231, agent 17, server 461 (40 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-12, Q1, Q2a, O1, O2, Q2b-1, U1a dan keyin: core 232, web 234, agent 17, server 461 (40 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -236,12 +236,13 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] Q1 (avvalgi M2-4b). Kassada qaytim: har tortma valyutasida juft maydon bilan, mijoz hisobiga, kartadan; `sale_changes`; kartaga ortiqcha to'lov (KEYINGI-REJA 17.2).
      - [x] O1. O'tkazmada bank komissiyasi (ikki summa, farqi xarajatga) va terminal → bank tushumi (17.4; avvalgi V8 va V6).
      - [x] O2. Mijozdan mijozga o'tkazish — o'zaro hisob (17.5).
-     - [ ] U1a. To'lov oynalari: "Olish | Berish" ikki tugma, Ctrl+Enter katakchada, mijoz valyutasi birinchi (to'lov oynasi va kassa) (17.6).
+     - [x] U1a. To'lov oynalari: "Olish | Berish" ikki tugma, Ctrl+Enter katakchada, mijoz valyutasi birinchi (to'lov oynasi va kassa) (17.6).
      - [ ] U1b. To'lov oynalarini kirilgan tizimda yonma-yon solishtirib chiqish; "Boshqa valyutalar (N)" ostiga yig'ish — egasining qaroridan keyin (17.6).
      - [ ] N0. Tizim nomi — egasi tanlagach (17.8).
      - [x] Q2a. Qaytarishda pul: mijoz hisobida qoldirish, boshqa valyutada kelishilgan qiymat, almashtirishda farq hisobga, mijozning o'z qaytarish muddati (KEYINGI-REJA 17.3).
      - [x] Q2b-1. Qaytarishda do'konning boshqa kartasidan o'tkazish qatori; hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi (haqi va "Haqini qaytarish").
-     - [ ] Q2b-2 (M2-5 dan qolgani). Almashtirib olingan tovar qaytganda asl chekka borish (16.5, 31-holat); smenasi yopilgan chekda mijozni almashtirish (33-holat).
+     - [ ] Q2b-2. Chekda mijozni almashtirish (16.5, 33-holat): hisobdagi qismi va muddati yangi mijozga ko'chadi.
+     - [ ] Q2b-3 (M2-5 dan qolgani). Almashtirib olingan tovar qaytganda asl chekka borish (31-holat): almashtirishda qarzni yangi chekka ko'chirish, naqd chegarasini asl chekdan olish.
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
@@ -253,7 +254,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-Q2b-2: almashtirib olingan tovar qaytganda asl chekka borish; chekda mijozni almashtirish. Commit qilinmagan: M2-4 dan beri hammasi — egasi aytganda. Keyin U1. Tizim nomini egasi keyinroq qo'yadi.
+Q2b-2: chekda mijozni almashtirish (16.5, 33-holat), keyin almashtirib olingan tovar qaytganda asl chekka borish (31-holat). Commit qilinmagan: M2-4 dan beri hammasi — egasi aytganda. U1b va tizim nomi — egasi bilan.
 
 ## Ish daraxti nusxalari
 
@@ -294,3 +295,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `1400f3086b0edaee95ccd8a85d8aecbb02e70ec9` | O1: o'tkazmada bank komissiyasi (fee summadan tashqari, bog'langan xarajat hujjati, o'tkazma bilan qaytadi; migratsiya 50000) va terminal tushumi bankka (ekvayring foizi accounts.fee_percent, 51000; 'Bankka tushdi') |
 | `e55ff4bca9a5ae4e54cb149df475618fc8bae880` | O2: mijozdan mijozga o'tkazish (TL- turi transfer, customer_payments.to_customer_id, migratsiya 52000; CustomerTransferDialog) |
 | `e55ff4bca9a5ae4e54cb149df475618fc8bae880` | Q2b-1: qaytarishda boshqa kartadan o'tkazish qatori (yashirin, tasdiq bilan); hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi |
+| `554abe7434c9f65382820d522eb6934020398983` | U1a: 'Olish | Berish' ikki tugma (Segments), Ctrl+Enter katakchada, mijoz valyutasi birinchi (to'lov oynasi va kassa) |

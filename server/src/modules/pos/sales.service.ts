@@ -938,6 +938,20 @@ export class SalesService {
         { date: today, kind: 'sale_void', documentType: DOCUMENT, documentId: id, shiftId: sale.shiftId },
         'sale',
       )
+      // A receipt given to another customer since: what moved between their accounts goes back the same way.
+      const [moved]: { entries: number }[] = await em.query(
+        `SELECT count(*)::int AS entries FROM ledger_entries
+         WHERE document_type = $1 AND document_id = $2 AND kind = 'sale_customer'`,
+        [DOCUMENT, id],
+      )
+      if (moved.entries) {
+        await this.ledger.reverse(
+          em,
+          actor,
+          { date: today, kind: 'sale_void', documentType: DOCUMENT, documentId: id, shiftId: sale.shiftId },
+          'sale_customer',
+        )
+      }
       await em.update(Sale, id, {
         status: 'voided',
         voidedAt: new Date(),
@@ -953,6 +967,97 @@ export class SalesService {
         summary: `${sale.number}: ${formatMoney(sale.total, actor.base)}. ${input.reason}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'stock', 'shifts', 'money', 'pos']))
+      return this.loadIn(em, actor, await em.findOneByOrFail(Sale, { id }))
+    })
+  }
+
+  /**
+   * Gives a receipt to another customer — it was rung up to the wrong one, or to none. What the sale put on
+   * the first one's account (a debt, or change kept there) moves to the same account of the second, in the
+   * same currency and at the same worth, by an entry of its own; the day the debt falls due goes with it. A
+   * receipt goods have come back on stays whose it is: its returns are written against that account.
+   */
+  async giveTo(actor: Actor, id: string, customerId: string | null): Promise<SaleDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      await em.query(`SELECT 1 FROM sales WHERE id = $1 FOR UPDATE`, [id])
+      const sale = await this.find(em, actor, id)
+      if (sale.status !== 'completed') {
+        throw AppError.conflict('SALE_VOIDED', 'Bu chek bekor qilingan')
+      }
+      if (sale.returnedTotal || (await em.countBy(SaleReturn, { saleId: id }))) {
+        throw AppError.conflict('SALE_RETURNED', 'Bu chekdan tovar qaytarilgan: mijozini almashtirib bo‘lmaydi')
+      }
+      if ((sale.customerId ?? null) === customerId) {
+        return this.loadIn(em, actor, sale)
+      }
+      const next = customerId ? await em.findOneBy(Customer, { id: customerId, isActive: true }) : null
+      if (customerId && !next) {
+        throw AppError.validation({ customerId: 'Mijoz topilmadi' })
+      }
+      const lent = await em.findOneBy(SalePayment, { saleId: id, method: 'account' })
+      const kept = await em.findBy(SaleChange, { saleId: id, way: 'account' })
+      if (lent || kept.length) {
+        if (!next) {
+          throw AppError.validation({
+            customerId: 'Chekning bir qismi mijoz hisobida turibdi: mijozsiz qoldirib bo‘lmaydi',
+          })
+        }
+        if (next.isSupplier) {
+          throw AppError.validation({ customerId: `${next.name} — yetkazib beruvchi: hisobiga chek yozilmaydi` })
+        }
+      }
+      // Both are held, always in the same order: nothing else moves either account meanwhile.
+      const held = [sale.customerId, next?.id].filter((item): item is string => !!item).sort()
+      await em.query(`SELECT 1 FROM customers WHERE id = ANY($1) ORDER BY id FOR UPDATE`, [held])
+
+      const postings: Posting[] = []
+      if (lent && next) {
+        const from = await em.findOneByOrFail(Account, { id: lent.accountId })
+        const to = await this.ledger.customerAccount(em, next, from.currency)
+        // At what the sale put it there: its worth on the day of the sale, not today's.
+        const worth = lent.base + lent.fx
+        postings.push(
+          { accountId: from.id, amount: -lent.amount, base: -worth },
+          { accountId: to.id, amount: lent.amount, base: worth },
+        )
+        await em.update(SalePayment, lent.id, { accountId: to.id })
+        await em.update(CustomerDue, { saleId: id }, { customerId: next.id })
+      }
+      for (const line of kept) {
+        if (!next) {
+          continue
+        }
+        const to = await this.ledger.customerAccount(em, next, line.currency)
+        const worth = line.base - line.fx
+        postings.push(
+          { accountId: line.accountId, amount: line.amount, base: worth },
+          { accountId: to.id, amount: -line.amount, base: -worth },
+        )
+        await em.update(SaleChange, line.id, { accountId: to.id })
+      }
+      if (postings.length) {
+        const today = await this.ledger.today(em, actor.orgId)
+        await this.ledger.post(
+          em,
+          actor,
+          { date: today, kind: 'sale_customer', documentType: DOCUMENT, documentId: id },
+          postings,
+        )
+      }
+      await em.update(Sale, id, {
+        customerId: next?.id ?? null,
+        customerName: next?.name ?? null,
+        searchKey: searchKey([sale.number, sale.cashierName ?? '', sale.sellerName ?? '', next?.name ?? ''].join(' ')),
+      })
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'sale.customer',
+        entity: 'sale',
+        entityId: id,
+        summary: `${sale.number}: ${sale.customerName ?? 'mijozsiz'} → ${next?.name ?? 'mijozsiz'}${
+          postings.length ? ', hisobdagi qismi ham ko‘chdi' : ''
+        }`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'customers', 'pos']))
       return this.loadIn(em, actor, await em.findOneByOrFail(Sale, { id }))
     })
   }

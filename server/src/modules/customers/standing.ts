@@ -68,9 +68,12 @@ export async function standingsOf(
               (d.id IS NOT NULL) AS dated, d.due_date::text AS due, sr.sale_id AS sold_in
        FROM ledger_lines l
        JOIN ledger_entries e ON e.id = l.entry_id
+       JOIN accounts a ON a.id = l.account_id
+       -- The day belongs to whoever owes the debt now: a receipt given to another customer took its day along.
        LEFT JOIN customer_dues d
-         ON (e.document_type = 'sale' AND d.sale_id = e.document_id)
-         OR (e.document_type = 'customer_payment' AND d.payment_id = e.document_id)
+         ON ((e.document_type = 'sale' AND d.sale_id = e.document_id)
+          OR (e.document_type = 'customer_payment' AND d.payment_id = e.document_id))
+        AND d.customer_id = a.customer_id
        LEFT JOIN sale_returns sr ON e.document_type = 'sale_return' AND sr.id = e.document_id
        WHERE l.account_id = ANY($1)
          AND NOT EXISTS (SELECT 1 FROM sales s WHERE e.document_type = 'sale' AND s.id = e.document_id AND s.status = 'voided')
@@ -85,10 +88,17 @@ export async function standingsOf(
     for (const row of rows) {
       const list = events.get(row.account_id) ?? []
       // A sale on the account, or an opening balance given a day, falls due; anything else they owe never does.
-      const charges = row.amount > 0 && row.document_id && (row.entry_kind === 'sale' || row.dated)
+      // A receipt given to them by someone it was first rung up to is a sale on their account all the same.
+      const sold = row.entry_kind === 'sale' || row.entry_kind === 'sale_customer'
+      const charges = row.amount > 0 && row.document_id && (sold || row.dated)
       list.push(
         row.amount < 0
-          ? { type: 'credit', amount: -row.amount, target: row.sold_in }
+          ? {
+              type: 'credit',
+              amount: -row.amount,
+              // What leaves with a receipt given to another closes that receipt's own debt here, not an older one.
+              target: row.sold_in ?? (row.entry_kind === 'sale_customer' ? row.document_id : null),
+            }
           : charges
             ? { type: 'charge', id: row.document_id as string, amount: row.amount, due: row.due }
             : { type: 'debit', amount: row.amount },

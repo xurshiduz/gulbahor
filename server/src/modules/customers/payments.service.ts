@@ -774,8 +774,9 @@ export class CustomerPaymentsService {
              FROM ledger_lines l
              JOIN ledger_entries e ON e.id = l.entry_id
              LEFT JOIN customer_dues d
-               ON (e.document_type = 'sale' AND d.sale_id = e.document_id)
-               OR (e.document_type = '${DOCUMENT}' AND d.payment_id = e.document_id)
+               ON ((e.document_type = 'sale' AND d.sale_id = e.document_id)
+                OR (e.document_type = '${DOCUMENT}' AND d.payment_id = e.document_id))
+              AND d.customer_id = $2
              LEFT JOIN customer_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
              LEFT JOIN customers oc
                ON p.kind = 'transfer'
@@ -818,9 +819,11 @@ export class CustomerPaymentsService {
           // A transfer says who the other was: "→" to whom it went, "←" from whom it came.
           note: cancelled
             ? row.cancel_reason
-            : row.other_name
-              ? [`${row.change > 0 ? '→' : '←'} ${row.other_name}`, row.note].filter(Boolean).join(' · ')
-              : row.note,
+            : row.entry_kind === 'sale_customer'
+              ? 'Chekning mijozi almashtirildi'
+              : row.other_name
+                ? [`${row.change > 0 ? '→' : '←'} ${row.other_name}`, row.note].filter(Boolean).join(' · ')
+                : row.note,
           // The day stays with the line that made the debt, and goes once the document is undone.
           due:
             row.due_id && !cancelled && row.change > 0 && !undone.has(row.document_id as string)

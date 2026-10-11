@@ -744,6 +744,10 @@ export const SALE_STATUS_LABELS: Record<SaleStatus, string> = {
 }
 
 export const saleVoidSchema = z.object({ reason: requiredText(200) })
+
+/** Whose a receipt is, put right after it was rung up to the wrong customer — or to none, or to one when it had none. */
+export const saleCustomerSchema = z.object({ customerId: idSchema.nullable() })
+export type SaleCustomerInput = z.infer<typeof saleCustomerSchema>
 export type SaleVoidInput = z.infer<typeof saleVoidSchema>
 
 export const saleListQuerySchema = listQuerySchema.extend({

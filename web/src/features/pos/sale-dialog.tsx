@@ -9,17 +9,19 @@ import {
 } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Ban, Printer, Undo2 } from 'lucide-react'
+import { Ban, Printer, Undo2, UserRoundPen } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, Spinner } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/features/auth/session'
+import { useCustomerChoices } from '@/features/customers/choices'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
@@ -42,6 +44,10 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
   const go = useNavigate()
   const [voiding, setVoiding] = useState(false)
   const [reason, setReason] = useState('')
+  /** The receipt is being given to another customer: who, once picked. */
+  const [giving, setGiving] = useState(false)
+  const [toId, setToId] = useState<string | null>(null)
+  const { choices, search } = useCustomerChoices([toId], false, giving)
   /** The receipt as it goes onto paper, laid out by the business's template: kept off the screen. */
   const paperRef = useRef<HTMLDivElement>(null)
 
@@ -67,6 +73,20 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
     },
   })
 
+  const give = useMutation({
+    mutationFn: () => api.post<SaleDto>(`/sales/${saleId}/customer`, { customerId: toId }),
+    onSuccess: (given) => {
+      queryClient.setQueryData(['sales', 'one', saleId], given)
+      for (const key of ['sales', 'customers', 'customer-payments']) {
+        void queryClient.invalidateQueries({ queryKey: [key] })
+      }
+      toast.success(t('sales.customerChanged', { number: given.number }))
+      setGiving(false)
+    },
+  })
+  // A receipt goods have come back on stays whose it is: its returns are written against that account.
+  const mayGive = sale?.status === 'completed' && can('customers.adjust') && !sale.returns.length
+
   return (
     <Dialog
       open
@@ -79,6 +99,17 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
             <Button variant="danger" className="mr-auto" onClick={() => setVoiding(true)}>
               <Ban />
               {t('sales.void')}
+            </Button>
+          ) : null}
+          {mayGive && !giving && !voiding ? (
+            <Button
+              onClick={() => {
+                setToId(sale?.customerId ?? null)
+                setGiving(true)
+              }}
+            >
+              <UserRoundPen />
+              {t('sales.changeCustomer')}
             </Button>
           ) : null}
           {sale?.status === 'completed' &&
@@ -130,6 +161,35 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   {t('sales.void')}
                 </Button>
                 <Button onClick={() => setVoiding(false)}>{t('common.no')}</Button>
+              </div>
+            </Form>
+          ) : null}
+
+          {giving ? (
+            <Form onSubmit={() => give.mutate()}>
+              <Field label={t('sales.changeCustomer')} hint={t('sales.changeCustomerHint')}>
+                {(id) => (
+                  <Combobox
+                    id={id}
+                    autoFocus
+                    options={choices.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                      hint: [item.isSupplier ? t('customers.supplier') : '', item.phoneTail ? `…${item.phoneTail}` : '']
+                        .filter(Boolean)
+                        .join(' · '),
+                    }))}
+                    onQuery={search}
+                    value={toId}
+                    onChange={setToId}
+                  />
+                )}
+              </Field>
+              <div className="flex gap-2">
+                <Button type="submit" variant="primary" loading={give.isPending}>
+                  {t('common.save')}
+                </Button>
+                <Button onClick={() => setGiving(false)}>{t('common.cancel')}</Button>
               </div>
             </Form>
           ) : null}
