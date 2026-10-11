@@ -498,6 +498,7 @@ describe('Customers', () => {
         discountReason: null,
         priceType: { id: familyPrice, name: 'Oila' },
         priceFrom: 'group',
+        currency: 'UZS',
         supplier: false,
         noDebt: false,
         noLayaway: false,

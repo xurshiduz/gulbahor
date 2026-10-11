@@ -22,7 +22,7 @@ import { Shortcut } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { ReceivedInput, ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
-import { pairSentence, rateText, type ValuedLine } from '@/features/partners/payment-lines'
+import { pairSentence, rateText, type ValuedLine } from '@/features/money/payment-lines'
 import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
@@ -85,10 +85,10 @@ interface TenderPanelProps {
   lend?: Lending | null
   /** Goods brought back on a receipt that still leaves something owing: so much comes off the debt, not out of the drawer. */
   offDebt?: number
-  /** Putting part of it on a partner's account: offered when a partner is buying. */
+  /** Putting part of it on the customer's account: offered when a customer is buying. */
   onAccount?: OnAccount | null
-  /** Goods brought back on a receipt that put something on a partner's account: so much comes off it there. */
-  offPartner?: number
+  /** Goods brought back on a receipt that put something on a customer's account: so much comes off it there. */
+  offAccount?: number
   /** Seldom used rows kept out of sight; none hidden without it. */
   hiding?: Hiding | null
 }
@@ -148,7 +148,7 @@ export function TenderPanel({
   lend = null,
   offDebt = 0,
   onAccount = null,
-  offPartner = 0,
+  offAccount = 0,
   hiding = null,
 }: TenderPanelProps) {
   const { t } = useTranslation()
@@ -566,14 +566,14 @@ export function TenderPanel({
             <MoneyInput
               id={accountId}
               value={onAccount.sums.amount}
-              // What goes there in the sale's money is the anchor: typed, the partner's sum follows afresh.
+              // What goes there in the sale's money is the anchor: typed, the account's sum follows afresh.
               onChange={(amount) => onAccount.onChange({ amount, received: null })}
               currency={base()}
               fillValue={Math.min(onAccount.max, (onAccount.sums.amount ?? 0) + settlement.due)}
               invalid={(onAccount.sums.amount ?? 0) > onAccount.max}
             />
             {onAccount.line ? (
-              // The pair: what goes on the account in the sale's money, the rate, and what the partner's
+              // The pair: what goes on the account in the sale's money, the rate, and what the account's
               // account takes for it in its own.
               <>
                 <span
@@ -609,10 +609,10 @@ export function TenderPanel({
           {onAccount.sums.amount && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}
         </div>
       ) : null}
-      {offPartner ? (
+      {offAccount ? (
         <div className="flex items-baseline justify-between border-t border-line pt-3 text-[13px]">
-          <span className="text-ink-2">{t('pos.offPartner')}</span>
-          <span className="tabular font-medium">{money(offPartner)}</span>
+          <span className="text-ink-2">{t('pos.offAccount')}</span>
+          <span className="tabular font-medium">{money(offAccount)}</span>
         </div>
       ) : null}
       {offDebt ? (

@@ -145,7 +145,7 @@ export interface StockDocListItemDto {
   reason: WriteoffReason | null
   /** A return to a supplier: the receipt and whom it goes back to. */
   receiptNumber: string | null
-  partnerName: string | null
+  supplierName: string | null
   /** Sent, written off or counted. */
   qty: number
   /** A transfer: how many did not arrive. A count: what was found against what should be there, signed. */
@@ -182,8 +182,8 @@ export interface StockDocDto {
   /** A return to a supplier: the receipt the goods came on, and whom they go back to. */
   receiptId: string | null
   receiptNumber: string | null
-  partnerId: string | null
-  partnerName: string | null
+  supplierId: string | null
+  supplierName: string | null
   /** What the return took off what the business owes, in the supplier's currency; null until it is posted. */
   credited: { amount: number; currency: AnyCurrency } | null
   fullCount: boolean

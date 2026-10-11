@@ -16,7 +16,6 @@ import {
   type Page,
   type PosContextDto,
   type PosCustomerDto,
-  type PosPartnerDto,
   type PosItemDto,
   type ReturnableDto,
   type ReturnDto,
@@ -91,15 +90,6 @@ export class PosController {
     return this.customers.search(actor, query.q)
   }
 
-  /** A partner buying at the till, found by their name or phone: what they owe is not the till's to see. */
-  @Get('partners')
-  findPartners(
-    @CurrentActor() actor: Actor,
-    @Query(zod(posCustomerSearchSchema)) query: { q: string },
-  ): Promise<PosPartnerDto[]> {
-    return this.pos.partners(actor, query.q)
-  }
-
   /** A customer who is not on the books yet is written down where they stand, by whoever is serving them. */
   @Post('customers')
   async addCustomer(
@@ -108,9 +98,20 @@ export class PosController {
   ): Promise<PosCustomerDto> {
     const { registerId, ...customer } = input
     const { locationId } = await this.pos.registerOf(actor, registerId)
-    // Who is in which group is for those who keep the base: at the till a customer is only written down.
-    const saved = await this.customers.create(actor, { ...customer, groupIds: [], tags: [] }, locationId)
+    // At the till a customer is only written down: their groups, their price, the supplier mark and their terms
+    // are for those who keep the book.
+    const saved = await this.customers.create(
+      actor,
+      { ...customer, groupIds: [], tags: [], priceTypeId: null, isSupplier: false, currency: undefined, terms: undefined },
+      locationId,
+    )
     return this.customers.forTill(actor, saved.id)
+  }
+
+  /** The customer at the counter asked about again — what they owe has changed — by who they are, phone or not. */
+  @Get('customers/:id')
+  knowAgain(@CurrentActor() actor: Actor, @Param('id', zod(idSchema)) id: string): Promise<PosCustomerDto> {
+    return this.customers.forTill(actor, id)
   }
 
   @Post('items')

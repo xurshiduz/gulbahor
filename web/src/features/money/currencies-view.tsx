@@ -20,7 +20,7 @@ import { Menu, type MenuItem } from '@/components/ui/controls'
 import { Badge } from '@/components/ui/feedback'
 import { Form } from '@/components/ui/form'
 import { NumberInput } from '@/components/ui/number-input'
-import { rateText } from '@/features/partners/payment-lines'
+import { rateText } from '@/features/money/payment-lines'
 import { cn } from '@/lib/cn'
 import { formatDay } from '@/lib/format'
 

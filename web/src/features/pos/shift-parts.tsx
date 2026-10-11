@@ -257,8 +257,8 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           moves &&
           (moves.in ||
             moves.out ||
-            moves.partnersIn ||
-            moves.partnersOut ||
+            moves.customersIn ||
+            moves.customersOut ||
             moves.debts ||
             moves.income ||
             moves.expenses ||
@@ -298,14 +298,10 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           totals.payments.map((payment) => (
             <Row
               key={`${payment.method}:${payment.accountName}:${payment.currency}`}
-              // What went on a partner's account is no money in the drawer: whose account, and in both currencies.
-              label={
-                payment.method === 'partner'
-                  ? `${paymentLabel(payment)} · ${payment.accountName}`
-                  : paymentLabel(payment)
-              }
+              // What went on customers' accounts is no money in the drawer: by currency, never by whose it was.
+              label={paymentLabel(payment)}
               value={
-                payment.method === 'partner' && payment.currency !== base()
+                payment.method === 'account' && payment.currency !== base()
                   ? `${money(payment.base)} (${money(payment.amount, payment.currency)})`
                   : money(payment.amount, payment.currency)
               }
@@ -320,8 +316,8 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             label={
               refund.method === 'debt'
                 ? t('pos.offDebt')
-                : refund.method === 'partner'
-                  ? `${t('pos.offPartner')} · ${refund.accountName}`
+                : refund.method === 'account'
+                  ? t('pos.offAccount')
                   : `${t('sales.refunded')}: ${paymentLabel(refund)}`
             }
             value={`−${money(refund.amount, refund.currency)}`}
@@ -369,11 +365,11 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
               <Row label={t('pos.opening')} value={money(count?.opening ?? 0, currency)} />
               {moves?.in ? <Row label={t('pos.broughtIn')} value={`+${money(moves.in, currency)}`} /> : null}
               {moves?.out ? <Row label={t('pos.handedOut')} value={`−${money(moves.out, currency)}`} /> : null}
-              {moves?.partnersIn ? (
-                <Row label={t('pos.partnersIn')} value={`+${money(moves.partnersIn, currency)}`} />
+              {moves?.customersIn ? (
+                <Row label={t('pos.customersIn')} value={`+${money(moves.customersIn, currency)}`} />
               ) : null}
-              {moves?.partnersOut ? (
-                <Row label={t('pos.partnersOut')} value={`−${money(moves.partnersOut, currency)}`} />
+              {moves?.customersOut ? (
+                <Row label={t('pos.customersOut')} value={`−${money(moves.customersOut, currency)}`} />
               ) : null}
               {moves?.debts ? <Row label={t('pos.debtsIn')} value={`+${money(moves.debts, currency)}`} /> : null}
               {moves?.income ? <Row label={t('pos.otherIn')} value={`+${money(moves.income, currency)}`} /> : null}

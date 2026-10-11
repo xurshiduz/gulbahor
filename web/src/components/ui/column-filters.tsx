@@ -35,16 +35,19 @@ interface FilterComboProps {
   options: ComboOption[]
   /** For a filter by something its column's header does not name: a brand, under the model's name. */
   placeholder?: string
+  /** For a list fetched as it is typed: see `Combobox`. */
+  onQuery?: (text: string) => void
 }
 
 /** A long list picked from by typing; empty means "all". */
-export function FilterCombo({ value, onChange, options, placeholder }: FilterComboProps) {
+export function FilterCombo({ value, onChange, options, placeholder, onQuery }: FilterComboProps) {
   const { t } = useTranslation()
   return (
     <Combobox
       value={value}
       onChange={onChange}
       options={options}
+      onQuery={onQuery}
       placeholder={placeholder ?? t('common.all')}
       className="min-h-7 min-w-28 rounded py-0 pr-1 pl-2 [&_input]:h-6 [&_input]:min-w-8 [&_input]:text-xs"
     />

@@ -177,11 +177,6 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                 {t('pos.customer')}: {sale.customerName}
               </p>
             ) : null}
-            {sale.partnerName ? (
-              <p className="mt-1 text-xs text-ink-2">
-                {t('pos.partner')}: {sale.partnerName}
-              </p>
-            ) : null}
             {sale.promoCode ? (
               <p className="mt-1 text-xs text-ink-3">
                 {t('pos.promoCode')}: <span className="font-code">{sale.promoCode}</span>

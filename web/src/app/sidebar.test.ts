@@ -20,7 +20,6 @@ describe('the menu', () => {
       'customers',
       'marketing',
       'money',
-      'partners',
       'reports',
       'manage',
       'settings',

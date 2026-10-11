@@ -68,7 +68,7 @@ describe('The main till', () => {
     // A till has drawers once it has been opened: the cashier opens the first, the owner the second.
     shifts.push((await cashier.post('/api/shifts').send({ registerId: first.id, cash: {} }).expect(201)).body.id)
     shifts.push((await alpha.post('/api/shifts').send({ registerId: second.id, cash: {} }).expect(201)).body.id)
-    for (const path of ['/api/partner-payments/accounts', '/api/money/ops/accounts']) {
+    for (const path of ['/api/customer-payments/accounts', '/api/money/ops/accounts']) {
       const places: Place[] = (await alpha.get(path).expect(200)).body
       const drawer = (till: Till) => places.find((place) => place.registerId === till.id && place.currency === 'UZS')
       expect(drawer(first)).toMatchObject({ open: true, till: { name: 'Kassa 1', main: true, mine: false } })

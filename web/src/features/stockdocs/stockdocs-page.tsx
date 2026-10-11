@@ -211,8 +211,8 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
             {
               id: 'partner',
               header: t('stockdocs.supplier_return.partner'),
-              meta: { export: (row) => row.partnerName },
-              cell: ({ row }) => row.original.partnerName ?? '',
+              meta: { export: (row) => row.supplierName },
+              cell: ({ row }) => row.original.supplierName ?? '',
             } satisfies ColumnDef<StockDocListItemDto>,
             {
               id: 'receipt',

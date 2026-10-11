@@ -5,8 +5,8 @@ import {
   MONEY_OP_STATUSES,
   MONEY_TRANSFER_STATUSES,
   PROMOTION_STATES,
-  PARTNER_PAYMENT_KINDS,
-  PARTNER_PAYMENT_STATUSES,
+  CUSTOMER_PAYMENT_KINDS,
+  CUSTOMER_PAYMENT_STATUSES,
   PRINT_JOB_STATUSES,
   REPORT_PERIODS,
   SALE_STATUSES,
@@ -28,10 +28,9 @@ import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
 import { MoneyPage } from '@/features/money/money-page'
 import { CustomersPage } from '@/features/customers/customers-page'
-import { PartnersPage } from '@/features/partners/partners-page'
 import { PromotionsPage } from '@/features/promotions/promotions-page'
 import { SalesReportPage } from '@/features/reports/sales-report-page'
-import { PaymentsPage } from '@/features/partners/payments'
+import { PaymentsPage } from '@/features/customers/payments'
 import { PosPage } from '@/features/pos/pos-page'
 import { SalesPage } from '@/features/pos/sales-page'
 import { ShiftsPage } from '@/features/pos/shifts-page'
@@ -210,6 +209,8 @@ const customersRoute = createRoute({
     ...listSearch,
     tab: z.enum(['list', 'groups', 'loyalty', 'debts', 'payments']).default('list').catch('list'),
     status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
+    supplier: z.enum(['yes', 'no']).optional().catch(undefined),
+    balance: z.enum(['owes', 'owed']).optional().catch(undefined),
     debtState: z.enum(['owed', 'overdue', 'closed', 'all']).default('owed').catch('owed'),
     birthdayIn: z.number().int().min(0).max(366).optional().catch(undefined),
     groupId: z.string().optional().catch(undefined),
@@ -248,18 +249,13 @@ const promotionsRoute = createRoute({
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, state: 'all' })] },
 })
 
-const partnersSearch = z.object({
-  ...listSearch,
-  status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
-  role: z.enum(['supplier', 'buyer']).optional().catch(undefined),
-  debt: z.enum(['owes', 'owed']).optional().catch(undefined),
-})
+// Partners are customers now: an old address leads to the one book.
 const partnersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/partners',
-  component: PartnersPage,
-  validateSearch: partnersSearch,
-  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, status: 'active' })] },
+  beforeLoad: () => {
+    throw redirect({ to: '/customers' })
+  },
 })
 
 const paymentsRoute = createRoute({
@@ -271,11 +267,11 @@ const paymentsRoute = createRoute({
     size: listSearch.size,
     q: listSearch.q,
     status: z
-      .enum(['all', ...PARTNER_PAYMENT_STATUSES])
+      .enum(['all', ...CUSTOMER_PAYMENT_STATUSES])
       .default('all')
       .catch('all'),
-    kind: z.enum(PARTNER_PAYMENT_KINDS).optional().catch(undefined),
-    partnerId: z.string().optional().catch(undefined),
+    kind: z.enum(CUSTOMER_PAYMENT_KINDS).optional().catch(undefined),
+    customerId: z.string().optional().catch(undefined),
     from: z.string().optional().catch(undefined),
     to: z.string().optional().catch(undefined),
     /** The payment that is open over the list. */

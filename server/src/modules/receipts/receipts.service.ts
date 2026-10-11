@@ -1,7 +1,6 @@
 import {
   allocateExact,
   costReceipt,
-  exchange,
   formatMoney,
   receiptRateWay,
   RECEIPT_STATUS_LABELS,
@@ -28,7 +27,7 @@ import { Db } from '../../database/db.service'
 import {
   Location,
   Organization,
-  Partner,
+  Customer,
   PriceType,
   ProductVariant,
   Receipt,
@@ -56,7 +55,7 @@ const QTY_SCALE = 1000
 /** Every supplier named on the receipt, or the one on its header when it has no lines yet. */
 const SUPPLIER_NAMES = `coalesce(
   (SELECT string_agg(DISTINCT pt.name, ', ' ORDER BY pt.name)
-   FROM receipt_lines rl JOIN partners pt ON pt.id = coalesce(rl.supplier_id, r.supplier_id)
+   FROM receipt_lines rl JOIN customers pt ON pt.id = coalesce(rl.supplier_id, r.supplier_id)
    WHERE rl.receipt_id = r.id),
   s.name
 )`
@@ -84,7 +83,7 @@ export class ReceiptsService {
       const qb = em
         .createQueryBuilder(Receipt, 'r')
         .leftJoin(Location, 'l', 'l.id = r.locationId')
-        .leftJoin(Partner, 's', 's.id = r.supplierId')
+        .leftJoin(Customer, 's', 's.id = r.supplierId')
         .addSelect('l.name', 'location_name')
         .addSelect(SUPPLIER_NAMES, 'supplier_names')
 
@@ -299,7 +298,7 @@ export class ReceiptsService {
           priced ? `; ${priced} ta model narxi yangilandi` : ''
         }`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'products', 'labels', 'partners']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'products', 'labels', 'customers']))
       return this.load(em, await this.find(em, actor, id))
     })
   }
@@ -340,16 +339,18 @@ export class ReceiptsService {
       return
     }
     const ids = [...owed.keys()].sort()
-    const suppliers = await em.findBy(Partner, { id: In(ids) })
+    // Whoever goods came from supplies goods: the till shows none of their sums from now on.
+    await em.query(`UPDATE customers SET is_supplier = true WHERE id = ANY($1) AND NOT is_supplier`, [ids])
+    const suppliers = await em.findBy(Customer, { id: In(ids) })
     const postings: Posting[] = []
     let worth = 0
     // One supplier after another in the same order every time: two receipts never wait on each other's accounts.
     for (const supplierId of ids) {
-      const supplier = suppliers.find((item) => item.id === supplierId) as Partner
+      const supplier = suppliers.find((item) => item.id === supplierId) as Customer
       const { goods, uzs } = owed.get(supplierId) as { goods: number; uzs: number }
-      const account = await this.ledger.partnerAccount(em, supplier)
-      const amount = await this.inAccount(em, actor, receipt, account.currency, { goods, uzs })
-      postings.push({ accountId: account.id, amount: -amount, base: -uzs })
+      // Owed in the receipt's currency, exactly as billed: their account in it, whatever else they deal in.
+      const account = await this.ledger.customerAccount(em, supplier, receipt.currency)
+      postings.push({ accountId: account.id, amount: -goods, base: -uzs })
       worth += uzs
     }
     const purchases = await this.ledger.systemAccount(em, actor.orgId, 'purchases')
@@ -405,54 +406,22 @@ export class ReceiptsService {
       return null
     }
     const ids = [...owed.keys()].sort()
-    const suppliers = await em.findBy(Partner, { id: In(ids) })
+    const suppliers = await em.findBy(Customer, { id: In(ids) })
     const postings: Posting[] = []
     let worth = 0
     let credited: { amount: number; currency: AnyCurrency } | null = null
     for (const supplierId of ids) {
-      const supplier = suppliers.find((item) => item.id === supplierId) as Partner
+      const supplier = suppliers.find((item) => item.id === supplierId) as Customer
       const sums = owed.get(supplierId) as { goods: number; uzs: number }
-      const account = await this.ledger.partnerAccount(em, supplier)
-      const amount = await this.inAccount(em, actor, receipt, account.currency, sums)
-      postings.push({ accountId: account.id, amount, base: sums.uzs })
+      const account = await this.ledger.customerAccount(em, supplier, receipt.currency)
+      postings.push({ accountId: account.id, amount: sums.goods, base: sums.uzs })
       worth += sums.uzs
-      credited = { amount, currency: account.currency }
+      credited = { amount: sums.goods, currency: receipt.currency }
     }
     const purchases = await this.ledger.systemAccount(em, actor.orgId, 'purchases')
     postings.push({ accountId: purchases.id, amount: -worth, base: -worth })
     await this.ledger.post(em, actor, { ...head, kind: head.documentType }, postings)
     return ids.length === 1 ? credited : null
-  }
-
-  /**
-   * What the goods of a receipt come to on an account kept in `currency`:
-   * exactly what was billed in the receipt's own currency; in the base, what
-   * the receipt's rate makes of it; in any other, the bill at the rates of
-   * the receipt's day.
-   */
-  private async inAccount(
-    em: EntityManager,
-    actor: Actor,
-    receipt: Receipt,
-    currency: AnyCurrency,
-    sums: { goods: number; uzs: number },
-  ): Promise<number> {
-    if (currency === receipt.currency) {
-      return sums.goods
-    }
-    if (currency === actor.base) {
-      return sums.uzs
-    }
-    const book = await this.currencies.book(em, actor, receipt.docDate)
-    const wanting = wantingRate(book, receipt.currency, currency)
-    const amount = wanting ? null : exchange(sums.goods, receipt.currency, currency, book)
-    if (amount === null) {
-      throw AppError.conflict(
-        'RATE_MISSING',
-        `${wanting ?? 'Kurs qo‘yilmagan'}: yetkazib beruvchi qarzini hisoblab bo‘lmaydi`,
-      )
-    }
-    return amount
   }
 
   /** Takes the goods back off hand. Possible only while every piece is still where the receipt put it. */
@@ -508,7 +477,7 @@ export class ReceiptsService {
         entityId: id,
         summary: receipt.number,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'partners']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['receipts', 'stock', 'customers']))
       return this.load(em, await this.find(em, actor, id))
     })
   }
@@ -737,8 +706,9 @@ export class ReceiptsService {
     const supplierIds = [
       ...new Set([input.supplierId, ...input.lines.map((line) => line.supplierId)].filter((id): id is string => !!id)),
     ]
-    const suppliers = supplierIds.length ? await em.findBy(Partner, { id: In(supplierIds) }) : []
-    const known = new Set(suppliers.filter((partner) => partner.isSupplier).map((partner) => partner.id))
+    // Anyone in the book may be who goods came from; posting marks them a supplier.
+    const suppliers = supplierIds.length ? await em.findBy(Customer, { id: In(supplierIds) }) : []
+    const known = new Set(suppliers.map((supplier) => supplier.id))
     if (input.supplierId && !known.has(input.supplierId)) {
       fields.supplierId = 'Yetkazib beruvchi topilmadi'
     }
@@ -787,14 +757,14 @@ export class ReceiptsService {
     const supplierIds = [
       ...new Set([receipt.supplierId, ...lines.map((line) => line.supplierId)].filter((id): id is string => !!id)),
     ]
-    const suppliers = supplierIds.length ? await em.findBy(Partner, { id: In(supplierIds) }) : []
+    const suppliers = supplierIds.length ? await em.findBy(Customer, { id: In(supplierIds) }) : []
     await em.update(Receipt, receipt.id, {
       ...totalColumns(costing.totals),
       hasEstimates: expenses.some((expense) => expense.isEstimate),
       searchKey: searchKey(
         [
           receipt.number,
-          ...suppliers.map((partner) => partner.name),
+          ...suppliers.map((supplier) => supplier.name),
           receipt.note ?? '',
           receipt.sourceFile ?? '',
         ].join(' '),

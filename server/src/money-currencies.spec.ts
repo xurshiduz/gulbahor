@@ -64,8 +64,8 @@ describe('Money in any currency', () => {
     })
   const pay = (lines: Record<string, unknown>[], settled: number, agent = alpha) =>
     agent
-      .post('/api/partner-payments')
-      .send({ clientKey: randomUUID(), partnerId: supplier, kind: 'out', lines, settled })
+      .post('/api/customer-payments')
+      .send({ clientKey: randomUUID(), customerId: supplier, kind: 'out', lines, settled })
   const move = (fromAccountId: string, toAccountId: string, amount: number) =>
     alpha.post('/api/money/transfers').send({ clientKey: randomUUID(), fromAccountId, toAccountId, amount })
 
@@ -76,7 +76,7 @@ describe('Money in any currency', () => {
     dollarSafe = (await account({ kind: 'safe', name: 'Dollar seyfi', currency: 'USD' }).expect(201)).body.id
     supplier = (
       await alpha
-        .post('/api/partners')
+        .post('/api/customers')
         .send({ name: 'Guangzhou Textile', isSupplier: true, currency: 'USD' })
         .expect(201)
     ).body.id
@@ -137,7 +137,7 @@ describe('Money in any currency', () => {
     })
 
     it('is offered where money is paid from, beside the others', async () => {
-      const places = (await alpha.get('/api/partner-payments/accounts').expect(200)).body as AccountDto[]
+      const places = (await alpha.get('/api/customer-payments/accounts').expect(200)).body as AccountDto[]
       expect(places.find((place) => place.id === yuanSafe)).toMatchObject({ currency: 'CNY', open: true })
       expect(places.find((place) => place.id === yuanCard)).toMatchObject({
         currency: 'CNY',
@@ -266,27 +266,27 @@ describe('Money in any currency', () => {
     let yiwu: string
     const payYiwu = (lines: Record<string, unknown>[], settled: number) =>
       alpha
-        .post('/api/partner-payments')
-        .send({ clientKey: randomUUID(), partnerId: yiwu, kind: 'out', lines, settled })
+        .post('/api/customer-payments')
+        .send({ clientKey: randomUUID(), customerId: yiwu, kind: 'out', lines, settled })
 
     it('is opened only in a currency the business has switched on', async () => {
       const refused = await alpha
-        .post('/api/partners')
+        .post('/api/customers')
         .send({ name: 'Almaty Trade', isSupplier: true, currency: 'KZT' })
         .expect(400)
       expect(refused.body.error.fields.currency).toBeDefined()
       const made = (
-        await alpha.post('/api/partners').send({ name: 'Yiwu Market', isSupplier: true, currency: 'CNY' }).expect(201)
+        await alpha.post('/api/customers').send({ name: 'Yiwu Market', isSupplier: true, currency: 'CNY' }).expect(201)
       ).body
-      expect(made).toMatchObject({ currency: 'CNY', balance: 0 })
+      expect(made).toMatchObject({ currency: 'CNY', balances: [] })
       yiwu = made.id
     })
 
     it('has what stood before the books valued along the chain of rates', async () => {
       const before = await balances()
       await alpha
-        .post('/api/partner-payments/opening')
-        .send({ clientKey: randomUUID(), partnerId: yiwu, owes: 'us', amount: yuan(10_000) })
+        .post('/api/customer-payments/opening')
+        .send({ clientKey: randomUUID(), customerId: yiwu, owes: 'us', amount: yuan(10_000) })
         .expect(201)
       // The business owes 10 000 ¥, worth 17 448 275,86 so'm today.
       expect(moved(before, await balances())).toEqual({
@@ -315,18 +315,18 @@ describe('Money in any currency', () => {
         'Yuan seyfi': -yuan(1000),
         'Yiwu Market': yuan(1725),
       })
-      const statement = (await alpha.get(`/api/partners/${yiwu}/statement`).expect(200)).body
+      const statement = (await alpha.get(`/api/customers/${yiwu}/statement`).expect(200)).body
       expect(statement.balance).toBe(-yuan(10_000) + yuan(1725))
     })
 
     it('is not counted while its currency has no rate', async () => {
       await alpha.post('/api/currencies').send({ code: 'EUR' }).expect(200)
       const paris = (
-        await alpha.post('/api/partners').send({ name: 'Paris Mode', isSupplier: true, currency: 'EUR' }).expect(201)
+        await alpha.post('/api/customers').send({ name: 'Paris Mode', isSupplier: true, currency: 'EUR' }).expect(201)
       ).body.id
       const none = await alpha
-        .post('/api/partner-payments/opening')
-        .send({ clientKey: randomUUID(), partnerId: paris, owes: 'us', amount: 100_000 })
+        .post('/api/customer-payments/opening')
+        .send({ clientKey: randomUUID(), customerId: paris, owes: 'us', amount: 100_000 })
         .expect(400)
       expect(none.body.error.fields.amount).toBe('Yevro kursi qo‘yilmagan')
     })

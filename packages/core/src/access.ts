@@ -179,8 +179,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.prices', title: 'Maxsus narx turida sotish (ulgurji, oila)' },
       { key: 'pos.return', title: 'Qaytarish va almashtirish' },
       { key: 'pos.return_any', title: 'Muddati o‘tgan tovarni olish, pulni boshqa usulda qaytarish' },
-      { key: 'pos.debt', title: 'Taqiqlangan, muddati o‘tgan yoki chegaradan oshgan mijozga qarzga sotish' },
-      { key: 'pos.partner_sale', title: 'Hamkorga uning hisobiga sotish' },
+      {
+        key: 'pos.debt',
+        title: 'Qarzga sotish: to‘siqdan o‘tish, mijoz hisobiga yozish, kassirga PIN bilan tasdiq',
+      },
     ],
   },
   {
@@ -235,17 +237,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: 'promotions.view', title: 'Aksiyalarni ko‘rish' },
       { key: 'promotions.manage', title: 'Aksiya qo‘shish, o‘zgartirish va to‘xtatish' },
-    ],
-  },
-  {
-    key: 'partners',
-    title: 'Yetkazib beruvchilar va hamkorlar',
-    permissions: [
-      { key: 'partners.view', title: 'Ko‘rish' },
-      { key: 'partners.manage', title: 'Qo‘shish va tahrirlash' },
-      { key: 'partners.debts', title: 'Qarz va hisob-kitobni ko‘rish' },
-      { key: 'partners.pay', title: 'To‘lovlarni kiritish va bekor qilish' },
-      { key: 'partners.adjust', title: 'Boshlang‘ich qoldiqni kiritish' },
     ],
   },
   {
@@ -335,7 +326,6 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'customers.*',
       'promotions.*',
       'money.*',
-      'partners.*',
       'reports.*',
       'audit.view',
     ],
@@ -361,8 +351,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'money.rates',
       'money.ops',
       'money.categories',
-      'partners.view',
-      'partners.debts',
+      'customers.suppliers',
       'reports.*',
       'audit.view',
     ],
@@ -426,13 +415,12 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       'counts.view',
       'counts.manage',
       'labels.print',
-      'partners.view',
     ],
   },
   {
     key: 'partners_manager',
-    name: 'Hamkorlar menejeri',
-    description: 'Hamkorlarga tovar beradi, to‘lov qabul qiladi, akt yuboradi.',
-    permissions: ['products.view', 'stock.view', 'partners.*'],
+    name: 'Ulgurji menejer',
+    description: 'Ulgurji xaridor va yetkazib beruvchilar bilan ishlaydi: hisobiga tovar, to‘lov, akt-sverka.',
+    permissions: ['products.view', 'stock.view', 'customers.*'],
   },
 ]

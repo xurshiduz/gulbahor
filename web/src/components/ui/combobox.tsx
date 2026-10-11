@@ -30,6 +30,11 @@ interface BaseProps {
   recentKey?: string
   /** Offer to create what was typed when nothing matches it exactly. Return the new option's value to select it. */
   onCreate?: (text: string) => void | string | Promise<void | string>
+  /**
+   * Told what is typed, for a list too long to hold: the page fetches what matches it and passes it back as
+   * `options`. The options are still sorted by the same forgiving match.
+   */
+  onQuery?: (text: string) => void
   className?: string
 }
 
@@ -56,7 +61,7 @@ const MAX_RECENT = 8
  * ↑↓ to move, Enter to pick, Esc to close.
  */
 export function Combobox(props: SingleProps | MultiProps) {
-  const { id, options, placeholder, invalid, disabled, autoFocus, recentKey, onCreate, className } = props
+  const { id, options, placeholder, invalid, disabled, autoFocus, recentKey, onCreate, onQuery, className } = props
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -65,6 +70,11 @@ export function Combobox(props: SingleProps | MultiProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
+  useEffect(() => {
+    onQuery?.(query.trim())
+    // Told of the text alone: a new function from the page each render is no new text.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
 
   const selectedValues = props.multiple ? props.value : props.value ? [props.value] : []
   const selectedOptions = selectedValues

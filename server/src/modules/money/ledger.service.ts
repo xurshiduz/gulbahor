@@ -2,7 +2,7 @@ import { SYSTEM_ACCOUNT_LABELS, type AnyCurrency, type SystemAccount } from '@er
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
-import { Account, LedgerEntry, Organization, type Partner, type Register } from '../../database/entities'
+import { Account, LedgerEntry, Organization, type Customer, type Register } from '../../database/entities'
 import { drawerName } from './drawers'
 
 /** One side of a movement: so much into an account (or, negative, out of it), and its worth in the base. */
@@ -126,19 +126,27 @@ export class LedgerService {
     )
   }
 
-  /** A partner's account, in the currency it is kept in; made the first time something is owed either way. */
-  async partnerAccount(em: EntityManager, partner: Partner): Promise<Account> {
-    const existing = await em.findOneBy(Account, { partnerId: partner.id })
+  /**
+   * A customer's account in one currency: what they owe in it, negative when the business owes them. Made the
+   * first time something is owed either way in that currency; a customer has as many as the currencies they
+   * deal in, and they are never added together.
+   */
+  async customerAccount(
+    em: EntityManager,
+    customer: Pick<Customer, 'id' | 'orgId' | 'name'>,
+    currency: AnyCurrency,
+  ): Promise<Account> {
+    const existing = await em.findOneBy(Account, { customerId: customer.id, currency })
     if (existing) {
       return existing
     }
     return em.save(
       em.create(Account, {
-        orgId: partner.orgId,
-        kind: 'partner',
-        name: partner.name,
-        currency: partner.currency,
-        partnerId: partner.id,
+        orgId: customer.orgId,
+        kind: 'customer',
+        name: customer.name,
+        currency,
+        customerId: customer.id,
         balance: 0,
         isActive: true,
       }),

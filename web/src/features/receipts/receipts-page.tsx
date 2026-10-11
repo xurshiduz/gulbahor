@@ -3,7 +3,6 @@ import {
   RECEIPT_STATUS_LABELS,
   RECEIPT_STATUSES,
   type Page as PageOf,
-  type PartnerDto,
   type ReceiptListItemDto,
 } from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
@@ -19,6 +18,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { Badge, EmptyState, Shortcut, Tooltip } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
+import { useCustomerChoices } from '@/features/customers/choices'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
@@ -56,12 +56,7 @@ export function ReceiptsPage() {
     queryKey: ['locations', 'options'],
     queryFn: ({ signal }) => api.get<LocationOption[]>('/locations/options', undefined, signal),
   })
-  const suppliers = useQuery({
-    queryKey: ['partners', 'suppliers'],
-    queryFn: ({ signal }) =>
-      api.get<PageOf<PartnerDto>>('/partners', { role: 'supplier', status: 'all', size: 200 }, signal),
-    enabled: can('partners.view'),
-  })
+  const { choices: suppliers, search: findSupplier, loaded } = useCustomerChoices([search.supplierId], true)
 
   const open = (receiptId: string) => void go({ to: '/receipts/$receiptId', params: { receiptId } })
 
@@ -242,9 +237,10 @@ export function ReceiptsPage() {
               onChange={(range) => void navigate({ search: (previous) => withFilter(previous, range) })}
             />
           ),
-          supplier: suppliers.data ? (
+          supplier: loaded ? (
             <FilterCombo
-              options={suppliers.data.items.map((partner) => ({ value: partner.id, label: partner.name }))}
+              options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+              onQuery={findSupplier}
               value={search.supplierId ?? null}
               onChange={(supplierId) =>
                 void navigate({ search: (previous) => withFilter(previous, { supplierId: supplierId ?? undefined }) })

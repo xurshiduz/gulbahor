@@ -1,9 +1,15 @@
 import {
+  ALL_CURRENCY_CODES,
+  customerBriefQuerySchema,
   customerGroupInputSchema,
   customerInputSchema,
   customerListQuerySchema,
+  customerQuickSchema,
   idSchema,
   loyaltyInputSchema,
+  type AnyCurrency,
+  type CustomerBriefDto,
+  type CustomerBriefQuery,
   type CustomerDto,
   type CustomerGroupDto,
   type CustomerGroupInput,
@@ -12,19 +18,68 @@ import {
   type CustomerSummary,
   type LoyaltyInput,
   type LoyaltyTier,
+  type CustomerQuickInput,
+  type CustomerStatementDto,
   type Page,
 } from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
+import { z } from 'zod'
 
+import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
-import { Actor, Can, CurrentActor } from '../auth/actor'
+import { Actor, Can, can, CurrentActor } from '../auth/actor'
 import { CustomersService } from './customers.service'
+import { CustomerPaymentsService } from './payments.service'
 
 const id = () => Param('id', zod(idSchema))
 
+const statementQuerySchema = z.object({
+  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
+})
+
+/** Lets through whoever holds any one of the permissions. */
+function anyOf(actor: Actor, ...permissions: string[]) {
+  if (!permissions.some((permission) => can(actor, permission))) {
+    throw AppError.forbidden()
+  }
+}
+
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customers: CustomersService) {}
+  constructor(
+    private readonly customers: CustomersService,
+    private readonly payments: CustomerPaymentsService,
+  ) {}
+
+  /** Customers to pick among on a document: whoever makes receipts or sends goods back picks the supplier here. */
+  @Get('brief')
+  brief(
+    @CurrentActor() actor: Actor,
+    @Query(zod(customerBriefQuerySchema)) query: CustomerBriefQuery,
+  ): Promise<CustomerBriefDto[]> {
+    anyOf(actor, 'customers.view', 'customers.receive', 'customers.pay_out', 'receipts.view', 'supplier_returns.view')
+    return this.customers.brief(actor, query)
+  }
+
+  /** Someone named on a receipt for the first time, by name alone. */
+  @Post('quick')
+  quick(
+    @CurrentActor() actor: Actor,
+    @Body(zod(customerQuickSchema)) input: CustomerQuickInput,
+  ): Promise<CustomerBriefDto> {
+    anyOf(actor, 'customers.manage', 'receipts.manage')
+    return this.customers.quick(actor, input)
+  }
+
+  /** One of a customer's accounts: every change, and what was owed after each. */
+  @Get(':id/statement')
+  statement(
+    @CurrentActor() actor: Actor,
+    @id() customerId: string,
+    @Query(zod(statementQuerySchema)) query: { currency?: AnyCurrency },
+  ): Promise<CustomerStatementDto> {
+    return this.payments.statement(actor, customerId, query.currency)
+  }
 
   /** Whoever serves customers may see what the programme gives; whoever keeps the base sets it. */
   @Get('loyalty')
@@ -88,9 +143,10 @@ export class CustomersController {
     return this.customers.list(actor, query)
   }
 
+  /** A card: for whoever keeps the book, and for whoever takes or makes the customer's payments. */
   @Get(':id')
-  @Can('customers.view')
   get(@CurrentActor() actor: Actor, @id() customerId: string): Promise<CustomerDto> {
+    anyOf(actor, 'customers.view', 'customers.receive', 'customers.pay_out', 'customers.debts', 'customers.suppliers')
     return this.customers.get(actor, customerId)
   }
 

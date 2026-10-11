@@ -190,7 +190,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
     })),
     // The one the document already names stays there, whether or not it is among the latest.
     ...(doc?.receiptId && !receipts.data?.items.some((receipt) => receipt.id === doc.receiptId)
-      ? [{ value: doc.receiptId, label: doc.receiptNumber ?? '', hint: doc.partnerName ?? undefined }]
+      ? [{ value: doc.receiptId, label: doc.receiptNumber ?? '', hint: doc.supplierName ?? undefined }]
       : []),
   ]
   const [blocks, setBlocks] = useState<Block[]>(() => {
@@ -614,7 +614,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
               {kind === 'supplier_return' ? (
                 <Field
                   label={t('stockdocs.supplier_return.receipt')}
-                  hint={doc?.partnerName ?? receiptOptions.find((option) => option.value === header.receiptId)?.hint}
+                  hint={doc?.supplierName ?? receiptOptions.find((option) => option.value === header.receiptId)?.hint}
                   error={errors.receiptId}
                   required
                 >
@@ -764,7 +764,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
             ) : null}
             {doc?.credited ? (
               <span className="text-ink-3">
-                {t('stockdocs.supplier_return.credited', { name: doc.partnerName })}:{' '}
+                {t('stockdocs.supplier_return.credited', { name: doc.supplierName })}:{' '}
                 <span className="tabular font-semibold text-ok">
                   {formatMoney(doc.credited.amount, doc.credited.currency, { minor: 'auto' })}
                 </span>

@@ -1,20 +1,20 @@
 import {
-  formatMoney,
-  PARTNER_PAYMENT_KIND_LABELS,
-  PARTNER_PAYMENT_KINDS,
-  PARTNER_PAYMENT_STATUS_LABELS,
-  PARTNER_PAYMENT_STATUSES,
-  partnerOpeningInputSchema,
-  partnerPaymentInputSchema,
-  type AnyCurrency,
-  type Page as PageOf,
-  type PartnerDto,
-  type PartnerPaymentDto,
-  type PartnerPaymentKind,
-  type PartnerStatementDto,
-  type PaymentAccountDto,
+  CUSTOMER_PAYMENT_KIND_LABELS,
+  CUSTOMER_PAYMENT_KINDS,
+  CUSTOMER_PAYMENT_STATUS_LABELS,
+  CUSTOMER_PAYMENT_STATUSES,
+  customerOpeningInputSchema,
+  customerPaymentInputSchema,
   defaultTill,
+  formatMoney,
   tillsOf,
+  type AnyCurrency,
+  type CustomerDto,
+  type CustomerPaymentDto,
+  type CustomerPaymentKind,
+  type CustomerStatementDto,
+  type Page as PageOf,
+  type PaymentAccountDto,
 } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
+import { currencyName } from '@/features/money/currencies-view'
 import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -45,6 +46,8 @@ import { useRateBook } from '@/features/money/rates'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
+
+import { useCustomerChoices } from './choices'
 
 import {
   addRow,
@@ -65,19 +68,19 @@ import {
   sparePlaces,
   switchTill,
   TillField,
-} from './payment-lines'
+} from '@/features/money/payment-lines'
 
 const route = getRouteApi('/payments')
 
 const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
 
 const refresh = (queryClient: ReturnType<typeof useQueryClient>) => {
-  for (const key of ['partner-payments', 'partners', 'money', 'pos', 'shifts']) {
+  for (const key of ['customer-payments', 'customers', 'money', 'pos', 'shifts']) {
     void queryClient.invalidateQueries({ queryKey: [key] })
   }
 }
 
-/** What stands between the business and a partner, in words: "qarzi 570,95 $" when they owe, "haqi …" when they are owed. */
+/** What stands between the business and a customer, in words: "qarzi 570,95 $" when they owe, "haqi …" when they are owed. */
 export function useDebtText() {
   const { t } = useTranslation()
   return (balance: number, currency: AnyCurrency) =>
@@ -88,36 +91,59 @@ export function useDebtText() {
         : t('payments.even')
 }
 
-const usePartners = (enabled = true) =>
+/** A customer's card, with their accounts for whoever may see them. */
+const useCustomer = (id: string | null) =>
   useQuery({
-    queryKey: ['partners', 'options'],
-    queryFn: ({ signal }) => api.get<PageOf<PartnerDto>>('/partners', { status: 'active', size: 200 }, signal),
-    enabled,
+    queryKey: ['customers', 'one', id],
+    queryFn: ({ signal }) => api.get<CustomerDto>(`/customers/${id}`, undefined, signal),
+    enabled: !!id,
   })
+
+/** What a customer owes in one currency; null for a person who may not see it. */
+const balanceIn = (customer: CustomerDto | undefined, currency: AnyCurrency | null) =>
+  !customer || !currency || customer.balances === null
+    ? null
+    : (customer.balances.find((item) => item.currency === currency)?.balance ?? 0)
+
+/** The currencies a customer's money may be counted in: the business's, their main one first. */
+function useKept() {
+  const { me } = useSession()
+  return [me.org.baseCurrency, ...me.org.currencies.filter((code) => code !== me.org.baseCurrency)]
+}
 
 // ───────────────────────────── A payment, entered ─────────────────────────────
 
 interface PaymentDialogProps {
-  /** The partner the payment is with, when it is opened from their account. */
-  partnerId?: string
+  /** The customer the payment is with, when it is opened from their account. */
+  customerId?: string
+  /** Which of their accounts: their main currency's unless said. */
+  currency?: AnyCurrency
   kind?: 'in' | 'out'
   onClose: () => void
 }
 
 /**
- * Money changing hands with a partner. The places it usually goes through
- * stand ready, a line each: a sum is typed where it belongs. Where a place
- * is in another currency than the partner's account, its line has two
- * fields side by side: what went through it, and how much of the partner's
- * account that settles. Typing either works out the other from the rate.
+ * Money changing hands with a customer. The places it usually goes through
+ * stand ready, a line each: a sum is typed where it belongs. The payment
+ * settles one of the customer's accounts — their main currency's unless
+ * another is picked. Where a place is in another currency than that, its
+ * line has two fields side by side: what went through it, and how much of
+ * the account that settles. Typing either works out the other from the rate.
  */
-export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in', onClose }: PaymentDialogProps) {
+export function PaymentDialog({
+  customerId: fixedCustomer,
+  currency: fixedCurrency,
+  kind: startKind = 'in',
+  onClose,
+}: PaymentDialogProps) {
   const { t } = useTranslation()
   const { can, me } = useSession()
   const queryClient = useQueryClient()
   const debtText = useDebtText()
+  const kept = useKept()
   const [kind, setKind] = useState<'in' | 'out'>(startKind)
-  const [partnerId, setPartnerId] = useState<string | null>(fixedPartner ?? null)
+  const [customerId, setCustomerId] = useState<string | null>(fixedCustomer ?? null)
+  const [pickedCurrency, setPickedCurrency] = useState<AnyCurrency | null>(fixedCurrency ?? null)
   // Until a line is touched they are the ones this computer usually pays through.
   const [rows, setRows] = useState<PaymentRow[] | null>(null)
   const [added, setAdded] = useState<string | null>(null)
@@ -127,15 +153,18 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   // Payments entered one after another: each starts with the cursor where the first did.
   const [round, setRound] = useState(0)
 
-  const partners = usePartners()
+  const { choices, search } = useCustomerChoices([customerId])
+  const customer = useCustomer(customerId).data
+  // The account it settles: the one picked, else the customer's main one.
+  const currency = pickedCurrency ?? customer?.currency ?? null
   const accounts = useQuery({
-    queryKey: ['partner-payments', 'accounts'],
-    queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/partner-payments/accounts', undefined, signal),
+    queryKey: ['customer-payments', 'accounts'],
+    queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/customer-payments/accounts', undefined, signal),
   })
   // The day's rates, all of them: a line may be in any currency the business keeps.
   const dayRate = useRateBook()
   const setsRates = can('money.rates')
-  const partner = partners.data?.items.find((item) => item.id === partnerId) ?? null
+  const balance = balanceIn(customer, currency)
   const places = useMemo(() => accounts.data ?? [], [accounts.data])
 
   // The till the money goes through: the one picked here, else the one that stands to reason.
@@ -150,7 +179,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
     keepTill(id)
     setRows(switchTill(shown, places, id, hidden))
   }
-  const valued = valueLines(shown, places, partner?.currency ?? null, dayRate, me.org.settings.maxRateLossPercent)
+  const valued = valueLines(shown, places, currency, dayRate, me.org.settings.maxRateLossPercent)
   const total = totalOf(valued)
   const noRate = valued.some((line) => line.changes && !line.rate && line.row.amount)
 
@@ -198,7 +227,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   const save = useMutation({
     // `keys`: the lines in the order they were sent, to put the server's answer under the right one.
     mutationFn: ({ input }: { input: unknown; keys: string[]; more: boolean }) =>
-      api.post<PartnerPaymentDto>('/partner-payments', input),
+      api.post<CustomerPaymentDto>('/customer-payments', input),
     onSuccess: (payment, { more }) => {
       refresh(queryClient)
       toast.success(t('payments.saved', { number: payment.number }))
@@ -207,7 +236,8 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
         return
       }
       setRows(clearRows(shown))
-      setPartnerId(fixedPartner ?? null)
+      setCustomerId(fixedCustomer ?? null)
+      setPickedCurrency(fixedCurrency ?? null)
       setNote('')
       setProblems({})
       setAdded(null)
@@ -243,8 +273,8 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   const submit = () => {
     const more = again.current
     again.current = false
-    if (!partner) {
-      toast.error(t('payments.pickPartner'))
+    if (!customerId || !currency) {
+      toast.error(t('payments.pickCustomer'))
       return
     }
     const filled = valued.filter((line) => line.row.amount)
@@ -256,9 +286,10 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
       toast.error(t('payments.noRate'))
       return
     }
-    const parsed = partnerPaymentInputSchema.safeParse({
+    const parsed = customerPaymentInputSchema.safeParse({
       clientKey,
-      partnerId: partner.id,
+      customerId,
+      currency,
       kind,
       lines: filled.map((line) => ({
         accountId: line.row.accountId,
@@ -276,10 +307,10 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   }
 
   const typeTotal = (wanted: number) => {
-    if (!partner) {
+    if (!currency) {
       return false
     }
-    const taken = spreadTotal(valued, wanted, partner.currency)
+    const taken = spreadTotal(valued, wanted, currency)
     if (!taken) {
       toast.error(t(valued.some((line) => line.account.open) ? 'payments.totalTooSmall' : 'payments.pickAccount'))
       return false
@@ -289,8 +320,8 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   }
 
   // What they owe when paying, what they are owed when being paid: the most this payment has to settle.
-  const debt = partner?.balance == null ? null : kind === 'in' ? partner.balance : -partner.balance
-  const after = partner?.balance == null ? null : partner.balance + (kind === 'in' ? -total : total)
+  const debt = balance === null ? null : kind === 'in' ? balance : -balance
+  const after = balance === null ? null : balance + (kind === 'in' ? -total : total)
 
   return (
     <Dialog
@@ -329,8 +360,8 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
           className={cn(
             'grid gap-4',
             tills.length > 1
-              ? 'sm:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)_14rem]'
-              : 'sm:grid-cols-[12rem_minmax(0,1fr)_minmax(0,1fr)]',
+              ? 'sm:grid-cols-[12rem_minmax(0,1fr)_9rem_minmax(0,1fr)_14rem]'
+              : 'sm:grid-cols-[12rem_minmax(0,1fr)_9rem_minmax(0,1fr)]',
           )}
         >
           <Field label={t('payments.kind')}>
@@ -348,29 +379,48 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
               </div>
             )}
           </Field>
-          <Field label={t('payments.partner')} required>
+          <Field label={t('payments.customer')} required>
             {(id) => (
               <Combobox
                 id={id}
-                autoFocus={!fixedPartner}
-                disabled={!!fixedPartner}
-                options={(partners.data?.items ?? []).map((item) => ({
+                autoFocus={!fixedCustomer}
+                disabled={!!fixedCustomer}
+                options={choices.map((item) => ({
                   value: item.id,
                   label: item.name,
-                  hint: item.balance === null ? item.currency : debtText(item.balance, item.currency),
+                  hint: [item.isSupplier ? t('customers.supplier') : '', item.phoneTail ? `…${item.phoneTail}` : '']
+                    .filter(Boolean)
+                    .join(' · '),
                 }))}
-                value={partnerId}
-                onChange={setPartnerId}
+                onQuery={search}
+                value={customerId}
+                onChange={(id) => {
+                  setCustomerId(id)
+                  setPickedCurrency(null)
+                }}
               />
+            )}
+          </Field>
+          <Field label={t('payments.accountCurrency')}>
+            {(id) => (
+              <div data-enter-skip>
+                <Select
+                  id={id}
+                  value={currency ?? me.org.baseCurrency}
+                  onChange={(value) => setPickedCurrency(value as AnyCurrency)}
+                  options={kept.map((code) => ({ value: code, label: currencyName(code, t) }))}
+                  disabled={!customerId || kept.length < 2}
+                />
+              </div>
             )}
           </Field>
           <TillField tills={tills} value={tillId} onChange={pickTill} />
           {/* What stands between them now, and what will once this is saved. */}
-          {partner?.balance != null && after !== null ? (
+          {balance !== null && currency && after !== null ? (
             <div className="flex flex-col justify-end gap-0.5 pb-1 text-[13px] leading-tight">
-              <span className="tabular font-medium">{debtText(partner.balance, partner.currency)}</span>
+              <span className="tabular font-medium">{debtText(balance, currency)}</span>
               <span className="tabular text-xs text-ink-3">
-                {t('payments.after')}: {debtText(after, partner.currency)}
+                {t('payments.after')}: {debtText(after, currency)}
               </span>
             </div>
           ) : null}
@@ -383,7 +433,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
             kind={kind}
             lines={valued}
             spare={sparePlaces(places, shown, tillId, hidden)}
-            currency={partner?.currency ?? null}
+            currency={currency}
             owed={debt !== null && debt > 0 ? debt : null}
             onPatch={patch}
             onAdd={(accountId) => {
@@ -399,7 +449,7 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
             setsRates={setsRates}
             dayRate={dayRate}
             problems={problems}
-            autoFocus={!!fixedPartner}
+            autoFocus={!!fixedCustomer}
             focusId={added}
           />
         )}
@@ -412,17 +462,19 @@ export function PaymentDialog({ partnerId: fixedPartner, kind: startKind = 'in',
   )
 }
 
-/** What stood between the business and a partner before the books began. */
-export function OpeningDialog({ partner, onClose }: { partner: PartnerDto; onClose: () => void }) {
+/** What stood between the business and a customer before the books began, in one of their currencies. */
+export function OpeningDialog({ customer, onClose }: { customer: CustomerDto; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [owes, setOwes] = useState<'partner' | 'us'>(partner.isBuyer ? 'partner' : 'us')
+  const kept = useKept()
+  const [owes, setOwes] = useState<'customer' | 'us'>(customer.isSupplier ? 'us' : 'customer')
+  const [currency, setCurrency] = useState<AnyCurrency>(customer.currency)
   const [amount, setAmount] = useState<number | null>(null)
   const [note, setNote] = useState('')
   const [clientKey] = useState(uuid)
 
   const save = useMutation({
-    mutationFn: (input: unknown) => api.post<PartnerPaymentDto>('/partner-payments/opening', input),
+    mutationFn: (input: unknown) => api.post<CustomerPaymentDto>('/customer-payments/opening', input),
     onSuccess: (payment) => {
       refresh(queryClient)
       toast.success(t('payments.saved', { number: payment.number }))
@@ -430,7 +482,14 @@ export function OpeningDialog({ partner, onClose }: { partner: PartnerDto; onClo
     },
   })
   const submit = () => {
-    const parsed = partnerOpeningInputSchema.safeParse({ clientKey, partnerId: partner.id, owes, amount, note })
+    const parsed = customerOpeningInputSchema.safeParse({
+      clientKey,
+      customerId: customer.id,
+      currency,
+      owes,
+      amount,
+      note,
+    })
     if (!parsed.success) {
       toast.error(t('payments.nothing'))
       return
@@ -442,7 +501,7 @@ export function OpeningDialog({ partner, onClose }: { partner: PartnerDto; onClo
     <Dialog
       open
       onClose={onClose}
-      title={`${t('payments.opening')} · ${partner.name}`}
+      title={`${t('payments.opening')} · ${customer.name}`}
       footer={
         <>
           <Button onClick={onClose}>{t('common.cancel')}</Button>
@@ -453,22 +512,33 @@ export function OpeningDialog({ partner, onClose }: { partner: PartnerDto; onClo
       }
     >
       <Form id="opening-form" onSubmit={submit}>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Field label={t('payments.openingOwes')}>
             {(id) => (
               <Select
                 id={id}
                 value={owes}
-                onChange={(value) => setOwes(value as 'partner' | 'us')}
+                onChange={(value) => setOwes(value as 'customer' | 'us')}
                 options={[
-                  { value: 'partner', label: t('payments.openingPartner') },
+                  { value: 'customer', label: t('payments.openingCustomer') },
                   { value: 'us', label: t('payments.openingUs') },
                 ]}
               />
             )}
           </Field>
+          <Field label={t('payments.accountCurrency')}>
+            {(id) => (
+              <Select
+                id={id}
+                value={currency}
+                onChange={(value) => setCurrency(value as AnyCurrency)}
+                options={kept.map((code) => ({ value: code, label: currencyName(code, t) }))}
+                disabled={kept.length < 2}
+              />
+            )}
+          </Field>
           <Field label={t('payments.sum')} required>
-            {(id) => <MoneyInput id={id} autoFocus value={amount} onChange={setAmount} currency={partner.currency} />}
+            {(id) => <MoneyInput id={id} autoFocus value={amount} onChange={setAmount} currency={currency} />}
           </Field>
         </div>
         <Field label={t('receipts.note')}>
@@ -481,7 +551,14 @@ export function OpeningDialog({ partner, onClose }: { partner: PartnerDto; onClo
 
 // ───────────────────────────── A payment, looked at ─────────────────────────────
 
-const KIND_TONES: Record<PartnerPaymentKind, 'ok' | 'info' | 'neutral'> = { in: 'ok', out: 'info', opening: 'neutral' }
+const KIND_TONES: Record<CustomerPaymentKind, 'ok' | 'info' | 'neutral'> = { in: 'ok', out: 'info', opening: 'neutral' }
+
+/** Who may take a payment of a kind back: as who may make it. */
+const MAY_CANCEL: Record<CustomerPaymentKind, string> = {
+  in: 'customers.receive',
+  out: 'customers.pay_out',
+  opening: 'customers.adjust',
+}
 
 /** One payment: its lines, and the way to take it back. */
 export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; onClose: () => void }) {
@@ -491,32 +568,31 @@ export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; o
   const [cancelling, setCancelling] = useState(false)
   const [reason, setReason] = useState('')
   const query = useQuery({
-    queryKey: ['partner-payments', 'one', paymentId],
-    queryFn: ({ signal }) => api.get<PartnerPaymentDto>(`/partner-payments/${paymentId}`, undefined, signal),
+    queryKey: ['customer-payments', 'one', paymentId],
+    queryFn: ({ signal }) => api.get<CustomerPaymentDto>(`/customer-payments/${paymentId}`, undefined, signal),
   })
   const payment = query.data
 
   const cancel = useMutation({
-    mutationFn: () => api.post<PartnerPaymentDto>(`/partner-payments/${paymentId}/cancel`, { reason }),
+    mutationFn: () => api.post<CustomerPaymentDto>(`/customer-payments/${paymentId}/cancel`, { reason }),
     onSuccess: (cancelled) => {
-      queryClient.setQueryData(['partner-payments', 'one', paymentId], cancelled)
+      queryClient.setQueryData(['customer-payments', 'one', paymentId], cancelled)
       refresh(queryClient)
       toast.success(t('payments.cancelled', { number: cancelled.number }))
       setCancelling(false)
     },
   })
-  const mayCancel =
-    payment?.status === 'posted' && can(payment.kind === 'opening' ? 'partners.adjust' : 'partners.pay') && !cancelling
+  const mayCancel = payment?.status === 'posted' && can(MAY_CANCEL[payment.kind]) && !cancelling
 
   return (
     <Dialog
       open
       onClose={onClose}
       size="lg"
-      title={payment ? `${PARTNER_PAYMENT_KIND_LABELS[payment.kind]} ${payment.number}` : t('payments.one')}
+      title={payment ? `${CUSTOMER_PAYMENT_KIND_LABELS[payment.kind]} ${payment.number}` : t('payments.one')}
       description={
         payment
-          ? `${payment.partnerName} · ${formatDateTime(payment.paidAt)} · ${payment.createdByName ?? ''}`
+          ? `${payment.customerName} · ${formatDateTime(payment.paidAt)} · ${payment.createdByName ?? ''}`
           : undefined
       }
       footer={
@@ -560,7 +636,7 @@ export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; o
           ) : null}
           {payment.status === 'cancelled' ? (
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="bad">{PARTNER_PAYMENT_STATUS_LABELS.cancelled}</Badge>
+              <Badge tone="bad">{CUSTOMER_PAYMENT_STATUS_LABELS.cancelled}</Badge>
               <span className="text-xs text-ink-3">
                 {payment.cancelledByName} · {formatDateTime(payment.cancelledAt)} · {payment.cancelReason}
               </span>
@@ -604,48 +680,75 @@ export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; o
 }
 
 interface StatementDialogProps {
-  partnerId: string
+  customerId: string
+  /** Which of their accounts to open on: their main currency's unless said. */
+  currency?: AnyCurrency
   onClose: () => void
-  /** Takes the place of the account with a payment; without it, the account is only looked at. */
-  onPay?: (kind: 'in' | 'out') => void
+  /** Takes the place of the account with a payment in its currency; without it, the account is only looked at. */
+  onPay?: (kind: 'in' | 'out', currency: AnyCurrency) => void
 }
 
-/** A partner's account: every change, what was owed after each, and what is owed now. */
-export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogProps) {
+/** One of a customer's accounts: every change, what was owed after each, and what is owed now; the others a pick away. */
+export function StatementDialog({ customerId, currency: asked, onClose, onPay }: StatementDialogProps) {
   const { t } = useTranslation()
   const { can } = useSession()
   const debtText = useDebtText()
+  const [currency, setCurrency] = useState<AnyCurrency | undefined>(asked)
   const query = useQuery({
-    queryKey: ['partners', 'statement', partnerId],
-    queryFn: ({ signal }) => api.get<PartnerStatementDto>(`/partners/${partnerId}/statement`, undefined, signal),
+    queryKey: ['customers', 'statement', customerId, currency],
+    queryFn: ({ signal }) =>
+      api.get<CustomerStatementDto>(`/customers/${customerId}/statement`, currency ? { currency } : undefined, signal),
+    placeholderData: keepPreviousData,
   })
   const data = query.data
+  // Every currency they have an account in, and their main one even before it has one.
+  const currencies = data
+    ? [...new Set([data.customer.currency, ...(data.customer.balances ?? []).map((item) => item.currency)])]
+    : []
 
   return (
     <Dialog
       open
       onClose={onClose}
       size="xl"
-      title={data ? `${t('payments.statement')} · ${data.partner.name}` : t('payments.statement')}
-      description={data ? debtText(data.balance, data.partner.currency) : undefined}
+      title={data ? `${t('payments.statement')} · ${data.customer.name}` : t('payments.statement')}
+      description={data ? debtText(data.balance, data.currency) : undefined}
       footer={
         <>
-          {onPay && can('partners.pay') && data?.partner.isActive ? (
+          {onPay && data ? (
             <span className="mr-auto flex gap-2">
-              <Button onClick={() => onPay('in')}>
-                <ArrowDownLeft />
-                {t('payments.takeIn')}
-              </Button>
-              <Button onClick={() => onPay('out')}>
-                <ArrowUpRight />
-                {t('payments.payOut')}
-              </Button>
+              {can('customers.receive') ? (
+                <Button onClick={() => onPay('in', data.currency)}>
+                  <ArrowDownLeft />
+                  {t('payments.takeIn')}
+                </Button>
+              ) : null}
+              {can('customers.pay_out') ? (
+                <Button onClick={() => onPay('out', data.currency)}>
+                  <ArrowUpRight />
+                  {t('payments.payOut')}
+                </Button>
+              ) : null}
             </span>
           ) : null}
           <Button onClick={onClose}>{t('common.close')}</Button>
         </>
       }
     >
+      {currencies.length > 1 && data ? (
+        <div className="mb-3 flex flex-wrap gap-1.5" data-enter-skip>
+          {currencies.map((code) => (
+            <Button
+              key={code}
+              size="sm"
+              variant={code === data.currency ? 'primary' : 'soft'}
+              onClick={() => setCurrency(code)}
+            >
+              {currencyName(code, t)}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       {!data ? (
         <div className="flex justify-center py-10">
           <Spinner className="size-5" />
@@ -684,7 +787,7 @@ export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogPr
                           ? t('payments.saleReturnLine')
                           : line.kind === 'supplier_return'
                             ? t('payments.supplierReturnLine')
-                            : PARTNER_PAYMENT_KIND_LABELS[line.kind]}{' '}
+                            : CUSTOMER_PAYMENT_KIND_LABELS[line.kind]}{' '}
                   {line.number && line.source === 'receipt' && line.documentId ? (
                     // The goods behind the debt are a click away.
                     <Link
@@ -705,10 +808,10 @@ export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogPr
                   )}
                 >
                   {line.change > 0 ? '+' : '−'}
-                  {money(Math.abs(line.change), data.partner.currency)}
+                  {money(Math.abs(line.change), data.currency)}
                 </td>
                 <td className="tabular px-2 py-1.5 text-right font-medium whitespace-nowrap">
-                  {money(line.balance, data.partner.currency)}
+                  {money(line.balance, data.currency)}
                 </td>
                 <td className="py-1.5 pl-2 text-ink-2">{line.note ?? ''}</td>
               </tr>
@@ -724,7 +827,7 @@ export function StatementDialog({ partnerId, onClose, onPay }: StatementDialogPr
 
 // ───────────────────────────── The list ─────────────────────────────
 
-/** Every payment made with partners, newest first. */
+/** Every payment made with customers (TL-), newest first. */
 export function PaymentsPage() {
   const { t } = useTranslation()
   const { can } = useSession()
@@ -732,14 +835,15 @@ export function PaymentsPage() {
   const navigate = route.useNavigate()
   const { open: openId, ...filters } = search
   const [adding, setAdding] = useState<'in' | 'out' | null>(null)
-  const canPay = can('partners.pay')
+  const canTake = can('customers.receive')
+  const canPayOut = can('customers.pay_out')
 
   const list = useQuery({
-    queryKey: ['partner-payments', 'list', filters],
-    queryFn: ({ signal }) => api.get<PageOf<PartnerPaymentDto>>('/partner-payments', filters, signal),
+    queryKey: ['customer-payments', 'list', filters],
+    queryFn: ({ signal }) => api.get<PageOf<CustomerPaymentDto>>('/customer-payments', filters, signal),
     placeholderData: keepPreviousData,
   })
-  const partners = usePartners()
+  const { choices, search: findCustomer } = useCustomerChoices([search.customerId])
 
   const filter = (patch: Partial<typeof search>, replace = false) =>
     void navigate({ search: (previous) => ({ ...previous, ...patch, page: 1 }), replace })
@@ -747,10 +851,10 @@ export function PaymentsPage() {
   useHotkey('n', () => setAdding('in'), {
     label: t('payments.takeIn'),
     group: t('shortcuts.groupList'),
-    enabled: canPay && !adding && !openId,
+    enabled: canTake && !adding && !openId,
   })
 
-  const columns = useMemo<ColumnDef<PartnerPaymentDto>[]>(
+  const columns = useMemo<ColumnDef<CustomerPaymentDto>[]>(
     () => [
       {
         id: 'number',
@@ -767,16 +871,16 @@ export function PaymentsPage() {
       {
         id: 'kind',
         header: t('payments.kind'),
-        meta: { export: (row) => PARTNER_PAYMENT_KIND_LABELS[row.kind], className: 'w-px whitespace-nowrap' },
+        meta: { export: (row) => CUSTOMER_PAYMENT_KIND_LABELS[row.kind], className: 'w-px whitespace-nowrap' },
         cell: ({ row }) => (
-          <Badge tone={KIND_TONES[row.original.kind]}>{PARTNER_PAYMENT_KIND_LABELS[row.original.kind]}</Badge>
+          <Badge tone={KIND_TONES[row.original.kind]}>{CUSTOMER_PAYMENT_KIND_LABELS[row.original.kind]}</Badge>
         ),
       },
       {
-        id: 'partner',
-        header: t('payments.partner'),
-        meta: { export: (row) => row.partnerName },
-        cell: ({ row }) => <span className="font-medium">{row.original.partnerName}</span>,
+        id: 'customer',
+        header: t('payments.customer'),
+        meta: { export: (row) => row.customerName },
+        cell: ({ row }) => <span className="font-medium">{row.original.customerName}</span>,
       },
       {
         id: 'amount',
@@ -811,10 +915,10 @@ export function PaymentsPage() {
       {
         id: 'status',
         header: t('common.status'),
-        meta: { export: (row) => PARTNER_PAYMENT_STATUS_LABELS[row.status], className: 'w-px whitespace-nowrap' },
+        meta: { export: (row) => CUSTOMER_PAYMENT_STATUS_LABELS[row.status], className: 'w-px whitespace-nowrap' },
         cell: ({ row }) => (
           <Badge tone={row.original.status === 'cancelled' ? 'bad' : 'ok'}>
-            {PARTNER_PAYMENT_STATUS_LABELS[row.original.status]}
+            {CUSTOMER_PAYMENT_STATUS_LABELS[row.original.status]}
           </Badge>
         ),
       },
@@ -823,23 +927,27 @@ export function PaymentsPage() {
   )
 
   const filtered =
-    !!(search.q || search.kind || search.partnerId || search.from || search.to) || search.status !== 'all'
+    !!(search.q || search.kind || search.customerId || search.from || search.to) || search.status !== 'all'
 
   return (
     <Page
       title={t('payments.title')}
       actions={
-        canPay ? (
+        canTake || canPayOut ? (
           <>
-            <Button onClick={() => setAdding('out')}>
-              <ArrowUpRight />
-              {t('payments.payOut')}
-            </Button>
-            <Button variant="primary" onClick={() => setAdding('in')}>
-              <ArrowDownLeft />
-              {t('payments.takeIn')}
-              <Shortcut combo="n" className="ml-1 opacity-70" />
-            </Button>
+            {canPayOut ? (
+              <Button onClick={() => setAdding('out')}>
+                <ArrowUpRight />
+                {t('payments.payOut')}
+              </Button>
+            ) : null}
+            {canTake ? (
+              <Button variant="primary" onClick={() => setAdding('in')}>
+                <ArrowDownLeft />
+                {t('payments.takeIn')}
+                <Shortcut combo="n" className="ml-1 opacity-70" />
+              </Button>
+            ) : null}
           </>
         ) : null
       }
@@ -852,9 +960,9 @@ export function PaymentsPage() {
         onRowOpen={(row) => void navigate({ search: (previous) => ({ ...previous, open: row.id }) })}
         exportAs={{
           fileName: t('payments.title'),
-          rows: () => fetchAll<PartnerPaymentDto>('/partner-payments', filters),
+          rows: () => fetchAll<CustomerPaymentDto>('/customer-payments', filters),
         }}
-        preferenceKey="partner-payments"
+        preferenceKey="customer-payments"
         rowClassName={(row) => (row.status === 'cancelled' ? 'text-ink-3' : undefined)}
         pagination={{
           page: search.page,
@@ -867,18 +975,19 @@ export function PaymentsPage() {
           kind: (
             <FilterSelect
               value={search.kind ?? 'all'}
-              onChange={(kind) => filter({ kind: kind === 'all' ? undefined : (kind as PartnerPaymentKind) })}
+              onChange={(kind) => filter({ kind: kind === 'all' ? undefined : (kind as CustomerPaymentKind) })}
               options={[
                 { value: 'all', label: t('common.all') },
-                ...PARTNER_PAYMENT_KINDS.map((kind) => ({ value: kind, label: PARTNER_PAYMENT_KIND_LABELS[kind] })),
+                ...CUSTOMER_PAYMENT_KINDS.map((kind) => ({ value: kind, label: CUSTOMER_PAYMENT_KIND_LABELS[kind] })),
               ]}
             />
           ),
-          partner: (
+          customer: (
             <FilterCombo
-              options={(partners.data?.items ?? []).map((partner) => ({ value: partner.id, label: partner.name }))}
-              value={search.partnerId ?? null}
-              onChange={(partnerId) => filter({ partnerId: partnerId ?? undefined })}
+              options={choices.map((customer) => ({ value: customer.id, label: customer.name }))}
+              onQuery={findCustomer}
+              value={search.customerId ?? null}
+              onChange={(customerId) => filter({ customerId: customerId ?? undefined })}
             />
           ),
           status: (
@@ -887,9 +996,9 @@ export function PaymentsPage() {
               onChange={(status) => filter({ status: status as typeof search.status })}
               options={[
                 { value: 'all', label: t('common.all') },
-                ...PARTNER_PAYMENT_STATUSES.map((status) => ({
+                ...CUSTOMER_PAYMENT_STATUSES.map((status) => ({
                   value: status,
-                  label: PARTNER_PAYMENT_STATUS_LABELS[status],
+                  label: CUSTOMER_PAYMENT_STATUS_LABELS[status],
                 })),
               ]}
             />

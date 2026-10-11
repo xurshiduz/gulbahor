@@ -51,7 +51,7 @@ import {
   sparePlaces,
   switchTill,
   TillField,
-} from '@/features/partners/payment-lines'
+} from '@/features/money/payment-lines'
 import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'

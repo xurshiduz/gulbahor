@@ -19,6 +19,7 @@ const nodira: PosCustomerDto = {
   discountReason: 'Sodiqlik 7%',
   priceType: { id: 'family', name: 'Oila' },
   priceFrom: 'group',
+  currency: 'UZS',
   supplier: false,
   noDebt: false,
   noLayaway: false,

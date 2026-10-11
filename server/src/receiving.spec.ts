@@ -74,7 +74,7 @@ describe('Receiving', () => {
     ;({ alpha, beta } = harness)
 
     shopId = (await alpha.get('/api/locations')).body.items[0].id
-    supplierId = (await alpha.post('/api/partners').send({ name: 'Guangzhou Textile', isSupplier: true }).expect(201))
+    supplierId = (await alpha.post('/api/customers').send({ name: 'Guangzhou Textile', isSupplier: true }).expect(201))
       .body.id
 
     const attributes = (await alpha.get('/api/attributes')).body as AttributeRow[]
@@ -292,7 +292,7 @@ describe('Receiving', () => {
   describe('rights and isolation', () => {
     it('keeps receipts, stock and suppliers inside their business', async () => {
       expect((await beta.get('/api/receipts')).body.total).toBe(0)
-      expect((await beta.get('/api/partners')).body.total).toBe(0)
+      expect((await beta.get('/api/customers')).body.total).toBe(0)
       expect((await beta.get('/api/stock').query({ presence: 'all' })).body.total).toBe(0)
       const mine = (await alpha.get('/api/receipts')).body.items[0]
       await beta.get(`/api/receipts/${mine.id}`).expect(404)
@@ -365,18 +365,19 @@ describe('Receiving', () => {
         const [row] = await em.query(`SELECT balance::float8 AS balance FROM accounts WHERE system_key = $1`, [key])
         return (row?.balance ?? 0) as number
       })
-    const statement = async (partnerId: string) =>
-      (await alpha.get(`/api/partners/${partnerId}/statement`).expect(200)).body as {
+    const statement = async (customerId: string, currency?: string) =>
+      (await alpha.get(`/api/customers/${customerId}/statement`).query(currency ? { currency } : {}).expect(200))
+        .body as {
         balance: number
         lines: { kind: string; source: string; number: string; documentId: string; change: number; balance: number }[]
       }
 
-    it("is the goods at their prices, in the currency of each one's account, and nothing more once cancelled", async () => {
+    it('is the goods at their prices, in the currency of the receipt, and nothing more once cancelled', async () => {
       const dordoy = (
-        await alpha.post('/api/partners').send({ name: 'Dordoy', isSupplier: true, currency: 'USD' }).expect(201)
+        await alpha.post('/api/customers').send({ name: 'Dordoy', isSupplier: true, currency: 'USD' }).expect(201)
       ).body.id
       const market = (
-        await alpha.post('/api/partners').send({ name: 'Abu Saxiy', isSupplier: true, currency: 'UZS' }).expect(201)
+        await alpha.post('/api/customers').send({ name: 'Abu Saxiy', isSupplier: true, currency: 'UZS' }).expect(201)
       ).body.id
       const before = await systemBalance('purchases')
 
@@ -400,7 +401,7 @@ describe('Receiving', () => {
       expect((await statement(dordoy)).lines).toEqual([])
 
       await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
-      // 300 dollars to the dollar supplier; 400 dollars of jeans are 5 120 000 so'm on the so'm one's account.
+      // 300 dollars to the one, 400 to the other: a supplier who deals in so'm is owed these dollars in dollars.
       expect(await statement(dordoy)).toMatchObject({
         balance: -usd(300),
         lines: [
@@ -413,9 +414,10 @@ describe('Receiving', () => {
           },
         ],
       })
-      expect((await statement(market)).balance).toBe(-som(5_120_000))
+      expect((await statement(market)).balance).toBe(0)
+      expect((await statement(market, 'USD')).balance).toBe(-usd(400))
       expect(await systemBalance('purchases')).toBe(before + som(300 * 12_800 + 5_120_000))
-      const listed = (await alpha.get('/api/partners').query({ debt: 'owed' }).expect(200)).body.items
+      const listed = (await alpha.get('/api/customers').query({ balance: 'owed' }).expect(200)).body.items
       // Both are now among those the business owes (with the supplier of the yuan purchase above).
       expect(listed.map((partner: { name: string }) => partner.name)).toEqual(
         expect.arrayContaining(['Abu Saxiy', 'Dordoy']),
@@ -428,11 +430,11 @@ describe('Receiving', () => {
         ['receipt', -usd(300)],
         ['cancel', usd(300)],
       ])
-      expect((await statement(market)).balance).toBe(0)
+      expect((await statement(market, 'USD')).balance).toBe(0)
       expect(await systemBalance('purchases')).toBe(before)
     })
 
-    it('owes a supplier in yuan exactly what a yuan receipt says, and another currency at the day’s rate', async () => {
+    it('owes a supplier in each currency exactly what each receipt says, never one in another', async () => {
       const [{ day }] = await harness.dataSource.query(`SELECT (now() AT TIME ZONE 'Asia/Tashkent')::date::text AS day`)
       // The yuan is kept from the receipt above; the lira is kept, written against the dollar.
       await alpha
@@ -440,7 +442,7 @@ describe('Receiving', () => {
         .send({ code: 'TRY', form: { against: 'USD', way: 'per' } })
         .expect(200)
       const yiwu = (
-        await alpha.post('/api/partners').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201)
+        await alpha.post('/api/customers').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201)
       ).body.id
       const receipt = (currency: string, rate: number, price: number) =>
         alpha
@@ -460,21 +462,22 @@ describe('Receiving', () => {
       await alpha.post(`/api/receipts/${inYuan.id}/post`).expect(201)
       expect((await statement(yiwu)).balance).toBe(-50_000)
 
-      // Billed in lira: 340 ₺ in yuan come from the day's rates — 10 $ at 34 ₺, 72,50 ¥ at 7,25.
+      // Billed in lira: owed 340 ₺ on their lira account, beside the yuan — no day's rate is asked for.
       const inLira = (await receipt('TRY', 376.47, 3400)).body
-      const none = await alpha.post(`/api/receipts/${inLira.id}/post`).expect(409)
-      expect(none.body.error.message).toContain('kursi qo‘yilmagan: yetkazib beruvchi qarzini hisoblab bo‘lmaydi')
-      await alpha.put('/api/currencies/USD/rate').send({ value: 12_800 }).expect(200)
-      await alpha.put('/api/currencies/CNY/rate').send({ value: 7.25 }).expect(200)
-      await alpha.put('/api/currencies/TRY/rate').send({ value: 34 }).expect(200)
       await alpha.post(`/api/receipts/${inLira.id}/post`).expect(201)
-      expect((await statement(yiwu)).balance).toBe(-50_000 - 7250)
+      expect((await statement(yiwu)).balance).toBe(-50_000)
+      expect((await statement(yiwu, 'TRY')).balance).toBe(-34_000)
+      const card = (await alpha.get(`/api/customers/${yiwu}`).expect(200)).body
+      expect(card.balances).toEqual([
+        { currency: 'CNY', balance: -50_000 },
+        { currency: 'TRY', balance: -34_000 },
+      ])
 
       // Cancelled, exactly what was written comes off.
       await alpha.post(`/api/receipts/${inLira.id}/cancel`).expect(201)
-      await alpha.put('/api/currencies/CNY/rate').send({ value: 7.1 }).expect(200)
       await alpha.post(`/api/receipts/${inYuan.id}/cancel`).expect(201)
       expect((await statement(yiwu)).balance).toBe(0)
+      expect((await statement(yiwu, 'TRY')).balance).toBe(0)
     })
 
     it('leaves out goods that name no supplier: those were paid for on the spot', async () => {

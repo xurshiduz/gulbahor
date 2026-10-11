@@ -16,8 +16,8 @@ import type {
   MoneyTransferStatus,
   MoneyOpKind,
   MoneyOpStatus,
-  PartnerPaymentKind,
-  PartnerPaymentStatus,
+  CustomerPaymentKind,
+  CustomerPaymentStatus,
   PaymentMethod,
   TillAccess,
   PriceKind,
@@ -656,50 +656,6 @@ export class Price {
 const numericAsNumber = {
   to: (value: number | null | undefined) => value,
   from: (value: string | null) => (value === null ? null : Number(value)),
-}
-
-@Entity('partners')
-export class Partner {
-  @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column('uuid')
-  orgId: string
-
-  @Column('text')
-  name: string
-
-  @Column('text', { nullable: true })
-  phone: string | null
-
-  @Column('boolean')
-  isSupplier: boolean
-
-  @Column('boolean')
-  isBuyer: boolean
-
-  /** The currency their account is kept in. */
-  @Column('text')
-  currency: AnyCurrency
-
-  /** The price they buy at the till at; null for the retail one. */
-  @Column('uuid', { nullable: true })
-  priceTypeId: string | null
-
-  @Column('text', { nullable: true })
-  note: string | null
-
-  @Column('boolean')
-  isActive: boolean
-
-  @Column('text')
-  searchKey: string
-
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date
-
-  @UpdateDateColumn({ type: 'timestamptz' })
-  updatedAt: Date
 }
 
 @Entity('customers')
@@ -1755,9 +1711,9 @@ export class Account {
   @Column('uuid', { nullable: true })
   registerId: string | null
 
-  /** The partner whose account this is: its balance is what they owe. */
+  /** The customer whose account this is, in this currency: its balance is what they owe. */
   @Column('uuid', { nullable: true })
-  partnerId: string | null
+  customerId: string | null
 
   @Column('text', { nullable: true })
   last4: string | null
@@ -2006,12 +1962,6 @@ export class Sale {
 
   @Column('text', { nullable: true })
   customerName: string | null
-
-  @Column('uuid', { nullable: true })
-  partnerId: string | null
-
-  @Column('text', { nullable: true })
-  partnerName: string | null
 
   /** The part of `discount` that came off by itself, as the customer's own, and why. */
   @Column('bigint', { transformer: bigintAsNumber, default: 0 })
@@ -2302,8 +2252,8 @@ export class SaleReturnPayment {
   reference: string | null
 }
 
-@Entity('partner_payments')
-export class PartnerPayment {
+@Entity('customer_payments')
+export class CustomerPayment {
   @PrimaryGeneratedColumn('uuid')
   id: string
 
@@ -2317,18 +2267,19 @@ export class PartnerPayment {
   clientKey: string
 
   @Column('text')
-  kind: PartnerPaymentKind
+  kind: CustomerPaymentKind
 
   @Column('text')
-  status: PartnerPaymentStatus
+  status: CustomerPaymentStatus
 
   @Column('uuid')
-  partnerId: string
+  customerId: string
 
+  /** Which of the customer's accounts it settles. */
   @Column('text')
   currency: AnyCurrency
 
-  /** How the partner's debt changed, in the currency of their account. */
+  /** How the customer's debt changed, in the currency of that account. */
   @Column('bigint', { transformer: bigintAsNumber })
   change: number
 
@@ -2366,8 +2317,8 @@ export class PartnerPayment {
   searchKey: string
 }
 
-@Entity('partner_payment_lines')
-export class PartnerPaymentLine {
+@Entity('customer_payment_lines')
+export class CustomerPaymentLine {
   @PrimaryGeneratedColumn('uuid')
   id: string
 
@@ -2392,7 +2343,7 @@ export class PartnerPaymentLine {
   @Column('numeric', { nullable: true, transformer: numericAsNumber })
   rate: number | null
 
-  /** What the line settled on the partner's account, in the partner's currency. */
+  /** What the line settled on the customer's account, in the payment's currency. */
   @Column('bigint', { transformer: bigintAsNumber })
   settled: number
 
@@ -2914,7 +2865,6 @@ export const ENTITIES = [
   VariantBarcode,
   ProductImage,
   Price,
-  Partner,
   Receipt,
   ReceiptLine,
   ReceiptExpense,
@@ -2951,8 +2901,8 @@ export const ENTITIES = [
   MoneyTransfer,
   ShiftCount,
   ShiftTerminalCount,
-  PartnerPayment,
-  PartnerPaymentLine,
+  CustomerPayment,
+  CustomerPaymentLine,
   MoneyCategory,
   MoneyOp,
   MoneyOpLine,

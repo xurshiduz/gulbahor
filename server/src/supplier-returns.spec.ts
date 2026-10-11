@@ -8,7 +8,7 @@ interface Doc {
   number: string
   status: string
   receiptNumber: string | null
-  partnerName: string | null
+  supplierName: string | null
   credited: { amount: number; currency: string } | null
 }
 
@@ -37,7 +37,7 @@ describe('Supplier returns', () => {
       return (await em.query(query, params)) as T
     })
   const owes = async (partnerId: string) =>
-    (await alpha.get(`/api/partners/${partnerId}/statement`).expect(200)).body as {
+    (await alpha.get(`/api/customers/${partnerId}/statement`).expect(200)).body as {
       balance: number
       lines: { kind: string; source: string; number: string; change: number }[]
     }
@@ -77,10 +77,10 @@ describe('Supplier returns', () => {
       ).body.variants[0].id as string
     coat = await product('Palto')
     scarf = await product('Sharf')
-    dordoy = (await alpha.post('/api/partners').send({ name: 'Dordoy', isSupplier: true, currency: 'USD' }).expect(201))
+    dordoy = (await alpha.post('/api/customers').send({ name: 'Dordoy', isSupplier: true, currency: 'USD' }).expect(201))
       .body.id
     await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
-    yiwu = (await alpha.post('/api/partners').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201))
+    yiwu = (await alpha.post('/api/customers').send({ name: 'Yiwu', isSupplier: true, currency: 'CNY' }).expect(201))
       .body.id
     fromDordoy = await receive(dordoy, 'USD', 12_800, [{ variantId: coat, qty: 10, price: usd(30) }])
 
@@ -116,7 +116,7 @@ describe('Supplier returns', () => {
 
     it('is made by whoever keeps the stock; it is carried out by those who may', async () => {
       const made = (await draft(fromDordoy.id, [{ variantId: coat, qty: 3 }], keeper).expect(201)).body as Doc
-      expect(made).toMatchObject({ status: 'draft', receiptNumber: fromDordoy.number, partnerName: 'Dordoy' })
+      expect(made).toMatchObject({ status: 'draft', receiptNumber: fromDordoy.number, supplierName: 'Dordoy' })
       await keeper.post(`/api/stock-documents/${made.id}/post`).expect(403)
       await alpha.delete(`/api/stock-documents/${made.id}`).expect(204)
     })
@@ -127,7 +127,7 @@ describe('Supplier returns', () => {
 
     it('takes the goods off the shelf and what is owed off the account, at the receipt’s price', async () => {
       // A later receipt of the same coats from someone else: its batch is not the one that goes back.
-      const other = (await alpha.post('/api/partners').send({ name: 'Boshqa', isSupplier: true, currency: 'USD' })).body
+      const other = (await alpha.post('/api/customers').send({ name: 'Boshqa', isSupplier: true, currency: 'USD' })).body
         .id
       await receive(other, 'USD', 12_800, [{ variantId: coat, qty: 5, price: usd(40) }])
       expect((await owes(dordoy)).balance).toBe(-usd(300))
@@ -178,7 +178,7 @@ describe('Supplier returns', () => {
       const list = (await beta.get('/api/stock-documents').query({ kind: 'supplier_return' }).expect(200)).body
       expect(list.total).toBe(0)
       const mine = (await alpha.get('/api/stock-documents').query({ kind: 'supplier_return' }).expect(200)).body
-      expect(mine.items[0]).toMatchObject({ partnerName: 'Yiwu' })
+      expect(mine.items[0]).toMatchObject({ supplierName: 'Yiwu' })
       const [{ off }] = await sql<{ off: string }[]>(
         `SELECT count(*) AS off FROM (SELECT entry_id FROM ledger_lines GROUP BY entry_id HAVING sum(base) <> 0) x`,
       )

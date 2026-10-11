@@ -123,7 +123,7 @@ describe('Import', () => {
     // Nothing of it is there afterwards.
     expect((await alpha.get('/api/products')).body.total).toBe(0)
     expect((await alpha.get('/api/brands')).body).toEqual([])
-    expect((await alpha.get('/api/partners')).body.total).toBe(0)
+    expect((await alpha.get('/api/customers')).body.total).toBe(0)
     expect((await alpha.get('/api/receipts')).body.total).toBe(0)
   })
 

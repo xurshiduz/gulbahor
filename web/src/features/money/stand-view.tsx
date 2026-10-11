@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/controls'
 import { Badge, EmptyState } from '@/components/ui/feedback'
-import { currencyShort, placeName, rateText } from '@/features/partners/payment-lines'
+import { currencyShort, placeName, rateText } from '@/features/money/payment-lines'
 import { Stat } from '@/features/reports/parts'
 import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'

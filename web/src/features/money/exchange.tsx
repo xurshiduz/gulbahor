@@ -19,7 +19,7 @@ import {
   rateText,
   valueLines,
   type ValuedLine,
-} from '@/features/partners/payment-lines'
+} from '@/features/money/payment-lines'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 

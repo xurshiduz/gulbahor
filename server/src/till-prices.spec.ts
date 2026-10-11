@@ -159,7 +159,6 @@ describe('Price types at the till', () => {
         returns: true,
         prices: true,
         debts: true,
-        partners: true,
       },
     ])
     const mine = (await manager.get(`/api/pos/context/${registerId}`).expect(200)).body

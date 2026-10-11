@@ -1,6 +1,6 @@
-import { customerInputSchema, formatMoney, type PosCustomerDto, type PosPartnerDto } from '@erp/core'
+import { customerInputSchema, formatMoney, type PosCustomerDto } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { BellRing, Handshake, UserRound, UserRoundPlus, X } from 'lucide-react'
+import { BellRing, UserRound, UserRoundPlus, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,9 +23,6 @@ interface CustomerPickerProps {
   onChange: (customer: PosCustomerDto | null) => void
   /** The customer has come to pay what they owe. */
   onPayDebt?: () => void
-  /** A partner at the counter instead of a customer: found by the same field, with a mark of their own. */
-  partner?: PosPartnerDto | null
-  onPartner?: (partner: PosPartnerDto | null) => void
 }
 
 export interface CustomerPickerHandle {
@@ -43,7 +40,7 @@ const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())
  * on the spot, with what was typed already in its field.
  */
 export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerProps>(function CustomerPicker(
-  { registerId, value, onChange, onPayDebt, partner = null, onPartner },
+  { registerId, value, onChange, onPayDebt },
   ref,
 ) {
   const { t } = useTranslation()
@@ -68,27 +65,14 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
     enabled: query.length >= 2,
     placeholderData: keepPreviousData,
   })
-  const partnersFound = useQuery({
-    queryKey: ['partners', 'pos', query],
-    queryFn: ({ signal }) => api.get<PosPartnerDto[]>('/pos/partners', { q: query }, signal),
-    enabled: !!onPartner && query.length >= 2,
-    placeholderData: keepPreviousData,
-  })
   const asked = query.length >= 2 && text.trim() === query
   const results = asked ? (found.data ?? []) : []
-  // Partners come after the customers: a sale on someone's account is the rarer one.
-  const partners = asked && onPartner ? (partnersFound.data ?? []) : []
   // Below those found there is always the way to write a new one down.
-  const rows = results.length + partners.length + 1
-  const adds = results.length + partners.length
+  const rows = results.length + 1
+  const adds = results.length
 
   const pick = (customer: PosCustomerDto) => {
     onChange(customer)
-    setText('')
-    setOpen(false)
-  }
-  const pickPartner = (chosen: PosPartnerDto) => {
-    onPartner?.(chosen)
     setText('')
     setOpen(false)
   }
@@ -105,11 +89,8 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
       event.preventDefault()
       event.stopPropagation()
       const chosen = results[highlight]
-      const chosenPartner = partners[highlight - results.length]
       if (chosen) {
         pick(chosen)
-      } else if (chosenPartner) {
-        pickPartner(chosenPartner)
       } else {
         setAdding(text.trim())
       }
@@ -118,29 +99,6 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
       setText('')
       setOpen(false)
     }
-  }
-
-  if (partner) {
-    return (
-      <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-2.5 py-1.5 text-[13px]">
-        <Handshake className="size-4 shrink-0 text-ink-3" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{partner.name}</span>
-          <span className="block truncate text-xs text-ink-3">
-            {t('pos.partner')} · {partner.currency}
-          </span>
-        </span>
-        <Button
-          variant="ghost"
-          size="iconSm"
-          tabIndex={-1}
-          aria-label={t('pos.partnerClear')}
-          onClick={() => onPartner?.(null)}
-        >
-          <X />
-        </Button>
-      </div>
-    )
   }
 
   if (value) {
@@ -250,23 +208,6 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
               {customer.phone ? (
                 <span className="tabular shrink-0 text-xs text-ink-3">{formatPhone(customer.phone)}</span>
               ) : null}
-            </button>
-          ))}
-          {partners.map((item, index) => (
-            <button
-              key={item.id}
-              type="button"
-              tabIndex={-1}
-              data-highlighted={results.length + index === highlight}
-              onMouseMove={() => setHighlight(results.length + index)}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => pickPartner(item)}
-              className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
-            >
-              <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
-              <span className="shrink-0 rounded bg-accent-soft px-1.5 text-[11px] text-accent-ink">
-                {t('pos.partnerBadge')} · {item.currency}
-              </span>
             </button>
           ))}
           <button

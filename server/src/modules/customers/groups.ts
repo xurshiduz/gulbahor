@@ -106,6 +106,7 @@ export async function rulesOf(em: EntityManager, customers: Customer[]): Promise
               : `Sodiqlik ${said(earned)}`,
           priceType: priced ? { id: priced.price_type_id as string, name: priced.price_type_name as string } : null,
           priceFrom: mine ? 'own' : priced ? 'group' : null,
+          currency: customer.currency,
           supplier: customer.isSupplier,
           noDebt: groups.some((group) => group.no_debt),
           noLayaway: groups.some((group) => group.no_layaway),

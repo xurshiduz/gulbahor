@@ -9,9 +9,9 @@ import { Menu } from '@/components/ui/controls'
 import { Tooltip } from '@/components/ui/feedback'
 import { PageChrome } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
-import { tillHere } from '@/features/partners/payment-lines'
+import { tillHere } from '@/features/money/payment-lines'
 import { MoneyOpDialog } from '@/features/money/ops'
-import { PaymentDialog } from '@/features/partners/payments'
+import { PaymentDialog } from '@/features/customers/payments'
 import { cn } from '@/lib/cn'
 import { HotkeyScope, useHotkey } from '@/lib/hotkeys'
 import { announce, useFocusBeacon } from '@/lib/notify'
@@ -53,9 +53,11 @@ export function Shell() {
   const [collapsed, setCollapsed] = useCollapsed()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  // Money taken from or paid to a partner, from whatever screen is in view.
+  // Money taken from or paid to a customer, from whatever screen is in view.
   const [paying, setPaying] = useState<'in' | 'out' | null>(null)
-  const canPay = can('partners.pay')
+  const canTake = can('customers.receive')
+  const canPayOut = can('customers.pay_out')
+  const canPay = canTake || canPayOut
   // An expense, or other money in, the same way.
   const [spending, setSpending] = useState<MoneyOpKind | null>(null)
   const canSpend = can('money.ops')
@@ -92,10 +94,14 @@ export function Shell() {
   useHotkey('alt+l', lock, { enabled: me.user.hasPin, everywhere: true })
   // Not over a window that is already open: one thing is finished before the next is begun.
   const pay = (kind: 'in' | 'out') => (document.querySelector('[role="dialog"]') ? false : setPaying(kind))
-  useHotkey('mod+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+  useHotkey('mod+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canTake })
   // The key it had while Ctrl+K was the search.
-  useHotkey('alt+k', () => pay('in'), { enabled: canPay })
-  useHotkey('alt+c', () => pay('out'), { label: t('payments.payOut'), group: t('shortcuts.groupGlobal'), enabled: canPay })
+  useHotkey('alt+k', () => pay('in'), { enabled: canTake })
+  useHotkey('alt+c', () => pay('out'), {
+    label: t('payments.payOut'),
+    group: t('shortcuts.groupGlobal'),
+    enabled: canPayOut,
+  })
   const spend = (kind: MoneyOpKind) => (document.querySelector('[role="dialog"]') ? false : setSpending(kind))
   useHotkey('alt+x', () => spend('expense'), { label: t('ops.expense'), group: t('shortcuts.groupGlobal'), enabled: canSpend })
 
@@ -194,11 +200,11 @@ export function Shell() {
                   </Button>
                 }
                 items={[
-                  ...(canPay
-                    ? [
-                        { label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'mod+k', onSelect: () => setPaying('in') },
-                        { label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') },
-                      ]
+                  ...(canTake
+                    ? [{ label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'mod+k', onSelect: () => setPaying('in') }]
+                    : []),
+                  ...(canPayOut
+                    ? [{ label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') }]
                     : []),
                   ...(canSpend
                     ? [

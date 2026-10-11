@@ -4,7 +4,7 @@ import {
   DEFAULT_ORG_SETTINGS,
   formatMoney,
   normalizeEpc,
-  partnerShare,
+  accountShare,
   returnShare,
   searchKey,
   settleRefund,
@@ -89,8 +89,8 @@ interface Caps {
   accounts: { accountId: string; method: TenderMethod; name: string; last4: string | null; left: number }[]
   /** What the receipt still leaves owing. */
   debt: number
-  /** What of it still stands on a partner's account, in so'm. */
-  partner: number
+  /** What of it still stands on the customer's account, in the base. */
+  account: number
 }
 
 /**
@@ -369,8 +369,8 @@ export class ReturnsService {
         [sale.id],
       )
       const offDebt = Math.min(total - credit, owing?.left ?? 0)
-      // ── What the sale put on a partner's account comes off it next, at what the sale wrote, not today's rate. ──
-      const onAccount = await this.partnerPart(em, sale.id)
+      // ── What the sale put on the customer's account comes off it next, at what the sale wrote, not today's rate. ──
+      const onAccount = await this.accountPart(em, sale.id)
       const offAccount = onAccount
         ? Math.min(total - credit - offDebt, onAccount.put.base - onAccount.returned.base)
         : 0
@@ -512,7 +512,7 @@ export class ReturnsService {
         postings.push({ accountId: receivables.id, amount: -offDebt, base: -offDebt })
       }
       if (onAccount && offAccount) {
-        const share = partnerShare(onAccount.put, onAccount.returned, offAccount)
+        const share = accountShare(onAccount.put, onAccount.returned, offAccount)
         // The account was put at its worth on the day of the sale: the same share of that worth comes off,
         // and what the sale wrote down as an exchange difference goes back with it.
         const last = offAccount === onAccount.put.base - onAccount.returned.base
@@ -523,7 +523,7 @@ export class ReturnsService {
           orgId: actor.orgId,
           returnId: made.id,
           position: refunds.length + (receivables ? 1 : 0),
-          method: 'partner',
+          method: 'account',
           accountId: onAccount.accountId,
           currency: onAccount.currency,
           amount: share,
@@ -646,9 +646,9 @@ export class ReturnsService {
     const cashBack = back.reduce((sum, row) => sum + (row.method === 'cash' ? row.base : 0), 0) + rounding
     const accounts = byAccount.size ? await em.findBy(Account, { id: In([...byAccount.keys()]) }) : []
     const debt = await em.findOneBy(CustomerDebt, { saleId: sale.id, cancelled: false })
-    const onAccount = await this.partnerPart(em, sale.id)
+    const onAccount = await this.accountPart(em, sale.id)
     return {
-      partner: onAccount ? onAccount.put.base - onAccount.returned.base : 0,
+      account: onAccount ? onAccount.put.base - onAccount.returned.base : 0,
       // What was left owing and has been paid since was paid in money: it may go back as money.
       cash: Math.max(0, sale.total - notCash + (debt?.paid ?? 0) - cashBack),
       debt: debt ? debt.amount - debt.paid - debt.returned : 0,
@@ -667,19 +667,19 @@ export class ReturnsService {
   }
 
   /**
-   * What a sale put on a partner's account, and what of it has come back:
-   * in so'm of the sale (`base`) and in the partner's currency (`settled`).
+   * What a sale put on a customer's account, and what of it has come back:
+   * in the base of the sale (`base`) and in the account's currency (`settled`).
    * Null for a sale that put nothing there.
    */
-  private async partnerPart(em: EntityManager, saleId: string) {
-    const put = await em.findOneBy(SalePayment, { saleId, method: 'partner' })
+  private async accountPart(em: EntityManager, saleId: string) {
+    const put = await em.findOneBy(SalePayment, { saleId, method: 'account' })
     if (!put) {
       return null
     }
     const back: { base: number }[] = await em.query(
       `SELECT p.base::float8 AS base, p.amount::float8 AS amount
        FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
-       WHERE r.sale_id = $1 AND p.method = 'partner'`,
+       WHERE r.sale_id = $1 AND p.method = 'account'`,
       [saleId],
     )
     const rows = back as { base: number; amount: number }[]

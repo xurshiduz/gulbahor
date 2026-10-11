@@ -12,7 +12,6 @@ import {
   FlaskConical,
   Group,
   HandCoins,
-  Handshake,
   History,
   Home,
   KeyRound,
@@ -149,6 +148,12 @@ export const NAVIGATION: NavGroup[] = [
         icon: HandCoins,
         permission: 'customers.debts',
       },
+      {
+        to: '/payments',
+        label: 'nav.payments',
+        icon: HandCoins,
+        permission: ['customers.receive', 'customers.pay_out', 'customers.debts', 'customers.suppliers'],
+      },
     ],
   },
   {
@@ -195,15 +200,6 @@ export const NAVIGATION: NavGroup[] = [
         icon: Coins,
         permission: [...MONEY, 'money.rates'],
       },
-    ],
-  },
-  {
-    key: 'partners',
-    label: 'nav.groupPartners',
-    icon: Handshake,
-    items: [
-      { to: '/partners', label: 'nav.partners', icon: Handshake, permission: 'partners.view' },
-      { to: '/payments', label: 'nav.payments', icon: HandCoins, permission: ['partners.pay', 'partners.debts'] },
     ],
   },
   {

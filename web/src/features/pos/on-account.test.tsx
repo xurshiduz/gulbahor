@@ -1,14 +1,10 @@
-import { settle, settleRefund, type PosContextDto, type PosPartnerDto, type RateBook } from '@erp/core'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { settle, settleRefund, type PosContextDto, type RateBook } from '@erp/core'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { exchangeLine, type ExchangeSums } from '@/features/money/exchange'
-import { api } from '@/lib/api'
-
-import { CustomerPicker } from './customer-picker'
 import { enteredRows, tenderRows, tendersOf, type TenderRow } from './pos-state'
 import { paidText } from './receipt-paper'
 import { TenderPanel } from './tender-panel'
@@ -28,7 +24,8 @@ const context = {
   mayOverDiscount: false,
   changeRoundStep: 0,
 } as unknown as PosContextDto
-const elaris: PosPartnerDto = { id: 'p1', name: 'Elaris', phone: null, currency: 'USD', priceType: null }
+/** A customer who deals in dollars. */
+const elaris = { name: 'Elaris', currency: 'USD' as const }
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -75,15 +72,15 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
         max: due,
         book,
         setsRates: false,
-        warning: 'Hamkor hisobiga sotishda rahbar tasdig‘i so‘raladi',
+        warning: 'Mijoz hisobiga sotishda rahbar tasdig‘i so‘raladi',
         onChange: setSums,
       }}
     />
   )
 }
 
-describe('a sale on a partner’s account', () => {
-  it('puts the rest on the account with "=", and shows it in the partner’s currency beside', async () => {
+describe('a sale on a customer’s account', () => {
+  it('puts the rest on the account with "=", and shows it in the account’s currency beside', async () => {
     render(<Money due={som(1_265_000)} onComplete={() => undefined} />)
     const into = screen.getByLabelText(/Hisobiga · Elaris/) as HTMLInputElement
     into.focus()
@@ -93,10 +90,10 @@ describe('a sale on a partner’s account', () => {
     expect((screen.getByLabelText('Hisobiga (USD)') as HTMLInputElement).value).toBe('100,00')
     // Nothing is left for the money to cover.
     expect(screen.queryByText('Yana kerak')).toBeNull()
-    expect(screen.getByText('Hamkor hisobiga sotishda rahbar tasdig‘i so‘raladi')).toBeTruthy()
+    expect(screen.getByText('Mijoz hisobiga sotishda rahbar tasdig‘i so‘raladi')).toBeTruthy()
   })
 
-  it('keeps the sale’s sum when the partner’s is typed over, and says what the agreement costs', async () => {
+  it('keeps the sale’s sum when the account’s is typed over, and says what the agreement costs', async () => {
     const done = vi.fn()
     render(<Money due={som(1_265_000)} onComplete={done} />)
     const into = screen.getByLabelText(/Hisobiga · Elaris/) as HTMLInputElement
@@ -114,41 +111,12 @@ describe('a sale on a partner’s account', () => {
     expect(done.mock.calls[0][1]).toEqual({ amount: som(1_265_000), received: usd(99) })
   })
 
-  it('is said on the receipt in so’m, and in the partner’s own currency beside', () => {
-    expect(plain(paidText({ method: 'partner', currency: 'USD', amount: usd(100), base: som(1_265_000) }))).toBe(
+  it('is said on the receipt in so’m, and in the account’s own currency beside', () => {
+    expect(plain(paidText({ method: 'account', currency: 'USD', amount: usd(100), base: som(1_265_000) }))).toBe(
       '1 265 000 so‘m (100,00 $)',
     )
-    expect(plain(paidText({ method: 'partner', currency: 'UZS', amount: som(500_000), base: som(500_000) }))).toBe(
+    expect(plain(paidText({ method: 'account', currency: 'UZS', amount: som(500_000), base: som(500_000) }))).toBe(
       '500 000 so‘m',
     )
-  })
-})
-
-describe('a partner at the counter', () => {
-  it('is found by the customer field, marked as a partner, and picked with Enter after the customers', async () => {
-    vi.spyOn(api, 'get').mockImplementation(((path: string) =>
-      Promise.resolve(path === '/pos/partners' ? [elaris] : [])) as typeof api.get)
-    function Counter() {
-      const [partner, setPartner] = useState<PosPartnerDto | null>(null)
-      return (
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <CustomerPicker
-            registerId="r1"
-            value={null}
-            onChange={() => undefined}
-            partner={partner}
-            onPartner={setPartner}
-          />
-        </QueryClientProvider>
-      )
-    }
-    render(<Counter />)
-    const field = screen.getByRole('textbox', { name: 'Mijoz' })
-    await userEvent.type(field, 'ela')
-    await waitFor(() => expect(screen.getByText('Elaris')).toBeTruthy())
-    expect(plain(screen.getByText(/hamkor · USD/).textContent)).toBe('hamkor · USD')
-    await userEvent.keyboard('{Enter}')
-    await waitFor(() => expect(screen.getByLabelText('Hamkorni olib tashlash')).toBeTruthy())
-    expect(plain(document.body.textContent)).toContain('Hamkor · USD')
   })
 })

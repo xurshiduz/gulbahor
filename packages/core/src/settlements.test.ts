@@ -9,7 +9,7 @@ import {
   pairBook,
   pairOf,
   pairRate,
-  partnerPaymentInputSchema,
+  customerPaymentInputSchema,
   rateGap,
   settledFor,
   settleLine,
@@ -24,7 +24,7 @@ const usd = (amount: number) => Math.round(amount * 100)
 const ID = '11111111-1111-4111-8111-111111111111'
 const KEY = '22222222-2222-4222-8222-222222222222'
 
-describe("settling a partner's account", () => {
+describe("settling a customer's account", () => {
   it("takes money of the account's own currency as it is", () => {
     expect(settledFor(som(1_000_000), 'UZS', 'UZS', null)).toEqual({
       settled: som(1_000_000),
@@ -90,21 +90,24 @@ describe('a payment', () => {
   it('has at least one line, each with a sum', () => {
     const payment = {
       clientKey: KEY,
-      partnerId: ID,
+      customerId: ID,
       kind: 'in',
       lines: [{ accountId: ID, amount: som(1_000_000) }],
       settled: usd(79.05),
     }
-    expect(partnerPaymentInputSchema.parse(payment).lines[0]).toEqual({
+    expect(customerPaymentInputSchema.parse(payment).lines[0]).toEqual({
       accountId: ID,
       amount: som(1_000_000),
       settled: null,
     })
-    expect(partnerPaymentInputSchema.safeParse({ ...payment, lines: [] }).success).toBe(false)
-    expect(partnerPaymentInputSchema.safeParse({ ...payment, lines: [{ accountId: ID, amount: 0 }] }).success).toBe(
+    expect(customerPaymentInputSchema.safeParse({ ...payment, lines: [] }).success).toBe(false)
+    expect(customerPaymentInputSchema.safeParse({ ...payment, lines: [{ accountId: ID, amount: 0 }] }).success).toBe(
       false,
     )
-    expect(partnerPaymentInputSchema.safeParse({ ...payment, kind: 'opening' }).success).toBe(false)
+    expect(customerPaymentInputSchema.safeParse({ ...payment, kind: 'opening' }).success).toBe(false)
+    // Which of the customer's accounts: their main one unless said.
+    expect(customerPaymentInputSchema.parse(payment).currency).toBeUndefined()
+    expect(customerPaymentInputSchema.parse({ ...payment, currency: 'CNY' }).currency).toBe('CNY')
   })
 })
 
@@ -218,7 +221,7 @@ describe('a pair of sums', () => {
     expect(straysFromRate(agreed(som(1_200_000)), 2, RATE)).toBe(false)
     expect(straysFromRate(agreed(som(1_203_600)), 2, RATE)).toBe(false)
     expect(straysFromRate(agreed(som(1_203_700)), 2, RATE)).toBe(true)
-    // Short-changing the partner is held to the same limit as overpaying them.
+    // Short-changing the customer is held to the same limit as overpaying them.
     expect(straysFromRate(agreed(som(1_150_000)), 2, RATE)).toBe(true)
     expect(rateGap(agreed(som(1_300_000)))).toBe(10.2)
     // 590 so'm against five cents: 59 000 tiyin by the rate, and a so'm either way is rounding, not agreement.
@@ -229,9 +232,9 @@ describe('a pair of sums', () => {
 
   it('is asked for as an agreed sum on the line, or left out', () => {
     const line = (more: object) =>
-      partnerPaymentInputSchema.safeParse({
+      customerPaymentInputSchema.safeParse({
         clientKey: KEY,
-        partnerId: ID,
+        customerId: ID,
         kind: 'in',
         lines: [{ accountId: ID, amount: usd(100), ...more }],
         settled: som(1_200_000),

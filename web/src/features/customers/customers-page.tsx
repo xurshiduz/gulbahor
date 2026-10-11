@@ -18,7 +18,19 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Archive, ArchiveRestore, Cake, MoreHorizontal, Pencil, Plus, UsersRound } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Cake,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Scale,
+  ScrollText,
+  UsersRound,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -54,12 +66,20 @@ import { toast } from '@/lib/toast'
 import { DebtPaymentsTab, DebtsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
+import { OpeningDialog, PaymentDialog, StatementDialog, useDebtText } from './payments'
 
 const route = getRouteApi('/customers')
 
 const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 type Listed = PageOf<CustomerDto> & { summary: CustomerSummary }
+
+/** What is open over the list besides the customer's own card. */
+type Over =
+  | { kind: 'statement'; customer: CustomerDto; currency?: AnyCurrency }
+  // `back`: the payment was started from the account, and the account comes back when it is done.
+  | { kind: 'in' | 'out'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
+  | { kind: 'opening'; customer: CustomerDto }
 
 /**
  * The people who buy in the shops. Over the list stands the whole base at a
@@ -75,7 +95,14 @@ export function CustomersPage() {
   const canManage = can('customers.manage')
   const seesBase = can('customers.view')
   const seesDebts = can('customers.debts')
+  // Whose accounts this person keeps: the buyers', the suppliers', or both.
+  const seesBalances = seesDebts || can('customers.suppliers')
+  const canTake = can('customers.receive')
+  const canPayOut = can('customers.pay_out')
+  const canAdjust = can('customers.adjust')
+  const debtText = useDebtText()
   const [groupForm, setGroupForm] = useState<CustomerGroupDto | null | undefined>()
+  const [over, setOver] = useState<Over | null>(null)
   const groups = useCustomerGroups(seesBase)
 
   const { edit, tab: asked, debtState: _debts, ...filters } = search
@@ -104,13 +131,44 @@ export function CustomersPage() {
   useHotkey('n', add, {
     label: addLabel,
     group: t('shortcuts.groupList'),
-    enabled: adds && !edit && groupForm === undefined,
+    enabled: adds && !edit && groupForm === undefined && !over,
   })
 
   const columns = useMemo<ColumnDef<CustomerDto>[]>(
     () => {
-      const menu = (customer: CustomerDto): MenuItem[] =>
-        canManage
+      const menu = (customer: CustomerDto): MenuItem[] => [
+        // The server sends the accounts only to whoever may see them: so it is with the statement.
+        ...(customer.balances !== null
+          ? [
+              {
+                label: t('payments.statement'),
+                icon: <ScrollText />,
+                onSelect: () => setOver({ kind: 'statement', customer }),
+              },
+            ]
+          : []),
+        ...(canTake && customer.isActive
+          ? [
+              {
+                label: t('payments.takeIn'),
+                icon: <ArrowDownLeft />,
+                onSelect: () => setOver({ kind: 'in', customer }),
+              },
+            ]
+          : []),
+        ...(canPayOut && customer.isActive
+          ? [
+              {
+                label: t('payments.payOut'),
+                icon: <ArrowUpRight />,
+                onSelect: () => setOver({ kind: 'out', customer }),
+              },
+            ]
+          : []),
+        ...(canAdjust && customer.isActive
+          ? [{ label: t('payments.opening'), icon: <Scale />, onSelect: () => setOver({ kind: 'opening', customer }) }]
+          : []),
+        ...(canManage
           ? [
               { label: t('common.edit'), icon: <Pencil />, onSelect: () => open(customer.id) },
               customer.isActive
@@ -125,12 +183,40 @@ export function CustomersPage() {
                     onSelect: () => setActive.mutate({ id: customer.id, active: true }),
                   },
             ]
-          : []
+          : []),
+      ]
+      // Every currency a customer has an account in that is not settled, one under the other.
+      const owing = (customer: CustomerDto) => (customer.balances ?? []).filter((item) => item.balance)
+      const balance: ColumnDef<CustomerDto>[] = seesBalances
+        ? [
+            {
+              id: 'balance',
+              header: t('customers.balance'),
+              meta: {
+                export: (row) =>
+                  owing(row)
+                    .map((item) => debtText(item.balance, item.currency))
+                    .join(', ') || null,
+                className: 'tabular text-right whitespace-nowrap',
+                headerClassName: 'text-right',
+              },
+              cell: ({ row }) => (
+                <span className="flex flex-col items-end">
+                  {owing(row.original).map((item) => (
+                    <span key={item.currency} className={cn('font-medium', item.balance > 0 && 'text-bad')}>
+                      {debtText(item.balance, item.currency)}
+                    </span>
+                  ))}
+                </span>
+              ),
+            },
+          ]
+        : []
       return [
         {
           id: 'name',
           header: t('customers.name'),
-          meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
+          meta: { export: (row) => row.name, sortKey: 'name', fixed: true, className: 'whitespace-nowrap' },
           cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
         },
         {
@@ -143,16 +229,22 @@ export function CustomersPage() {
           cell: ({ row }) => (row.original.phone ? formatPhone(row.original.phone) : ''),
         },
         {
+          id: 'kind',
+          header: t('customers.kind'),
+          meta: {
+            export: (row) => (row.isSupplier ? t('customers.supplier') : null),
+            className: 'w-px whitespace-nowrap',
+          },
+          cell: ({ row }) => (row.original.isSupplier ? <Badge tone="info">{t('customers.supplier')}</Badge> : null),
+        },
+        {
           id: 'price',
           header: t('customers.price'),
           meta: { export: (row) => row.priceType?.name ?? null, className: 'whitespace-nowrap' },
-          cell: ({ row }) => (
-            <span className="flex items-center gap-1">
-              {row.original.priceType ? <Badge tone="info">{row.original.priceType.name}</Badge> : null}
-              {row.original.isSupplier ? <Badge>{t('customers.supplier')}</Badge> : null}
-            </span>
-          ),
+          cell: ({ row }) =>
+            row.original.priceType ? <Badge tone="accent">{row.original.priceType.name}</Badge> : null,
         },
+        ...balance,
         {
           id: 'groups',
           header: t('customers.groups'),
@@ -261,7 +353,7 @@ export function CustomersPage() {
         },
         {
           id: 'note',
-          header: t('partners.note'),
+          header: t('customers.note'),
           meta: { export: (row) => row.note, className: 'text-ink-2' },
           cell: ({ row }) => row.original.note ?? '',
         },
@@ -299,7 +391,7 @@ export function CustomersPage() {
       ]
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, canManage],
+    [t, canManage, seesBalances, canTake, canPayOut, canAdjust],
   )
 
   const editing = edit && edit !== 'new' ? list.data?.items.find((item) => item.id === edit) : null
@@ -311,6 +403,11 @@ export function CustomersPage() {
   const dialogCustomer = edit === 'new' ? null : (editing ?? single.data ?? undefined)
   const summary = list.data?.summary
   const soon = search.birthdayIn !== undefined
+
+  // A customer opens on their card for whoever keeps the cards, on their account for whoever keeps only that.
+  const onRowOpen = canManage
+    ? (row: CustomerDto) => open(row.id)
+    : (row: CustomerDto) => (row.balances !== null ? setOver({ kind: 'statement', customer: row }) : undefined)
 
   return (
     <Page
@@ -382,7 +479,7 @@ export function CustomersPage() {
             data={list.data?.items}
             loading={list.isFetching}
             rowId={(row) => row.id}
-            onRowOpen={canManage ? (row) => open(row.id) : undefined}
+            onRowOpen={onRowOpen}
             exportAs={{ fileName: t('customers.title'), rows: () => fetchAll<CustomerDto>('/customers', filters) }}
             sort={search.sort ?? 'name'}
             order={search.order}
@@ -399,6 +496,44 @@ export function CustomersPage() {
               onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
             }}
             filters={{
+              kind: (
+                <FilterSelect
+                  value={search.supplier ?? 'all'}
+                  onChange={(supplier) =>
+                    void navigate({
+                      search: (previous) =>
+                        withFilter(previous, { supplier: supplier === 'all' ? undefined : (supplier as 'yes' | 'no') }),
+                    })
+                  }
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    { value: 'yes', label: t('customers.suppliers') },
+                    { value: 'no', label: t('customers.others') },
+                  ]}
+                />
+              ),
+              ...(seesBalances
+                ? {
+                    balance: (
+                      <FilterSelect
+                        value={search.balance ?? 'all'}
+                        onChange={(balance) =>
+                          void navigate({
+                            search: (previous) =>
+                              withFilter(previous, {
+                                balance: balance === 'all' ? undefined : (balance as 'owes' | 'owed'),
+                              }),
+                          })
+                        }
+                        options={[
+                          { value: 'all', label: t('common.all') },
+                          { value: 'owes', label: t('customers.owes') },
+                          { value: 'owed', label: t('customers.owed') },
+                        ]}
+                      />
+                    ),
+                  }
+                : {}),
               groups: (
                 <FilterSelect
                   value={search.groupId ?? 'all'}
@@ -457,6 +592,25 @@ export function CustomersPage() {
         />
       ) : null}
       {groupForm !== undefined ? <GroupDialog group={groupForm} onClose={() => setGroupForm(undefined)} /> : null}
+      {over?.kind === 'statement' ? (
+        <StatementDialog
+          customerId={over.customer.id}
+          currency={over.currency}
+          onClose={() => setOver(null)}
+          onPay={(kind, currency) => setOver({ kind, customer: over.customer, currency, back: true })}
+        />
+      ) : null}
+      {over?.kind === 'in' || over?.kind === 'out' ? (
+        <PaymentDialog
+          customerId={over.customer.id}
+          currency={over.currency}
+          kind={over.kind}
+          onClose={() =>
+            setOver(over.back ? { kind: 'statement', customer: over.customer, currency: over.currency } : null)
+          }
+        />
+      ) : null}
+      {over?.kind === 'opening' ? <OpeningDialog customer={over.customer} onClose={() => setOver(null)} /> : null}
     </Page>
   )
 }
@@ -752,7 +906,7 @@ export function CustomerDialog({
             />
           )}
         </Field>
-        <Field label={t('partners.note')} error={errors.note?.message}>
+        <Field label={t('customers.note')} error={errors.note?.message}>
           {(id) => <Textarea id={id} rows={2} {...form.register('note')} />}
         </Field>
         <div data-enter-skip>

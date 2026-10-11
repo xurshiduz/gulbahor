@@ -2,6 +2,7 @@ import {
   productInputSchema,
   receiptInputSchema,
   searchKey,
+  type AnyCurrency,
   type ImportResult,
   type ImportRow,
   type ProductDto,
@@ -13,7 +14,7 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Attribute, AttributeValue, Brand, Category, Partner, Product } from '../../database/entities'
+import { Attribute, AttributeValue, Brand, Category, Customer, Product } from '../../database/entities'
 import type { Actor } from '../auth/actor'
 import { ProductsService } from '../catalog/products.service'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -38,7 +39,8 @@ interface Lists {
   values: AttributeValue[]
   brands: Brand[]
   categories: Category[]
-  partners: Partner[]
+  /** Those in the book who supply goods: a file names its supplier among them. */
+  suppliers: Customer[]
 }
 
 /**
@@ -74,7 +76,7 @@ export class ReceiptImportService {
             'brands',
             'categories',
             'attributes',
-            'partners',
+            'customers',
           ]),
         )
         return result
@@ -123,7 +125,7 @@ export class ReceiptImportService {
       values: await em.find(AttributeValue, { order: { sortOrder: 'ASC', name: 'ASC' } }),
       brands: await em.find(Brand),
       categories: await em.find(Category, { order: { sortOrder: 'ASC', name: 'ASC' } }),
-      partners: await em.find(Partner),
+      suppliers: await em.findBy(Customer, { isSupplier: true }),
     }
 
     // ── Rows into models ──
@@ -279,7 +281,10 @@ export class ReceiptImportService {
     // ── Suppliers ──
     const supplierOf = new Map<number, string | null>()
     for (const row of input.rows) {
-      supplierOf.set(row.row, row.supplier ? await this.supplier(em, actor, lists, row.supplier, result) : null)
+      supplierOf.set(
+        row.row,
+        row.supplier ? await this.supplier(em, actor, lists, row.supplier, input.currency, result) : null,
+      )
     }
     // One supplier for the whole file goes on the receipt itself rather than on every line.
     const named = [...new Set([...supplierOf.values()].filter((id): id is string => !!id))]
@@ -450,34 +455,50 @@ export class ReceiptImportService {
     return created.id
   }
 
+  /**
+   * Who a file's supplier is: one of those in the book who supply goods, by the very name; two of that name are
+   * for the person to choose between on the receipt. Someone new is written down as a supplier dealing in the
+   * receipt's currency.
+   */
   private async supplier(
     em: EntityManager,
     actor: Actor,
     lists: Lists,
     name: string,
+    currency: AnyCurrency,
     result: ImportResult,
   ): Promise<string> {
-    const found = lists.partners.find((partner) => same(partner.name) === same(name))
-    if (found) {
-      if (!found.isSupplier) {
-        await em.update(Partner, found.id, { isSupplier: true })
-        found.isSupplier = true
-      }
-      return found.id
+    const found = lists.suppliers.filter((supplier) => same(supplier.name) === same(name))
+    if (found.length > 1) {
+      throw AppError.validation(
+        { supplierId: `«${name}» nomli yetkazib beruvchi ${found.length} ta: kirimda tanlang` },
+        `«${name}» nomli yetkazib beruvchi ${found.length} ta: kirimda tanlang`,
+      )
+    }
+    if (found.length) {
+      return found[0].id
     }
     const created = await em.save(
-      em.create(Partner, {
+      em.create(Customer, {
         orgId: actor.orgId,
         name,
         phone: null,
-        isSupplier: true,
-        isBuyer: false,
         note: null,
+        tags: [],
+        currency,
+        priceTypeId: null,
+        isSupplier: true,
+        credit: 'default',
+        creditLimit: null,
+        dueDays: null,
+        noDue: false,
+        returnDays: null,
+        locationId: null,
         isActive: true,
         searchKey: searchKey(name),
       }),
     )
-    lists.partners.push(created)
+    lists.suppliers.push(created)
     result.newSuppliers.push(name)
     return created.id
   }

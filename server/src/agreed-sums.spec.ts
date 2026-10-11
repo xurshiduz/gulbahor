@@ -58,7 +58,7 @@ describe('Agreed sums', () => {
     )
     return Object.fromEntries(
       rows.map((row) => [
-        row.system_key ?? (row.kind === 'partner' ? row.name : `${row.kind}_${row.currency}`),
+        row.system_key ?? (row.kind === 'customer' ? row.name : `${row.kind}_${row.currency}`),
         Number(row.balance),
       ]),
     )
@@ -70,15 +70,15 @@ describe('Agreed sums', () => {
         .filter(([, delta]) => delta !== 0),
     )
   const pay = (body: Record<string, unknown>, agent = alpha) =>
-    agent.post('/api/partner-payments').send({ clientKey: randomUUID(), ...body })
+    agent.post('/api/customer-payments').send({ clientKey: randomUUID(), ...body })
   /** One line of money in or out, and what the screen showed it settles. */
   const one = (
-    partnerId: string,
+    customerId: string,
     kind: 'in' | 'out',
     line: { accountId: string; amount: number; settled?: number },
     settled: number,
     agent = alpha,
-  ) => pay({ partnerId, kind, lines: [line], settled }, agent)
+  ) => pay({ customerId, kind, lines: [line], settled }, agent)
 
   beforeAll(async () => {
     harness = await startApp()
@@ -99,7 +99,7 @@ describe('Agreed sums', () => {
     dollars = accounts.find((account) => account.kind === 'cash' && account.currency === 'USD')!.id
 
     const partner = async (body: Record<string, unknown>) =>
-      (await alpha.post('/api/partners').send(body).expect(201)).body.id as string
+      (await alpha.post('/api/customers').send(body).expect(201)).body.id as string
     // Two buyers, one keeping count in so'm and one in dollars, and a supplier the business owes so'm.
     elaris = await partner({ name: 'Elaris', isBuyer: true, currency: 'UZS' })
     anvar = await partner({ name: 'Anvar', isBuyer: true, currency: 'USD' })
@@ -280,7 +280,7 @@ describe('Agreed sums', () => {
       const before = await balances()
       const payment = (
         await pay({
-          partnerId: anvar,
+          customerId: anvar,
           kind: 'in',
           lines: [
             // Dollars against a dollar account are a single sum: what is said beside it is not heard.
@@ -424,7 +424,7 @@ describe('Agreed sums', () => {
           som(1_200_000),
         ).expect(201)
       ).body
-      await alpha.post(`/api/partner-payments/${payment.id}/cancel`).send({ reason: 'Xato kiritilgan' }).expect(200)
+      await alpha.post(`/api/customer-payments/${payment.id}/cancel`).send({ reason: 'Xato kiritilgan' }).expect(200)
       expect(moved(before, await balances())).toEqual({})
     })
 
@@ -437,7 +437,7 @@ describe('Agreed sums', () => {
       const lines = await sql<{ amount: string; base: string }[]>(
         `SELECT l.amount, l.base FROM ledger_lines l JOIN accounts a ON a.id = l.account_id
          JOIN ledger_entries e ON e.id = l.entry_id
-         WHERE a.kind = 'cash' AND a.currency = 'USD' AND e.kind = 'partner_payment'`,
+         WHERE a.kind = 'cash' AND a.currency = 'USD' AND e.kind = 'customer_payment'`,
       )
       expect(lines.length).toBeGreaterThan(5)
       expect(lines.every((line) => Number(line.base) === Number(line.amount) * 11_800)).toBe(true)

@@ -3,14 +3,15 @@ import {
   searchKey,
   worthInBase,
   type Page,
+  type AnyCurrency,
+  type CustomerOpeningInput,
+  type CustomerPaymentDto,
+  type CustomerPaymentInput,
+  type CustomerPaymentKind,
+  type CustomerPaymentListQuery,
+  type CustomerStatementDto,
+  type CustomerStatementLine,
   type PaymentAccountDto,
-  type PartnerOpeningInput,
-  type PartnerPaymentDto,
-  type PartnerPaymentInput,
-  type PartnerPaymentKind,
-  type PartnerPaymentListQuery,
-  type PartnerStatementDto,
-  type PartnerStatementLine,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
@@ -18,7 +19,7 @@ import { In, type EntityManager } from 'typeorm'
 import { AppError } from '../../common/errors'
 import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Account, Partner, PartnerPayment, PartnerPaymentLine, Shift } from '../../database/entities'
+import { Account, Customer, CustomerPayment, CustomerPaymentLine, Shift } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
@@ -28,25 +29,36 @@ import { LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { mayUse } from '../money/places'
 import { RealtimeService } from '../realtime/realtime.service'
-import { partnerDto, priceTypeNames } from './partners.service'
+import { CustomersService } from './customers.service'
 
-const DOCUMENT = 'partner_payment'
+const DOCUMENT = 'customer_payment'
+/** The counter TL- numbers were first kept under: renamed, the numbers would start again and collide. */
+const COUNTER = 'partner_payment'
 
-/** Where a partner's money can go, or come from: the places the business keeps its own. */
+/** Where a customer's money can go, or come from: the places the business keeps its own. */
 const PLACES = ['cash', 'safe', 'bank', 'card']
 
-const CHANGED = ['partner-payments', 'partners', 'money', 'pos', 'shifts']
+const CHANGED = ['customer-payments', 'customers', 'money', 'pos', 'shifts']
+
+/** Who may make a payment of a kind, and take it back. */
+const MAY: Record<CustomerPaymentKind, string> = {
+  in: 'customers.receive',
+  out: 'customers.pay_out',
+  opening: 'customers.adjust',
+}
 
 /**
- * Money changing hands with partners. A payment has a line for each sum
+ * Money changing hands with customers (TL-). A payment settles one of the
+ * customer's accounts — one currency of theirs — and has a line for each sum
  * that went into, or out of, one of the business's accounts; from the rate
- * the system works out how much of the partner's account each settles, to
+ * the system works out how much of the customer's account each settles, to
  * the cent, and what rounding leaves over goes to the exchange-difference
  * account. A payment is never edited: a wrong one is cancelled, which puts
- * everything back and keeps both in the books.
+ * everything back and keeps both in the books. A customer put away may
+ * still pay and be paid.
  */
 @Injectable()
-export class PartnerPaymentsService {
+export class CustomerPaymentsService {
   constructor(
     private readonly db: Db,
     private readonly audit: AuditService,
@@ -54,6 +66,7 @@ export class PartnerPaymentsService {
     private readonly ledger: LedgerService,
     private readonly money: MoneyService,
     private readonly currencies: CurrenciesService,
+    private readonly customers: CustomersService,
   ) {}
 
   /** The accounts a payment can go through, for the form: balances only for those who may see them. */
@@ -63,13 +76,17 @@ export class PartnerPaymentsService {
     })
   }
 
-  async create(actor: Actor, input: PartnerPaymentInput): Promise<PartnerPaymentDto> {
+  async create(actor: Actor, input: CustomerPaymentInput): Promise<CustomerPaymentDto> {
+    if (!can(actor, MAY[input.kind])) {
+      throw AppError.forbidden()
+    }
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const again = await em.findOneBy(PartnerPayment, { clientKey: input.clientKey })
+      const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
       if (again) {
         return this.load(em, again)
       }
-      const partner = await this.partner(em, input.partnerId)
+      const customer = await this.customer(em, input.customerId)
+      const currency = this.currencyOf(actor, customer, input.currency)
       const today = await this.ledger.today(em, actor.orgId)
       const book = await this.currencies.book(em, actor, today)
       const limit = await rateLimit(em, actor)
@@ -110,8 +127,8 @@ export class PartnerPaymentsService {
           shiftId = open.id
         }
         // Money is valued at the day's rate, whatever is agreed: without one there is nothing to value it by.
-        const changes = account.currency !== partner.currency
-        const wanting = wantingRate(book, account.currency, partner.currency)
+        const changes = account.currency !== currency
+        const wanting = wantingRate(book, account.currency, currency)
         if (wanting) {
           fields[`lines.${index}.amount`] = wanting
           continue
@@ -128,7 +145,7 @@ export class PartnerPaymentsService {
         const worth = valueLine(
           line.amount,
           account.currency,
-          partner.currency,
+          currency,
           book,
           changes ? line.settled : null,
           limit,
@@ -160,7 +177,8 @@ export class PartnerPaymentsService {
       const payment = await this.save(em, actor, {
         clientKey: input.clientKey,
         kind: input.kind,
-        partner,
+        customer,
+        currency,
         // They owe less after paying, more after being paid.
         change: -sign * settled,
         today,
@@ -168,7 +186,7 @@ export class PartnerPaymentsService {
         note: input.note ?? null,
       })
       await em.insert(
-        PartnerPaymentLine,
+        CustomerPaymentLine,
         lines.map((line, position) => ({
           orgId: actor.orgId,
           paymentId: payment.id,
@@ -184,7 +202,7 @@ export class PartnerPaymentsService {
         })),
       )
 
-      const account = await this.ledger.partnerAccount(em, partner)
+      const account = await this.ledger.customerAccount(em, customer, currency)
       const postings: Posting[] = lines.map((line) => ({
         accountId: line.account.id,
         amount: sign * line.amount,
@@ -205,7 +223,7 @@ export class PartnerPaymentsService {
         actor,
         {
           date: today,
-          kind: 'partner_payment',
+          kind: DOCUMENT,
           documentType: DOCUMENT,
           documentId: payment.id,
           shiftId: lines.find((line) => line.shiftId)?.shiftId ?? null,
@@ -214,60 +232,62 @@ export class PartnerPaymentsService {
       )
 
       await this.audit.record(em, actor.orgId, actor, {
-        action: input.kind === 'in' ? 'partner_payment.in' : 'partner_payment.out',
-        entity: 'partner_payment',
+        action: input.kind === 'in' ? 'customer_payment.in' : 'customer_payment.out',
+        entity: 'customer_payment',
         entityId: payment.id,
-        summary: `${payment.number}: ${partner.name}, ${formatMoney(settled, partner.currency)} (${payment.paidBy})`,
+        summary: `${payment.number}: ${customer.name}, ${formatMoney(settled, currency)} (${payment.paidBy})`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, payment)
     })
   }
 
-  /** What stood between the business and a partner before the books began. */
-  async opening(actor: Actor, input: PartnerOpeningInput): Promise<PartnerPaymentDto> {
+  /** What stood between the business and a customer before the books began, in one of their currencies. */
+  async opening(actor: Actor, input: CustomerOpeningInput): Promise<CustomerPaymentDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const again = await em.findOneBy(PartnerPayment, { clientKey: input.clientKey })
+      const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
       if (again) {
         return this.load(em, again)
       }
-      const partner = await this.partner(em, input.partnerId)
+      const customer = await this.customer(em, input.customerId)
+      const currency = this.currencyOf(actor, customer, input.currency)
       const today = await this.ledger.today(em, actor.orgId)
       // What stood before is worth in the books what the day's rates make of it, along the chain where it must.
       const book = await this.currencies.book(em, actor, today)
-      const wanting = wantingRate(book, partner.currency)
+      const wanting = wantingRate(book, currency)
       if (wanting) {
         throw AppError.validation({ amount: wanting })
       }
-      const change = input.owes === 'partner' ? input.amount : -input.amount
-      const base = worthInBase(change, partner.currency, book) as number
+      const change = input.owes === 'customer' ? input.amount : -input.amount
+      const base = worthInBase(change, currency, book) as number
       const payment = await this.save(em, actor, {
         clientKey: input.clientKey,
         kind: 'opening',
-        partner,
+        customer,
+        currency,
         change,
         today,
         paidBy: '',
         note: input.note ?? null,
       })
-      const account = await this.ledger.partnerAccount(em, partner)
+      const account = await this.ledger.customerAccount(em, customer, currency)
       const before = await this.ledger.systemAccount(em, actor.orgId, 'opening')
       await this.ledger.post(
         em,
         actor,
-        { date: today, kind: 'partner_payment', documentType: DOCUMENT, documentId: payment.id },
+        { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: payment.id },
         [
           { accountId: account.id, amount: change, base },
           { accountId: before.id, amount: -base, base: -base },
         ],
       )
       await this.audit.record(em, actor.orgId, actor, {
-        action: 'partner_payment.opening',
-        entity: 'partner_payment',
+        action: 'customer_payment.opening',
+        entity: 'customer_payment',
         entityId: payment.id,
-        summary: `${payment.number}: ${partner.name}, ${
-          input.owes === 'partner' ? 'qarzi' : 'haqi'
-        } ${formatMoney(input.amount, partner.currency)}`,
+        summary: `${payment.number}: ${customer.name}, ${
+          input.owes === 'customer' ? 'qarzi' : 'haqi'
+        } ${formatMoney(input.amount, currency)}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, payment)
@@ -276,24 +296,24 @@ export class PartnerPaymentsService {
 
   /**
    * Takes a payment back: the money returns to where it was and the
-   * partner's account to what it was. Cash that went through a drawer can be
+   * customer's account to what it was. Cash that went through a drawer can be
    * taken back only while that shift is open: after it has been counted, a
    * payment the other way puts things right.
    */
-  async cancel(actor: Actor, id: string, reason: string): Promise<PartnerPaymentDto> {
+  async cancel(actor: Actor, id: string, reason: string): Promise<CustomerPaymentDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      await em.query(`SELECT 1 FROM partner_payments WHERE id = $1 FOR UPDATE`, [id])
-      const payment = await em.findOneBy(PartnerPayment, { id })
+      await em.query(`SELECT 1 FROM customer_payments WHERE id = $1 FOR UPDATE`, [id])
+      const payment = await em.findOneBy(CustomerPayment, { id })
       if (!payment) {
         throw AppError.notFound('To‘lov topilmadi')
       }
       if (payment.status !== 'posted') {
         throw AppError.conflict('PAYMENT_CANCELLED', 'Bu to‘lov allaqachon bekor qilingan')
       }
-      if (payment.kind === 'opening' && !can(actor, 'partners.adjust')) {
+      if (!can(actor, MAY[payment.kind])) {
         throw AppError.forbidden()
       }
-      const lines = await em.find(PartnerPaymentLine, { where: { paymentId: id }, order: { position: 'ASC' } })
+      const lines = await em.find(CustomerPaymentLine, { where: { paymentId: id }, order: { position: 'ASC' } })
       const shiftIds = lines.flatMap((line) => (line.shiftId ? [line.shiftId] : []))
       if (shiftIds.length && (await em.countBy(Shift, { id: In(shiftIds), status: 'closed' }))) {
         throw AppError.conflict('SHIFT_CLOSED', 'Smena yopilgan: bu to‘lov teskari to‘lov bilan tuzatiladi')
@@ -316,14 +336,14 @@ export class PartnerPaymentsService {
         actor,
         {
           date: today,
-          kind: 'partner_payment_cancel',
+          kind: `${DOCUMENT}_cancel`,
           documentType: DOCUMENT,
           documentId: id,
           shiftId: shiftIds[0] ?? null,
         },
-        'partner_payment',
+        DOCUMENT,
       )
-      await em.update(PartnerPayment, id, {
+      await em.update(CustomerPayment, id, {
         status: 'cancelled',
         cancelledAt: new Date(),
         cancelledBy: actor.userId,
@@ -331,19 +351,19 @@ export class PartnerPaymentsService {
         cancelReason: reason,
       })
       await this.audit.record(em, actor.orgId, actor, {
-        action: 'partner_payment.cancel',
-        entity: 'partner_payment',
+        action: 'customer_payment.cancel',
+        entity: 'customer_payment',
         entityId: id,
         summary: `${payment.number}: ${reason}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
-      return this.load(em, await em.findOneByOrFail(PartnerPayment, { id }))
+      return this.load(em, await em.findOneByOrFail(CustomerPayment, { id }))
     })
   }
 
-  async get(actor: Actor, id: string): Promise<PartnerPaymentDto> {
+  async get(actor: Actor, id: string): Promise<CustomerPaymentDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const payment = await em.findOneBy(PartnerPayment, { id })
+      const payment = await em.findOneBy(CustomerPayment, { id })
       if (!payment) {
         throw AppError.notFound('To‘lov topilmadi')
       }
@@ -351,12 +371,12 @@ export class PartnerPaymentsService {
     })
   }
 
-  async list(actor: Actor, query: PartnerPaymentListQuery): Promise<Page<PartnerPaymentDto>> {
+  async list(actor: Actor, query: CustomerPaymentListQuery): Promise<Page<CustomerPaymentDto>> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const qb = em.createQueryBuilder(PartnerPayment, 'p')
+      const qb = em.createQueryBuilder(CustomerPayment, 'p')
       if (query.status !== 'all') qb.andWhere('p.status = :status', { status: query.status })
       if (query.kind) qb.andWhere('p.kind = :kind', { kind: query.kind })
-      if (query.partnerId) qb.andWhere('p.partnerId = :partnerId', { partnerId: query.partnerId })
+      if (query.customerId) qb.andWhere('p.customerId = :customerId', { customerId: query.customerId })
       if (query.from) qb.andWhere('p.paidOn >= :from', { from: query.from })
       if (query.to) qb.andWhere('p.paidOn <= :to', { to: query.to })
       applySearch(qb, 'p.search_key', query.q)
@@ -365,7 +385,7 @@ export class PartnerPaymentsService {
         .skip((query.page - 1) * query.size)
         .take(query.size)
         .getManyAndCount()
-      const items: PartnerPaymentDto[] = []
+      const items: CustomerPaymentDto[] = []
       for (const row of rows) {
         items.push(await this.load(em, row))
       }
@@ -373,11 +393,18 @@ export class PartnerPaymentsService {
     })
   }
 
-  /** A partner's account from its first entry: every change, and what was owed after each. */
-  async statement(actor: Actor, partnerId: string): Promise<PartnerStatementDto> {
+  /**
+   * One of a customer's accounts from its first entry: every change, and what was owed after each. A supplier's
+   * account is for those who may see suppliers' accounts; anyone else's, for those who may see debts.
+   */
+  async statement(actor: Actor, customerId: string, asked?: AnyCurrency): Promise<CustomerStatementDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const partner = await this.partner(em, partnerId, true)
-      const account = await em.findOneBy(Account, { partnerId })
+      const customer = await this.customer(em, customerId)
+      if (!can(actor, customer.isSupplier ? 'customers.suppliers' : 'customers.debts')) {
+        throw AppError.forbidden()
+      }
+      const currency = asked ?? customer.currency
+      const account = await em.findOneBy(Account, { customerId, currency })
       const rows: {
         at: Date
         entry_kind: string
@@ -385,7 +412,7 @@ export class PartnerPaymentsService {
         change: number
         document_id: string | null
         number: string | null
-        kind: PartnerPaymentKind | null
+        kind: CustomerPaymentKind | null
         note: string | null
         cancel_reason: string | null
       }[] = account
@@ -396,7 +423,7 @@ export class PartnerPaymentsService {
                     coalesce(p.cancel_reason, s.void_reason) AS cancel_reason
              FROM ledger_lines l
              JOIN ledger_entries e ON e.id = l.entry_id
-             LEFT JOIN partner_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
+             LEFT JOIN customer_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
              LEFT JOIN receipts r ON r.id = e.document_id AND e.document_type = 'receipt'
              LEFT JOIN sales s ON s.id = e.document_id AND e.document_type = 'sale'
              LEFT JOIN sale_returns sr ON sr.id = e.document_id AND e.document_type = 'sale_return'
@@ -407,7 +434,7 @@ export class PartnerPaymentsService {
           )
         : []
       let balance = 0
-      const lines: PartnerStatementLine[] = rows.map((row) => {
+      const lines: CustomerStatementLine[] = rows.map((row) => {
         balance += row.change
         const cancelled = row.entry_kind.endsWith('_cancel') || row.entry_kind === 'sale_void'
         const source =
@@ -429,7 +456,8 @@ export class PartnerPaymentsService {
         }
       })
       return {
-        partner: partnerDto(partner, account?.balance ?? 0, (await priceTypeNames(em, [partner]))(partner)),
+        customer: await this.customers.dtoOf(em, actor, customer),
+        currency,
         lines,
         balance: account?.balance ?? 0,
       }
@@ -438,12 +466,22 @@ export class PartnerPaymentsService {
 
   // ───────────────────────────── Inside ─────────────────────────────
 
-  private async partner(em: EntityManager, id: string, evenArchived = false): Promise<Partner> {
-    const partner = await em.findOneBy(Partner, { id })
-    if (!partner || (!partner.isActive && !evenArchived)) {
-      throw AppError.validation({ partnerId: 'Hamkor topilmadi' })
+  /** Whoever the payment is with: one put away pays, and is paid, all the same. */
+  private async customer(em: EntityManager, id: string): Promise<Customer> {
+    const customer = await em.findOneBy(Customer, { id })
+    if (!customer) {
+      throw AppError.validation({ customerId: 'Mijoz topilmadi' })
     }
-    return partner
+    return customer
+  }
+
+  /** Which of the customer's accounts: the one asked for, of a currency the business keeps, or their main one. */
+  private currencyOf(actor: Actor, customer: Customer, asked: AnyCurrency | undefined): AnyCurrency {
+    const currency = asked ?? customer.currency
+    if (currency !== actor.base && !actor.currencies.includes(currency)) {
+      throw AppError.validation({ currency: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+    }
+    return currency
   }
 
   private async save(
@@ -451,24 +489,25 @@ export class PartnerPaymentsService {
     actor: Actor,
     data: {
       clientKey: string
-      kind: PartnerPaymentKind
-      partner: Partner
+      kind: CustomerPaymentKind
+      customer: Customer
+      currency: AnyCurrency
       change: number
       today: string
       paidBy: string
       note: string | null
     },
-  ): Promise<PartnerPayment> {
-    const number = `TL-${String(await nextNumbers(em, actor.orgId, 'partner_payment')).padStart(6, '0')}`
+  ): Promise<CustomerPayment> {
+    const number = `TL-${String(await nextNumbers(em, actor.orgId, COUNTER)).padStart(6, '0')}`
     return em.save(
-      em.create(PartnerPayment, {
+      em.create(CustomerPayment, {
         orgId: actor.orgId,
         number,
         clientKey: data.clientKey,
         kind: data.kind,
         status: 'posted',
-        partnerId: data.partner.id,
-        currency: data.partner.currency,
+        customerId: data.customer.id,
+        currency: data.currency,
         change: data.change,
         paidAt: new Date(),
         paidOn: data.today,
@@ -476,15 +515,15 @@ export class PartnerPaymentsService {
         createdByName: actor.name,
         paidBy: data.paidBy,
         note: data.note,
-        searchKey: searchKey([number, data.partner.name, actor.name, data.note ?? ''].join(' ')),
+        searchKey: searchKey([number, data.customer.name, actor.name, data.note ?? ''].join(' ')),
       }),
     )
   }
 
-  private async load(em: EntityManager, payment: PartnerPayment): Promise<PartnerPaymentDto> {
-    const partner = await em.findOneByOrFail(Partner, { id: payment.partnerId })
+  private async load(em: EntityManager, payment: CustomerPayment): Promise<CustomerPaymentDto> {
+    const customer = await em.findOneByOrFail(Customer, { id: payment.customerId })
     const lines = await em
-      .createQueryBuilder(PartnerPaymentLine, 'l')
+      .createQueryBuilder(CustomerPaymentLine, 'l')
       .innerJoin(Account, 'a', 'a.id = l.accountId')
       .addSelect('a.name', 'account_name')
       .where('l.paymentId = :id', { id: payment.id })
@@ -495,8 +534,8 @@ export class PartnerPaymentsService {
       number: payment.number,
       kind: payment.kind,
       status: payment.status,
-      partnerId: payment.partnerId,
-      partnerName: partner.name,
+      customerId: payment.customerId,
+      customerName: customer.name,
       currency: payment.currency,
       change: payment.change,
       paidAt: payment.paidAt.toISOString(),

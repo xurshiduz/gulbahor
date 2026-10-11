@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-10, V9 yopilganda: core 217, web 219, agent 17, server 395 (34 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-11, M2-2 dan keyin: core 217, web 218, agent 17, server 401 (34 fayl); typecheck (core testlari bilan), lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -229,8 +229,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula; + fiks / kursga bog'langan narx, narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati (KEYINGI-REJA, V9 bo'limi "Narx, mijoz hisobi…", 16.10) (~13 kun).
    - [ ] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun).
-     - [ ] M2-1. Mijoz kartasi: telefon ixtiyoriy, asosiy valyuta, o'z narxi (guruhnikidan oldin), "Yetkazib beruvchi" belgisi, qarz sozlamalari (chegara, muddat, qaytarish muddati — faqat `customers.adjust`); mijozlar ruxsatlari kengaydi (`suppliers`, `receive`, `pay_out`, `adjust`).
-     - [ ] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
+     - [x] M2-1. Mijoz kartasi: telefon ixtiyoriy, asosiy valyuta, o'z narxi (guruhnikidan oldin), "Yetkazib beruvchi" belgisi, qarz sozlamalari (chegara, muddat, qaytarish muddati — faqat `customers.adjust`); mijozlar ruxsatlari kengaydi (`suppliers`, `receive`, `pay_out`, `adjust`).
+     - [x] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
      - [ ] M2-3. Qarz va muddat: chakana qarz shu hisobga, `customer_dues`, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki.
      - [ ] M2-4. To'lovlar: tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot.
      - [ ] M2-5. Qaytarish va bekor qilish: avval hisob, keyin pul; almashtirish zanjiri; bekor qilingan chekdagi to'lov avans bo'lib qoladi.
@@ -245,7 +245,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-M2 yagona mijoz (M3 ekranlari bilan birga chiqadi): texnik reja V9 ga moslandi (MIJOZLAR-TEXNIK, 3-bo'lim); keyingi — migratsiya 44000 va core
+M2-3: qarz va muddat — chakana qarz mijoz hisobiga, customer_dues, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki (egasi bilan boshlanadi)
 
 ## Ish daraxti nusxalari
 
@@ -276,3 +276,5 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `4e9e222e8e743166db2176f1e786f40b78182788` | Kassa va to'lov oynalarida hamma valyuta va hisob standart holatda ko'rinadi; xodim o'zi uchun yashiradi (places.hidden: cash:CNY yoki hisob), kassada ko'z belgisi va Yashirilgan: …, oynalarda X va Yana hisob…; har kassa hamma valyutada (migratsiya 42000), dollar tortmasi ($); Pul holatida hamma valyuta va har kurs |
 | `e9bb62c755d03b8499898fff9b22db72bdd4f0b1` | V9 / kassa tortmasi = kassaga biriktirilgan Naqd hisob (accounts.register_id, accounts_till, syncTills, registers.currencies — kesh; BASE_DRAWER, DRAWER_HELD, SHIFT_OPEN), migratsiya 43000, hisob formasida Kassa maydoni va Naqd birinchi, kassa formasida Naqd valyutalar yo'q; asosiy valyuta almashtirilganda tortma o'chirilmaydi va egasi bergan nom qoladi |
 | `826665d22e9b60634d048636045ee75cb1062594` | V9 / 9f: ekranda so'm (dollar va yuan bilan) va tenge biznesi; kassasiz Naqd hisobning Do'kon izohi, topshirishda do'konning o'z seyfi oldin; CLAUDE.md dagi V9 dan oldingi gaplar yangilandi |
+| `47d0bfc33e5a804018b7539201845dcf3cc1cceb` | M2-1: mijoz kartasi — telefon ixtiyoriy, asosiy valyuta, o'z narxi, yetkazib beruvchi belgisi, qarz sozlamalari (customers.adjust), migratsiya 44000, mijozlar ruxsatlari kengaydi |
+| `6abdf6a24ff80317b366a4c79eebd6c6bc953578` | M2-2: bitta ro'yxat — hamkorlar mijozlarga ko'chdi (migratsiya 45000), hisob har valyutada, TL- mijoz to'lovlari, kirim va YQ- yetkazib beruvchi hisobida o'z valyutasida, istalgan mijoz hisobiga sotuv, ruxsatlar; Mijozlar ro'yxatida Turi va Hisob-kitob ustunlari, filtrlar, qator menyusi; ekranda tekshirildi |

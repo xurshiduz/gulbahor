@@ -22,7 +22,7 @@ import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from
 // ───────────────────────────── Accounts ─────────────────────────────
 
 /** `system` accounts are the other side of money that came from or went to no place: sales, rounding, a count that came out short. */
-export const ACCOUNT_KINDS = ['cash', 'safe', 'card', 'terminal', 'bank', 'system', 'partner'] as const
+export const ACCOUNT_KINDS = ['cash', 'safe', 'card', 'terminal', 'bank', 'system', 'customer'] as const
 export type AccountKind = (typeof ACCOUNT_KINDS)[number]
 
 export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
@@ -33,8 +33,8 @@ export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
   terminal: 'Bank terminali',
   bank: 'Bank hisob raqami',
   system: 'Ichki hisob',
-  // What a partner owes the business; negative when the business owes them.
-  partner: 'Hamkor hisobi',
+  // What a customer owes the business in one currency; negative when the business owes them.
+  customer: 'Mijoz hisobi',
 }
 
 export const SYSTEM_ACCOUNTS = [
@@ -235,9 +235,9 @@ export type TenderMethod = (typeof TENDER_METHODS)[number]
 
 /**
  * What a sale can be paid with: money, or `exchange`: what goods brought back were worth, put towards new ones;
- * `debt`: left owing by a customer; `partner`: put on a partner's account.
+ * `debt`: left owing by a customer; `account`: put on a customer's account.
  */
-export const PAYMENT_METHODS = [...TENDER_METHODS, 'exchange', 'debt', 'partner'] as const
+export const PAYMENT_METHODS = [...TENDER_METHODS, 'exchange', 'debt', 'account'] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -246,7 +246,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   terminal: 'Terminal',
   exchange: 'Almashtirish',
   debt: 'Qarzga',
-  partner: 'Hamkor hisobiga',
+  account: 'Hisobiga',
 }
 
 /**
@@ -256,7 +256,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
  */
 export function paymentLabel(payment: { method: PaymentMethod; accountName: string }): string {
   const label = PAYMENT_METHOD_LABELS[payment.method]
-  return payment.method === 'cash' || payment.method === 'debt' || payment.method === 'partner'
+  return payment.method === 'cash' || payment.method === 'debt' || payment.method === 'account'
     ? label
     : `${label} · ${payment.accountName}`
 }
@@ -575,11 +575,13 @@ function taggedOnce(sale: { lines: SaleLineInput[] }, context: z.RefinementCtx) 
   })
 }
 
-/** What of a sale goes on a partner's account. */
+/** What of a sale goes on a customer's account. */
 export const saleOnAccountSchema = z.object({
+  /** Which of the customer's accounts: their main currency unless said. */
+  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
   /** So much of the sale, in the sale's currency. */
   amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
-  /** What that comes to on the partner's account, in its currency, where it was agreed; left out, the day's rate. */
+  /** What that comes to on the customer's account, in its currency, where it was agreed; left out, the day's rate. */
   settled: amountSchema
     .refine((value) => value > 0, { message: 'Summani kiriting' })
     .nullish()
@@ -596,9 +598,7 @@ export const saleInputSchema = z
     sellerId: idSchema.nullish().transform((value) => value ?? null),
     /** Who is buying, when they are on the books. */
     customerId: idSchema.nullish().transform((value) => value ?? null),
-    /** A partner buying at the till: neither a customer nor their rules, and part or all of it on their account. */
-    partnerId: idSchema.nullish().transform((value) => value ?? null),
-    /** What of it goes on the partner's account: so much of the sum, and — agreed — what that is in their currency. */
+    /** What of it goes on the customer's account: so much of the sum, and — agreed — what that is in its currency. */
     onAccount: saleOnAccountSchema.nullish().transform((value) => value ?? null),
     /** The price type the whole sale is made at, when it is not the retail one: wholesale, a family price. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
@@ -621,11 +621,8 @@ export const saleInputSchema = z
     if (!sale.payments.length && !sale.debt && !sale.onAccount) {
       context.addIssue({ code: 'custom', path: ['payments'], message: 'To‘lovni kiriting' })
     }
-    if (sale.onAccount && !sale.partnerId) {
-      context.addIssue({ code: 'custom', path: ['partnerId'], message: 'Hisobiga yozish uchun hamkorni tanlang' })
-    }
-    if (sale.partnerId && sale.customerId) {
-      context.addIssue({ code: 'custom', path: ['partnerId'], message: 'Mijoz yoki hamkor: bittasi tanlanadi' })
+    if (sale.onAccount && !sale.customerId) {
+      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Hisobiga yozish uchun mijozni tanlang' })
     }
     if (sale.debt && !sale.customerId) {
       context.addIssue({ code: 'custom', path: ['customerId'], message: 'Qarzga sotish uchun mijozni tanlang' })
@@ -676,9 +673,6 @@ export interface SaleListItemDto {
   /** Who bought, when they were on the books. */
   customerId: string | null
   customerName: string | null
-  /** The partner it was sold to, when it was. */
-  partnerId: string | null
-  partnerName: string | null
   /** What came off by itself (promotions and the customer's own discount), and why: "Yozgi aksiya, Sodiqlik 7%". */
   autoDiscount: number
   autoReason: string | null
@@ -712,7 +706,7 @@ export interface SaleLineDto {
 export interface SalePaymentDto {
   method: PaymentMethod
   accountName: string
-  /** A partner's account may be kept in any currency; the money taken is so'm or dollars. */
+  /** A customer's account may be kept in any currency, and so may the money taken. */
   currency: AnyCurrency
   amount: number
   /** What it paid of the sale, in so'm: its worth at the sale's rate, or what was agreed. */
@@ -777,14 +771,14 @@ export function returnShare(
 }
 
 /**
- * What comes off a partner's account when goods sold to it come back: the
- * share of what the sale put there, in the partner's currency, as the sale
+ * What comes off a customer's account when goods sold to it come back: the
+ * share of what the sale put there, in the account's currency, as the sale
  * wrote it — not at today's rate. `base` is the part of the sale put on
  * the account and `settled` what that came to in their currency; `back` is
  * what of `base` comes back now, `returned` what came back before in each.
  * The last of it takes whatever is left, so nothing lingers by rounding.
  */
-export function partnerShare(
+export function accountShare(
   put: { base: number; settled: number },
   returned: { base: number; settled: number },
   back: number,
@@ -968,25 +962,12 @@ export interface ReturnableDto {
     accounts: { accountId: string; method: TenderMethod; name: string; last4: string | null; left: number }[]
     /** What the receipt still leaves owing: goods brought back come off this before any money is handed back. */
     debt: number
-    /** What of it still stands on a partner's account, in so'm: it comes off there first, as the debt does. */
-    partner: number
+    /** What of it still stands on the customer's account, in the base: it comes off there first, as the debt does. */
+    account: number
   }
 }
 
 // ───────────────────────────── At the till ─────────────────────────────
-
-/**
- * A partner as the till finds them: who they are and what their account is
- * kept in. What they owe is never shown at the till.
- */
-export interface PosPartnerDto {
-  id: string
-  name: string
-  phone: string | null
-  currency: AnyCurrency
-  /** The price they buy at: the till sells at it once they are picked, without anyone's word. */
-  priceType: { id: string; name: string } | null
-}
 
 /** One sellable thing as the till shows it. */
 export interface PosItemDto {
@@ -1063,17 +1044,14 @@ export interface PosContextDto {
     discount: boolean
     returns: boolean
     prices: boolean
+    /** May lend where the rules stop a cashier, and put a sale on a customer's account. */
     debts: boolean
-    /** May put a sale on a partner's account. */
-    partners: boolean
   }[]
   /** Selling on credit: how many days a debt is given for unless another day is set, and what one customer may owe (0: no limit). */
   debtDays: number
   debtLimit: number
   /** This person may lend where the shop's rules would stop a cashier. */
   mayLend: boolean
-  /** This person may put a sale on a partner's account alone; others need a manager's word. */
-  maySellToPartners: boolean
   /**
    * The price types this person may sell at beside the retail one. `needsWord`: only with a manager's PIN.
    */
@@ -1139,9 +1117,9 @@ export interface ShiftCashMoves {
   /** Handed over out of the drawer, and brought into it. */
   out: number
   in: number
-  /** Partners' payments taken into the drawer, and paid out of it. */
-  partnersIn: number
-  partnersOut: number
+  /** Customers' payments taken into the drawer, and paid out of it. */
+  customersIn: number
+  customersOut: number
   /** Expenses paid out of the drawer, and other money put into it. */
   expenses: number
   income: number
@@ -1155,7 +1133,7 @@ export interface ShiftTotals {
   qty: number
   discount: number
   total: number
-  /** What came in by each way of paying, in its own currency and in the base; on a partner's account, in theirs. */
+  /** What came in by each way of paying, in its own currency and in the base; on a customer's account, in its. */
   payments: { method: PaymentMethod; accountName: string; currency: AnyCurrency; amount: number; base: number }[]
   rounding: number
   /** Each drawer's currency, the base first, with what moved in and out of it. */

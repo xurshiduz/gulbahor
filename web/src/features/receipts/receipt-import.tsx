@@ -13,10 +13,8 @@ import {
   type ImportResult,
   type ImportRow,
   type ImportRowResult,
-  type Page as PageOf,
-  type PartnerDto,
 } from '@erp/core'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { CircleCheck, Download, FileSpreadsheet, TriangleAlert, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +26,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
 import { useSession } from '@/features/auth/session'
+import { useCustomerChoices } from '@/features/customers/choices'
 import { api, ApiError } from '@/lib/api'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
@@ -132,11 +131,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   const rate = typedRate ?? dayRate
   const foreign = currency !== base()
 
-  const suppliers = useQuery({
-    queryKey: ['partners', 'suppliers'],
-    queryFn: ({ signal }) =>
-      api.get<PageOf<PartnerDto>>('/partners', { role: 'supplier', status: 'active', size: 200 }, signal),
-  })
+  const { choices: suppliers, search: findSupplier } = useCustomerChoices([supplierId], true)
 
   const signature = sheet
     ? sheet.headers
@@ -334,10 +329,8 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                 {(id) => (
                   <Combobox
                     id={id}
-                    options={(suppliers.data?.items ?? []).map((partner) => ({
-                      value: partner.id,
-                      label: partner.name,
-                    }))}
+                    options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+                    onQuery={findSupplier}
                     value={supplierId}
                     onChange={(value) => (setSupplierId(value), setPreview(null))}
                   />

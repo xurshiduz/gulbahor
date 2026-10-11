@@ -524,7 +524,7 @@ The owner's decisions are in `KEYINGI-REJA.md`, 8th part, "Narx, mijoz hisobi va
 
 **Order and numbering**
 - M2 (book and ledger) and M3 (screens) ship together; M4 follows in pieces. M1 is not a prerequisite. Decision 10's "formula or Chakana narxida" fallback waits for M1. Until then, a price type with no price for a product falls back to retail, as it does today.
-- One migration: `1790000044000-one-customer-book.ts`. The numbers 35000 and 36000 were taken by other work. It must not assume `price-formulas` ran. Retail-kind price types are still normalised to null here.
+- Two migrations: `1790000044000-customer-card.ts` (M2-1) and `1790000045000-one-customer-book.ts` (M2-2). The numbers 35000 and 36000 were taken by other work. It must not assume `price-formulas` ran. Retail-kind price types are still normalised to null here.
 
 **A balance per currency**
 - A customer has one account per currency: `accounts.kind = 'customer'`, `customer_id`, and `currency`, with UNIQUE `(customer_id, currency)`. Each account opens on its first posting: `LedgerService.customerAccount(em, customer, currency)`. A partner's existing account moves as it is, in its currency.
@@ -553,3 +553,46 @@ The owner's decisions are in `KEYINGI-REJA.md`, 8th part, "Narx, mijoz hisobi va
 - `partners.currency` single-currency checks (`PartnersService.assertCurrency`): the main currency is checked against `CurrenciesService.kept`. Account currencies are checked per document.
 - `sales.uzs_per_usd` is kept for old receipts only.
 
+## 4. How M2-1 and M2-2 were built (2026-10-10 – 2026-10-11)
+
+Section 3's plan, as it went in. M2-3 (dues, limit and bars on the book), M2-4 (adjust, forgive, in-account exchange, terminal at the till, drawer payout cap) and M2-5 (returns and voids) are still to come; until M2-3 the retail debt (`customer_debts`, "Qarzlar" tabs) stays a book of its own.
+
+**M2-1. The card** (migration `1790000044000-customer-card`)
+- `customers.phone` is nullable, unique among those that have one (partial index). `down` refuses while phoneless customers exist.
+- New columns: `currency` (NOT NULL, filled with the business's base), `price_type_id` (not the `min` kind; retail is null), `is_supplier`, `credit` (`default | none | limit | unlimited`), `credit_limit` (required for `limit`), `due_days` / `no_due` (never both), `return_days`.
+- Core: `customerInputSchema` (`phone` optional, `currency?`, `priceTypeId`, `isSupplier`, `terms?`), `customerTermsSchema` (checks and normalises), `DEFAULT_CUSTOMER_TERMS`, `CustomerDto.currency / priceType / isSupplier / terms`.
+- Terms are set only with `customers.adjust` (403 otherwise; a form without it sends none and nothing changes). The customer's own price comes before their group's (`rulesOf` → `PosCustomerDto.priceType`, `priceFrom`); loyalty counts only retail-priced sales.
+- Permissions: `customers.suppliers`, `customers.receive`, `customers.pay_out`, `customers.adjust`. A role holding `customers.*` without `partners.*` (the store manager) is narrowed to view, manage, debts and receive, so it does not gain the suppliers' accounts; every `customers.debts` holder gains receive.
+
+**M2-2. One book** (migration `1790000045000-one-customer-book`)
+- Phones first: a phone two partners shared stays with the one whose account has ledger lines (else the oldest); the others carry it in their note (`Tel: …`).
+- A partner whose phone is a customer's merges into that customer: the customer takes the partner's currency, their price (unless retail), the supplier mark, and the partner's name into the note. Every other partner is inserted as a customer with the same id; `search_key` is recomputed in JS with `searchKey`.
+- Re-pointed: `receipts.supplier_id`, `receipt_lines.supplier_id` (FKs to customers), `accounts.partner_id → customer_id` with `kind = 'customer'` and UNIQUE `accounts_of_customer(customer_id, currency)`, `sales.partner_id → customer_id` (`customer_name` keeps the partner's name). `partner_payments` / `partner_payment_lines` are renamed to `customer_payments` / `customer_payment_lines` with their constraints and indexes; ledger `kind` / `document_type` `partner_payment*` → `customer_payment*`; `sale_payments` and `sale_return_payments` method `partner` → `account`. `DROP TABLE partners`. The TL- counter keeps its key (`partner_payment`).
+- Permissions renamed in roles and in `users.extra_permissions`: `partners.*` → `customers.*`, `partners.view` → `customers.view`, `partners.manage` → `customers.manage`, `partners.debts` → `customers.debts` + `customers.suppliers`, `partners.pay` → `customers.receive` + `customers.pay_out`, `partners.adjust` → `customers.adjust`, `pos.partner_sale` → `pos.debt`. The warehouse template loses `partners.view` (it picks suppliers through `/customers/brief`). "Hamkorlar menejeri" becomes "Ulgurji menejer" (`customers.*`).
+- `down` refuses once a customer account has a ledger line, a customer payment exists or a sale went on an account; otherwise it rebuilds `partners` (with `tenantPolicy('partners')`) from the customers that were partners.
+- The audit log is append-only: old rows keep `partner` / `partner_payment`; their labels stay in the dictionaries, the audit filter offers `customer_payment`.
+
+**Server**
+- `modules/partners` is gone. `modules/customers` holds `CustomerPaymentsService` + `payments.controller.ts` (`/customer-payments`: list and one — `seesPayments`: receive, pay_out, debts or suppliers; `accounts`; create — `MAY`: in → receive, out → pay_out; `opening` — adjust; `:id/cancel`).
+- `CustomersService`: `fields()` (phone check, currency kept or base, terms by `customers.adjust`), `priceOf` (retail → null, `min` refused), `dtos(em, customers, actor)` — balances by permission (supplier → `customers.suppliers`, others → `customers.debts`, else `null`), `brief` and `quick`, list filters `supplier` and `balance` (limited to the balances this person may see), archive guard `CUSTOMER_HAS_BALANCE`, a new name renames the accounts.
+- `GET /customers/:id` is open to view, receive, pay_out, debts or suppliers (the payment window reads the card). `GET /customers/:id/statement?currency` checks the same rule as the balances.
+- `LedgerService.customerAccount(em, customer, currency)` finds or opens the account of that currency.
+- Receipts: `owe` / `creditIn` post to `customerAccount(em, supplier, receipt.currency)` with the amount written (`inAccount` removed); posting marks the suppliers `is_supplier`. Import finds suppliers by name among `is_supplier` customers (two of one name is an error) and creates a missing one in the receipt's currency.
+- Stock documents: `StockDocDto.supplierId / supplierName`; `credited` needs `customers.suppliers`.
+- Sales: `onAccount { currency?, amount, settled? }` for any customer (`partnerId` is gone); currency defaults to the customer's main one and must be kept; `pos.debt` or an approver with debts (`ON_ACCOUNT_NEEDS_WORD`). Returns: `accountShare`, `accountPart`, `caps.account`.
+- POS: `/pos/partners`, `PosPartnerDto`, `maySellToPartners` and `approvers[].partners` are gone; `POST /pos/customers` strips price, supplier mark, currency and terms; `GET /pos/customers/:id` re-reads a kept cart's customer.
+- Shifts: `ShiftCashMoves.customersIn / customersOut`; a sale on account is named by its method only (`PLACE_NAME` is empty for `account`), never by whose account.
+- Base currency change carries `customers.credit_limit` and moves customers' main currency old → new; "money held" checks customer accounts.
+
+**Web**
+- `features/partners` is gone; `/partners` redirects to `/customers`. `payment-lines.tsx` moved to `features/money`, the payment windows to `features/customers/payments.tsx`: `PaymentDialog { customerId?, currency?, kind? }` (customer `Combobox` searching the server through `onQuery`; "Hisob valyutasi" select), `OpeningDialog { customer }` (currency select), `StatementDialog { customerId, currency?, onPay(kind, currency) }` (a button per currency), `PaymentsPage` ("Mijoz to‘lovlari", under Mijozlar in the menu).
+- `features/customers/choices.ts` — `useCustomerChoices(picked, suppliersFirst)` over `/customers/brief`; `Combobox` and `FilterCombo` gained `onQuery`. Receipts, receipt import and the receipts list pick suppliers through it; a new supplier is made with `/customers/quick`.
+- Customers page: columns "Turi" (supplier badge; filter all / suppliers / others), "Narxi", "Hisob-kitob" (each unsettled currency on its own line — "qarzi 2 050,00 $", "haqi 2 000 000 so‘m"; filter owes / owed; only for debts or suppliers holders); the row menu adds statement (when `balances !== null`), take in, pay out (receive / pay_out, active customers) and opening (adjust), opened in place through `over` (a payment started from the statement returns to it). A person without `customers.manage` opens a row on its statement.
+- Card form: name first, phone optional, price, main currency (when the business keeps more than one), "Yetkazib beruvchi", and a "Hisob-kitob" fieldset for `customers.adjust`.
+- Till: the customer picker has no partner list and adds a customer without a phone; the "Hisobiga" block is offered for any customer, in their main currency; `offAccount` on returns; the shift report shows `customersIn / customersOut`.
+- Shell: Ctrl+K / Alt+K need `customers.receive`, Alt+C needs `customers.pay_out`.
+
+**Tests**
+- Server: `customer-payments.spec.ts` (was `partner-payments`), `account-sales.spec.ts` (was `partner-sales`), the card and balances in `customers.spec.ts`, per-currency supplier debt in `receiving.spec.ts`, the rest adjusted. The migration was run up and down on partner data in the test database (merge by phone, phone dedupe by ledger use, accounts, receipts).
+- Web: `on-account.test.tsx` (was `partner-sale.test`), fixtures in `pos-state.test.ts` and `customer-picker.test.tsx`, the menu groups in `sidebar.test.ts`. Core: the payment schema in `settlements.test.ts`.
+- On screen (a sample business in the test database, servers 3101/5191): the list with balances in three currencies, both filters, the row menu, the statement in each currency, a payment opened from it on the so'm account and back, "Mijoz to‘lovlari".

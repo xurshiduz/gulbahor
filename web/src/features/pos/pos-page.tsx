@@ -17,7 +17,6 @@ import {
   type PosContextDto,
   type PosCustomerDto,
   type PosItemDto,
-  type PosPartnerDto,
   type ReaderTagEvent,
   type ReturnDto,
   type SaleDto,
@@ -259,9 +258,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [takingDebt, setTakingDebt] = useState(false)
   /** What of the sale is to be left owing, and by when: typed while paying, gone with the sale. */
   const [lent, setLent] = useState<{ amount: number | null; dueDate: string | null }>({ amount: null, dueDate: null })
-  /** What of the sale goes on the partner's account: so much of it, and — agreed — what that is in their currency. */
+  /** What of the sale goes on the customer's account: so much of it, and — agreed — what that is in its currency. */
   const [account, setAccount] = useState<ExchangeSums>({ amount: null, received: null })
-  // The day's rates: what every currency taken here is worth, and what goes on a partner's account in another.
+  // The day's rates: what every currency taken here is worth, and what goes on a customer's account in another.
   const { book } = context
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
@@ -281,9 +280,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [searching, setSearching] = useState(false)
   const [last, setLast] = useState<LastDocument | null>(null)
   const [viewing, setViewing] = useState<LastDocument | null>(null)
-  // The price types this cart may be sold at: those this person may pick, and the one the customer's group
-  // or the partner gives.
-  const theirs = cart.customer?.priceType ?? cart.partner?.priceType ?? null
+  // The price types this cart may be sold at: those this person may pick, and the one the customer's card or
+  // group gives.
+  const theirs = cart.customer?.priceType ?? null
   const priceTypes = useMemo(
     () => [
       ...context.priceTypes,
@@ -435,41 +434,26 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const serve = (customer: PosCustomerDto | null) => {
     const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
     const at = customer?.priceType?.id ?? kept
-    setCart((current) => ({ ...current, customer, partner: customer ? null : current.partner, priceTypeId: at }))
-    if (at !== priceTypeId) {
-      refreshCart(at)
-    }
-    // Found, the cursor goes back to the goods.
-    window.setTimeout(focusSearch)
-  }
-
-  /** A partner at the counter instead of a customer: none of a customer's rules go with them. */
-  const servePartner = (partner: PosPartnerDto | null) => {
-    const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
-    // A partner's own price is the one the cart goes to: a wholesale buyer is sold at wholesale without asking.
-    const at = partner?.priceType?.id ?? kept
-    setCart((current) => ({ ...current, partner, customer: partner ? null : current.customer, priceTypeId: at }))
+    setCart((current) => ({ ...current, customer, priceTypeId: at }))
     if (at !== priceTypeId) {
       refreshCart(at)
     }
     setAccount({ amount: null, received: null })
+    // Found, the cursor goes back to the goods.
     window.setTimeout(focusSearch)
   }
 
   /** What the customer owes has changed: they are asked about again, and stay at the counter. */
   const knowAgain = async (customer: PosCustomerDto) => {
     try {
-      const found = await api.get<PosCustomerDto[]>('/pos/customers', { q: customer.phone })
-      const fresh = found.find((item) => item.id === customer.id)
-      if (fresh) {
-        setCart((current) => (current.customer?.id === fresh.id ? { ...current, customer: fresh } : current))
-      }
+      const fresh = await api.get<PosCustomerDto>(`/pos/customers/${customer.id}`)
+      setCart((current) => (current.customer?.id === fresh.id ? { ...current, customer: fresh } : current))
     } catch {
       // The sale goes on with what was known; the server decides on what is true.
     }
   }
 
-  // A window opened over the till (a partner's payment) takes the keys, the scanner and the reader.
+  // A window opened over the till (a customer's payment) takes the keys, the scanner and the reader.
   const covered = useCovered()
   const idle = !closing && !viewing && !picking && !handing && !asking && !covered
   /** A receipt's own barcode is no goods: it brings that receipt up, to take things back against it. */
@@ -576,10 +560,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const toPay = refunding ? 0 : totals.total - credit
   // What the receipt still leaves owing comes off first: money is handed back only for what was paid.
   const offDebt = refunding && returning ? Math.min(credit - totals.total, returning.found.caps.debt) : 0
-  // Then what the sale put on a partner's account: it comes off there, not out of the drawer.
-  const offPartner =
-    refunding && returning ? Math.min(credit - totals.total - offDebt, returning.found.caps.partner ?? 0) : 0
-  const toRefund = refunding ? credit - totals.total - offDebt - offPartner : 0
+  // Then what the sale put on the customer's account: it comes off there, not out of the drawer.
+  const offAccount =
+    refunding && returning ? Math.min(credit - totals.total - offDebt, returning.found.caps.account ?? 0) : 0
+  const toRefund = refunding ? credit - totals.total - offDebt - offAccount : 0
   // ── Leaving part of it owing: a plain sale, to someone on the books ──
   const buyer = cart.customer ?? null
   const lending = !!buyer && !returning && toPay > 0
@@ -598,22 +582,23 @@ function Till({ context, registers, onSwitch }: TillProps) {
           ? t('pos.debtLate', { name: buyer.name, amount: money(standing.overdue) })
           : t('pos.debtOverLimit', { name: buyer.name, limit: money(context.debtLimit) })
 
-  // ── Putting part of it on a partner's account: in their currency, at the day's rate or a sum agreed ──
-  const partner = cart.partner ?? null
-  const crediting = !!partner && !returning && toPay > 0
+  // ── Putting part of it on the customer's account: in its currency, at the day's rate or a sum agreed ──
+  const crediting = !!buyer && !returning && toPay > 0
+  // A cart kept from before customers kept a currency of their own puts it in the base.
+  const accountCurrency = buyer?.currency ?? book?.base ?? base()
   const onAccountNow = crediting ? Math.min(account.amount ?? 0, toPay - owedNow) : 0
   const accountLine =
-    crediting && partner
+    crediting && buyer
       ? exchangeLine(
           { id: 'sale', currency: book?.base ?? base() },
-          partner.currency,
+          accountCurrency,
           { amount: onAccountNow || null, received: account.received },
           book,
           context.maxRateLossPercent,
         )
       : null
-  const partnerAsk = onAccountNow > 0 && !context.maySellToPartners
-  const partnerRateAsk = !!accountLine?.strays && !context.mayOverDiscount
+  const accountAsk = onAccountNow > 0 && !context.mayLend
+  const accountRateAsk = !!accountLine?.strays && !context.mayOverDiscount
 
   // ── The money: paid in, or handed back ──
   const rows = useMemo(
@@ -871,16 +856,15 @@ function Till({ context, registers, onSwitch }: TillProps) {
         beyond ||
         barred ||
         lendAsk ||
-        partnerAsk ||
-        partnerRateAsk)
+        accountAsk ||
+        accountRateAsk)
     ) {
       const who = context.approvers.filter(
         (approver) =>
-          (!(overLimit || underAsk || rateAsk || partnerRateAsk) || approver.discount) &&
+          (!(overLimit || underAsk || rateAsk || accountRateAsk) || approver.discount) &&
           (!priceAsk || approver.prices) &&
           (!(late || beyond || barred) || approver.returns) &&
-          (!lendAsk || approver.debts) &&
-          (!partnerAsk || approver.partners),
+          (!(lendAsk || accountAsk) || approver.debts),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -922,10 +906,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
           barred ? t('pos.approvalExchange', { name: returning?.found.sale.customerName }) : null,
           beyond ? t('pos.approvalRefund') : null,
           lendAsk ? lendWhy : null,
-          partnerAsk ? t('pos.approvalPartner', { name: partner?.name }) : null,
-          partnerRateAsk && accountLine
-            ? t('pos.approvalPartnerRate', {
-                name: partner?.name,
+          accountAsk ? t('pos.approvalAccount', { name: buyer?.name }) : null,
+          accountRateAsk && accountLine
+            ? t('pos.approvalAccountRate', {
+                name: buyer?.name,
                 percent: String(accountLine.gap).replace('.', ','),
               })
             : null,
@@ -938,7 +922,6 @@ function Till({ context, registers, onSwitch }: TillProps) {
     const goods = {
       sellerId: cart.sellerId,
       customerId: cart.customer?.id ?? null,
-      partnerId: partner?.id ?? null,
       priceTypeId,
       promoCode,
       lines: cart.lines.map((line, index) => ({
@@ -958,7 +941,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
         ...goods,
         payments: amounts,
         debt: owedNow ? { amount: owedNow, dueDate } : null,
-        onAccount: onAccountNow ? { amount: onAccountNow, settled: receivedOf(accountLine) } : null,
+        onAccount: onAccountNow
+          ? { currency: accountCurrency, amount: onAccountNow, settled: receivedOf(accountLine) }
+          : null,
         approval,
       })
       return
@@ -1345,18 +1330,18 @@ function Till({ context, registers, onSwitch }: TillProps) {
                   : null
               }
               offDebt={offDebt}
-              offPartner={offPartner}
+              offAccount={offAccount}
               onAccount={
-                crediting && partner
+                crediting && buyer
                   ? {
-                      name: partner.name,
-                      currency: partner.currency,
+                      name: buyer.name,
+                      currency: accountCurrency,
                       sums: { amount: account.amount, received: account.received },
                       line: accountLine,
                       max: toPay,
                       book,
                       setsRates: context.mayOverDiscount,
-                      warning: partnerAsk ? t('pos.onAccountAsk') : null,
+                      warning: accountAsk ? t('pos.onAccountAsk') : null,
                       onChange: setAccount,
                     }
                   : null
@@ -1369,8 +1354,6 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 registerId={registerId}
                 value={cart.customer ?? null}
                 onChange={serve}
-                partner={partner}
-                onPartner={servePartner}
                 onPayDebt={() => setTakingDebt(true)}
               />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">

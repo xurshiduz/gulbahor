@@ -10,19 +10,20 @@ interface Sale {
   id: string
   number: string
   total: number
-  partnerId: string | null
-  partnerName: string | null
+  customerId: string | null
+  customerName: string | null
   lines: { id: string }[]
   payments: { method: string; currency: string; amount: number; base: number; fx: number }[]
 }
 
 /**
- * A sale to a partner at the till: what of it is not paid there goes on the
- * partner's account, in the currency it is kept in — at the day's rate, or at
- * a sum agreed — after any discount. Goods brought back take off the share
- * the sale wrote there, not what today's rate would make of it.
+ * A sale on a customer's account at the till: what of it is not paid there
+ * goes on one of their accounts — their main currency's unless another is
+ * said — at the day's rate, or at a sum agreed, after any discount. Goods
+ * brought back take off the share the sale wrote there, not what today's
+ * rate would make of it.
  */
-describe('Partner sales', () => {
+describe('Sales on account', () => {
   let harness: Harness
   let alpha: Agent
   let cashier: Agent
@@ -51,8 +52,13 @@ describe('Partner sales', () => {
       payments: [],
       ...body,
     })
-  const owes = async (partnerId: string) =>
-    (await alpha.get(`/api/partners/${partnerId}/statement`).expect(200)).body as {
+  const owes = async (customerId: string, currency?: string) =>
+    (
+      await alpha
+        .get(`/api/customers/${customerId}/statement`)
+        .query(currency ? { currency } : {})
+        .expect(200)
+    ).body as {
       balance: number
       lines: { kind: string; source: string; number: string; change: number }[]
     }
@@ -100,11 +106,8 @@ describe('Partner sales', () => {
       .body.id
     shiftId = (await alpha.post('/api/shifts').send({ registerId, cash: {} }).expect(201)).body.id
 
-    elaris = (await alpha.post('/api/partners').send({ name: 'Elaris', isBuyer: true, currency: 'USD' }).expect(201))
-      .body.id
-    somBuyer = (
-      await alpha.post('/api/partners').send({ name: 'Bozor Savdo', isBuyer: true, currency: 'UZS' }).expect(201)
-    ).body.id
+    elaris = (await alpha.post('/api/customers').send({ name: 'Elaris', currency: 'USD' }).expect(201)).body.id
+    somBuyer = (await alpha.post('/api/customers').send({ name: 'Bozor Savdo', currency: 'UZS' }).expect(201)).body.id
     customer = (await alpha.post('/api/customers').send({ name: 'Nodira', phone: '90 123 45 67' }).expect(201)).body.id
 
     const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]
@@ -127,44 +130,44 @@ describe('Partner sales', () => {
     await harness.close()
   })
 
-  describe('finding a partner at the till', () => {
-    it('shows who they are and what their account is kept in, never what they owe', async () => {
-      const found = (await cashier.get('/api/pos/partners').query({ q: 'ela' }).expect(200)).body
-      expect(found).toEqual([{ id: elaris, name: 'Elaris', phone: null, currency: 'USD', priceType: null }])
+  describe('finding the customer at the till', () => {
+    it('shows who they are and their main currency, never what they owe', async () => {
+      const found = (await cashier.get('/api/pos/customers').query({ q: 'ela' }).expect(200)).body
+      expect(found).toEqual([
+        expect.objectContaining({ id: elaris, name: 'Elaris', phone: null, currency: 'USD', priceType: null }),
+      ])
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
-      expect(context.maySellToPartners).toBe(false)
-      expect(context.approvers).toEqual([expect.objectContaining({ id: alphaUserId, partners: true })])
+      expect(context.mayLend).toBe(false)
+      expect(context.approvers).toEqual([expect.objectContaining({ id: alphaUserId, debts: true })])
     })
   })
 
   describe('a sale on the account', () => {
-    it('is a partner’s or a customer’s, never both', async () => {
-      const both = await sell({ customerId: customer, partnerId: elaris, onAccount: { amount: som(1_265_000) } })
-      expect(both.status).toBe(400)
-      expect(both.body.error.fields.partnerId).toBeDefined()
+    it('is a customer’s on the books', async () => {
       const nobody = await sell({ onAccount: { amount: som(1_265_000) } })
-      expect(nobody.body.error.fields.partnerId).toBeDefined()
+      expect(nobody.status).toBe(400)
+      expect(nobody.body.error.fields.customerId).toBeDefined()
     })
 
-    it('takes a manager’s word from a cashier who may not sell to partners alone', async () => {
-      const alone = await sell({ partnerId: elaris, onAccount: { amount: som(1_265_000) } }, cashier)
+    it('takes a manager’s word from a cashier who may not sell on account alone', async () => {
+      const alone = await sell({ customerId: elaris, onAccount: { amount: som(1_265_000) } }, cashier)
       expect(alone.status).toBe(400)
-      expect(alone.body.error.code).toBe('PARTNER_SALE_NEEDS_WORD')
+      expect(alone.body.error.code).toBe('ON_ACCOUNT_NEEDS_WORD')
       const before = (await owes(elaris)).balance
       const sale = (
         await sell(
           {
-            partnerId: elaris,
+            customerId: elaris,
             onAccount: { amount: som(1_265_000) },
             approval: { userId: alphaUserId, pin: PIN },
           },
           cashier,
         ).expect(201)
       ).body as Sale
-      expect(sale).toMatchObject({ partnerId: elaris, partnerName: 'Elaris' })
+      expect(sale).toMatchObject({ customerId: elaris, customerName: 'Elaris' })
       // A coat of 1 265 000 so'm is 100 $ on a dollar account.
       expect(sale.payments).toEqual([
-        expect.objectContaining({ method: 'partner', currency: 'USD', amount: usd(100), base: som(1_265_000), fx: 0 }),
+        expect.objectContaining({ method: 'account', currency: 'USD', amount: usd(100), base: som(1_265_000), fx: 0 }),
       ])
       expect((await owes(elaris)).balance).toBe(before + usd(100))
     })
@@ -173,13 +176,13 @@ describe('Partner sales', () => {
       const before = (await owes(elaris)).balance
       const sale = (
         await sell({
-          partnerId: elaris,
+          customerId: elaris,
           payments: [{ method: 'cash', currency: 'UZS', amount: som(265_000) }],
           onAccount: { amount: som(1_000_000) },
         }).expect(201)
       ).body as Sale
       // 1 000 000 so'm are 79,05 $, worth 999 982,50 so'm: 17,50 short of a cent, nobody's agreement.
-      expect(sale.payments.find((payment) => payment.method === 'partner')).toMatchObject({
+      expect(sale.payments.find((payment) => payment.method === 'account')).toMatchObject({
         amount: usd(79.05),
         base: som(1_000_000),
         fx: -som(17.5),
@@ -190,13 +193,13 @@ describe('Partner sales', () => {
     it('stands at an agreed sum, within the limit or by someone who may give more', async () => {
       // "Put it down as 101 dollars": 0,99% from the day's rate, and the business gains 12 650 so'm.
       const sale = (
-        await sell({ partnerId: elaris, onAccount: { amount: som(1_265_000), settled: usd(101) } }).expect(201)
+        await sell({ customerId: elaris, onAccount: { amount: som(1_265_000), settled: usd(101) } }).expect(201)
       ).body as Sale
       expect(sale.payments[0]).toMatchObject({ amount: usd(101), fx: som(12_650) })
-      // 110 $ is 8,7% off: a cashier needs a word for it as for a discount — the word for the partner is not enough.
+      // 110 $ is 8,7% off: a cashier needs a word for it as for a discount — the word for the account is not enough.
       const far = await sell(
         {
-          partnerId: elaris,
+          customerId: elaris,
           onAccount: { amount: som(1_265_000), settled: usd(110) },
           approval: { userId: alphaUserId, pin: PIN },
         },
@@ -209,7 +212,7 @@ describe('Partner sales', () => {
       const before = (await owes(somBuyer)).balance
       const sale = (
         await sell({
-          partnerId: somBuyer,
+          customerId: somBuyer,
           discount: som(65_000),
           total: som(1_200_000),
           onAccount: { amount: som(1_200_000) },
@@ -218,20 +221,32 @@ describe('Partner sales', () => {
       expect(sale.total).toBe(som(1_200_000))
       expect((await owes(somBuyer)).balance).toBe(before + som(1_200_000))
       // More than the receipt is not put on anyone's account.
-      const over = await sell({ partnerId: somBuyer, onAccount: { amount: som(1_300_000) } })
+      const over = await sell({ customerId: somBuyer, onAccount: { amount: som(1_300_000) } })
       expect(over.body.error.fields.onAccount).toBeDefined()
+    })
+
+    it('goes on another of their accounts when it is said which, and only in a currency the business keeps', async () => {
+      // Nodira deals in so'm; this one coat she takes on her dollar account.
+      const sale = (
+        await sell({ customerId: customer, onAccount: { currency: 'USD', amount: som(1_265_000) } }).expect(201)
+      ).body as Sale
+      expect(sale.payments[0]).toMatchObject({ method: 'account', currency: 'USD', amount: usd(100) })
+      expect((await owes(customer)).balance).toBe(0)
+      expect((await owes(customer, 'USD')).balance).toBe(usd(100))
+      const euro = await sell({ customerId: customer, onAccount: { currency: 'EUR', amount: som(1_265_000) } })
+      expect(euro.body.error.fields.onAccount).toBe('Bu valyuta yoqilmagan: Pul → Kurslar')
     })
   })
 
   describe('goods brought back', () => {
     it('take off the share the sale wrote, at the sale’s rate, not today’s', async () => {
       const before = (await owes(elaris)).balance
-      const sale = (await sell({ partnerId: elaris, onAccount: { amount: som(2_530_000) } }, alpha, 2).expect(201))
+      const sale = (await sell({ customerId: elaris, onAccount: { amount: som(2_530_000) } }, alpha, 2).expect(201))
         .body as Sale
       expect((await owes(elaris)).balance).toBe(before + usd(200))
 
       const found = (await alpha.get('/api/returns/lookup').query({ code: sale.number }).expect(200)).body
-      expect(found.caps).toMatchObject({ cash: 0, debt: 0, partner: som(2_530_000) })
+      expect(found.caps).toMatchObject({ cash: 0, debt: 0, account: som(2_530_000) })
       await ret(sale, som(1_265_000)).expect(201)
       expect((await owes(elaris)).balance).toBe(before + usd(100))
 
@@ -253,7 +268,7 @@ describe('Partner sales', () => {
     it('give back the exchange difference with the last of them', async () => {
       // 101 $ agreed for a coat: the gain of 12 650 so'm goes back when the coat does.
       const sale = (
-        await sell({ partnerId: elaris, onAccount: { amount: som(1_265_000), settled: usd(101) } }).expect(201)
+        await sell({ customerId: elaris, onAccount: { amount: som(1_265_000), settled: usd(101) } }).expect(201)
       ).body as Sale
       const [{ fx: before }] = await sql<{ fx: string }[]>(
         `SELECT a.balance AS fx FROM accounts a JOIN organizations o ON o.id = a.org_id
@@ -271,7 +286,8 @@ describe('Partner sales', () => {
   describe('a void', () => {
     it('takes it off the account again', async () => {
       const before = (await owes(somBuyer)).balance
-      const sale = (await sell({ partnerId: somBuyer, onAccount: { amount: som(1_265_000) } }).expect(201)).body as Sale
+      const sale = (await sell({ customerId: somBuyer, onAccount: { amount: som(1_265_000) } }).expect(201))
+        .body as Sale
       await alpha.post(`/api/sales/${sale.id}/void`).send({ reason: 'Xato' }).expect(200)
       const statement = await owes(somBuyer)
       expect(statement.balance).toBe(before)
@@ -279,7 +295,7 @@ describe('Partner sales', () => {
     })
   })
 
-  describe('a partner’s own price', () => {
+  describe('a customer’s own price', () => {
     it('is what the till sells at once they are picked, without anyone’s word', async () => {
       const types = (await alpha.get('/api/price-types').expect(200)).body as {
         id: string
@@ -290,18 +306,18 @@ describe('Partner sales', () => {
       const floor = types.find((type) => type.kind === 'min')!
       // The floor is no price to buy at.
       const refused = await alpha
-        .post('/api/partners')
-        .send({ name: 'Pol', isBuyer: true, currency: 'UZS', priceTypeId: floor.id })
+        .post('/api/customers')
+        .send({ name: 'Pol', currency: 'UZS', priceTypeId: floor.id })
         .expect(400)
       expect(refused.body.error.fields.priceTypeId).toBeDefined()
       const bulk = (
         await alpha
-          .post('/api/partners')
-          .send({ name: 'Ulgurji Bozor', isBuyer: true, currency: 'UZS', priceTypeId: wholesale.id })
+          .post('/api/customers')
+          .send({ name: 'Ulgurji Bozor', currency: 'UZS', priceTypeId: wholesale.id })
           .expect(201)
       ).body
-      expect(bulk).toMatchObject({ priceTypeId: wholesale.id, priceTypeName: wholesale.name })
-      const found = (await cashier.get('/api/pos/partners').query({ q: 'ulgurji' }).expect(200)).body
+      expect(bulk).toMatchObject({ priceType: { id: wholesale.id, name: wholesale.name } })
+      const found = (await cashier.get('/api/pos/customers').query({ q: 'ulgurji' }).expect(200)).body
       expect(found[0].priceType).toEqual({ id: wholesale.id, name: wholesale.name })
 
       const retail = types.find((type) => type.kind === 'retail')!
@@ -331,28 +347,33 @@ describe('Partner sales', () => {
         .expect(201)
       await alpha.post(`/api/receipts/${receipt.body.id}/post`).expect(201)
 
-      const atWholesale = (partnerId: string | null) =>
+      const atWholesale = (customerId: string | null) =>
         cashier.post('/api/sales').send({
           clientKey: randomUUID(),
           registerId,
-          partnerId,
+          customerId,
           priceTypeId: wholesale.id,
           lines: [{ variantId: trousers, qty: 1 }],
           total: som(250_000),
           payments: [{ method: 'cash', currency: 'UZS', amount: som(250_000) }],
         })
-      // The cashier may not pick the wholesale price; with the partner whose price it is, nobody picked it.
+      // The cashier may not pick the wholesale price; with the customer whose price it is, nobody picked it.
       expect((await atWholesale(null)).status).toBe(400)
       const sold = (await atWholesale(bulk.id).expect(201)).body
-      expect(sold).toMatchObject({ total: som(250_000), priceTypeName: wholesale.name, partnerName: 'Ulgurji Bozor' })
+      expect(sold).toMatchObject({ total: som(250_000), priceTypeName: wholesale.name, customerName: 'Ulgurji Bozor' })
     })
   })
 
   describe('the shift and the books', () => {
     it('show what went on accounts as a line of its own, apart from the cash counted', async () => {
       const shift = (await alpha.get(`/api/shifts/${shiftId}`).expect(200)).body
-      const partner = shift.totals.payments.filter((payment: { method: string }) => payment.method === 'partner')
-      expect(partner.map((payment: { currency: string }) => payment.currency).sort()).toEqual(['USD', 'UZS'])
+      // By currency, never by whose account it was.
+      const onAccount = shift.totals.payments.filter((payment: { method: string }) => payment.method === 'account')
+      expect(
+        onAccount
+          .map((payment: { currency: string; accountName: string }) => `${payment.currency}:${payment.accountName}`)
+          .sort(),
+      ).toEqual(['USD:', 'UZS:'])
       expect(shift.totals.payments.find((payment: { method: string }) => payment.method === 'cash')).toMatchObject({
         amount: som(265_000) + som(250_000),
       })

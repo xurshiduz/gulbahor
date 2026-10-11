@@ -33,7 +33,7 @@ import {
   totalOf,
   valueLines,
   type PaymentRow,
-} from '@/features/partners/payment-lines'
+} from '@/features/money/payment-lines'
 import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { base, baseWords } from '@/lib/base'

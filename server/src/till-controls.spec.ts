@@ -141,7 +141,6 @@ describe('Till controls', () => {
           returns: true,
           prices: true,
           debts: true,
-          partners: true,
         },
       ])
       expect(context.mayOverDiscount).toBe(false)

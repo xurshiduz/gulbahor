@@ -106,7 +106,6 @@ describe('Permissions beside the roles', () => {
         returns: false,
         prices: false,
         debts: true,
-        partners: false,
       },
     ])
   })
@@ -138,7 +137,7 @@ describe('Permissions beside the roles', () => {
     expect(beyond.status).toBe(403)
     expect(beyond.body.error).toMatchObject({
       code: 'ESCALATION',
-      message: expect.stringMatching(/^Sizda yo‘q ruxsatni bera olmaysiz: Kassa: .*qarzga sotish$/),
+      message: expect.stringMatching(/^Sizda yo‘q ruxsatni bera olmaysiz: Kassa: Qarzga sotish:/),
     })
     await give(people, cashierId, ['reports.sales']).then((response) => expect(response.status).toBe(200))
 
@@ -162,7 +161,7 @@ describe('Permissions beside the roles', () => {
       changes: Record<string, unknown> | null
     }[]
     const granted = history.find(
-      (item) => item.action === 'user.update' && JSON.stringify(item.changes ?? {}).includes('qarzga sotish'),
+      (item) => item.action === 'user.update' && JSON.stringify(item.changes ?? {}).includes('Qarzga sotish'),
     )
     expect(granted).toBeDefined()
   })

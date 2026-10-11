@@ -17,8 +17,7 @@ import {
   type ExpenseBasis,
   type Markup,
   type MarkupLookupResult,
-  type Page as PageOf,
-  type PartnerDto,
+  type CustomerBriefDto,
   type PriceTypeDto,
   type ProductDto,
   type ProductListItemDto,
@@ -48,6 +47,7 @@ import { Card, Page } from '@/components/ui/page'
 import { QtyMatrix } from '@/components/ui/qty-matrix'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
+import { useCustomerChoices } from '@/features/customers/choices'
 import { useAttributes, usePriceTypes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
 import { LabelDialog } from '@/features/labels/label-dialog'
@@ -119,11 +119,6 @@ export function ReceiptPage() {
     queryKey: ['locations', 'options'],
     queryFn: ({ signal }) => api.get<LocationOption[]>('/locations/options', undefined, signal),
   })
-  const suppliers = useQuery({
-    queryKey: ['partners', 'suppliers'],
-    queryFn: ({ signal }) =>
-      api.get<PageOf<PartnerDto>>('/partners', { role: 'supplier', status: 'all', size: 200 }, signal),
-  })
 
   if (receipt.isError) {
     return (
@@ -132,7 +127,7 @@ export function ReceiptPage() {
       </Page>
     )
   }
-  if ((!isNew && !receipt.data) || !attributes.data || !priceTypes.data || !locations.data || !suppliers.data) {
+  if ((!isNew && !receipt.data) || !attributes.data || !priceTypes.data || !locations.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-6" />
@@ -148,7 +143,6 @@ export function ReceiptPage() {
       attributes={attributes.data}
       priceTypes={priceTypes.data}
       locations={locations.data}
-      suppliers={suppliers.data.items}
     />
   )
 }
@@ -158,12 +152,11 @@ interface FormProps {
   attributes: AttributeDto[]
   priceTypes: PriceTypeDto[]
   locations: LocationOption[]
-  suppliers: PartnerDto[]
   /** The document was saved or acted on from here: show it as the server now has it. */
   onReloaded: () => void
 }
 
-function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, onReloaded }: FormProps) {
+function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }: FormProps) {
   const { t } = useTranslation()
   const { can, me } = useSession()
   const router = useRouter()
@@ -500,17 +493,26 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Whoever goods come from is in the book of customers: those who supply goods first, found by name as typed.
+  const { choices: suppliers, search: findSupplier } = useCustomerChoices(
+    [header.supplierId, ...blocks.map((block) => block.supplierId)],
+    true,
+  )
   const supplierOptions = useMemo(
     () =>
       suppliers
-        .filter((partner) => partner.isActive || partner.id === header.supplierId)
-        .map((partner) => ({ value: partner.id, label: partner.name })),
+        .filter((supplier) => supplier.isActive || supplier.id === header.supplierId)
+        .map((supplier) => ({
+          value: supplier.id,
+          label: supplier.name,
+          hint: supplier.phoneTail ? `…${supplier.phoneTail}` : undefined,
+        })),
     [suppliers, header.supplierId],
   )
   const createSupplier = async (name: string) => {
-    const partner = await api.post<PartnerDto>('/partners', { name, isSupplier: true })
-    await queryClient.invalidateQueries({ queryKey: ['partners'] })
-    return partner.id
+    const supplier = await api.post<CustomerBriefDto>('/customers/quick', { name, isSupplier: true })
+    await queryClient.invalidateQueries({ queryKey: ['customers'] })
+    return supplier.id
   }
 
   const expenseCurrencies = [
@@ -650,7 +652,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                         options={supplierOptions}
                         value={header.supplierId}
                         onChange={(supplierId) => {
-                          const theirs = suppliers.find((partner) => partner.id === supplierId)?.currency
+                          const theirs = suppliers.find((supplier) => supplier.id === supplierId)?.currency
                           const priced = blocks.some((block) => block.price)
                           if (theirs && theirs !== header.currency && kept.includes(theirs) && !priced) {
                             setRateTyped(false)
@@ -659,7 +661,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, suppliers, on
                             patchHeader({ supplierId })
                           }
                         }}
-                        onCreate={can('partners.manage') ? createSupplier : undefined}
+                        onQuery={findSupplier}
+                        onCreate={can('customers.manage') || can('receipts.manage') ? createSupplier : undefined}
                         invalid={!!errors.supplierId}
                         disabled={!editable}
                         recentKey="receipt.supplier"

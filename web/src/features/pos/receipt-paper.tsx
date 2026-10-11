@@ -21,11 +21,11 @@ const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(min
 
 /**
  * What a payment came to, as a receipt says it: dollars with what they paid
- * of the sum, and what went on a partner's account in so'm with what that is
- * in the partner's own currency — "1 265 000 so'm (100,00 $)".
+ * of the sum, and what went on a customer's account in the base with what that
+ * is in the account's own currency — "1 265 000 so'm (100,00 $)".
  */
 export function paidText(payment: Pick<SalePaymentDto, 'method' | 'currency' | 'amount' | 'base'>): string {
-  if (payment.method === 'partner') {
+  if (payment.method === 'account') {
     return payment.currency === base()
       ? money(payment.base)
       : `${money(payment.base)} (${money(payment.amount, payment.currency)})`
@@ -92,11 +92,6 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
       {template.showCustomer && sale.customerName ? (
         <p>
           {t('pos.customer')}: {sale.customerName}
-        </p>
-      ) : null}
-      {sale.partnerName ? (
-        <p>
-          {t('pos.partner')}: {sale.partnerName}
         </p>
       ) : null}
 

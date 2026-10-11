@@ -63,6 +63,9 @@ const sumsText = (sums: [AnyCurrency, number][]) =>
  * closing count is blind: the cashier says what is there before anyone is
  * told what should be.
  */
+/** A place money went, as the shift's report names it: a customer's account by its currency alone, never by name. */
+const PLACE_NAME = `CASE WHEN p.method = 'account' THEN '' ELSE a.name END`
+
 @Injectable()
 export class ShiftsService {
   constructor(
@@ -362,19 +365,20 @@ export class ShiftsService {
       amount: number
       base: number
     }[] = await em.query(
-      `SELECT p.method, a.name AS account_name, p.currency, sum(p.amount)::float8 AS amount, sum(p.base)::float8 AS base
+      `SELECT p.method, ${PLACE_NAME} AS account_name, p.currency, sum(p.amount)::float8 AS amount,
+              sum(p.base)::float8 AS base
        FROM sale_payments p
        JOIN sales s ON s.id = p.sale_id
        JOIN accounts a ON a.id = p.account_id
        WHERE s.shift_id = $1 AND s.status = 'completed'
-       GROUP BY p.method, a.name, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'debt', 'partner'], p.method), p.currency DESC, a.name`,
+       GROUP BY p.method, ${PLACE_NAME}, p.currency
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'debt', 'account'], p.method), p.currency DESC, 2`,
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
-    const partners: { kind: 'in' | 'out'; currency: AnyCurrency; amount: number }[] = await em.query(
+    const customers: { kind: 'in' | 'out'; currency: AnyCurrency; amount: number }[] = await em.query(
       `SELECT p.kind, l.currency, sum(l.amount)::float8 AS amount
-       FROM partner_payment_lines l JOIN partner_payments p ON p.id = l.payment_id
+       FROM customer_payment_lines l JOIN customer_payments p ON p.id = l.payment_id
        WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY p.kind, l.currency`,
       [shiftId],
     )
@@ -396,20 +400,21 @@ export class ShiftsService {
       [shiftId],
     )
     const refunds: typeof payments = await em.query(
-      `SELECT p.method, a.name AS account_name, p.currency, sum(p.amount)::float8 AS amount, sum(p.base)::float8 AS base
+      `SELECT p.method, ${PLACE_NAME} AS account_name, p.currency, sum(p.amount)::float8 AS amount,
+              sum(p.base)::float8 AS base
        FROM sale_return_payments p
        JOIN sale_returns r ON r.id = p.return_id
        JOIN accounts a ON a.id = p.account_id
        WHERE r.shift_id = $1
-       GROUP BY p.method, a.name, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt', 'partner'], p.method), p.currency DESC, a.name`,
+       GROUP BY p.method, ${PLACE_NAME}, p.currency
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt', 'account'], p.method), p.currency DESC, 2`,
       [shiftId],
     )
     const seen = [
       ...drawers,
       ...change.map((row) => row.currency),
       ...(Object.keys({ ...moved.out, ...moved.in }) as AnyCurrency[]),
-      ...partners.map((row) => row.currency),
+      ...customers.map((row) => row.currency),
       ...ops.map((row) => row.currency),
       ...debts.map((row) => row.currency),
     ]
@@ -418,8 +423,8 @@ export class ShiftsService {
       change: currency === base ? sales.change_uzs : (change.find((row) => row.currency === currency)?.amount ?? 0),
       out: moved.out[currency] ?? 0,
       in: moved.in[currency] ?? 0,
-      partnersIn: partners.find((row) => row.kind === 'in' && row.currency === currency)?.amount ?? 0,
-      partnersOut: partners.find((row) => row.kind === 'out' && row.currency === currency)?.amount ?? 0,
+      customersIn: customers.find((row) => row.kind === 'in' && row.currency === currency)?.amount ?? 0,
+      customersOut: customers.find((row) => row.kind === 'out' && row.currency === currency)?.amount ?? 0,
       expenses: ops.find((row) => row.kind === 'expense' && row.currency === currency)?.amount ?? 0,
       income: ops.find((row) => row.kind === 'income' && row.currency === currency)?.amount ?? 0,
       debts: debts.find((row) => row.currency === currency)?.amount ?? 0,

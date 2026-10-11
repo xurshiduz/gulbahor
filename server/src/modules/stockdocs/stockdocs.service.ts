@@ -25,7 +25,7 @@ import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Location,
-  Partner,
+  Customer,
   ProductVariant,
   Receipt,
   ReceiptLine,
@@ -80,9 +80,9 @@ export class StockDocsService {
         .addSelect('l.name', 'location_name')
         .addSelect('t.name', 'to_location_name')
         .leftJoin(Receipt, 'r', 'r.id = d.receiptId')
-        .leftJoin(Partner, 'p', 'p.id = r.supplierId')
+        .leftJoin(Customer, 'p', 'p.id = r.supplierId')
         .addSelect('r.number', 'receipt_number')
-        .addSelect('p.name', 'partner_name')
+        .addSelect('p.name', 'supplier_name')
         .where('d.kind = :kind', { kind: query.kind })
 
       if (!actor.allLocations) {
@@ -116,7 +116,7 @@ export class StockDocsService {
           toLocationName: raw[index].to_location_name,
           reason: doc.reason,
           receiptNumber: raw[index].receipt_number ?? null,
-          partnerName: raw[index].partner_name ?? null,
+          supplierName: raw[index].supplier_name ?? null,
           qty: doc.totalQty,
           diffQty: doc.diffQty,
           costUzs: seesCost ? doc.costUzs : null,
@@ -354,7 +354,7 @@ export class StockDocsService {
       afterCommit(() =>
         this.realtime.changed(
           actor.orgId,
-          doc.kind === 'supplier_return' ? ['stockdocs', 'stock', 'partners'] : ['stockdocs', 'stock'],
+          doc.kind === 'supplier_return' ? ['stockdocs', 'stock', 'customers'] : ['stockdocs', 'stock'],
         ),
       )
       return this.load(em, actor, await this.find(em, actor, id))
@@ -418,7 +418,7 @@ export class StockDocsService {
         entityId: id,
         summary: doc.number,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock', 'partners']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['stockdocs', 'stock', 'customers']))
       return this.load(em, actor, await this.find(em, actor, id))
     })
   }
@@ -508,7 +508,7 @@ export class StockDocsService {
        FROM ledger_lines l
        JOIN ledger_entries e ON e.id = l.entry_id
        JOIN accounts a ON a.id = l.account_id
-       WHERE e.document_type = $1 AND e.document_id = $2 AND e.kind = $1 AND a.kind = 'partner'
+       WHERE e.document_type = $1 AND e.document_id = $2 AND e.kind = $1 AND a.kind = 'customer'
        HAVING count(*) > 0`,
       [SUPPLIER_RETURN, documentId],
     )
@@ -738,7 +738,7 @@ export class StockDocsService {
     )
 
     const receipt = doc.receiptId ? await em.findOneBy(Receipt, { id: doc.receiptId }) : null
-    const supplier = receipt?.supplierId ? await em.findOneBy(Partner, { id: receipt.supplierId }) : null
+    const supplier = receipt?.supplierId ? await em.findOneBy(Customer, { id: receipt.supplierId }) : null
     const seesCost = can(actor, 'stock.cost')
     // Whoever counts should count, not copy: what the books say is for those who approve the count.
     const seesBooks = doc.kind !== 'count' || doc.status !== 'draft' || can(actor, 'counts.post')
@@ -755,11 +755,11 @@ export class StockDocsService {
       reason: doc.reason,
       receiptId: doc.receiptId,
       receiptNumber: receipt?.number ?? null,
-      partnerId: supplier?.id ?? null,
-      partnerName: supplier?.name ?? null,
-      // What the business owes is for those who may see debts.
+      supplierId: supplier?.id ?? null,
+      supplierName: supplier?.name ?? null,
+      // What the business owes a supplier is for those who may see suppliers' accounts.
       credited:
-        doc.kind === 'supplier_return' && doc.status === 'posted' && can(actor, 'partners.debts')
+        doc.kind === 'supplier_return' && doc.status === 'posted' && can(actor, 'customers.suppliers')
           ? await this.credited(em, doc.id)
           : null,
       fullCount: doc.fullCount,
@@ -887,7 +887,7 @@ export class StockDocsService {
     }
     const places = await em.findBy(Location, { id: In(placeIds(doc)) })
     const receipt = doc.receiptId ? await em.findOneBy(Receipt, { id: doc.receiptId }) : null
-    const supplier = receipt?.supplierId ? await em.findOneBy(Partner, { id: receipt.supplierId }) : null
+    const supplier = receipt?.supplierId ? await em.findOneBy(Customer, { id: receipt.supplierId }) : null
     await em.update(StockDocument, doc.id, {
       totalQty: unscaled(input.lines.reduce((sum, line) => sum + scaled(line.qty), 0)),
       searchKey: searchKey(

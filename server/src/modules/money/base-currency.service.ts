@@ -177,10 +177,10 @@ export class BaseCurrencyService {
     // ── The rates: the new base has none, the old one is a currency beside it ──
     await em.delete(OrgCurrency, { code: next })
     // The old base stays beside the new one where there is something to it: a rate it had, money places and
-    // partners kept in it, or currencies written against it. A business that only just chose its base is not
+    // customers' accounts kept in it, or currencies written against it. A business that only just chose its base is not
     // left with a currency it never had.
     const [{ held }]: { held: boolean }[] = await em.query(
-      `SELECT EXISTS (SELECT 1 FROM accounts WHERE currency = $1) OR EXISTS (SELECT 1 FROM partners WHERE currency = $1)
+      `SELECT EXISTS (SELECT 1 FROM accounts WHERE currency = $1) OR EXISTS (SELECT 1 FROM customers WHERE currency = $1)
          OR EXISTS (SELECT 1 FROM org_currencies WHERE against = $1 AND is_active) AS held`,
       [old],
     )

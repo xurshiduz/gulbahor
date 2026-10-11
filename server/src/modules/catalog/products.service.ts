@@ -205,7 +205,7 @@ export class ProductsService {
          LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
          LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
          LEFT JOIN attribute_values a3 ON a3.id = v.value3_id
-         LEFT JOIN partners s ON s.id = coalesce(rl.supplier_id, r.supplier_id)
+         LEFT JOIN customers s ON s.id = coalesce(rl.supplier_id, r.supplier_id)
          WHERE v.product_id = $1
          ORDER BY r.doc_date DESC, r.number DESC, rl.position
          LIMIT 100`,

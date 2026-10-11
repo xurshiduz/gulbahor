@@ -1247,6 +1247,15 @@ V9 bo'limidagi "Narx, mijoz hisobi va hisobot valyutasi" qarorlari bu bo'limning
 - **16.5, 16-holat** → "Hisobiga" blokida hisob valyutasi tanlanadi (11).
 - **16.8, 1-bosqich** (narx formulalari) ga qo'shiladi: fiks / bog'langan narx, fiks qilish va bog'lash (ommaviy ham), narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati va qulf (~4 kun). **2-bosqich** ga: har valyutadagi qoldiq va "hisob ichida almashtirish" (~2 kun).
 
+### 16.11. M2-1 va M2-2 qanday qurildi (2026-10-11)
+
+Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 4-bo'lim.
+
+- **Mijoz kartasi (M2-1)**: telefon ixtiyoriy (bo'lsa biznesda yagona), asosiy valyuta (standart — biznesniki), o'z narxi (guruh narxidan oldin turadi), "Yetkazib beruvchi" belgisi, "Hisob-kitob" bo'limi — qarz (biznes bo'yicha / berilmaydi / o'z chegarasi / cheklovsiz), qarz muddati (biznes bo'yicha / boshqa muddat / muddatsiz), qaytarish muddati; bu bo'limni faqat `customers.adjust` egasi ko'radi va o'zgartiradi. Yangi ruxsatlar: yetkazib beruvchilar hisobi, to'lov olish, to'lov berish, hisobni tuzatish.
+- **Bitta ro'yxat (M2-2)**: "Hamkorlar" sahifasi yo'q — hamkorlar mijozlarga ko'chdi (bir xil id; telefoni mavjud mijoznikiga mos kelgani o'sha mijozga qo'shildi, nomi izohga). Har mijozning har valyutada alohida hisobi; to'lov, boshlang'ich qoldiq, hisob-kitob va "Mijoz to'lovlari" endi mijozniki. Kirim yetkazib beruvchining hisobiga **kirim valyutasida, aynan yozilgan summa** bilan tushadi (kurs bilan o'girilmaydi), qaytarish (YQ-) ham shunday. Kassada istalgan mijoz hisobiga yozish mumkin ("Hisobiga" bloki, mijozning asosiy valyutasida) — `pos.debt` ruxsati yoki rahbar PIN'i bilan. Rollar: "Hamkorlar menejeri" — "Ulgurji menejer"; hamkor ruxsatlari mijoz ruxsatlariga o'tdi.
+- **"Mijozlar" ro'yxati**: "Turi" (yetkazib beruvchi) va "Hisob-kitob" (har valyutadagi qoldiq: "qarzi 2 050,00 $", "haqi 2 000 000 so'm") ustunlari, ikkalasining filtri; qator menyusida hisob-kitob, to'lov olish va berish, boshlang'ich qoldiq.
+- **Hali qilinmagan**: chakana qarz (`customer_debts`, "Qarzlar" va "Qarz to'lovlari" tablari) alohida turibdi — M2-3 da shu hisobga qo'shiladi, muddat va chegara ham shunda; kassada hisob valyutasini tanlash, tuzatish, kechish, hisob ichida almashtirish — M2-4; qaytarish va bekor qilishning yangi tartibi — M2-5.
+
 ### 16.9. Ochiq savollar
 
 1. **Narx turlarining odatiy formulalari** — bir marta kiritiladi: Chakana = tannarx + ?%, Ulgurji = tannarx + ?% (yoki chakana − ?%), Oila = tannarx + ?%, Minimal = tannarx + 5%? Va K-000001 dagi "cargo" 43 000 $ (tovar 32 472 $) — xatomi? Tuzatilmaguncha shu tovarlarning formula narxlariga ishonib bo'lmaydi.

@@ -2,6 +2,9 @@ import {
   DEFAULT_CUSTOMER_TERMS,
   searchKey,
   type AnyCurrency,
+  type CustomerBalance,
+  type CustomerBriefDto,
+  type CustomerBriefQuery,
   type CustomerDto,
   type CustomerGroupDto,
   type CustomerGroupInput,
@@ -12,15 +15,23 @@ import {
   type LoyaltyTier,
   type Page,
   type PosCustomerDto,
+  type CustomerQuickInput,
   type CustomerTerms,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
-import { In, type EntityManager } from 'typeorm'
+import { In, Not, type EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Customer, CustomerGroup, CustomerGroupMember, LoyaltyTierRow, PriceType } from '../../database/entities'
+import {
+  Account,
+  Customer,
+  CustomerGroup,
+  CustomerGroupMember,
+  LoyaltyTierRow,
+  PriceType,
+} from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { CurrenciesService } from '../money/currencies.service'
@@ -85,6 +96,18 @@ export class CustomersService {
         )
       }
       if (query.tag) qb.andWhere(':tag = ANY(c.tags)', { tag: query.tag })
+      if (query.supplier) qb.andWhere(`c.isSupplier = :supplier`, { supplier: query.supplier === 'yes' })
+      if (query.balance) {
+        // Only the balances this person may see: debts, suppliers' accounts, or both.
+        const debts = can(actor, 'customers.debts')
+        const suppliers = can(actor, 'customers.suppliers')
+        qb.andWhere(
+          `EXISTS (SELECT 1 FROM accounts a WHERE a.customer_id = c.id AND a.balance ${query.balance === 'owes' ? '>' : '<'} 0)`,
+        )
+        if (!debts || !suppliers) {
+          qb.andWhere(debts ? 'NOT c.isSupplier' : suppliers ? 'c.isSupplier' : 'false')
+        }
+      }
       applySearch(qb, 'c.search_key', query.q)
       applySort(qb, SORTABLE, query.sort, query.order, 'name')
       const [rows, total] = await qb
@@ -92,7 +115,7 @@ export class CustomersService {
         .take(query.size)
         .getManyAndCount()
       return {
-        items: await this.dtos(em, rows),
+        items: await this.dtos(em, rows, actor),
         total,
         page: query.page,
         size: query.size,
@@ -102,7 +125,75 @@ export class CustomersService {
   }
 
   async get(actor: Actor, id: string): Promise<CustomerDto> {
-    return this.db.tenant(actor.orgId, async ({ em }) => (await this.dtos(em, [await this.find(em, id)]))[0])
+    return this.db.tenant(actor.orgId, async ({ em }) => this.dtoOf(em, actor, await this.find(em, id)))
+  }
+
+  /** A customer as the list shows them, inside a transaction the caller already has. */
+  async dtoOf(em: EntityManager, actor: Actor, customer: Customer): Promise<CustomerDto> {
+    return (await this.dtos(em, [customer], actor))[0]
+  }
+
+  /**
+   * Customers to pick among where they are named on a document — a receipt's supplier, goods sent back: those
+   * who supply goods first, and enough of each to tell two of one name apart, but no phone in full.
+   */
+  async brief(actor: Actor, query: CustomerBriefQuery): Promise<CustomerBriefDto[]> {
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const qb = em.createQueryBuilder(Customer, 'c').where('c.isActive')
+      applySearch(qb, 'c.search_key', query.q)
+      if (query.supplier === 'first') qb.orderBy('c.isSupplier', 'DESC')
+      // Without a search, the whole of those who supply goods: a receipt picks among them.
+      const rows = await qb.addOrderBy('c.name').limit(query.q ? 30 : 200).getMany()
+      const missing = query.ids.filter((id) => !rows.some((row) => row.id === id))
+      if (missing.length) {
+        rows.unshift(...(await em.findBy(Customer, { id: In(missing) })))
+      }
+      const last: { supplier_id: string; day: string }[] = rows.length
+        ? await em.query(
+            `SELECT supplier_id, max(doc_date)::text AS day FROM receipts
+             WHERE supplier_id = ANY($1) AND status = 'posted' GROUP BY supplier_id`,
+            [rows.map((row) => row.id)],
+          )
+        : []
+      const lastOf = new Map(last.map((row) => [row.supplier_id, row.day]))
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        currency: row.currency,
+        isSupplier: row.isSupplier,
+        isActive: row.isActive,
+        phoneTail: row.phone ? row.phone.slice(-4) : null,
+        tags: row.tags,
+        note: row.note ? row.note.slice(0, 40) : null,
+        lastReceiptOn: lastOf.get(row.id) ?? null,
+      }))
+    })
+  }
+
+  /** Someone named on a document for the first time, by name alone: a receipt's new supplier. */
+  async quick(actor: Actor, input: CustomerQuickInput): Promise<CustomerBriefDto> {
+    const made = await this.create(actor, {
+      name: input.name,
+      phone: null,
+      birthday: null,
+      gender: null,
+      note: null,
+      groupIds: [],
+      tags: [],
+      priceTypeId: null,
+      isSupplier: input.isSupplier,
+    })
+    return {
+      id: made.id,
+      name: made.name,
+      currency: made.currency,
+      isSupplier: made.isSupplier,
+      isActive: true,
+      phoneTail: null,
+      tags: [],
+      note: null,
+      lastReceiptOn: null,
+    }
   }
 
   /**
@@ -141,7 +232,7 @@ export class CustomersService {
         summary: saved.phone ? `${saved.name}, ${saved.phone}` : saved.name,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
-      return (await this.dtos(em, [saved]))[0]
+      return this.dtoOf(em, actor, saved)
     })
   }
 
@@ -150,6 +241,10 @@ export class CustomersService {
       const before = await this.find(em, id)
       const fields = await this.fields(em, actor, input, termsOf(before), id)
       await em.update(Customer, id, { ...fields, searchKey: keyOf(input) })
+      if (before.name !== input.name) {
+        // Their accounts are named after them in the books.
+        await em.update(Account, { customerId: id }, { name: input.name })
+      }
       await this.setGroups(em, actor.orgId, id, input.groupIds)
       const after = await this.find(em, id)
       await this.audit.record(em, actor.orgId, actor, {
@@ -159,14 +254,21 @@ export class CustomersService {
         summary: after.name,
         changes: diff(before, after, AUDITED),
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
-      return (await this.dtos(em, [after]))[0]
+      afterCommit(() => this.realtime.changed(actor.orgId, ['customers', 'receipts']))
+      return this.dtoOf(em, actor, after)
     })
   }
 
   async setActive(actor: Actor, id: string, active: boolean): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
+      // Put away, a balance would be forgotten: it is settled, or written off, first.
+      if (!active && before.isActive && (await em.count(Account, { where: { customerId: id, balance: Not(0) } }))) {
+        throw AppError.conflict(
+          'CUSTOMER_HAS_BALANCE',
+          'Hisobida qoldiq bor: avval to‘lov yoki hisob tuzatish bilan yoping',
+        )
+      }
       if (before.isActive !== active) {
         await em.update(Customer, id, { isActive: active })
         await this.audit.record(em, actor.orgId, actor, {
@@ -178,7 +280,7 @@ export class CustomersService {
         })
         afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
       }
-      return (await this.dtos(em, [await this.find(em, id)]))[0]
+      return this.dtoOf(em, actor, await this.find(em, id))
     })
   }
 
@@ -415,8 +517,11 @@ export class CustomersService {
     }
   }
 
-  /** Each with what their receipts say they have bought. */
-  private async dtos(em: EntityManager, customers: Customer[]): Promise<CustomerDto[]> {
+  /**
+   * Each with what their receipts say they have bought, and their accounts for whoever may see them: a supplier's
+   * with the suppliers' permission, anyone else's with the debts'.
+   */
+  private async dtos(em: EntityManager, customers: Customer[], actor: Actor): Promise<CustomerDto[]> {
     if (!customers.length) {
       return []
     }
@@ -443,6 +548,14 @@ export class CustomersService {
       [customers.flatMap((customer) => customer.priceTypeId ?? [])],
     )
     const priceOf = new Map(prices.map((type) => [type.id, type]))
+    const accounts = await em.find(Account, { where: { customerId: In(ids) }, order: { createdAt: 'ASC' } })
+    const balancesOf = (customer: Customer): CustomerBalance[] | null =>
+      can(actor, customer.isSupplier ? 'customers.suppliers' : 'customers.debts')
+        ? accounts
+            .filter((account) => account.customerId === customer.id)
+            .sort((a, b) => Number(b.currency === customer.currency) - Number(a.currency === customer.currency))
+            .map((account) => ({ currency: account.currency, balance: account.balance }))
+        : null
     return customers.map((customer) => {
       const row = boughtBy.get(customer.id)
       return {
@@ -470,6 +583,7 @@ export class CustomersService {
         lastSaleAt: row?.last_at ? row.last_at.toISOString() : null,
         debt: rules.get(customer.id)?.debt.owed ?? 0,
         overdue: rules.get(customer.id)?.debt.overdue ?? 0,
+        balances: balancesOf(customer),
       }
     })
   }

@@ -3,16 +3,14 @@ import {
   normalizeEpc,
   type PosContextDto,
   type PosItemDto,
-  type PosPartnerDto,
   type RateBook,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
-import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Organization, Partner, PriceType, Register, Shift } from '../../database/entities'
+import { Organization, PriceType, Register, Shift } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
 import { tillCurrenciesOf } from '../money/base'
 import { LedgerService } from '../money/ledger.service'
@@ -21,7 +19,6 @@ import { servesShop } from '../money/places'
 import { bookFrom, bookToday, ratesInForce } from '../money/rate-book'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
-import { priceTypeNames } from '../partners/partners.service'
 import { runningAt } from '../promotions/promotions.service'
 import { ApprovalsService } from './approvals.service'
 import { sellables } from './items'
@@ -89,7 +86,6 @@ export class PosService {
         debtDays: settings.debtDays,
         debtLimit: settings.debtLimit,
         mayLend: can(actor, 'pos.debt'),
-        maySellToPartners: can(actor, 'pos.partner_sale'),
       }
     })
   }
@@ -121,26 +117,6 @@ export class PosService {
       [today, register.locationId],
     )
     return !!row
-  }
-
-  /** Partners a sale may be made to, by a few letters of their name or digits of their phone. */
-  async partners(actor: Actor, q: string): Promise<PosPartnerDto[]> {
-    return this.db.tenant(actor.orgId, async ({ em }) => {
-      const qb = em.createQueryBuilder(Partner, 'p').where('p.isActive')
-      applySearch(qb, 'p.search_key', q)
-      const rows = await qb.orderBy('p.name').limit(10).getMany()
-      const named = await priceTypeNames(em, rows)
-      return rows.map((row) => {
-        const priceType = row.priceTypeId ? named(row) : null
-        return {
-          id: row.id,
-          name: row.name,
-          phone: row.phone,
-          currency: row.currency,
-          priceType: row.priceTypeId && priceType ? { id: row.priceTypeId, name: priceType } : null,
-        }
-      })
-    })
   }
 
   /** The promotions in force at a till today, with the code the customer said, if they said one. */

@@ -201,12 +201,55 @@ export interface CustomerGroupDto {
 
 export const customerListQuerySchema = listQuerySchema.extend({
   status: z.enum(['active', 'archived', 'all']).default('active'),
+  /** Only those who supply goods, or only those who do not. */
+  supplier: z.enum(['yes', 'no']).optional(),
+  /** `owes`: who owes the business in some currency; `owed`: whom the business owes. */
+  balance: z.enum(['owes', 'owed']).optional(),
   /** Those whose birthday falls within the next so many days. */
   birthdayIn: z.coerce.number().int().min(0).max(366).optional(),
   groupId: idSchema.optional(),
   tag: z.string().trim().min(1).max(30).optional(),
 })
 export type CustomerListQuery = z.infer<typeof customerListQuerySchema>
+
+/** What a customer owes in one currency; negative when the business owes them. */
+export interface CustomerBalance {
+  currency: AnyCurrency
+  balance: number
+}
+
+/** A customer as a picker shows them, among others of the same name: enough to tell two Azizes apart. */
+export interface CustomerBriefDto {
+  id: string
+  name: string
+  currency: AnyCurrency
+  isSupplier: boolean
+  isActive: boolean
+  /** The last four digits of the phone; the whole number is not shown to whoever picks. */
+  phoneTail: string | null
+  tags: string[]
+  /** The start of the note. */
+  note: string | null
+  /** When goods last came from them. */
+  lastReceiptOn: string | null
+}
+
+export const customerBriefQuerySchema = z.object({
+  q: z.string().trim().max(60).optional(),
+  /** Those who supply goods first, the rest after them. */
+  supplier: z.enum(['first']).optional(),
+  /** Those to show however the search goes, comma-separated: the ones already picked. */
+  ids: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value.split(',').filter(Boolean).slice(0, 50) : []))
+    .pipe(z.array(idSchema)),
+})
+export type CustomerBriefQuery = z.infer<typeof customerBriefQuerySchema>
+
+/** Written down where a name is all there is: a receipt's supplier typed in. */
+export const customerQuickSchema = z.object({ name: requiredText(120), isSupplier: z.boolean().default(false) })
+export type CustomerQuickInput = z.infer<typeof customerQuickSchema>
 
 /** A customer as the till needs them: enough to say who is at the counter. */
 export interface CustomerBrief {
@@ -233,6 +276,8 @@ export interface PosCustomerDto extends CustomerBrief {
   priceType: { id: string; name: string } | null
   /** Whose the price is: their own, or their group's. */
   priceFrom: 'own' | 'group' | null
+  /** Their main currency: what is put on their account is in it unless said. */
+  currency: AnyCurrency
   /** They supply goods: the till shows none of their sums. */
   supplier: boolean
   noDebt: boolean
@@ -267,6 +312,8 @@ export interface CustomerDto extends CustomerBrief {
   /** What they owe the shop now; of it, what is past its day. */
   debt: number
   overdue: number
+  /** Their accounts, one to a currency; null for a person who may not see them. */
+  balances: CustomerBalance[] | null
 }
 
 /** What stands over the list: the whole base at a glance. */

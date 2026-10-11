@@ -42,7 +42,7 @@ import { applyServerErrors, Form, zodCheck, zodSubmit } from '@/components/ui/fo
 import { Input } from '@/components/ui/input'
 import { Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
-import { rateText } from '@/features/partners/payment-lines'
+import { rateText } from '@/features/money/payment-lines'
 import { api } from '@/lib/api'
 import { base as baseCurrency } from '@/lib/base'
 import { useHotkey } from '@/lib/hotkeys'

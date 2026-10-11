@@ -4,7 +4,7 @@ import { baseWorth, usualRateForm, type RateBook, type RateWay } from './currenc
 import { Fraction } from './fraction'
 import type { ImageThumb } from './images'
 import { ALL_CURRENCY_CODES, allocateExact, assertMinor, type AnyCurrency, type CurrencyCode } from './money'
-import { idSchema, listQuerySchema, optionalPhoneSchema, optionalText, requiredText } from './schemas'
+import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 import type { Unit } from './catalog'
 
 /**
@@ -12,52 +12,6 @@ import type { Unit } from './catalog'
  * stock, and what each piece ends up costing once freight, customs and the
  * rest are shared out over it.
  */
-
-// ───────────────────────────── Partners ─────────────────────────────
-
-export const partnerInputSchema = z
-  .object({
-    name: requiredText(120),
-    phone: optionalPhoneSchema,
-    isSupplier: z.boolean().default(false),
-    isBuyer: z.boolean().default(false),
-    /** The currency their account is kept in: what they owe, or are owed, is always said in it. */
-    currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).default('UZS'),
-    /** The price they buy at the till at, when it is not the retail one: the till takes it with them. */
-    priceTypeId: idSchema.nullish().transform((value) => value ?? null),
-    note: optionalText(500),
-  })
-  .refine((partner) => partner.isSupplier || partner.isBuyer, {
-    path: ['isSupplier'],
-    message: 'Yetkazib beruvchi yoki xaridor ekanini belgilang',
-  })
-export type PartnerInput = z.infer<typeof partnerInputSchema>
-
-export const partnerListQuerySchema = listQuerySchema.extend({
-  status: z.enum(['active', 'archived', 'all']).default('active'),
-  role: z.enum(['supplier', 'buyer']).optional(),
-  /** `owes`: partners who owe the business; `owed`: those the business owes. */
-  debt: z.enum(['owes', 'owed']).optional(),
-})
-export type PartnerListQuery = z.infer<typeof partnerListQuerySchema>
-
-export interface PartnerDto {
-  id: string
-  name: string
-  phone: string | null
-  isSupplier: boolean
-  isBuyer: boolean
-  /** Any currency the business has switched on: one partner, one currency. */
-  currency: AnyCurrency
-  /** The price they buy at the till at; null for the retail one. */
-  priceTypeId: string | null
-  priceTypeName: string | null
-  /** What they owe the business, in their currency; negative when the business owes them. Null for a person who may not see debts. */
-  balance: number | null
-  note: string | null
-  isActive: boolean
-  createdAt: string
-}
 
 // ───────────────────────────── Receipts ─────────────────────────────
 

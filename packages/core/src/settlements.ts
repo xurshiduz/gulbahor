@@ -2,18 +2,19 @@ import { z } from 'zod'
 
 import { baseWorth, exchange, worthInBase, type RateBook } from './currencies'
 import type { AnyCurrency } from './money'
+import type { CustomerDto } from './customers'
+import { ALL_CURRENCY_CODES } from './money'
 import type { AccountDto } from './pos'
-import type { PartnerDto } from './purchasing'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
 /**
- * What a partner owes and is owed, and the money that settles it.
+ * What a customer owes and is owed, and the money that settles it.
  *
- * Every partner has one account, kept in one currency. Money may come in
- * any way and in any currency the business keeps: each line of a payment
- * says what went into (or out of) one of the business's accounts, in that
- * account's own currency, and how much of the partner's account that
- * settles.
+ * A customer has an account for each currency they deal in, opened on its
+ * first entry. Money may come in any way and in any currency the business
+ * keeps: each line of a payment says what went into (or out of) one of the
+ * business's accounts, in that account's own currency, and how much of the
+ * customer's account in the payment's currency that settles.
  *
  * The two sums are a pair. Left alone, the second follows from the first at
  * the day's rate. But the two sides may agree otherwise — "take these 100
@@ -309,98 +310,102 @@ export function defaultTill(tills: PayTill[], here: string | null, last: string 
 
 // ───────────────────────────── Payments ─────────────────────────────
 
-/** `in`: the partner pays the business. `out`: the business pays the partner. `opening`: what stood between them before the books began. */
-export const PARTNER_PAYMENT_KINDS = ['in', 'out', 'opening'] as const
-export type PartnerPaymentKind = (typeof PARTNER_PAYMENT_KINDS)[number]
+/** `in`: the customer pays the business. `out`: the business pays the customer. `opening`: what stood between them before the books began. */
+export const CUSTOMER_PAYMENT_KINDS = ['in', 'out', 'opening'] as const
+export type CustomerPaymentKind = (typeof CUSTOMER_PAYMENT_KINDS)[number]
 
-export const PARTNER_PAYMENT_KIND_LABELS: Record<PartnerPaymentKind, string> = {
-  in: 'Hamkordan to‘lov',
-  out: 'Hamkorga to‘lov',
+export const CUSTOMER_PAYMENT_KIND_LABELS: Record<CustomerPaymentKind, string> = {
+  in: 'To‘lov olindi',
+  out: 'To‘lov berildi',
   opening: 'Boshlang‘ich qoldiq',
 }
 
-export const PARTNER_PAYMENT_STATUSES = ['posted', 'cancelled'] as const
-export type PartnerPaymentStatus = (typeof PARTNER_PAYMENT_STATUSES)[number]
+export const CUSTOMER_PAYMENT_STATUSES = ['posted', 'cancelled'] as const
+export type CustomerPaymentStatus = (typeof CUSTOMER_PAYMENT_STATUSES)[number]
 
-export const PARTNER_PAYMENT_STATUS_LABELS: Record<PartnerPaymentStatus, string> = {
+export const CUSTOMER_PAYMENT_STATUS_LABELS: Record<CustomerPaymentStatus, string> = {
   posted: 'O‘tkazilgan',
   cancelled: 'Bekor qilingan',
 }
 
 const moneySchema = z.number().int().min(0).max(1_000_000_000_000_00)
 const positive = moneySchema.refine((value) => value > 0, { message: 'Summani kiriting' })
+const currencySchema = z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
 
-export const partnerPaymentLineSchema = z.object({
+export const customerPaymentLineSchema = z.object({
   /** The till's drawer, the safe, the card or the bank account the money went into, or came out of. */
   accountId: idSchema,
   /** In that account's currency. */
   amount: positive,
   /**
-   * What the line settles on the partner's account, in the partner's currency, when that was agreed and
-   * not left to the day's rate. Counts only where the account is in another currency than the partner's.
+   * What the line settles on the customer's account, in the payment's currency, when that was agreed and
+   * not left to the day's rate. Counts only where the money is in another currency than the payment's.
    */
   settled: positive.nullish().transform((value) => value ?? null),
 })
-export type PartnerPaymentLineInput = z.infer<typeof partnerPaymentLineSchema>
+export type CustomerPaymentLineInput = z.infer<typeof customerPaymentLineSchema>
 
-export const partnerPaymentInputSchema = z.object({
+export const customerPaymentInputSchema = z.object({
   /** Made by the screen for each payment: sent twice, it is still made once. */
   clientKey: z.uuid(),
-  partnerId: idSchema,
+  customerId: idSchema,
+  /** Which of the customer's accounts it settles: their main currency unless said. */
+  currency: currencySchema.optional(),
   kind: z.enum(['in', 'out']),
-  lines: z.array(partnerPaymentLineSchema).min(1, 'To‘lovni kiriting').max(10),
-  /** What the screen showed as settled on the partner's account: if the rate has changed since, the payment is refused. */
+  lines: z.array(customerPaymentLineSchema).min(1, 'To‘lovni kiriting').max(10),
+  /** What the screen showed as settled on the customer's account: if the rate has changed since, the payment is refused. */
   settled: moneySchema,
   note: optionalText(300),
 })
-export type PartnerPaymentInput = z.infer<typeof partnerPaymentInputSchema>
+export type CustomerPaymentInput = z.infer<typeof customerPaymentInputSchema>
 
-/** What stood between the business and a partner before the books began. */
-export const partnerOpeningInputSchema = z.object({
+/** What stood between the business and a customer before the books began, in one currency. */
+export const customerOpeningInputSchema = z.object({
   clientKey: z.uuid(),
-  partnerId: idSchema,
-  /** Who owes: the partner, or the business. */
-  owes: z.enum(['partner', 'us']),
-  /** In the currency of the partner's account. */
+  customerId: idSchema,
+  /** Their main currency unless said. */
+  currency: currencySchema.optional(),
+  /** Who owes: the customer, or the business. */
+  owes: z.enum(['customer', 'us']),
   amount: positive,
   note: optionalText(300),
 })
-export type PartnerOpeningInput = z.infer<typeof partnerOpeningInputSchema>
+export type CustomerOpeningInput = z.infer<typeof customerOpeningInputSchema>
 
-export const partnerPaymentCancelSchema = z.object({ reason: requiredText(200) })
+export const customerPaymentCancelSchema = z.object({ reason: requiredText(200) })
 
-export const partnerPaymentListQuerySchema = listQuerySchema.extend({
-  status: z.enum(['all', ...PARTNER_PAYMENT_STATUSES]).default('all'),
-  kind: z.enum(PARTNER_PAYMENT_KINDS).optional(),
-  partnerId: idSchema.optional(),
+export const customerPaymentListQuerySchema = listQuerySchema.extend({
+  status: z.enum(['all', ...CUSTOMER_PAYMENT_STATUSES]).default('all'),
+  kind: z.enum(CUSTOMER_PAYMENT_KINDS).optional(),
+  customerId: idSchema.optional(),
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
 })
-export type PartnerPaymentListQuery = z.infer<typeof partnerPaymentListQuerySchema>
+export type CustomerPaymentListQuery = z.infer<typeof customerPaymentListQuerySchema>
 
-export interface PartnerPaymentLineDto {
+export interface CustomerPaymentLineDto {
   accountId: string
   accountName: string
   currency: AnyCurrency
   amount: number
-  /** So'm for a dollar; null when no currency was changed. */
+  /** The pair's rate, as the pair is read; null when no currency was changed. */
   rate: number | null
-  /** What the line settled, in the partner's currency. */
+  /** What the line settled, in the payment's currency. */
   settled: number
-  /** What the rate gave the business (+) or cost it (−) on this line, in so'm. */
+  /** What the rate gave the business (+) or cost it (−) on this line, in the base. */
   fx: number
 }
 
-export interface PartnerPaymentDto {
+export interface CustomerPaymentDto {
   id: string
   number: string
-  kind: PartnerPaymentKind
-  status: PartnerPaymentStatus
-  partnerId: string
-  partnerName: string
-  /** The currency of the partner's account. */
+  kind: CustomerPaymentKind
+  status: CustomerPaymentStatus
+  customerId: string
+  customerName: string
+  /** The currency of the customer's account it settles. */
   currency: AnyCurrency
-  /** How the partner's debt changed: less after they paid, more after they were paid; an opening balance either way. */
+  /** How the customer's debt changed: less after they paid, more after they were paid; an opening balance either way. */
   change: number
   paidAt: string
   createdByName: string | null
@@ -410,12 +415,12 @@ export interface PartnerPaymentDto {
   cancelReason: string | null
   /** How the money came or went, in words: "Kassa 1 (so'm), Seyf $". */
   paidBy: string
-  lines: PartnerPaymentLineDto[]
+  lines: CustomerPaymentLineDto[]
 }
 
 // ───────────────────────────── The account ─────────────────────────────
 
-export interface PartnerStatementLine {
+export interface CustomerStatementLine {
   at: string
   /**
    * What happened: a payment's kind, `receipt` for goods received from them,
@@ -423,22 +428,23 @@ export interface PartnerStatementLine {
    * goods brought back, `supplier_return` for goods sent back to them, or
    * `cancel` for any of it taken back.
    */
-  kind: PartnerPaymentKind | 'receipt' | 'sale' | 'sale_return' | 'supplier_return' | 'cancel'
+  kind: CustomerPaymentKind | 'receipt' | 'sale' | 'sale_return' | 'supplier_return' | 'cancel'
   /** The document behind it: a payment, a receipt of goods, a sale at the till or a return to it, goods sent back. */
   source: 'payment' | 'receipt' | 'sale' | 'sale_return' | 'supplier_return'
   number: string | null
   documentId: string | null
-  /** How the partner's debt changed, in the partner's currency. */
+  /** How the customer's debt changed, in the account's currency. */
   change: number
-  /** What the partner owed after it; negative when the business owed them. */
+  /** What the customer owed after it; negative when the business owed them. */
   balance: number
   note: string | null
 }
 
-/** A partner's account from its first entry: every change and what was owed after each. */
-export interface PartnerStatementDto {
-  partner: PartnerDto
-  lines: PartnerStatementLine[]
-  /** What the partner owes now; negative when the business owes them. */
+/** One of a customer's accounts from its first entry: every change and what was owed after each. */
+export interface CustomerStatementDto {
+  customer: CustomerDto
+  currency: AnyCurrency
+  lines: CustomerStatementLine[]
+  /** What the customer owes now in this currency; negative when the business owes them. */
   balance: number
 }

@@ -29,8 +29,8 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 |---|---|---|---|---|---|
 | 1 | P1. Xodimga qo'shimcha ruxsat | Platforma | 1,5 | — | tayyor (2026-10-08) |
 | 2 | M1. Narx formulalari | Mijozlar va narx | 9 | — | boshlanmagan (spetsifikatsiya tayyor) |
-| 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | M1 | boshlanmagan |
-| 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | boshlanmagan |
+| 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | — (M1 keyinga qoldi) | boshlandi: M2-1 va M2-2 tayyor (2026-10-11), qolgani — M2-3…M2-5 (`ISH-HOLATI.md`) |
+| 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | boshlandi: ro'yxat, karta, hisob-kitob, to'lovlar (M2-2 bilan) |
 | 5 | M4. Mijoz: qo'shimcha holatlar | Mijozlar va narx | 7 | M3 | boshlanmagan |
 | 6 | M5. Ko'chirishni nusxada sinash | Mijozlar va narx | 1 | M4 | boshlanmagan |
 | 7 | K1. Otlojka (tovarni olib qo'yish) | Kassa | 3 | M2 | boshlanmagan |
@@ -45,8 +45,9 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 | 16 | H1–H6. Hisobotlar 10b–10g | Hisobotlar | 12 | M2 | keyinga qoldirilgan |
 | 17 | V5. Asosiy valyutani tanlash | Pul | 10 | M2 | tayyor (2026-10-08; foydalanuvchi so'rovi bilan M2 dan oldin) |
 | 18 | P2–P5. Superadmin, loglar, Telegram, deploy | Platforma | 8 | — | foydalanuvchi bilan |
-| 19 | V9. Hamma valyuta teng (dollarning alohida o'rni yo'q) | Pul | 11–12 | — | boshlandi (2026-10-08, egasi so'radi; M1 dan oldin) |
-| 20 | T1. To'rt til: o'zbek (lotin va kirill), rus, ingliz | Platforma | 5 (+3 server xabarlari) | — | egasi so'radi (2026-10-08); V9 dan keyin |
+| 19 | V9. Hamma valyuta teng (dollarning alohida o'rni yo'q) | Pul | 11–12 | — | tayyor (2026-10-10) |
+| 20 | T1. To'rt til: o'zbek (lotin va kirill), rus, ingliz | Platforma | 5 (+3 server xabarlari) | — | egasi so'radi (2026-10-08); keyinga qoldirilgan (2026-10-10) |
+| 21 | E1. Etiketkada shrift tanlash (matn printerga rasm bo'lib ketadi) | Sklad | 2 | — | keyinga qoldirilgan (egasi, 2026-10-10) |
 
 Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz birlashuvi (u kassa, otlojka va hisobotlarga asos), keyin pul va sklad mayda paketlari, eng oxirida katta va kam so'ralgan ishlar. Jami ~80 kun.
 

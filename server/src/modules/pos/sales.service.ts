@@ -42,7 +42,6 @@ import {
   Customer,
   Location,
   Organization,
-  Partner,
   PriceType,
   Register,
   Sale,
@@ -151,19 +150,12 @@ export class SalesService {
     if (input.customerId && !customer) {
       throw AppError.validation({ customerId: 'Mijoz topilmadi' })
     }
-    // A partner is no customer: none of a customer's rules (their discount, their group's price) are theirs.
-    const partner = input.partnerId ? await em.findOneBy(Partner, { id: input.partnerId, isActive: true }) : null
-    if (input.partnerId && !partner) {
-      throw AppError.validation({ partnerId: 'Hamkor topilmadi' })
-    }
 
     // ── The price type the cart is sold at, when it is not the retail one, and whether this person may. ──
     const rules = customer ? (await rulesOf(em, [customer])).get(customer.id) : undefined
     let priceType: PriceType | null = null
-    // The price a customer's group gives them, or a partner's own, is theirs whoever is at the till: nobody picked it.
-    const theirs =
-      !!input.priceTypeId &&
-      (rules?.priceType?.id === input.priceTypeId || (!!partner && partner.priceTypeId === input.priceTypeId))
+    // The price a customer's card or group gives them is theirs whoever is at the till: nobody picked it.
+    const theirs = !!input.priceTypeId && rules?.priceType?.id === input.priceTypeId
     if (input.priceTypeId) {
       priceType = await em.findOneBy(PriceType, { id: input.priceTypeId })
       if (!priceType || !priceType.isActive || (priceType.tillAccess === 'none' && !theirs)) {
@@ -421,39 +413,43 @@ export class SalesService {
         lentByWord = true
       }
     }
-    // ── What goes on a partner's account: in their currency, at the day's rate or at a sum agreed. ──
+    // ── What goes on the customer's account: in one of its currencies, at the day's rate or at a sum agreed. ──
     const onAccount = input.onAccount?.amount ?? 0
-    let partnerWorth: LineWorth | null = null
+    let accountWorth: LineWorth | null = null
     let soldByWord = false
-    let partnerOverRate = false
+    let accountOverRate = false
+    const accountCurrency = input.onAccount?.currency ?? customer?.currency ?? base
     if (input.onAccount) {
-      if (!partner) {
-        throw AppError.validation({ partnerId: 'Hisobiga yozish uchun hamkorni tanlang' })
+      if (!customer) {
+        throw AppError.validation({ customerId: 'Hisobiga yozish uchun mijozni tanlang' })
       }
       if (onAccount > totals.total - used - owed) {
         throw AppError.validation({ onAccount: 'Hisobiga yoziladigan summa chekdan oshmasligi kerak' })
       }
-      if (!can(actor, 'pos.partner_sale')) {
-        if (!allows(approver, 'pos.partner_sale')) {
+      if (accountCurrency !== base && !actor.currencies.includes(accountCurrency)) {
+        throw AppError.validation({ onAccount: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+      }
+      if (!can(actor, 'pos.debt')) {
+        if (!allows(approver, 'pos.debt')) {
           throw AppError.badRequest(
-            'PARTNER_SALE_NEEDS_WORD',
+            'ON_ACCOUNT_NEEDS_WORD',
             approver
-              ? `${approver.name} hamkor hisobiga sotishni tasdiqlay olmaydi`
-              : `${partner.name} hisobiga sotish uchun rahbar tasdig‘i kerak`,
+              ? `${approver.name} mijoz hisobiga sotishni tasdiqlay olmaydi`
+              : `${customer.name} hisobiga sotish uchun rahbar tasdig‘i kerak`,
             { onAccount: 'Rahbar tasdig‘i kerak' },
           )
         }
         soldByWord = true
       }
-      const wanting = wantingRate(book, book.base, partner.currency)
+      const wanting = wantingRate(book, book.base, accountCurrency)
       if (wanting) {
         throw AppError.validation({ onAccount: wanting })
       }
-      partnerWorth = settleLine(onAccount, book.base, partner.currency, book, input.onAccount.settled)
+      accountWorth = settleLine(onAccount, book.base, accountCurrency, book, input.onAccount.settled)
       // An agreed sum far from the day's rate gives as much away as a discount does: the same word lets it.
-      partnerOverRate = partnerWorth.agreed && straysFromRate(partnerWorth, settings.maxRateLossPercent)
-      if (partnerOverRate && !allowed) {
-        const gap = String(rateGap(partnerWorth)).replace('.', ',')
+      accountOverRate = accountWorth.agreed && straysFromRate(accountWorth, settings.maxRateLossPercent)
+      if (accountOverRate && !allowed) {
+        const gap = String(rateGap(accountWorth)).replace('.', ',')
         throw AppError.badRequest(
           'RATE_LOSS_OVER_LIMIT',
           approver
@@ -464,7 +460,7 @@ export class SalesService {
       }
     }
     const vouched =
-      ((overLimit || under.length > 0 || overRate || partnerOverRate) && !alone) ||
+      ((overLimit || under.length > 0 || overRate || accountOverRate) && !alone) ||
       pricedByWord ||
       lentByWord ||
       soldByWord
@@ -504,7 +500,7 @@ export class SalesService {
             (payment.currency !== base ? ` ${CURRENCIES[payment.currency].symbol}` : ''),
         ),
         ...(owed ? [PAYMENT_METHOD_LABELS.debt] : []),
-        ...(onAccount ? [PAYMENT_METHOD_LABELS.partner] : []),
+        ...(onAccount ? [PAYMENT_METHOD_LABELS.account] : []),
       ]),
     ].join(', ')
     const sale = await em.save(
@@ -540,14 +536,12 @@ export class SalesService {
         priceTypeName: priceType?.name ?? null,
         customerId: customer?.id ?? null,
         customerName: customer?.name ?? null,
-        partnerId: partner?.id ?? null,
-        partnerName: partner?.name ?? null,
         autoDiscount: totals.auto,
         autoReason: totals.auto ? autoReason(autos, rules?.discountReason ?? null) : null,
         promoCode: input.promoCode,
         note: input.note ?? null,
         searchKey: searchKey(
-          [number, actor.name, seller?.fullName ?? '', customer?.name ?? '', partner?.name ?? ''].join(' '),
+          [number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' '),
         ),
       }),
     )
@@ -667,16 +661,16 @@ export class SalesService {
         cancelled: false,
       })
     }
-    if (partnerWorth && partner) {
-      // On the partner's account in their currency; its worth there is what the day's rates make of that sum.
-      const account = await this.ledger.partnerAccount(em, partner)
+    if (accountWorth && customer) {
+      // On the customer's account in that currency; its worth there is what the day's rates make of that sum.
+      const account = await this.ledger.customerAccount(em, customer, accountCurrency)
       paid.push({
-        method: 'partner',
+        method: 'account',
         accountId: account.id,
-        currency: partner.currency,
-        amount: partnerWorth.settled,
+        currency: accountCurrency,
+        amount: accountWorth.settled,
         base: onAccount,
-        fx: partnerWorth.partnerBase - onAccount,
+        fx: accountWorth.partnerBase - onAccount,
         reference: null,
       })
     }
@@ -691,7 +685,7 @@ export class SalesService {
       base: (payment.base as number) + (payment.fx ?? 0),
     }))
     const gained =
-      payments.reduce((sum, payment) => sum + payment.fx, 0) + (partnerWorth ? partnerWorth.partnerBase - onAccount : 0)
+      payments.reduce((sum, payment) => sum + payment.fx, 0) + (accountWorth ? accountWorth.partnerBase - onAccount : 0)
     if (gained) {
       const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
       postings.push({ accountId: fx.id, amount: -gained, base: -gained })
@@ -1000,8 +994,6 @@ function summary(sale: Sale, locationName: string, registerName: string, seesCos
     priceTypeName: sale.priceTypeName,
     customerId: sale.customerId,
     customerName: sale.customerName,
-    partnerId: sale.partnerId,
-    partnerName: sale.partnerName,
     autoDiscount: sale.autoDiscount,
     autoReason: sale.autoReason,
     promoCode: sale.promoCode,
