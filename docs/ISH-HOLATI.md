@@ -221,14 +221,14 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 9e++. Kassa tortmasi — kassaga biriktirilgan "Naqd" hisob: egasi o'zi ochadi, nomlaydi, arxivlaydi; kassa formasida "Naqd valyutalar" yo'q (egasi so'radi, 2026-10-09).
      - [x] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
-   - [ ] V6. Terminal → bank tushumi.
+   - [x] V6. Terminal → bank tushumi (O1 bilan qilindi, 2026-10-12).
    - [ ] V7. Kurs farqi hisoboti.
 
 0. **Qolgan hamma ishning tartibi va talabi — `docs/YOL-XARITA.md`** (uyda ishlash yo'riqnomasi ham shu yerda). Navbatdagi paket: V9 (egasi so'radi, 2026-10-08), keyin M1.
 
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula; + fiks / kursga bog'langan narx, narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati (KEYINGI-REJA, V9 bo'limi "Narx, mijoz hisobi…", 16.10) (~13 kun).
-   - [ ] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun).
+   - [x] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun). Quyidagi bo'laklar bilan tugadi; ochiq qolgani — U1b va N0.
      - [x] M2-1. Mijoz kartasi: telefon ixtiyoriy, asosiy valyuta, o'z narxi (guruhnikidan oldin), "Yetkazib beruvchi" belgisi, qarz sozlamalari (chegara, muddat, qaytarish muddati — faqat `customers.adjust`); mijozlar ruxsatlari kengaydi (`suppliers`, `receive`, `pay_out`, `adjust`).
      - [x] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
      - [x] M2-3. Qarz va muddat: chakana qarz shu hisobga, `customer_dues`, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki.
@@ -243,8 +243,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] Q2b-1. Qaytarishda do'konning boshqa kartasidan o'tkazish qatori; hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi (haqi va "Haqini qaytarish").
      - [x] Q2b-2. Chekda mijozni almashtirish (16.5, 33-holat): hisobdagi qismi va muddati yangi mijozga ko'chadi.
      - [x] Q2b-3. Almashtirib olingan tovar qaytadi (31-holat): almashtirishda qarz yangi chekka ko'chadi, naqd chegarasi asl chekdan olinadi. Q2 (M2-5) shu bilan tugadi.
-   - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
-   - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
+   - [ ] M3. Yagona mijoz: ekranlar. Asosiy ekranlar M2 bo'laklari bilan qurildi ("Mijozlar", karta, hisob-kitob, Qarzdorlar, to'lovlar, kassadagi blok). Tekshirilmagani va qolgani: chekda "Jami qarzi" va imzo qatori (16.5, 9-holat) — kodda yo'q.
+   - [ ] M4. Qo'shimcha holatlar. Qilingani: almashtirish hisobga va almashtirilgan tovar qaytishi, chekning mijozini almashtirish, muddatni o'zgartirish, arxiv qoidasi, kartadagi qaytarish muddati. **Qolgani**: mijozlarni birlashtirish (valyuta bilan), akt-sverka (davr, Excel, chop), boshlang'ich qoldiqlarni Excel'dan olish, kirimdan "To'lov berish".
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
 
 14. **Platforma** (YOL-XARITA, 3-bo'lim):
