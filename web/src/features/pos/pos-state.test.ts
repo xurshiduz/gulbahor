@@ -378,5 +378,22 @@ describe('goods coming back', () => {
       ['cash:USD', 'cash', 'USD', null],
       ['account:humo', 'card', 'UZS', 'humo'],
     ])
+    // Unless someone may hand money back any way — this person, or a manager with a PIN: then the other
+    // cards are there to send it from.
+    const allowed = {
+      ...context,
+      cards: [
+        { id: 'other', currency: 'UZS' },
+        { id: 'humo', currency: 'UZS' },
+      ],
+      approvers: [{ id: 'm', name: 'Anvar', returns: true }],
+    } as unknown as PosContextDto
+    expect(refundRows(allowed, mixed).map((row) => row.key)).toEqual([
+      'cash',
+      'cash:USD',
+      'account:humo',
+      'account:other',
+    ])
+    expect(refundRows(context, { ...mixed, free: true }).map((row) => row.key)).toContain('account:other')
   })
 })

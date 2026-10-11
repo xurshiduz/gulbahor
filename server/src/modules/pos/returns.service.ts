@@ -55,6 +55,7 @@ import { wantingRate } from '../money/agreed'
 import { tillCurrenciesOf, tillCurrencyProblem } from '../money/base'
 import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
+import { servesShop } from '../money/places'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
 import { allows, ApprovalsService } from './approvals.service'
@@ -475,7 +476,8 @@ export class ReturnsService {
             account.kind === refund.method &&
             account.currency === currency &&
             account.isActive &&
-            (free || paidHere)
+            // The card it was paid with, or — for whoever may hand money back any way — another of this shop's.
+            (paidHere || (free && servesShop(account, register.locationId)))
           if (!fits) {
             fields[`refunds.${index}.accountId`] =
               refund.method === 'card' ? 'Bu chek shu kartaga to‘lanmagan' : 'Bu chek shu terminal orqali to‘lanmagan'

@@ -1,6 +1,7 @@
 import {
   customerAdjustInputSchema,
   customerExchangeInputSchema,
+  customerTransferInputSchema,
   customerOpeningInputSchema,
   customerPaymentCancelSchema,
   customerPaymentInputSchema,
@@ -8,6 +9,7 @@ import {
   idSchema,
   type CustomerAdjustInput,
   type CustomerExchangeInput,
+  type CustomerTransferInput,
   type CustomerOpeningInput,
   type CustomerPaymentDto,
   type CustomerPaymentInput,
@@ -95,6 +97,15 @@ export class CustomerPaymentsController {
     @Body(zod(customerExchangeInputSchema)) input: CustomerExchangeInput,
   ): Promise<CustomerPaymentDto> {
     return this.payments.exchange(actor, input)
+  }
+
+  @Post('transfer')
+  @Can('customers.adjust')
+  transfer(
+    @CurrentActor() actor: Actor,
+    @Body(zod(customerTransferInputSchema)) input: CustomerTransferInput,
+  ): Promise<CustomerPaymentDto> {
+    return this.payments.transfer(actor, input)
   }
 
   @Post(':id/cancel')

@@ -1376,7 +1376,8 @@ Egasining so'rovi: qaytim (bir nechta valyutada, hisobga, kartadan), qaytarishda
 - Qaytarish uchun chek tanlanganda chekdagi mijoz kassaga o'zi qo'yiladi (savatda boshqa mijoz bo'lmasa).
 - Smena hisobotida "Hisobida qoldirildi" qatori "Hisobidan ayirildi"dan alohida (`ShiftTotals.refunds[].kept`).
 - Testlar: server `return-keeps.spec.ts` (10 ta), core `pos.test`, veb `tender-panel.test` (money handed back), `pos-state.test`.
-- **Q2 dan qolgani (Q2b)**: almashtirib olingan tovar qaytganda asl chekka borish (31-holat — hozir bunday qaytarishda naqd faqat rahbar ruxsati bilan beriladi); smenasi yopilgan chekda mijozni almashtirish (33); qarzini to'lab bo'lgan mijoz tovarni qaytarganda "Pulini berish" taklifi (29 — hozir mijoz tanlanib, "Haqini qaytarish" bilan beriladi, kassirga rahbar PIN'i kerak); qaytarishda chek to'lanmagan kartaga o'tkazish qatori (server `pos.return_any` bilan qabul qiladi, kassada qatori yo'q).
+- **Q2b ning birinchi qismi (2026-10-12)**: (1) qaytarishda do'konning boshqa kartasidan o'tkazish qatori — `refundRows` uni `pos.return_any` egasiga yoki shunday tasdiqlovchi bor joyda qo'shadi; qator standart holatda yashirin ("Yashirilgan: …" ostida), summa yozilsa rahbar tasdig'i so'raladi; server faqat shu do'konga xizmat qiladigan kartani oladi (`servesShop`). (2) Hisobga tegadigan qaytarishdan keyin (hisobidan ayirilgan yoki hisobida qoldirilgan) mijoz kassada qoladi — kartochkasida yangi haqi va "Haqini qaytarish" ko'rinadi (29-holat; kassirga avvalgidek rahbar PIN'i kerak).
+- **Q2 dan qolgani**: almashtirib olingan tovar qaytganda asl chekka borish (31-holat — hozir bunday qaytarishda naqd faqat rahbar ruxsati bilan beriladi); smenasi yopilgan chekda mijozni almashtirish (33).
 
 ### 17.4. O'tkazma: bank komissiyasi va terminal tushumi (O1 = V8 + V6)
 
@@ -1401,6 +1402,14 @@ Egasining so'rovi: qaytim (bir nechta valyutada, hisobga, kartadan), qaytarishda
 - Bitta hujjat (TL-, turi "Mijozlar orasida o'tkazma"): A hisobidan chiqadi, B hisobiga kiradi; valyutalar har xil bo'lsa juft maydon va kurs farqi. Ikkala mijozning hisob-kitobida bitta raqam bilan ko'rinadi, bekor qilinadi.
 - Ruxsat — "Hisob tuzatish" (`customers.adjust`): pul yurmaydi, lekin ikki kishining hisobi o'zgaradi.
 - Qayerdan: mijoz qatori menyusi va hisob-kitob oynasi.
+
+**O2 qanday qurildi (2026-10-12).**
+
+- `POST /customer-payments/transfer { customerId, currency?, toCustomerId, toCurrency?, amount, received?, settled, note }` (`customers.adjust`): TL- hujjati, turi `transfer` ("Mijozlar orasida o'tkazma"). Kimning hisobidan chiqsa — o'sha hisob `+amount` (haqi kamayadi yoki qarzi oshadi), kimning hisobiga kirsa — `−settled` (qarzi kamayadi yoki haqi oshadi). Pul yurmaydi. Valyutalar har xil bo'lsa `valueLine` (kun kursi yoki kelishilgan summa, farq `fx` ga), `RATE_CHANGED`. Ikkala mijoz bir tartibda qulflanadi.
+- Baza: `customer_payments.to_customer_id` (migratsiya `1790000052000-customer-transfers`); `to_currency`/`to_amount`/`fx` endi `exchange` va `transfer` uchun. `CustomerPaymentDto.toCustomerId`, `toCustomerName`.
+- Ikkala mijozning hisob-kitobida bitta raqam bilan: izohda "→ Bobur" (kimga ketdi) yoki "← Aziz" (kimdan keldi). "Mijoz to'lovlari" ro'yxatida "Aziz → Bobur"; mijoz bo'yicha filtr ikkala tomonni ham topadi. Bekor qilish — `ledger.reverse`.
+- Veb: `CustomerTransferDialog` (`features/customers/payments.tsx`) — mijoz qatori menyusida "Boshqa mijozga o'tkazish" va hisob-kitob oynasida "O'tkazish"; kimga — qidiruv bilan tanlanadi, uning hisobi standart holatda asosiy valyutasida (boshqasi — pastdagi tanlov).
+- Testlar: server `customer-transfers.spec.ts` (6 ta). Ekranda oyna ko'rilmadi (sessiyaga bog'liq; hisob ichida almashtirish oynasi qismlaridan yig'ilgan).
 
 ### 17.6. To'lov oynalari: ko'rinish (U1)
 

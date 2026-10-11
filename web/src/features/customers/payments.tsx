@@ -7,6 +7,7 @@ import {
   customerExchangeInputSchema,
   customerOpeningInputSchema,
   customerPaymentInputSchema,
+  customerTransferInputSchema,
   defaultTill,
   formatMoney,
   tillsOf,
@@ -26,7 +27,7 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Ban, Banknote, Wrench } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Ban, Banknote, Users, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -921,6 +922,211 @@ export function ExchangeDialog({
   )
 }
 
+/**
+ * What stands to one customer's good carried to another's account: one pays for another, a buyer's debt is set
+ * against what the business owes a supplier, a payment written to the wrong person is put right. No money moves.
+ * A pair of sums where the two accounts are in different currencies, as in an exchange.
+ */
+export function CustomerTransferDialog({
+  customer,
+  currency: asked,
+  onClose,
+}: {
+  customer: CustomerDto
+  currency?: AnyCurrency
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const { can, me } = useSession()
+  const queryClient = useQueryClient()
+  const debtText = useDebtText()
+  const kept = useKept()
+  const book = useRateBook()
+  // It leaves the account that has something to its good, when one does.
+  const start = asked ?? customer.balances?.find((item) => item.balance < 0)?.currency ?? customer.currency
+  const [from, setFrom] = useState<AnyCurrency>(start)
+  const [toId, setToId] = useState<string | null>(null)
+  /** Which of the other's accounts, when not their main one. */
+  const [toPicked, setToPicked] = useState<AnyCurrency | null>(null)
+  const [sums, setSums] = useState<ExchangeSums>({ amount: null, received: null })
+  const [note, setNote] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [clientKey] = useState(uuid)
+  const { choices, search } = useCustomerChoices([toId])
+  const taker = useCustomer(toId).data
+  const to = toPicked ?? taker?.currency ?? choices.find((item) => item.id === toId)?.currency ?? from
+  const line = exchangeLine({ id: from, currency: from }, to, sums, book, me.org.settings.maxRateLossPercent)
+  const left = balanceIn(customer.balances, from)
+  const entered = toId ? balanceIn(taker?.balances, to) : null
+  const options = kept.map((code) => ({ value: code, label: currencyName(code, t) }))
+
+  const save = useMutation({
+    mutationFn: (input: unknown) => api.post<CustomerPaymentDto>('/customer-payments/transfer', input),
+    onSuccess: (payment) => {
+      refresh(queryClient)
+      toast.success(t('payments.saved', { number: payment.number }))
+      onClose()
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'RATE_CHANGED') {
+        void queryClient.invalidateQueries({ queryKey: ['money'] })
+      }
+      if (error instanceof ApiError && error.fields) {
+        setErrors(error.fields)
+      }
+    },
+  })
+  const submit = () => {
+    // In one currency what enters is what leaves; in two, what the pair makes of it.
+    const settled = from === to ? (sums.amount ?? 0) : (line?.settled ?? 0)
+    const parsed = customerTransferInputSchema.safeParse({
+      clientKey,
+      customerId: customer.id,
+      currency: from,
+      toCustomerId: toId,
+      toCurrency: to,
+      amount: sums.amount,
+      received: from === to ? null : receivedOf(line),
+      settled,
+      note,
+    })
+    if (!parsed.success || !settled) {
+      toast.error(
+        !toId
+          ? t('payments.transferPick')
+          : from !== to && !line?.dayRate
+            ? t('payments.noRate')
+            : t('payments.nothing'),
+      )
+      return
+    }
+    setErrors({})
+    save.mutate(parsed.data)
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`${t('payments.transfer')} · ${customer.name}`}
+      footer={
+        <>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" form="customer-transfer-form" variant="primary" loading={save.isPending}>
+            {t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <Form id="customer-transfer-form" onSubmit={submit}>
+        <div className="grid items-start gap-x-3 gap-y-4 sm:grid-cols-2">
+          {/* Whose it leaves is whoever the window was opened for; only which of their accounts is picked. */}
+          <Field label={t('payments.transferFrom')} hint={left !== null ? debtText(left, from) : undefined}>
+            {(id) =>
+              kept.length > 1 ? (
+                <div data-enter-skip>
+                  <Select
+                    id={id}
+                    value={from}
+                    onChange={(value) => {
+                      setFrom(value as AnyCurrency)
+                      setSums({ amount: null, received: null })
+                    }}
+                    options={options.map((option) => ({ ...option, label: `${customer.name} · ${option.label}` }))}
+                  />
+                </div>
+              ) : (
+                <Input id={id} value={customer.name} disabled />
+              )
+            }
+          </Field>
+          <Field
+            label={t('payments.transferTo')}
+            error={errors.toCustomerId}
+            hint={entered !== null ? debtText(entered, to) : undefined}
+            required
+          >
+            {(id) => (
+              <Combobox
+                id={id}
+                autoFocus
+                options={choices
+                  .filter((item) => item.id !== customer.id)
+                  .map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                    hint: [item.isSupplier ? t('customers.supplier') : '', item.phoneTail ? `…${item.phoneTail}` : '']
+                      .filter(Boolean)
+                      .join(' · '),
+                  }))}
+                onQuery={search}
+                value={toId}
+                onChange={(value) => {
+                  setToId(value)
+                  setToPicked(null)
+                  setSums((current) => ({ ...current, received: null }))
+                }}
+                invalid={!!errors.toCustomerId}
+              />
+            )}
+          </Field>
+          <Field
+            label={from === to ? t('money.amount') : t('money.exchangeOut', { currency: currencyShort(from, t) })}
+            error={errors.amount}
+            required
+          >
+            {(id) => (
+              <MoneyInput
+                id={id}
+                value={sums.amount}
+                // What leaves is the anchor: typed, what enters follows from the rate afresh.
+                onChange={(amount) => setSums({ amount, received: null })}
+                currency={from}
+                // What is theirs there, whole, is what is usually carried over.
+                fillValue={left !== null && left < 0 ? -left : undefined}
+                invalid={!!errors.amount}
+              />
+            )}
+          </Field>
+          {from !== to && line ? (
+            <ReceivedField
+              line={line}
+              sums={sums}
+              toCurrency={to}
+              onChange={setSums}
+              book={book}
+              setsRates={can('money.rates')}
+              error={errors.received}
+              className="w-full"
+            />
+          ) : null}
+        </div>
+        {/* The other's account is their main one; another of theirs is seldom wanted, and a Tab away. */}
+        {toId && kept.length > 1 ? (
+          <Field label={t('payments.transferToAccount')}>
+            {(id) => (
+              <div data-enter-skip className="w-48">
+                <Select
+                  id={id}
+                  value={to}
+                  onChange={(value) => {
+                    setToPicked(value as AnyCurrency)
+                    setSums((current) => ({ ...current, received: null }))
+                  }}
+                  options={options}
+                />
+              </div>
+            )}
+          </Field>
+        ) : null}
+        <Field label={t('receipts.note')}>
+          {(id) => <Input id={id} value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} />}
+        </Field>
+      </Form>
+    </Dialog>
+  )
+}
+
 // ───────────────────────────── A payment, looked at ─────────────────────────────
 
 const KIND_TONES: Record<CustomerPaymentKind, 'ok' | 'info' | 'neutral'> = {
@@ -929,6 +1135,7 @@ const KIND_TONES: Record<CustomerPaymentKind, 'ok' | 'info' | 'neutral'> = {
   opening: 'neutral',
   adjust: 'neutral',
   exchange: 'neutral',
+  transfer: 'neutral',
 }
 
 /** Who may take a payment of a kind back: as who may make it. */
@@ -938,6 +1145,7 @@ const MAY_CANCEL: Record<CustomerPaymentKind, string> = {
   opening: 'customers.adjust',
   adjust: 'customers.adjust',
   exchange: 'customers.adjust',
+  transfer: 'customers.adjust',
 }
 
 /** One payment: its lines, and the way to take it back. */
@@ -1060,6 +1268,12 @@ export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; o
               <span>{payment.categoryName}</span>
             </div>
           ) : null}
+          {payment.toCustomerName ? (
+            <div className="flex items-baseline justify-between text-ink-2">
+              <span>{t('payments.transferTo')}</span>
+              <span>{payment.toCustomerName}</span>
+            </div>
+          ) : null}
           <div className="flex items-baseline justify-between border-t border-line pt-3 text-sm font-semibold">
             <span>{t('payments.total')}</span>
             <span className="tabular">
@@ -1094,7 +1308,7 @@ interface StatementDialogProps {
   /** Takes the place of the account with a payment in its currency; without it, the account is only looked at. */
   onPay?: (kind: 'in' | 'out', currency: AnyCurrency) => void
   /** Takes its place with a window that puts the account right: an adjustment, or an exchange out of it. */
-  onMend?: (kind: 'adjust' | 'exchange', currency: AnyCurrency) => void
+  onMend?: (kind: 'adjust' | 'exchange' | 'transfer', currency: AnyCurrency) => void
 }
 
 /** One of a customer's accounts: every change, what was owed after each, and what is owed now; the others a pick away. */
@@ -1159,6 +1373,10 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
                   <Button onClick={() => onMend('exchange', data.currency)}>
                     <ArrowLeftRight />
                     {t('payments.exchangeShort')}
+                  </Button>
+                  <Button onClick={() => onMend('transfer', data.currency)}>
+                    <Users />
+                    {t('payments.transferShort')}
                   </Button>
                 </>
               ) : null}
@@ -1327,8 +1545,18 @@ export function PaymentsPage() {
       {
         id: 'customer',
         header: t('payments.customer'),
-        meta: { export: (row) => row.customerName },
-        cell: ({ row }) => <span className="font-medium">{row.original.customerName}</span>,
+        meta: {
+          export: (row) => (row.toCustomerName ? `${row.customerName} → ${row.toCustomerName}` : row.customerName),
+        },
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {row.original.customerName}
+            {/* A transfer is two customers': the one it left, and the one it went to. */}
+            {row.original.toCustomerName ? (
+              <span className="font-normal text-ink-2"> → {row.original.toCustomerName}</span>
+            ) : null}
+          </span>
+        ),
       },
       {
         id: 'amount',

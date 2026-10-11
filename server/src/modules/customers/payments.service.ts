@@ -7,6 +7,7 @@ import {
   type AnyCurrency,
   type CustomerAdjustInput,
   type CustomerExchangeInput,
+  type CustomerTransferInput,
   type CustomerOpeningInput,
   type CustomerPaymentDto,
   type CustomerPaymentInput,
@@ -66,6 +67,7 @@ const MAY: Record<CustomerPaymentKind, string> = {
   opening: 'customers.adjust',
   adjust: 'customers.adjust',
   exchange: 'customers.adjust',
+  transfer: 'customers.adjust',
 }
 
 /**
@@ -550,6 +552,89 @@ export class CustomerPaymentsService {
   }
 
   /**
+   * Carries what stands to one customer's good to another's account: the first owes more (or is owed less) by
+   * what leaves, the second less by what enters. No money moves. Each side in an account of its own — the same
+   * currency or not; at the day's rate or a sum agreed, and what lies between is the rate's.
+   */
+  async transfer(actor: Actor, input: CustomerTransferInput): Promise<CustomerPaymentDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
+      if (again) {
+        return this.load(em, again)
+      }
+      const giver = await this.customer(em, input.customerId)
+      const taker = await em.findOneBy(Customer, { id: input.toCustomerId })
+      if (!taker) {
+        throw AppError.validation({ toCustomerId: 'Mijoz topilmadi' })
+      }
+      const from = this.currencyOf(actor, giver, input.currency)
+      const to = this.currencyOf(actor, taker, input.toCurrency)
+      const today = await this.ledger.today(em, actor.orgId)
+      const book = await this.currencies.book(em, actor, today)
+      const wanting = wantingRate(book, from, to)
+      if (wanting) {
+        throw AppError.validation({ amount: wanting })
+      }
+      const worth = valueLine(
+        input.amount,
+        from,
+        to,
+        book,
+        from === to ? null : input.received,
+        await rateLimit(em, actor),
+      )
+      if (typeof worth === 'string') {
+        throw AppError.validation({ received: worth })
+      }
+      if (worth.settled !== input.settled) {
+        throw AppError.conflict('RATE_CHANGED', 'Kurs o‘zgargan: summani qayta tekshiring')
+      }
+      // Both are held, always in the same order: two transfers between the same two cannot wait on each other.
+      await em.query(`SELECT 1 FROM customers WHERE id = ANY($1) ORDER BY id FOR UPDATE`, [[giver.id, taker.id]])
+      const payment = await this.save(em, actor, {
+        clientKey: input.clientKey,
+        kind: 'transfer',
+        customer: giver,
+        currency: from,
+        change: input.amount,
+        today,
+        paidBy: '',
+        note: input.note ?? null,
+        toCurrency: to,
+        toAmount: worth.settled,
+        fx: worth.fx,
+        toCustomer: taker,
+      })
+      const left = await this.ledger.customerAccount(em, giver, from)
+      const entered = await this.ledger.customerAccount(em, taker, to)
+      const postings: Posting[] = [
+        { accountId: left.id, amount: input.amount, base: worth.cashBase },
+        { accountId: entered.id, amount: -worth.settled, base: -worth.partnerBase },
+      ]
+      if (worth.fx) {
+        const difference = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+        postings.push({ accountId: difference.id, amount: -worth.fx, base: -worth.fx })
+      }
+      await this.ledger.post(
+        em,
+        actor,
+        { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: payment.id },
+        postings,
+      )
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'customer_payment.transfer',
+        entity: 'customer_payment',
+        entityId: payment.id,
+        summary: `${payment.number}: ${giver.name} → ${taker.name}, ${formatMoney(input.amount, from)}${
+          from === to ? '' : ` → ${formatMoney(worth.settled, to)}`
+        }${input.note ? ` — ${input.note}` : ''}`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
+      return this.load(em, payment)
+    })
+  }
+
+  /**
    * Takes a payment back: the money returns to where it was and the
    * customer's account to what it was. Cash that went through a drawer can be
    * taken back only while that shift is open: after it has been counted, a
@@ -631,7 +716,12 @@ export class CustomerPaymentsService {
       const qb = em.createQueryBuilder(CustomerPayment, 'p')
       if (query.status !== 'all') qb.andWhere('p.status = :status', { status: query.status })
       if (query.kind) qb.andWhere('p.kind = :kind', { kind: query.kind })
-      if (query.customerId) qb.andWhere('p.customerId = :customerId', { customerId: query.customerId })
+      // A transfer is both customers': the one it left and the one it entered.
+      if (query.customerId) {
+        qb.andWhere('(p.customerId = :customerId OR p.toCustomerId = :customerId)', {
+          customerId: query.customerId,
+        })
+      }
       if (query.from) qb.andWhere('p.paidOn >= :from', { from: query.from })
       if (query.to) qb.andWhere('p.paidOn <= :to', { to: query.to })
       applySearch(qb, 'p.search_key', query.q)
@@ -672,26 +762,31 @@ export class CustomerPaymentsService {
         cancel_reason: string | null
         due_id: string | null
         due_date: string | null
+        /** A transfer between two customers: the other of them. */
+        other_name: string | null
       }[] = account
         ? await em.query(
             `SELECT e.created_at AS at, e.kind AS entry_kind, e.document_type, l.amount::float8 AS change, e.document_id,
                     coalesce(p.number, r.number, s.number, sr.number, sd.number) AS number, p.kind,
                     coalesce(p.note, r.note, s.note, sd.note) AS note,
                     coalesce(p.cancel_reason, s.void_reason) AS cancel_reason,
-                    d.id AS due_id, d.due_date::text AS due_date
+                    d.id AS due_id, d.due_date::text AS due_date, oc.name AS other_name
              FROM ledger_lines l
              JOIN ledger_entries e ON e.id = l.entry_id
              LEFT JOIN customer_dues d
                ON (e.document_type = 'sale' AND d.sale_id = e.document_id)
                OR (e.document_type = '${DOCUMENT}' AND d.payment_id = e.document_id)
              LEFT JOIN customer_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
+             LEFT JOIN customers oc
+               ON p.kind = 'transfer'
+              AND oc.id = CASE WHEN p.customer_id = $2 THEN p.to_customer_id ELSE p.customer_id END
              LEFT JOIN receipts r ON r.id = e.document_id AND e.document_type = 'receipt'
              LEFT JOIN sales s ON s.id = e.document_id AND e.document_type = 'sale'
              LEFT JOIN sale_returns sr ON sr.id = e.document_id AND e.document_type = 'sale_return'
              LEFT JOIN stock_documents sd ON sd.id = e.document_id AND e.document_type = 'supplier_return'
              WHERE l.account_id = $1
              ORDER BY e.created_at, l.position`,
-            [account.id],
+            [account.id, customerId],
           )
         : []
       let balance = 0
@@ -720,7 +815,12 @@ export class CustomerPaymentsService {
           documentId: row.document_id,
           change: row.change,
           balance,
-          note: cancelled ? row.cancel_reason : row.note,
+          // A transfer says who the other was: "→" to whom it went, "←" from whom it came.
+          note: cancelled
+            ? row.cancel_reason
+            : row.other_name
+              ? [`${row.change > 0 ? '→' : '←'} ${row.other_name}`, row.note].filter(Boolean).join(' · ')
+              : row.note,
           // The day stays with the line that made the debt, and goes once the document is undone.
           due:
             row.due_id && !cancelled && row.change > 0 && !undone.has(row.document_id as string)
@@ -789,6 +889,7 @@ export class CustomerPaymentsService {
       fx?: number
       approvedBy?: string | null
       approvedByName?: string | null
+      toCustomer?: Customer
     },
   ): Promise<CustomerPayment> {
     const number = `TL-${String(await nextNumbers(em, actor.orgId, COUNTER)).padStart(6, '0')}`
@@ -815,7 +916,10 @@ export class CustomerPaymentsService {
         fx: data.fx ?? 0,
         approvedBy: data.approvedBy ?? null,
         approvedByName: data.approvedByName ?? null,
-        searchKey: searchKey([number, data.customer.name, actor.name, data.note ?? ''].join(' ')),
+        toCustomerId: data.toCustomer?.id ?? null,
+        searchKey: searchKey(
+          [number, data.customer.name, data.toCustomer?.name ?? '', actor.name, data.note ?? ''].join(' '),
+        ),
       }),
     )
   }
@@ -830,6 +934,7 @@ export class CustomerPaymentsService {
       .orderBy('l.position')
       .getRawAndEntities()
     const category = payment.categoryId ? await em.findOneBy(MoneyCategory, { id: payment.categoryId }) : null
+    const taker = payment.toCustomerId ? await em.findOneBy(Customer, { id: payment.toCustomerId }) : null
     return {
       id: payment.id,
       number: payment.number,
@@ -860,6 +965,8 @@ export class CustomerPaymentsService {
       categoryName: category?.name ?? null,
       toCurrency: payment.toCurrency,
       toAmount: payment.toAmount,
+      toCustomerId: payment.toCustomerId,
+      toCustomerName: taker?.name ?? null,
       fx: payment.fx,
       approvedByName: payment.approvedByName,
     }

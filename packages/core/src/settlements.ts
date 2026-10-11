@@ -316,7 +316,7 @@ export function defaultTill(tills: PayTill[], here: string | null, last: string 
  * supplier's bonus — against a kind of expense or income. `exchange`: what stands in one of the customer's
  * currencies carried into another of theirs.
  */
-export const CUSTOMER_PAYMENT_KINDS = ['in', 'out', 'opening', 'adjust', 'exchange'] as const
+export const CUSTOMER_PAYMENT_KINDS = ['in', 'out', 'opening', 'adjust', 'exchange', 'transfer'] as const
 export type CustomerPaymentKind = (typeof CUSTOMER_PAYMENT_KINDS)[number]
 
 export const CUSTOMER_PAYMENT_KIND_LABELS: Record<CustomerPaymentKind, string> = {
@@ -325,6 +325,7 @@ export const CUSTOMER_PAYMENT_KIND_LABELS: Record<CustomerPaymentKind, string> =
   opening: 'Boshlang‘ich qoldiq',
   adjust: 'Hisob tuzatish',
   exchange: 'Hisob ichida almashtirish',
+  transfer: 'Mijozlar orasida o‘tkazma',
 }
 
 export const CUSTOMER_PAYMENT_STATUSES = ['posted', 'cancelled'] as const
@@ -417,6 +418,33 @@ export const customerExchangeInputSchema = z
   .refine((value) => value.from !== value.to, { path: ['to'], message: 'Boshqa valyutani tanlang' })
 export type CustomerExchangeInput = z.infer<typeof customerExchangeInputSchema>
 
+/**
+ * What stands to one customer's good carried to another's account: one pays for another, a buyer's debt is set
+ * against what the business owes a supplier, a payment written to the wrong person is put right. No money
+ * moves: the first owes more (or is owed less) by what leaves, the second less by what enters.
+ */
+export const customerTransferInputSchema = z
+  .object({
+    clientKey: z.uuid(),
+    /** Whose account it leaves, and which of them: their main currency unless said. */
+    customerId: idSchema,
+    currency: currencySchema.optional(),
+    amount: positive,
+    /** Whose account it enters, and which of them: their main currency unless said. */
+    toCustomerId: idSchema,
+    toCurrency: currencySchema.optional(),
+    /** What enters, in that currency, when it was agreed; left to the day's rate otherwise. */
+    received: positive.nullish().transform((value) => value ?? null),
+    /** What the screen showed as entering: if the rate has changed since, it is refused. */
+    settled: moneySchema,
+    note: optionalText(300),
+  })
+  .refine((value) => value.customerId !== value.toCustomerId, {
+    path: ['toCustomerId'],
+    message: 'Boshqa mijozni tanlang',
+  })
+export type CustomerTransferInput = z.infer<typeof customerTransferInputSchema>
+
 /** What stood between the business and a customer before the books began, in one currency. */
 export const customerOpeningInputSchema = z.object({
   clientKey: z.uuid(),
@@ -481,9 +509,12 @@ export interface CustomerPaymentDto {
   /** An adjustment's kind of expense or income. */
   categoryId: string | null
   categoryName: string | null
-  /** An exchange: the account it entered and what entered it. `currency` and `change` are what it left. */
+  /** An exchange or a transfer: the account it entered and what entered it. `currency` and `change` are what it left. */
   toCurrency: AnyCurrency | null
   toAmount: number | null
+  /** A transfer: whose account it entered. */
+  toCustomerId: string | null
+  toCustomerName: string | null
   /** What the rate gave the business (+) or cost it (−) on an exchange, in the base. */
   fx: number
   /** Whose word let it through at the till, when one was needed. */

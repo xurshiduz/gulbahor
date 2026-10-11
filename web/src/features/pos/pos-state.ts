@@ -446,6 +446,12 @@ export function backLines(returning: Returning | null): BackLine[] {
 
 /** The ways money can go back on a receipt: cash, and the cards and terminals it was paid with. */
 export function refundRows(context: PosContextDto, found: ReturnableDto): TenderRow[] {
+  // Sent from one of the shop's other cards when the drawer has nothing to give: for whoever may hand money
+  // back any way, or where someone at the shop can say so with their PIN.
+  const elsewhere =
+    found.free || (context.approvers ?? []).some((approver) => approver.returns)
+      ? (context.cards ?? []).filter((card) => !found.caps.accounts.some((cap) => cap.accountId === card.id))
+      : []
   return [
     ...tenderRows(context).filter((row) => row.method === 'cash'),
     ...found.caps.accounts.map((cap) => ({
@@ -453,6 +459,15 @@ export function refundRows(context: PosContextDto, found: ReturnableDto): Tender
       method: cap.method,
       currency: base(),
       accountId: cap.accountId,
+      amount: null,
+      value: null,
+      reference: '',
+    })),
+    ...elsewhere.map((card) => ({
+      key: `account:${card.id}`,
+      method: 'card' as const,
+      currency: card.currency,
+      accountId: card.id,
       amount: null,
       value: null,
       reference: '',

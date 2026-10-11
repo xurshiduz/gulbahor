@@ -49,6 +49,7 @@ import { SaleChanges1790000048000 } from './1790000048000-sale-changes'
 import { ReturnKeeps1790000049000 } from './1790000049000-return-keeps'
 import { TransferFees1790000050000 } from './1790000050000-transfer-fees'
 import { TerminalFees1790000051000 } from './1790000051000-terminal-fees'
+import { CustomerTransfers1790000052000 } from './1790000052000-customer-transfers'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -103,4 +104,5 @@ export const MIGRATIONS = [
   ReturnKeeps1790000049000,
   TransferFees1790000050000,
   TerminalFees1790000051000,
+  CustomerTransfers1790000052000,
 ]

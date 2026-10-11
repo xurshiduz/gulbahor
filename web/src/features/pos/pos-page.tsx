@@ -871,10 +871,19 @@ function Till({ context, registers, onSwitch }: TillProps) {
   })
 
   const giveBack = useMutation({
-    mutationFn: (input: { body: unknown; change: string }) => api.post<ReturnDto>('/returns', input.body),
+    mutationFn: (input: { body: unknown; change: string; customerId: string | null }) =>
+      api.post<ReturnDto>('/returns', input.body),
     meta: { silent: true },
     onSuccess: (made, input) => {
       reset()
+      // What came off their account, or stayed on it, has changed what stands there: they stay at the counter
+      // with it in sight — what is theirs now, and the way to hand it to them.
+      if (input.customerId && (made.kept || made.refunds.some((refund) => refund.method === 'account'))) {
+        void api
+          .get<PosCustomerDto>(`/pos/customers/${input.customerId}`)
+          .then((customer) => setCart((current) => (current.lines.length ? current : { ...current, customer })))
+          .catch(() => undefined)
+      }
       setLast({ kind: 'return', id: made.id, number: made.number })
       const handed = made.refunds.reduce((sum, item) => sum + item.base, 0)
       toast.success(
@@ -955,6 +964,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
           (cap) =>
             amounts.reduce((sum, row) => sum + (row.accountId === cap.accountId ? (row.amount as number) : 0), 0) >
             cap.left,
+        ) ||
+        // To a card the receipt was not paid with.
+        amounts.some(
+          (row) =>
+            row.method !== 'cash' && !returning.found.caps.accounts.some((cap) => cap.accountId === row.accountId),
         ))
     const late = !!returning && returning.found.late && !returning.found.free
     // Goods taken instead of the ones brought back, for a customer whose group does not have that done.
@@ -1132,6 +1146,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
         approval,
       },
       change: !refunding && settlement.changeBase ? changeWords(changeOf(settlement), t) : '',
+      customerId: cart.customer?.id ?? null,
     })
   }
 

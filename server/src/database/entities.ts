@@ -2369,6 +2369,10 @@ export class CustomerPayment {
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   toAmount: number | null
 
+  /** A transfer between two customers: whose account it entered. */
+  @Column('uuid', { nullable: true })
+  toCustomerId: string | null
+
   /** What the rate gave the business (+) or cost it (−) on an exchange, in the base. */
   @Column('bigint', { default: 0, transformer: bigintAsNumber })
   fx: number

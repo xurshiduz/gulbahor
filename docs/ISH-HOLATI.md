@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-11, Q1 va Q2a dan keyin: core 230, web 230, agent 17, server 443 (38 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-12, Q1, Q2a va O1 dan keyin: core 232, web 230, agent 17, server 454 (39 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -234,12 +234,13 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] M2-3. Qarz va muddat: chakana qarz shu hisobga, `customer_dues`, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki.
      - [x] M2-4. To'lovlar: tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot.
      - [x] Q1 (avvalgi M2-4b). Kassada qaytim: har tortma valyutasida juft maydon bilan, mijoz hisobiga, kartadan; `sale_changes`; kartaga ortiqcha to'lov (KEYINGI-REJA 17.2).
-     - [ ] O1. O'tkazmada bank komissiyasi (ikki summa, farqi xarajatga) va terminal → bank tushumi (17.4; avvalgi V8 va V6).
+     - [x] O1. O'tkazmada bank komissiyasi (ikki summa, farqi xarajatga) va terminal → bank tushumi (17.4; avvalgi V8 va V6).
      - [ ] O2. Mijozdan mijozga o'tkazish — o'zaro hisob (17.5).
      - [ ] U1. To'lov oynalari ko'rinishi: bitta ko'rinish, kam ishlatiladigani yashirin, mijoz valyutasi (17.6).
      - [ ] N0. Tizim nomi — egasi tanlagach (17.8).
      - [x] Q2a. Qaytarishda pul: mijoz hisobida qoldirish, boshqa valyutada kelishilgan qiymat, almashtirishda farq hisobga, mijozning o'z qaytarish muddati (KEYINGI-REJA 17.3).
-     - [ ] Q2b (M2-5 dan qolgani). Almashtirib olingan tovar qaytganda asl chekka borish; smenasi yopilgan chekda mijozni almashtirish; qarzini to'lagan mijoz qaytarganda "Pulini berish"; qaytarishda chek to'lanmagan kartaga o'tkazish qatori.
+     - [ ] Q2b-1. Qaytarishda do'konning boshqa kartasidan o'tkazish qatori; hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi (haqi va "Haqini qaytarish").
+     - [ ] Q2b-2 (M2-5 dan qolgani). Almashtirib olingan tovar qaytganda asl chekka borish (16.5, 31-holat); smenasi yopilgan chekda mijozni almashtirish (33-holat).
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
@@ -251,7 +252,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-Q1 va Q2a tugadi (commit qilinmagan: M2-4, tuzatishlar, Q1, Q2a — egasi aytganda). Navbatda O1 (KEYINGI-REJA 17.4), kodi boshlanmagan. O'ylangan yo'l: o'tkazmada fee (jo'natuvchi valyutasida, summadan tashqari) — yuborilganda 'Bank komissiyasi' turidagi bog'langan xarajat hujjati (money_ops.transfer_id) yoziladi, o'tkazma rad etilsa yoki qaytarib olinsa u ham qaytadi; keyin terminal -> bank. Undan keyin Q2b, O2, U1. Tizim nomini egasi keyinroq qo'yadi.
+O2: mijozdan mijozga o'tkazish (KEYINGI-REJA 17.5). Commit qilinmagan: M2-4, tuzatishlar, Q1, Q2a, O1 — egasi aytganda. Keyin Q2b, U1. Tizim nomini egasi keyinroq qo'yadi.
 
 ## Ish daraxti nusxalari
 
@@ -289,3 +290,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `7adca6de5c00a956e78afb583cced835a308253b` | 2026-10-11 tuzatishlari: 0 so'mli chek to'lovsiz o'tadi; Qoldiq xodimning o'z joylari bilan cheklandi; keraksiz 403 lar (kategoriya va brend, mijoz filtri, rollar, tuzatish turlari) — har rol va har ruxsat bilan sahifalar aylanib chiqildi; qaytim rejasi (16.14) |
 | `774be60897f5825890c6315722e60c1bb1c21e97` | Q1: kassada qaytim qismlarga bo'linadi — boshqa tortma valyutasi (kelishilgan qiymat bilan), mijoz hisobiga, kartadan (pos.return_any yoki PIN); sale_changes (migratsiya 48000), kartaga ortiqcha to'lov; chek, smena, hisobot |
 | `e81860e6089dfb7bacc55e4e99a827518d00b0e1` | Q2a: qaytarishda pul mijoz hisobida qoladi (keep, sale_return_payments.kept, migratsiya 49000), chet valyutada kelishilgan qiymat bilan qaytarish, almashtirishda farq hisobga, mijozning o'z qaytarish muddati |
+| `1400f3086b0edaee95ccd8a85d8aecbb02e70ec9` | O1: o'tkazmada bank komissiyasi (fee summadan tashqari, bog'langan xarajat hujjati, o'tkazma bilan qaytadi; migratsiya 50000) va terminal tushumi bankka (ekvayring foizi accounts.fee_percent, 51000; 'Bankka tushdi') |

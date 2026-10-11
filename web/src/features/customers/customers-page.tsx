@@ -30,6 +30,7 @@ import {
   Plus,
   Scale,
   ScrollText,
+  Users,
   UsersRound,
   Wrench,
 } from 'lucide-react'
@@ -68,7 +69,15 @@ import { toast } from '@/lib/toast'
 import { DebtorsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
-import { AdjustDialog, ExchangeDialog, OpeningDialog, PaymentDialog, StatementDialog, useDebtText } from './payments'
+import {
+  AdjustDialog,
+  CustomerTransferDialog,
+  ExchangeDialog,
+  OpeningDialog,
+  PaymentDialog,
+  StatementDialog,
+  useDebtText,
+} from './payments'
 
 const route = getRouteApi('/customers')
 
@@ -82,7 +91,7 @@ type Over =
   // `back`: the payment was started from the account, and the account comes back when it is done.
   | { kind: 'in' | 'out'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
   | { kind: 'opening'; customer: CustomerDto }
-  | { kind: 'adjust' | 'exchange'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
+  | { kind: 'adjust' | 'exchange' | 'transfer'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
 
 /**
  * The people who buy in the shops. Over the list stands the whole base at a
@@ -179,6 +188,11 @@ export function CustomersPage() {
                 label: t('payments.exchange'),
                 icon: <ArrowLeftRight />,
                 onSelect: () => setOver({ kind: 'exchange', customer }),
+              },
+              {
+                label: t('payments.transfer'),
+                icon: <Users />,
+                onSelect: () => setOver({ kind: 'transfer', customer }),
               },
             ]
           : []),
@@ -614,9 +628,10 @@ export function CustomersPage() {
         />
       ) : null}
       {over?.kind === 'opening' ? <OpeningDialog customer={over.customer} onClose={() => setOver(null)} /> : null}
-      {over?.kind === 'adjust' || over?.kind === 'exchange'
+      {over?.kind === 'adjust' || over?.kind === 'exchange' || over?.kind === 'transfer'
         ? (() => {
-            const Mend = over.kind === 'adjust' ? AdjustDialog : ExchangeDialog
+            const Mend =
+              over.kind === 'adjust' ? AdjustDialog : over.kind === 'exchange' ? ExchangeDialog : CustomerTransferDialog
             return (
               <Mend
                 customer={over.customer}

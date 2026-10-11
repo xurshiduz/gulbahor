@@ -172,6 +172,9 @@ export function TenderPanel({
   // What stays on the account is not for the money to hand back.
   const keeping = refunding && keep ? Math.min(keep.amount ?? 0, keep.max) : 0
   const typed = refunding ? refundsOf(entered, due - keeping, book) : tendersOf(entered, false)
+  // Handing back: a card the receipt was not paid with. Seldom wanted, so it keeps out of sight like a hidden row.
+  const stranger = (row: TenderRow) =>
+    refunding && row.method !== 'cash' && !returning?.found.caps.accounts.some((cap) => cap.accountId === row.accountId)
   // A hidden row stays out of sight unless it holds a sum — typed, or what is meant when nothing is typed.
   const tucked = (row: TenderRow) => {
     const place = tenderPlace(row)
@@ -179,7 +182,7 @@ export function TenderPanel({
       !!hiding &&
       !hiding.peek &&
       place !== null &&
-      hiding.hidden.includes(place) &&
+      (hiding.hidden.includes(place) || stranger(row)) &&
       !row.amount &&
       !(!entered.length && suggested[row.key])
     )
@@ -200,7 +203,7 @@ export function TenderPanel({
   }
   const anyHidden = rows.some((row) => {
     const place = tenderPlace(row)
-    return place !== null && !!hiding?.hidden.includes(place)
+    return place !== null && (!!hiding?.hidden.includes(place) || stranger(row))
   })
   // What stands beside a sum (an agreed worth, a slip's number) is there as soon as the cursor is in its
   // row: appearing only once the sum was typed, Tab would have gone past where it was about to be.
@@ -343,9 +346,9 @@ export function TenderPanel({
           const kind = kindOf(row)
           const cap = returning?.found.caps.accounts.find((item) => item.accountId === row.accountId)
           // Paying, a card is one of the shop's; handing back, it is the one the receipt was paid with.
-          const account = refunding
-            ? cap
-            : [...context.cards, ...context.terminals].find((item) => item.id === row.accountId)
+          const account =
+            (refunding ? cap : undefined) ??
+            [...context.cards, ...context.terminals].find((item) => item.id === row.accountId)
           const noRate = foreign(row) && unit(row.currency) === null
           // How much may go back this way, for someone who must hand it back the way it was paid.
           const limit =

@@ -299,6 +299,33 @@ describe('Money for goods brought back', () => {
     })
   })
 
+  describe('sent from a card the receipt was not paid with', () => {
+    it('takes the word of someone who may hand money back any way, and is one of the shop’s own', async () => {
+      const shopId = (await alpha.get('/api/locations')).body.items[0].id
+      const cardId = (
+        await alpha
+          .post('/api/money/accounts')
+          .send({ kind: 'card', name: 'Humo', locationId: shopId, last4: '3073' })
+          .expect(201)
+      ).body.id
+      const sale = await sell()
+      const byCard = { refunds: [{ method: 'card', accountId: cardId, amount: som(75_000) }] }
+      // The receipt was paid in cash: a cashier hands cash back, and nothing else.
+      const refused = await giveBack(sale, byCard)
+      expect(refused.status).toBe(400)
+      expect(refused.body.error.fields['refunds.0.accountId']).toBe('Bu chek shu kartaga to‘lanmagan')
+      const before = await drawer('UZS')
+      const made = (await giveBack(sale, { ...byCard, approval: { userId: alphaUserId, pin: PIN } }).expect(201)).body
+      expect(made.approvedByName).toBe('Alpha Owner')
+      expect(made.refunds).toEqual([
+        expect.objectContaining({ method: 'card', accountName: 'Humo', amount: som(75_000) }),
+      ])
+      // The drawer keeps its cash; the card is down by what it sent.
+      expect(await drawer('UZS')).toBe(before)
+      expect(await held(`a.id = $1`, [cardId])).toBe(-som(75_000))
+    })
+  })
+
   describe('goods taken instead', () => {
     it('may leave their difference on the customer’s account', async () => {
       const sale = await sell({ customerId: nodira })
