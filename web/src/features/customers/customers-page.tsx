@@ -22,6 +22,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowDownLeft,
+  ArrowLeftRight,
   ArrowUpRight,
   Cake,
   MoreHorizontal,
@@ -30,6 +31,7 @@ import {
   Scale,
   ScrollText,
   UsersRound,
+  Wrench,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
@@ -66,7 +68,7 @@ import { toast } from '@/lib/toast'
 import { DebtorsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
-import { OpeningDialog, PaymentDialog, StatementDialog, useDebtText } from './payments'
+import { AdjustDialog, ExchangeDialog, OpeningDialog, PaymentDialog, StatementDialog, useDebtText } from './payments'
 
 const route = getRouteApi('/customers')
 
@@ -80,6 +82,7 @@ type Over =
   // `back`: the payment was started from the account, and the account comes back when it is done.
   | { kind: 'in' | 'out'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
   | { kind: 'opening'; customer: CustomerDto }
+  | { kind: 'adjust' | 'exchange'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
 
 /**
  * The people who buy in the shops. Over the list stands the whole base at a
@@ -167,6 +170,17 @@ export function CustomersPage() {
           : []),
         ...(canAdjust && customer.isActive
           ? [{ label: t('payments.opening'), icon: <Scale />, onSelect: () => setOver({ kind: 'opening', customer }) }]
+          : []),
+        // A customer put away is still put right: a hopeless debt is given up before they are.
+        ...(canAdjust && customer.balances !== null
+          ? [
+              { label: t('payments.adjust'), icon: <Wrench />, onSelect: () => setOver({ kind: 'adjust', customer }) },
+              {
+                label: t('payments.exchange'),
+                icon: <ArrowLeftRight />,
+                onSelect: () => setOver({ kind: 'exchange', customer }),
+              },
+            ]
           : []),
         ...(canManage
           ? [
@@ -586,6 +600,7 @@ export function CustomersPage() {
           currency={over.currency}
           onClose={() => setOver(null)}
           onPay={(kind, currency) => setOver({ kind, customer: over.customer, currency, back: true })}
+          onMend={(kind, currency) => setOver({ kind, customer: over.customer, currency, back: true })}
         />
       ) : null}
       {over?.kind === 'in' || over?.kind === 'out' ? (
@@ -599,6 +614,20 @@ export function CustomersPage() {
         />
       ) : null}
       {over?.kind === 'opening' ? <OpeningDialog customer={over.customer} onClose={() => setOver(null)} /> : null}
+      {over?.kind === 'adjust' || over?.kind === 'exchange'
+        ? (() => {
+            const Mend = over.kind === 'adjust' ? AdjustDialog : ExchangeDialog
+            return (
+              <Mend
+                customer={over.customer}
+                currency={over.currency}
+                onClose={() =>
+                  setOver(over.back ? { kind: 'statement', customer: over.customer, currency: over.currency } : null)
+                }
+              />
+            )
+          })()
+        : null}
     </Page>
   )
 }

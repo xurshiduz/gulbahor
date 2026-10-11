@@ -303,6 +303,11 @@ export class ShiftsService {
          UNION ALL
          SELECT p.account_id, -p.base FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
          WHERE r.shift_id = $1 AND p.method = 'terminal'
+         UNION ALL
+         -- A customer's payment taken through it at this till: the terminal's own slip has it too.
+         SELECT l.account_id, l.amount FROM customer_payment_lines l
+         JOIN customer_payments p ON p.id = l.payment_id JOIN accounts a ON a.id = l.account_id
+         WHERE l.shift_id = $1 AND p.status = 'posted' AND p.kind = 'in' AND a.kind = 'terminal'
        ) x GROUP BY account_id`,
       [shiftId],
     )
@@ -376,10 +381,21 @@ export class ShiftsService {
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
+    // Through the drawers; what was taken at this till onto a card or through a terminal is told apart below.
     const customers: { kind: 'in' | 'out'; currency: AnyCurrency; amount: number }[] = await em.query(
       `SELECT p.kind, l.currency, sum(l.amount)::float8 AS amount
        FROM customer_payment_lines l JOIN customer_payments p ON p.id = l.payment_id
-       WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY p.kind, l.currency`,
+       JOIN accounts a ON a.id = l.account_id
+       WHERE l.shift_id = $1 AND p.status = 'posted' AND a.kind = 'cash' GROUP BY p.kind, l.currency`,
+      [shiftId],
+    )
+    const beside: ShiftTotals['customers'] = await em.query(
+      `SELECT p.kind, a.kind AS method, a.name AS "accountName", l.currency, sum(l.amount)::float8 AS amount
+       FROM customer_payment_lines l JOIN customer_payments p ON p.id = l.payment_id
+       JOIN accounts a ON a.id = l.account_id
+       WHERE l.shift_id = $1 AND p.status = 'posted' AND a.kind IN ('card', 'terminal')
+       GROUP BY p.kind, a.kind, a.name, l.currency
+       ORDER BY p.kind, array_position(ARRAY['card', 'terminal'], a.kind), a.name`,
       [shiftId],
     )
     const ops: { kind: 'expense' | 'income'; currency: AnyCurrency; amount: number }[] = await em.query(
@@ -445,6 +461,7 @@ export class ShiftsService {
         amount: row.amount,
         base: row.base,
       })),
+      customers: beside,
     }
   }
 

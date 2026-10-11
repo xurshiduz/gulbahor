@@ -2316,6 +2316,32 @@ export class CustomerPayment {
   @Column('text', { nullable: true })
   cancelReason: string | null
 
+  /** An adjustment's kind of expense or income. */
+  @Column('uuid', { nullable: true })
+  categoryId: string | null
+
+  /** Of the debt a payment closed, the small remainder let go, in its currency. */
+  @Column('bigint', { default: 0, transformer: bigintAsNumber })
+  forgiven: number
+
+  /** An exchange: the account it entered, and what entered it. */
+  @Column('text', { nullable: true })
+  toCurrency: AnyCurrency | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  toAmount: number | null
+
+  /** What the rate gave the business (+) or cost it (−) on an exchange, in the base. */
+  @Column('bigint', { default: 0, transformer: bigintAsNumber })
+  fx: number
+
+  /** Whose word let it through at the till. */
+  @Column('uuid', { nullable: true })
+  approvedBy: string | null
+
+  @Column('text', { nullable: true })
+  approvedByName: string | null
+
   @Column('text')
   searchKey: string
 }

@@ -106,6 +106,7 @@ describe('Permissions beside the roles', () => {
         returns: false,
         prices: false,
         debts: true,
+        advances: false,
       },
     ])
   })

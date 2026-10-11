@@ -5,7 +5,7 @@ import type { AnyCurrency } from './money'
 import type { CustomerDto } from './customers'
 import { ALL_CURRENCY_CODES } from './money'
 import type { AccountDto } from './pos'
-import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
+import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
 
 /**
  * What a customer owes and is owed, and the money that settles it.
@@ -310,14 +310,21 @@ export function defaultTill(tills: PayTill[], here: string | null, last: string 
 
 // ───────────────────────────── Payments ─────────────────────────────
 
-/** `in`: the customer pays the business. `out`: the business pays the customer. `opening`: what stood between them before the books began. */
-export const CUSTOMER_PAYMENT_KINDS = ['in', 'out', 'opening'] as const
+/**
+ * `in`: the customer pays the business. `out`: the business pays the customer. `opening`: what stood between
+ * them before the books began. `adjust`: the account put right with no money moving — a debt given up, a
+ * supplier's bonus — against a kind of expense or income. `exchange`: what stands in one of the customer's
+ * currencies carried into another of theirs.
+ */
+export const CUSTOMER_PAYMENT_KINDS = ['in', 'out', 'opening', 'adjust', 'exchange'] as const
 export type CustomerPaymentKind = (typeof CUSTOMER_PAYMENT_KINDS)[number]
 
 export const CUSTOMER_PAYMENT_KIND_LABELS: Record<CustomerPaymentKind, string> = {
   in: 'To‘lov olindi',
   out: 'To‘lov berildi',
   opening: 'Boshlang‘ich qoldiq',
+  adjust: 'Hisob tuzatish',
+  exchange: 'Hisob ichida almashtirish',
 }
 
 export const CUSTOMER_PAYMENT_STATUSES = ['posted', 'cancelled'] as const
@@ -355,9 +362,60 @@ export const customerPaymentInputSchema = z.object({
   lines: z.array(customerPaymentLineSchema).min(1, 'To‘lovni kiriting').max(10),
   /** What the screen showed as settled on the customer's account: if the rate has changed since, the payment is refused. */
   settled: moneySchema,
+  /**
+   * A small remainder of the debt let go as the money is taken, in the payment's currency: no more than the
+   * step change is rounded to, and no more than is left owing.
+   */
+  forgive: moneySchema.optional(),
+  /**
+   * The till it is made at. A terminal takes money only at a till with a shift open, and a manager's word is
+   * given at one.
+   */
+  registerId: idSchema.optional(),
+  /** A manager's word, where the person at the till may not pay out of its drawer alone. */
+  approval: z.object({ userId: idSchema, pin: pinSchema }).optional(),
   note: optionalText(300),
 })
 export type CustomerPaymentInput = z.infer<typeof customerPaymentInputSchema>
+
+/**
+ * The account put right with no money moving. The kind of expense or income says which way: an expense (a debt
+ * given up as hopeless) leaves the customer owing less, an income (a supplier's bonus) leaves the business
+ * owing less. Always with its reason.
+ */
+export const customerAdjustInputSchema = z.object({
+  clientKey: z.uuid(),
+  customerId: idSchema,
+  /** Their main currency unless said. */
+  currency: currencySchema.optional(),
+  categoryId: idSchema,
+  amount: positive,
+  note: requiredText(300),
+})
+export type CustomerAdjustInput = z.infer<typeof customerAdjustInputSchema>
+
+/**
+ * What stands to the customer's good in one of their currencies carried into another: a hundred dollars of
+ * theirs set against what they owe in so'm. The same thing read the other way round: a debt carried from the
+ * second currency into the first. At the day's rate, or at a sum agreed.
+ */
+export const customerExchangeInputSchema = z
+  .object({
+    clientKey: z.uuid(),
+    customerId: idSchema,
+    /** The account it leaves, and what leaves it, in that currency. */
+    from: currencySchema,
+    amount: positive,
+    /** The account it enters. */
+    to: currencySchema,
+    /** What enters, in that currency, when the two sides agreed it; left to the day's rate otherwise. */
+    received: positive.nullish().transform((value) => value ?? null),
+    /** What the screen showed as entering: if the rate has changed since, it is refused. */
+    settled: moneySchema,
+    note: optionalText(300),
+  })
+  .refine((value) => value.from !== value.to, { path: ['to'], message: 'Boshqa valyutani tanlang' })
+export type CustomerExchangeInput = z.infer<typeof customerExchangeInputSchema>
 
 /** What stood between the business and a customer before the books began, in one currency. */
 export const customerOpeningInputSchema = z.object({
@@ -418,6 +476,18 @@ export interface CustomerPaymentDto {
   /** How the money came or went, in words: "Kassa 1 (so'm), Seyf $". */
   paidBy: string
   lines: CustomerPaymentLineDto[]
+  /** Of the debt this payment closed, the small remainder that was let go, in its currency. */
+  forgiven: number
+  /** An adjustment's kind of expense or income. */
+  categoryId: string | null
+  categoryName: string | null
+  /** An exchange: the account it entered and what entered it. `currency` and `change` are what it left. */
+  toCurrency: AnyCurrency | null
+  toAmount: number | null
+  /** What the rate gave the business (+) or cost it (−) on an exchange, in the base. */
+  fx: number
+  /** Whose word let it through at the till, when one was needed. */
+  approvedByName: string | null
 }
 
 // ───────────────────────────── The account ─────────────────────────────

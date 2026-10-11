@@ -54,6 +54,7 @@ export const STARTER_MONEY_CATEGORIES: { kind: MoneyOpKind; name: string; inProf
   { kind: 'expense', name: 'Reklama', inProfit: true },
   { kind: 'expense', name: 'Soliq va yig‘imlar', inProfit: true },
   { kind: 'expense', name: 'Bank komissiyasi', inProfit: true },
+  { kind: 'expense', name: 'Umidsiz qarzlar', inProfit: true },
   { kind: 'expense', name: 'Boshqa xarajat', inProfit: true },
   { kind: 'expense', name: 'Egasi oldi', inProfit: false },
   { kind: 'income', name: 'Boshqa daromad', inProfit: true },

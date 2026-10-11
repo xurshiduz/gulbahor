@@ -104,6 +104,11 @@ describe('Agreed sums', () => {
     elaris = await partner({ name: 'Elaris', isBuyer: true, currency: 'UZS' })
     anvar = await partner({ name: 'Anvar', isBuyer: true, currency: 'USD' })
     textile = await partner({ name: 'Textile', isSupplier: true, currency: 'UZS' })
+    // A drawer pays a supplier only what the business owes them: it owes Textile enough for what follows.
+    await alpha
+      .post('/api/customer-payments/opening')
+      .send({ clientKey: randomUUID(), customerId: textile, owes: 'us', amount: som(10_000_000) })
+      .expect(201)
 
     const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]
     await alpha

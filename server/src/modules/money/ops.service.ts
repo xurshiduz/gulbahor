@@ -495,7 +495,7 @@ export class MoneyOpsService {
 }
 
 /** The other side of the entry: what was spent, what was earned, or the owner's own account. */
-function otherSide(category: MoneyCategory): SystemAccount {
+export function otherSide(category: MoneyCategory): SystemAccount {
   if (!category.inProfit) {
     return 'owner'
   }

@@ -23,6 +23,8 @@ interface CustomerPickerProps {
   onChange: (customer: PosCustomerDto | null) => void
   /** The customer has come to pay what they owe. */
   onPayDebt?: () => void
+  /** The customer asks for what is theirs on the account back: offered where someone here may hand it over. */
+  onHandBack?: () => void
 }
 
 export interface CustomerPickerHandle {
@@ -40,7 +42,7 @@ const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())
  * on the spot, with what was typed already in its field.
  */
 export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerProps>(function CustomerPicker(
-  { registerId, value, onChange, onPayDebt },
+  { registerId, value, onChange, onPayDebt, onHandBack },
   ref,
 ) {
   const { t } = useTranslation()
@@ -162,6 +164,10 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
             {onPayDebt && owes ? (
               <Button size="sm" tabIndex={-1} onClick={onPayDebt}>
                 {t('debts.take')}
+              </Button>
+            ) : onHandBack && standing.some((account) => account.balance < 0) ? (
+              <Button size="sm" tabIndex={-1} onClick={onHandBack}>
+                {t('pos.handBack')}
               </Button>
             ) : null}
           </div>

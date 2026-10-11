@@ -1,9 +1,13 @@
 import {
+  customerAdjustInputSchema,
+  customerExchangeInputSchema,
   customerOpeningInputSchema,
   customerPaymentCancelSchema,
   customerPaymentInputSchema,
   customerPaymentListQuerySchema,
   idSchema,
+  type CustomerAdjustInput,
+  type CustomerExchangeInput,
   type CustomerOpeningInput,
   type CustomerPaymentDto,
   type CustomerPaymentInput,
@@ -39,13 +43,16 @@ export class CustomerPaymentsController {
     return this.payments.list(actor, query)
   }
 
-  /** The accounts a payment can go through. */
+  /** The accounts a payment can go through; asked from a till, its shop's terminals too. */
   @Get('accounts')
-  accounts(@CurrentActor() actor: Actor): Promise<PaymentAccountDto[]> {
+  accounts(
+    @CurrentActor() actor: Actor,
+    @Query('registerId', zod(idSchema.optional())) registerId?: string,
+  ): Promise<PaymentAccountDto[]> {
     if (!can(actor, 'customers.receive') && !can(actor, 'customers.pay_out') && !can(actor, 'pos.sell')) {
       throw AppError.forbidden()
     }
-    return this.payments.accounts(actor)
+    return this.payments.accounts(actor, registerId)
   }
 
   @Get(':id')
@@ -70,6 +77,24 @@ export class CustomerPaymentsController {
     @Body(zod(customerOpeningInputSchema)) input: CustomerOpeningInput,
   ): Promise<CustomerPaymentDto> {
     return this.payments.opening(actor, input)
+  }
+
+  @Post('adjust')
+  @Can('customers.adjust')
+  adjust(
+    @CurrentActor() actor: Actor,
+    @Body(zod(customerAdjustInputSchema)) input: CustomerAdjustInput,
+  ): Promise<CustomerPaymentDto> {
+    return this.payments.adjust(actor, input)
+  }
+
+  @Post('exchange')
+  @Can('customers.adjust')
+  exchange(
+    @CurrentActor() actor: Actor,
+    @Body(zod(customerExchangeInputSchema)) input: CustomerExchangeInput,
+  ): Promise<CustomerPaymentDto> {
+    return this.payments.exchange(actor, input)
   }
 
   @Post(':id/cancel')

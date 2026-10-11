@@ -598,6 +598,41 @@ Section 3's plan, as it went in. M2-3 (dues, limit and bars on the book), M2-4 (
 - On screen (a sample business in the test database, servers 3101/5191): the list with balances in three currencies, both filters, the row menu, the statement in each currency, a payment opened from it on the so'm account and back, "Mijoz to‘lovlari".
 - Every role (one person each, 2026-10-11): owner and manager see and do everything; accountant sees both kinds of balance, takes payments, pays none out (as before: the template never had `partners.pay`); store manager sees buyers' balances, not suppliers', takes payments, Ctrl+K only; cashier has no customers' screens, and putting a sale on an account asks for a PIN (`ON_ACCOUNT_NEEDS_WORD`, the owner as approver); warehouse picks suppliers in receipts (the receipt's currency follows the supplier) and sees no credited sum on a YQ-; seller sees nothing of customers; wholesale manager has the whole book (terms included) but no till. Fixed on the way: the supplier mark (above) and the payment window's kind list, which now offers only the ways this person may pay.
 
+## 6. How M2-4 was built (2026-10-11)
+
+More ways of putting an account right, and money at the till (16.3, decisions 18–19). Written below section 5 in time; kept above it here so the newest is found first.
+
+**DB** (migration `1790000047000-customer-adjustments`)
+- `customer_payments.kind` adds `adjust` and `exchange`. New columns: `category_id` (set exactly when `adjust`), `forgiven` (only on `in`), `to_currency` + `to_amount` (set exactly when `exchange`, another currency than `currency`), `fx` (an exchange's rate difference, in the base), `approved_by` + `approved_by_name`.
+- Every business gets the expense "Umidsiz qarzlar" (also first in `STARTER_MONEY_CATEGORIES` before "Boshqa xarajat"). `down` refuses once an adjustment, an exchange or a forgiven remainder exists.
+
+**Core** (`settlements.ts`, `pos.ts`, `cashops.ts`)
+- `CUSTOMER_PAYMENT_KINDS` adds `adjust`, `exchange`. `customerPaymentInputSchema` adds `forgive?`, `registerId?`, `approval?`. New `customerAdjustInputSchema { customerId, currency?, categoryId, amount, note (required) }` and `customerExchangeInputSchema { customerId, from, amount, to, received?, settled, note }` (`from ≠ to`).
+- `CustomerPaymentDto` adds `forgiven`, `categoryId`, `categoryName`, `toCurrency`, `toAmount`, `fx`, `approvedByName`.
+- `PosContextDto.approvers[].advances` (holds `customers.receive` or `customers.pay_out`). `ShiftTotals.customers` — customers' payments taken at the till onto a card or through a terminal, by kind, place and currency.
+
+**Server** (`customers/payments.service.ts`)
+- `adjust`: the customer locked; `change = −amount` for an expense kind, `+amount` for an income kind; the other side is `otherSide(category)` (now exported from `money/ops.service.ts`): `expenses`, `other_income`, or `owner` when not in profit. Base worth by the day's book.
+- `exchange`: `valueLine(amount, from, to, book, received, rateLimit)`; the `from` account `+amount` (worth `cashBase`), the `to` account `−settled` (worth `partnerBase`), `fx` account `−fx`; `RATE_CHANGED` when the screen's `settled` differs. Stored with `currency = from`, `change = +amount`, `to_currency`, `to_amount`, `fx`.
+- `create`:
+  - `forgive` (kind `in` only): no more than `balance − settled`, base worth no more than `changeRoundStep`; the customer's account moves by it too, against `rounding`.
+  - `out`: what leaves drawers (`kind = 'cash'`), in the payment's currency, is at most `max(0, −balance)` → 409 `ADVANCE_EXCEEDED`.
+  - Who: `customers.pay_out` — any place; `customers.receive` without it — drawers only, never to a supplier; `pos.sell` alone — this till's drawers, with `approval` + `registerId` checked by `ApprovalsService.verify` before the transaction (the approver must hold `customers.receive` or `customers.pay_out`) → 400 `PAYOUT_NEEDS_WORD` otherwise. `ApprovalsService` is provided in `CustomersModule` too (it keeps no state).
+  - Terminal lines: only `in`, only with `registerId` whose shift is open and whose shop the terminal serves. Card and terminal lines made at a till carry that shift's id.
+- `accounts(actor, registerId?)` (`GET /customer-payments/accounts?registerId=`): with an open shift there, the shop's terminals are among the places.
+- Routes: `POST /customer-payments/adjust`, `POST /customer-payments/exchange` (`customers.adjust`). Cancelling either is `ledger.reverse`, by `customers.adjust`.
+- `shifts.service`: the drawer's `customersIn/Out` count cash accounts only; `ShiftTotals.customers` lists card and terminal lines; `terminalTotals` adds terminal lines of posted `in` payments, so the slip check expects them.
+
+**Web**
+- `features/customers/payments.tsx`: `AdjustDialog` (kind by `Combobox` over the money categories, the way it goes said under it, `=` fills the whole debt), `ExchangeDialog` (two currency selects that swap rather than meet, the pair from `exchangeLine` + `ReceivedField`), `PaymentDialog` (`registerId`, `approvers`; "Qolgan … ni kechish" when the remainder is within the step; a payout that needs a word shows `ApprovalDialog` in its place, not over it), `PaymentViewDialog` (forgiven, kind of adjustment, both sums of an exchange and its rate difference, who approved), `StatementDialog.onMend`.
+- `customers-page.tsx`: row menu "Hisob tuzatish", "Hisob ichida almashtirish"; both return to the statement when opened from it.
+- Till: `CustomerPicker.onHandBack` ("Haqini qaytarish" when something is theirs and someone here may hand it over), `PaymentDialog` opened with the till's `registerId` and its `advances` approvers; `TenderPanel` `onAccount.currencies` / `onCurrency` — which of the customer's accounts the sale goes on; `shift-parts.tsx` rows for `totals.customers`.
+- `MoneyInput` selects a sum that arrives from outside while the cursor is already in the field (a pair's second sum, worked out as the cursor leaves the first): typed over, it is replaced.
+
+**Tests**: `server/src/customer-adjustments.spec.ts` (12): adjustment by expense and income, permission and reason; exchange at the day's rate and agreed, `RATE_CHANGED`, both statements, cancel; forgiving within the step and its two refusals, by a cashier; the drawer cap, a payout by a receive-only holder, a cashier's payout on a PIN; a terminal at the till, the shift's rows and the slip check. `agreed-sums.spec` gives its supplier an opening balance (a drawer pays only what is owed); approver expectations gain `advances`.
+
+**Not built**: change at a sale kept on the customer's account, and money over the receipt on a card (asked 2026-10-11, proposal given).
+
 ## 5. How M2-3 was built (2026-10-11)
 
 Debts are the customer's account (16.3). The retail debt book is gone; what is owed, late or next due is read from the account each time.

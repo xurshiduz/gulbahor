@@ -93,6 +93,9 @@ export interface OnAccount {
   /** Whose account. */
   name: string
   currency: AnyCurrency
+  /** The currencies the business keeps: the sale may go on the customer's account in any of them. */
+  currencies?: AnyCurrency[]
+  onCurrency?: (currency: AnyCurrency) => void
   sums: ExchangeSums
   /** The pair of sums where the account is in another currency than the sale; null where it is not. */
   line: ValuedLine | null
@@ -512,8 +515,22 @@ export function TenderPanel({
         >
           <div className={ROW}>
             <label htmlFor={accountId} className="min-w-0 text-[13px] text-ink-2">
-              <span className="block truncate">
-                {t('pos.onAccount')} · {onAccount.name}
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate">
+                  {t('pos.onAccount')} · {onAccount.name}
+                </span>
+                {/* Which of their accounts: their main currency's unless another is picked for this sale. */}
+                {onAccount.onCurrency && (onAccount.currencies?.length ?? 0) > 1 ? (
+                  <Select
+                    value={onAccount.currency}
+                    onChange={(value) => onAccount.onCurrency?.(value as AnyCurrency)}
+                    options={(onAccount.currencies ?? []).map((code) => ({
+                      value: code,
+                      label: CURRENCIES[code].symbol,
+                    }))}
+                    className="h-7 w-20 shrink-0 text-xs"
+                  />
+                ) : null}
               </span>
               {/* What stands there already: what they owe, or what is theirs to spend first. */}
               {onAccount.balance ? (

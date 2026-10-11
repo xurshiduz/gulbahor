@@ -1043,6 +1043,8 @@ export interface PosContextDto {
     prices: boolean
     /** May lend where the rules stop a cashier, and put a sale on a customer's account. */
     debts: boolean
+    /** May let a customer's own money be paid back to them out of the drawer. */
+    advances: boolean
   }[]
   /**
    * Selling on credit: how many days a debt is given for unless another day is set, and what one customer may owe
@@ -1140,6 +1142,17 @@ export interface ShiftTotals {
   returns: number
   returned: number
   refunds: { method: PaymentMethod; accountName: string; currency: AnyCurrency; amount: number; base: number }[]
+  /**
+   * Customers' payments made at this till that did not pass through its drawers: onto a card or through a
+   * terminal. What passed through a drawer is in `cash`.
+   */
+  customers: {
+    kind: 'in' | 'out'
+    method: 'card' | 'terminal'
+    accountName: string
+    currency: AnyCurrency
+    amount: number
+  }[]
 }
 
 /** One drawer of a shift: what it opened with and what the closing count found. */

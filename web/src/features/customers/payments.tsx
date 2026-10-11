@@ -3,17 +3,22 @@ import {
   CUSTOMER_PAYMENT_KINDS,
   CUSTOMER_PAYMENT_STATUS_LABELS,
   CUSTOMER_PAYMENT_STATUSES,
+  customerAdjustInputSchema,
+  customerExchangeInputSchema,
   customerOpeningInputSchema,
   customerPaymentInputSchema,
   defaultTill,
   formatMoney,
   tillsOf,
+  worthInBase,
   type AnyCurrency,
+  type ApprovalInput,
   type CustomerBalance,
   type CustomerDto,
   type CustomerPaymentDto,
   type CustomerPaymentKind,
   type CustomerStatementDto,
+  type MoneyCategoryDto,
   type Page as PageOf,
   type PaymentAccountDto,
   type PosCustomerDto,
@@ -21,7 +26,7 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowDownLeft, ArrowUpRight, Ban, Banknote } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Ban, Banknote, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,7 +34,7 @@ import { Button } from '@/components/ui/button'
 import { FilterCombo, FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { Combobox } from '@/components/ui/combobox'
 import { DateInput } from '@/components/ui/date-input'
-import { Select } from '@/components/ui/controls'
+import { Checkbox, Select } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut, Spinner } from '@/components/ui/feedback'
@@ -40,12 +45,14 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { currencyName } from '@/features/money/currencies-view'
+import { exchangeLine, ReceivedField, receivedOf, type ExchangeSums } from '@/features/money/exchange'
 import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatDay } from '@/lib/format'
 import { useRateBook } from '@/features/money/rates'
+import { ApprovalDialog } from '@/features/pos/approval'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
@@ -56,6 +63,7 @@ import {
   addRow,
   agreedOf,
   clearRows,
+  currencyShort,
   patchRow,
   PaymentLines,
   rateText,
@@ -125,6 +133,10 @@ interface PaymentDialogProps {
    * takes what they bring, into the till's own places.
    */
   buyer?: PosCustomerDto
+  /** The till it is opened at: its shop's terminals are among the places, and a manager's word is given here. */
+  registerId?: string
+  /** Who at this till may let a customer's own money be handed back out of its drawer, with their PIN. */
+  approvers?: { id: string; name: string }[]
   onClose: () => void
   /** The money is in: whoever opened this may want to know the customer again. */
   onSaved?: () => void
@@ -143,6 +155,8 @@ export function PaymentDialog({
   currency: fixedCurrency,
   kind: startKind = 'in',
   buyer,
+  registerId,
+  approvers = [],
   onClose,
   onSaved,
 }: PaymentDialogProps) {
@@ -169,9 +183,17 @@ export function PaymentDialog({
   // The account it settles: the one picked, else the customer's main one.
   const currency = pickedCurrency ?? buyer?.currency ?? customer?.currency ?? null
   const accounts = useQuery({
-    queryKey: ['customer-payments', 'accounts'],
-    queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/customer-payments/accounts', undefined, signal),
+    queryKey: ['customer-payments', 'accounts', registerId ?? null],
+    queryFn: ({ signal }) =>
+      api.get<PaymentAccountDto[]>('/customer-payments/accounts', registerId ? { registerId } : undefined, signal),
   })
+  // Paying out with no right to: a customer's own money, out of a drawer — alone for whoever takes payments, on
+  // a manager's word for a cashier.
+  const mayHandBack = can('customers.pay_out') || can('customers.receive') || approvers.length > 0
+  const needsWord = kind === 'out' && !can('customers.pay_out') && !can('customers.receive')
+  const [asking, setAsking] = useState<{ input: Record<string, unknown>; keys: string[]; more: boolean } | null>(null)
+  // The small remainder of the debt let go with this payment.
+  const [forgiving, setForgiving] = useState(false)
   // The day's rates, all of them: a line may be in any currency the business keeps.
   const dayRate = useRateBook()
   const setsRates = can('money.rates')
@@ -309,13 +331,27 @@ export function PaymentDialog({
         settled: agreedOf(line),
       })),
       settled: total,
+      ...(forgiven ? { forgive: forgiven } : {}),
+      ...(registerId ? { registerId } : {}),
       note,
     })
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? t('payments.nothing'))
       return
     }
-    save.mutate({ input: parsed.data, keys: filled.map((line) => line.row.accountId), more })
+    const keys = filled.map((line) => line.row.accountId)
+    if (needsWord) {
+      // The manager comes to this screen and types their PIN: the payment waits for it.
+      setAsking({ input: parsed.data, keys, more })
+      return
+    }
+    save.mutate({ input: parsed.data, keys, more })
+  }
+  const approve = (approval: ApprovalInput) => {
+    if (asking) {
+      save.mutate({ input: { ...asking.input, approval }, keys: asking.keys, more: asking.more })
+      setAsking(null)
+    }
   }
 
   const typeTotal = (wanted: number) => {
@@ -333,7 +369,26 @@ export function PaymentDialog({
 
   // What they owe when paying, what they are owed when being paid: the most this payment has to settle.
   const debt = balance === null ? null : kind === 'in' ? balance : -balance
-  const after = balance === null ? null : balance + (kind === 'in' ? -total : total)
+  const owing = balance === null ? null : balance + (kind === 'in' ? -total : total)
+  // A remainder no bigger than change is rounded by may be let go as the money is taken.
+  const forgivable =
+    kind === 'in' && total > 0 && owing !== null && owing > 0 && currency && dayRate
+      ? (worthInBase(owing, currency, dayRate) ?? Infinity) <= me.org.settings.changeRoundStep
+      : false
+  const forgiven = forgiving && forgivable && owing ? owing : 0
+  const after = owing === null ? null : owing - forgiven
+
+  if (asking) {
+    // In the payment's place, not over it: the PIN's cursor is its own.
+    return (
+      <ApprovalDialog
+        approvers={approvers}
+        reason={t('payments.payOutWord', { amount: money(total, currency ?? me.org.baseCurrency) })}
+        onApprove={approve}
+        onClose={() => setAsking(null)}
+      />
+    )
+  }
 
   return (
     <Dialog
@@ -388,9 +443,7 @@ export function PaymentDialog({
                     ...(can('customers.receive') || kind === 'in'
                       ? [{ value: 'in', label: t('payments.takeIn') }]
                       : []),
-                    ...(can('customers.pay_out') || kind === 'out'
-                      ? [{ value: 'out', label: t('payments.payOut') }]
-                      : []),
+                    ...(mayHandBack || kind === 'out' ? [{ value: 'out', label: t('payments.payOut') }] : []),
                   ]}
                 />
               </div>
@@ -449,6 +502,15 @@ export function PaymentDialog({
             </div>
           ) : null}
         </div>
+        {forgivable && owing && currency ? (
+          <div data-enter-skip>
+            <Checkbox
+              checked={forgiving}
+              onChange={setForgiving}
+              label={t('payments.forgive', { amount: money(owing, currency) })}
+            />
+          </div>
+        ) : null}
 
         {accounts.data && !places.length ? (
           <p className="text-[13px] text-ink-3">{t('payments.noAccounts')}</p>
@@ -573,21 +635,315 @@ export function OpeningDialog({ customer, onClose }: { customer: CustomerDto; on
   )
 }
 
+/**
+ * A customer's account put right with no money moving: a debt given up as hopeless, a supplier's bonus. The kind
+ * of expense or income says which way it goes, and it always says why.
+ */
+export function AdjustDialog({
+  customer,
+  currency: asked,
+  onClose,
+}: {
+  customer: CustomerDto
+  currency?: AnyCurrency
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const debtText = useDebtText()
+  const kept = useKept()
+  const [currency, setCurrency] = useState<AnyCurrency>(asked ?? customer.currency)
+  const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [amount, setAmount] = useState<number | null>(null)
+  const [note, setNote] = useState('')
+  const [clientKey] = useState(uuid)
+  const categories = useQuery({
+    queryKey: ['money-categories'],
+    queryFn: ({ signal }) => api.get<MoneyCategoryDto[]>('/money/categories', undefined, signal),
+  })
+  const kinds = (categories.data ?? []).filter((item) => item.isActive)
+  const category = kinds.find((item) => item.id === categoryId) ?? null
+  const balance = balanceIn(customer.balances, currency)
+  // An expense is the business's loss: they owe less by it. An income is its gain: it owes them less.
+  const after =
+    balance === null || !category || !amount ? null : balance + (category.kind === 'expense' ? -amount : amount)
+
+  const save = useMutation({
+    mutationFn: (input: unknown) => api.post<CustomerPaymentDto>('/customer-payments/adjust', input),
+    onSuccess: (payment) => {
+      refresh(queryClient)
+      toast.success(t('payments.saved', { number: payment.number }))
+      onClose()
+    },
+  })
+  const submit = () => {
+    const parsed = customerAdjustInputSchema.safeParse({
+      clientKey,
+      customerId: customer.id,
+      currency,
+      categoryId,
+      amount,
+      note,
+    })
+    if (!parsed.success) {
+      toast.error(
+        !categoryId
+          ? t('payments.adjustKindNeeded')
+          : !note.trim()
+            ? t('payments.adjustWhyNeeded')
+            : t('payments.nothing'),
+      )
+      return
+    }
+    save.mutate(parsed.data)
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`${t('payments.adjust')} · ${customer.name}`}
+      footer={
+        <>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" form="adjust-form" variant="primary" loading={save.isPending}>
+            {t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <Form id="adjust-form" onSubmit={submit}>
+        <Field
+          label={t('payments.adjustKind')}
+          required
+          hint={category ? t(`payments.adjustWay.${category.kind}`) : undefined}
+        >
+          {(id) => (
+            <Combobox
+              id={id}
+              autoFocus
+              options={kinds.map((item) => ({
+                value: item.id,
+                label: item.name,
+                hint: t(item.kind === 'expense' ? 'ops.expense' : 'ops.income'),
+              }))}
+              value={categoryId}
+              onChange={setCategoryId}
+            />
+          )}
+        </Field>
+        <div className="grid items-start gap-4 sm:grid-cols-2">
+          <Field label={t('payments.accountCurrency')}>
+            {(id) => (
+              <Select
+                id={id}
+                value={currency}
+                onChange={(value) => setCurrency(value as AnyCurrency)}
+                options={kept.map((code) => ({ value: code, label: currencyName(code, t) }))}
+                disabled={kept.length < 2}
+              />
+            )}
+          </Field>
+          <Field label={t('payments.sum')} required>
+            {(id) => (
+              <MoneyInput
+                id={id}
+                value={amount}
+                onChange={setAmount}
+                currency={currency}
+                // A debt given up is usually given up whole.
+                fillValue={balance !== null && balance > 0 && category?.kind === 'expense' ? balance : undefined}
+              />
+            )}
+          </Field>
+        </div>
+        {balance !== null ? (
+          <p className="tabular text-[13px] text-ink-2">
+            {debtText(balance, currency)}
+            {after !== null ? <span className="text-ink-3"> → {debtText(after, currency)}</span> : null}
+          </p>
+        ) : null}
+        <Field label={t('payments.adjustWhy')} required>
+          {(id) => <Input id={id} value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} />}
+        </Field>
+      </Form>
+    </Dialog>
+  )
+}
+
+/**
+ * What stands to a customer's good in one of their currencies carried into another: their dollars set against
+ * what they owe in so'm. A pair of sums, as in a payment: what leaves is the anchor, what enters follows from the
+ * day's rate until it is typed over, and then it is what the two sides agreed.
+ */
+export function ExchangeDialog({
+  customer,
+  currency: asked,
+  onClose,
+}: {
+  customer: CustomerDto
+  currency?: AnyCurrency
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const { can, me } = useSession()
+  const queryClient = useQueryClient()
+  const debtText = useDebtText()
+  const kept = useKept()
+  const book = useRateBook()
+  // It leaves the account that has something to its good, when one does.
+  const start = asked ?? customer.balances?.find((item) => item.balance < 0)?.currency ?? customer.currency
+  const [from, setFrom] = useState<AnyCurrency>(start)
+  const [to, setTo] = useState<AnyCurrency>(kept.find((code) => code !== start) ?? start)
+  const [sums, setSums] = useState<ExchangeSums>({ amount: null, received: null })
+  const [note, setNote] = useState('')
+  const [clientKey] = useState(uuid)
+  const setsRates = can('money.rates')
+  const line = exchangeLine({ id: from, currency: from }, to, sums, book, me.org.settings.maxRateLossPercent)
+  const left = balanceIn(customer.balances, from)
+  const entered = balanceIn(customer.balances, to)
+
+  const save = useMutation({
+    mutationFn: (input: unknown) => api.post<CustomerPaymentDto>('/customer-payments/exchange', input),
+    onSuccess: (payment) => {
+      refresh(queryClient)
+      toast.success(t('payments.saved', { number: payment.number }))
+      onClose()
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'RATE_CHANGED') {
+        void queryClient.invalidateQueries({ queryKey: ['money'] })
+      }
+    },
+  })
+  const submit = () => {
+    const parsed = customerExchangeInputSchema.safeParse({
+      clientKey,
+      customerId: customer.id,
+      from,
+      to,
+      amount: sums.amount,
+      received: receivedOf(line),
+      settled: line?.settled ?? 0,
+      note,
+    })
+    if (!parsed.success || !line?.settled) {
+      toast.error(
+        from === to ? t('payments.exchangeSame') : !line?.dayRate ? t('payments.noRate') : t('payments.nothing'),
+      )
+      return
+    }
+    save.mutate(parsed.data)
+  }
+  const pick = (which: 'from' | 'to', code: AnyCurrency) => {
+    // The two are never one currency: picking the other's swaps them.
+    if (which === 'from') {
+      if (code === to) setTo(from)
+      setFrom(code)
+    } else {
+      if (code === from) setFrom(to)
+      setTo(code)
+    }
+    setSums({ amount: null, received: null })
+  }
+  const options = kept.map((code) => ({ value: code, label: currencyName(code, t) }))
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`${t('payments.exchange')} · ${customer.name}`}
+      footer={
+        <>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" form="account-exchange-form" variant="primary" loading={save.isPending}>
+            {t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      {kept.length < 2 ? (
+        <p className="text-[13px] text-ink-3">{t('payments.exchangeOneCurrency')}</p>
+      ) : (
+        <Form id="account-exchange-form" onSubmit={submit}>
+          <div className="grid items-start gap-x-3 gap-y-4 sm:grid-cols-2">
+            <Field label={t('payments.exchangeFrom')} hint={left !== null ? debtText(left, from) : undefined}>
+              {(id) => (
+                <div data-enter-skip>
+                  <Select
+                    id={id}
+                    value={from}
+                    onChange={(value) => pick('from', value as AnyCurrency)}
+                    options={options}
+                  />
+                </div>
+              )}
+            </Field>
+            <Field label={t('payments.exchangeTo')} hint={entered !== null ? debtText(entered, to) : undefined}>
+              {(id) => (
+                <div data-enter-skip>
+                  <Select id={id} value={to} onChange={(value) => pick('to', value as AnyCurrency)} options={options} />
+                </div>
+              )}
+            </Field>
+            <Field label={t('money.exchangeOut', { currency: currencyShort(from, t) })} required>
+              {(id) => (
+                <MoneyInput
+                  id={id}
+                  autoFocus
+                  value={sums.amount}
+                  // What leaves is the anchor: typed, what enters follows from the rate afresh.
+                  onChange={(amount) => setSums({ amount, received: null })}
+                  currency={from}
+                  // What is theirs there, whole, is what is usually carried over.
+                  fillValue={left !== null && left < 0 ? -left : undefined}
+                />
+              )}
+            </Field>
+            {line ? (
+              <ReceivedField
+                line={line}
+                sums={sums}
+                toCurrency={to}
+                onChange={setSums}
+                book={book}
+                setsRates={setsRates}
+                className="w-full"
+              />
+            ) : null}
+          </div>
+          <Field label={t('receipts.note')}>
+            {(id) => <Input id={id} value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} />}
+          </Field>
+        </Form>
+      )}
+    </Dialog>
+  )
+}
+
 // ───────────────────────────── A payment, looked at ─────────────────────────────
 
-const KIND_TONES: Record<CustomerPaymentKind, 'ok' | 'info' | 'neutral'> = { in: 'ok', out: 'info', opening: 'neutral' }
+const KIND_TONES: Record<CustomerPaymentKind, 'ok' | 'info' | 'neutral'> = {
+  in: 'ok',
+  out: 'info',
+  opening: 'neutral',
+  adjust: 'neutral',
+  exchange: 'neutral',
+}
 
 /** Who may take a payment of a kind back: as who may make it. */
 const MAY_CANCEL: Record<CustomerPaymentKind, string> = {
   in: 'customers.receive',
   out: 'customers.pay_out',
   opening: 'customers.adjust',
+  adjust: 'customers.adjust',
+  exchange: 'customers.adjust',
 }
 
 /** One payment: its lines, and the way to take it back. */
 export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; onClose: () => void }) {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const queryClient = useQueryClient()
   const [cancelling, setCancelling] = useState(false)
   const [reason, setReason] = useState('')
@@ -692,10 +1048,37 @@ export function PaymentViewDialog({ paymentId, onClose }: { paymentId: string; o
               </tbody>
             </table>
           ) : null}
+          {payment.forgiven ? (
+            <div className="flex items-baseline justify-between text-ink-2">
+              <span>{t('payments.forgiven')}</span>
+              <span className="tabular">{money(payment.forgiven, payment.currency)}</span>
+            </div>
+          ) : null}
+          {payment.categoryName ? (
+            <div className="flex items-baseline justify-between text-ink-2">
+              <span>{t('payments.adjustKind')}</span>
+              <span>{payment.categoryName}</span>
+            </div>
+          ) : null}
           <div className="flex items-baseline justify-between border-t border-line pt-3 text-sm font-semibold">
             <span>{t('payments.total')}</span>
-            <span className="tabular">{money(Math.abs(payment.change), payment.currency)}</span>
+            <span className="tabular">
+              {money(Math.abs(payment.change), payment.currency)}
+              {payment.toCurrency && payment.toAmount !== null
+                ? ` → ${money(payment.toAmount, payment.toCurrency)}`
+                : ''}
+            </span>
           </div>
+          {payment.fx ? (
+            <p className={cn('tabular text-right text-xs', payment.fx > 0 ? 'text-ok' : 'text-warn')}>
+              {t(payment.fx > 0 ? 'payments.fxGain' : 'payments.fxLoss', {
+                amount: money(Math.abs(payment.fx), me.org.baseCurrency),
+              })}
+            </p>
+          ) : null}
+          {payment.approvedByName ? (
+            <p className="text-xs text-ink-3">{t('payments.approvedBy', { name: payment.approvedByName })}</p>
+          ) : null}
           {payment.note ? <p className="text-xs text-ink-2">{payment.note}</p> : null}
         </div>
       )}
@@ -710,10 +1093,12 @@ interface StatementDialogProps {
   onClose: () => void
   /** Takes the place of the account with a payment in its currency; without it, the account is only looked at. */
   onPay?: (kind: 'in' | 'out', currency: AnyCurrency) => void
+  /** Takes its place with a window that puts the account right: an adjustment, or an exchange out of it. */
+  onMend?: (kind: 'adjust' | 'exchange', currency: AnyCurrency) => void
 }
 
 /** One of a customer's accounts: every change, what was owed after each, and what is owed now; the others a pick away. */
-export function StatementDialog({ customerId, currency: asked, onClose, onPay }: StatementDialogProps) {
+export function StatementDialog({ customerId, currency: asked, onClose, onPay, onMend }: StatementDialogProps) {
   const { t } = useTranslation()
   const { can } = useSession()
   const debtText = useDebtText()
@@ -764,6 +1149,18 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay }:
                   <ArrowUpRight />
                   {t('payments.payOut')}
                 </Button>
+              ) : null}
+              {onMend && can('customers.adjust') ? (
+                <>
+                  <Button onClick={() => onMend('adjust', data.currency)}>
+                    <Wrench />
+                    {t('payments.adjust')}
+                  </Button>
+                  <Button onClick={() => onMend('exchange', data.currency)}>
+                    <ArrowLeftRight />
+                    {t('payments.exchangeShort')}
+                  </Button>
+                </>
               ) : null}
             </span>
           ) : null}

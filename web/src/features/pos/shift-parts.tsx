@@ -318,6 +318,15 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             value={`−${money(refund.amount, refund.currency)}`}
           />
         ))}
+        {/* Customers' payments taken at this till onto a card or through a terminal: no money in the drawer, and
+            a shift's report made before these were told apart has none. */}
+        {(totals.customers ?? []).map((row) => (
+          <Row
+            key={`customers:${row.kind}:${row.method}:${row.accountName}:${row.currency}`}
+            label={`${t(row.kind === 'in' ? 'pos.customersIn' : 'pos.customersOut')}: ${row.accountName}`}
+            value={`${row.kind === 'in' ? '+' : '−'}${money(row.amount, row.currency)}`}
+          />
+        ))}
         {totals.cash
           .filter((moves) => moves.change)
           .map((moves) => (

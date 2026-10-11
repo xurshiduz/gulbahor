@@ -29,7 +29,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 |---|---|---|---|---|---|
 | 1 | P1. Xodimga qo'shimcha ruxsat | Platforma | 1,5 | — | tayyor (2026-10-08) |
 | 2 | M1. Narx formulalari | Mijozlar va narx | 9 | — | boshlanmagan (spetsifikatsiya tayyor) |
-| 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | — (M1 keyinga qoldi) | boshlandi: M2-1, M2-2, M2-3 tayyor (2026-10-11), qolgani — M2-4, M2-5 (`ISH-HOLATI.md`) |
+| 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | — (M1 keyinga qoldi) | boshlandi: M2-1 … M2-4 tayyor (2026-10-11), qolgani — M2-5 (`ISH-HOLATI.md`) |
 | 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | boshlandi: ro'yxat, karta, hisob-kitob, to'lovlar (M2-2 bilan) |
 | 5 | M4. Mijoz: qo'shimcha holatlar | Mijozlar va narx | 7 | M3 | boshlanmagan |
 | 6 | M5. Ko'chirishni nusxada sinash | Mijozlar va narx | 1 | M4 | boshlanmagan |

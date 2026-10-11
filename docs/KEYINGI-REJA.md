@@ -1270,6 +1270,20 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 5-bo'lim.
 - **Bazada eski chakana qarz bo'lsa** migratsiya to'xtaydi: avval ular yopilishi kerak (lokal bazada yo'q edi).
 - **Hali qilinmagan**: kassada hisob valyutasini tanlash, tuzatish va kechish, hisob ichida almashtirish, kassada terminal bilan to'lov, tortmadan haqini qaytarish — M2-4; qaytarish va bekor qilishning to'liq tartibi (almashtirish zanjiri) — M2-5.
 
+### 16.13. M2-4 qanday qurildi (2026-10-11)
+
+Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 6-bo'lim.
+
+- **Hisob tuzatish** (TL-, `customers.adjust`, sababi majburiy, bekor qilinadi): pul yurmaydi, hisob xarajat yoki kirim turiga qarshi suriladi. Yo'nalishni tur aytadi: **xarajat** ("Umidsiz qarzlar" — har biznesga qo'shildi) — mijozning qarzi kamayadi; **kirim** ("Boshqa daromad": yetkazib beruvchi bonusi) — bizning qarzimiz kamayadi. "Egasi oldi / qo'shdi" kabi foydaga kirmaydigan tur egasining hisobiga yoziladi. Mijozlar ro'yxatidagi qator menyusida va hisob-kitob oynasida.
+- **Hisob ichida almashtirish** (TL-, `customers.adjust`): mijozning bir valyutadagi haqisi boshqa valyutadagi hisobiga o'tadi (100 $ haqi → so'mdagi qarziga); teskari o'qilsa — qarz bir valyutadan ikkinchisiga ko'chadi. Juft maydon: chiqadigan summa langar, kiradigan summa kun kursidan chiqadi yoki ustidan yozilsa kelishilgan summa; farq "Kurs farqi"ga. Bitta raqam bilan ikkala valyutaning hisob-kitobida ko'rinadi.
+- **Qoldiqni kechish**: to'lov olishda qarzdan kassadagi qaytim yaxlitlash qadamidan (`changeRoundStep`, standart 1 000 so'm) oshmaydigan qoldiq qolsa, oynada "Qolgan … ni kechish" belgisi chiqadi; kechilgani yaxlitlash hisobiga yoziladi. Har kassir qila oladi. Kattasi — faqat hisob tuzatish bilan.
+- **Tortmadan pul berish chegarasi**: kassa tortmasidan mijozga faqat uning haqisi beriladi (avansni qaytarish yoki biz qarzdor summa) — `ADVANCE_EXCEEDED`; oldindan to'lov seyf, bank yoki kartadan. Bu "pul berish" ruxsati borlarga ham tegishli.
+- **Kim beradi**: "pul berish" (`customers.pay_out`) — istalgan joydan; faqat "to'lov olish" (`customers.receive`, do'kon menejeri) — oddiy mijozga, faqat tortmadan; kassir — shu kassaning tortmasidan, to'lov oladigan yoki pul beradigan xodimning PIN'i bilan (`PAYOUT_NEEDS_WORD`; kim tasdiqlagani to'lovda saqlanadi). Kassada mijoz kartochkasida haqi bo'lsa "Haqini qaytarish" tugmasi.
+- **Kassada terminal**: kassada ochilgan to'lov oynasida do'kon terminallari ham qator bo'lib chiqadi (smena ochiq bo'lsa); terminal faqat pul oladi. Kassada kartaga yoki terminal orqali olingan mijoz to'lovi shu smenaga yoziladi: smena hisobotida "Mijozlardan olindi: Terminal 1" qatori, terminal qismi smena yopilishidagi terminal solishtiruviga qo'shiladi. Tortmadan o'tgani avvalgidek naqd pul jadvalida.
+- **Kassada hisob valyutasi**: "Qarzga / Hisobidan" bloki yonida valyuta tanlanadi (biznes bir nechta valyuta yuritsa) — sotuv mijozning shu valyutadagi hisobiga yoziladi; standart — asosiy valyutasi.
+- **Ekranda tekshirildi** (sinov bazasi, egasi va kassir bilan): tuzatish, almashtirish, to'lovlar ro'yxati va to'lov oynasi, kassada terminal bilan to'lov va qoldiqni kechish, rahbar PIN'i bilan haqini qaytarish, smena hisoboti. Kassadagi hisob valyutasi tanlovi ekranda ko'rilmadi (sinov bazasida tovar yo'q edi).
+- **Hali qilinmagan**: kassadagi sotuvda qaytimni mijoz hisobida qoldirish va kartaga ortiqcha tushgan pul (egasi 2026-10-11 da so'radi — taklif berildi, qaror kutilmoqda); qaytarish va bekor qilishning to'liq tartibi (almashtirish zanjiri) — M2-5.
+
 ### 16.9. Ochiq savollar
 
 1. **Narx turlarining odatiy formulalari** — bir marta kiritiladi: Chakana = tannarx + ?%, Ulgurji = tannarx + ?% (yoki chakana − ?%), Oila = tannarx + ?%, Minimal = tannarx + 5%? Va K-000001 dagi "cargo" 43 000 $ (tovar 32 472 $) — xatomi? Tuzatilmaguncha shu tovarlarning formula narxlariga ishonib bo'lmaydi.

@@ -120,7 +120,9 @@ export class ApprovalsService {
         returns: hasPermission(row.permissions, 'pos.return_any'),
         prices: hasPermission(row.permissions, 'pos.prices'),
         debts: hasPermission(row.permissions, 'pos.debt'),
+        advances:
+          hasPermission(row.permissions, 'customers.receive') || hasPermission(row.permissions, 'customers.pay_out'),
       }))
-      .filter((row) => row.discount || row.returns || row.prices || row.debts)
+      .filter((row) => row.discount || row.returns || row.prices || row.debts || row.advances)
   }
 }

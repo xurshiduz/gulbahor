@@ -44,6 +44,7 @@ import { TillDrawers1790000043000 } from './1790000043000-till-drawers'
 import { CustomerCard1790000044000 } from './1790000044000-customer-card'
 import { OneCustomerBook1790000045000 } from './1790000045000-one-customer-book'
 import { CustomerDues1790000046000 } from './1790000046000-customer-dues'
+import { CustomerAdjustments1790000047000 } from './1790000047000-customer-adjustments'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -93,4 +94,5 @@ export const MIGRATIONS = [
   CustomerCard1790000044000,
   OneCustomerBook1790000045000,
   CustomerDues1790000046000,
+  CustomerAdjustments1790000047000,
 ]

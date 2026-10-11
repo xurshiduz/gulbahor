@@ -1,9 +1,12 @@
 import {
+  DEFAULT_ORG_SETTINGS,
   formatMoney,
   searchKey,
   worthInBase,
   type Page,
   type AnyCurrency,
+  type CustomerAdjustInput,
+  type CustomerExchangeInput,
   type CustomerOpeningInput,
   type CustomerPaymentDto,
   type CustomerPaymentInput,
@@ -19,7 +22,17 @@ import { In, type EntityManager } from 'typeorm'
 import { AppError } from '../../common/errors'
 import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Account, Customer, CustomerDue, CustomerPayment, CustomerPaymentLine, Shift } from '../../database/entities'
+import {
+  Account,
+  Customer,
+  CustomerDue,
+  CustomerPayment,
+  CustomerPaymentLine,
+  MoneyCategory,
+  Organization,
+  Register,
+  Shift,
+} from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
@@ -27,7 +40,9 @@ import { rateLimit, valueLine, wantingRate } from '../money/agreed'
 import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
-import { mayUse } from '../money/places'
+import { otherSide } from '../money/ops.service'
+import { mayUse, servesShop } from '../money/places'
+import { allows, ApprovalsService } from '../pos/approvals.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { CustomersService } from './customers.service'
 
@@ -37,8 +52,10 @@ const COUNTER = 'partner_payment'
 
 /** Where a customer's money can go, or come from: the places the business keeps its own. */
 const PLACES = ['cash', 'safe', 'bank', 'card']
-/** Where a cashier takes it at the till: into a drawer, or onto a card. */
+/** Where a cashier takes it at the till: into a drawer, or onto a card. A terminal is asked for apart. */
 const TILL_PLACES = ['cash', 'card']
+/** Where a customer's own money is handed back by someone with no right to pay out: a drawer. */
+const DRAWERS = ['cash']
 
 const CHANGED = ['customer-payments', 'customers', 'money', 'pos', 'shifts']
 
@@ -47,6 +64,8 @@ const MAY: Record<CustomerPaymentKind, string> = {
   in: 'customers.receive',
   out: 'customers.pay_out',
   opening: 'customers.adjust',
+  adjust: 'customers.adjust',
+  exchange: 'customers.adjust',
 }
 
 /**
@@ -76,22 +95,47 @@ export class CustomerPaymentsService {
     private readonly money: MoneyService,
     private readonly currencies: CurrenciesService,
     private readonly customers: CustomersService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
-  /** The accounts a payment can go through, for the form: balances only for those who may see them. */
-  async accounts(actor: Actor): Promise<PaymentAccountDto[]> {
+  /**
+   * The accounts a payment can go through, for the form: balances only for those who may see them. Asked from a
+   * till with its shift open, the shop's terminals are among them: a terminal takes money only there.
+   */
+  async accounts(actor: Actor, registerId?: string): Promise<PaymentAccountDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const till = !can(actor, MAY.in) && !can(actor, MAY.out)
-      return this.money.paymentAccounts(em, actor, till ? TILL_PLACES : PLACES)
+      const places = await this.money.paymentAccounts(em, actor, till ? TILL_PLACES : PLACES)
+      const here = registerId ? await this.tillOf(em, registerId) : null
+      if (!here?.shiftId) {
+        return places
+      }
+      const terminals = await this.money.paymentAccounts(em, actor, ['terminal'])
+      return [...places, ...terminals.filter((terminal) => servesShop(terminal, here.locationId))]
     })
   }
 
   async create(actor: Actor, input: CustomerPaymentInput): Promise<CustomerPaymentDto> {
     const till = atTill(actor, input.kind)
-    if (!can(actor, MAY[input.kind]) && !till) {
+    // Paying out without the right to: a customer's own money, out of a drawer — by someone who takes
+    // payments, or by a cashier on such a person's word.
+    const handingBack = input.kind === 'out' && !can(actor, MAY.out)
+    const byWord = handingBack && !can(actor, MAY.in)
+    if (!can(actor, MAY[input.kind]) && !till && !(handingBack && (can(actor, MAY.in) || can(actor, 'pos.sell')))) {
       throw AppError.forbidden()
     }
-    const places = till ? TILL_PLACES : PLACES
+    // The PIN is checked on its own and before the deed: a wrong one is counted though nothing then happens.
+    const approver =
+      byWord && input.registerId ? await this.approvals.verify(actor, input.approval ?? null, input.registerId) : null
+    if (byWord && !allows(approver, MAY.in) && !allows(approver, MAY.out)) {
+      throw AppError.badRequest(
+        'PAYOUT_NEEDS_WORD',
+        approver
+          ? `${approver.name} mijozga pul berishni tasdiqlay olmaydi`
+          : 'Mijozga kassadan pul berish uchun rahbar tasdig‘i kerak',
+      )
+    }
+    const places = till ? TILL_PLACES : handingBack ? DRAWERS : PLACES
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
       if (again) {
@@ -101,6 +145,13 @@ export class CustomerPaymentsService {
       if (till && customer.isSupplier) {
         throw AppError.forbidden('Yetkazib beruvchidan to‘lovni hisob-kitob ruxsati bor xodim oladi')
       }
+      if (handingBack && customer.isSupplier) {
+        throw AppError.forbidden('Yetkazib beruvchiga pulni pul berish ruxsati bor xodim beradi')
+      }
+      // The till it is made at: a terminal takes money only there, while its shift is open.
+      const here = input.registerId ? await this.tillOf(em, input.registerId) : null
+      const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      const settings = { ...DEFAULT_ORG_SETTINGS, ...org.settings }
       const currency = this.currencyOf(actor, customer, input.currency)
       const today = await this.ledger.today(em, actor.orgId)
       const book = await this.currencies.book(em, actor, today)
@@ -129,11 +180,25 @@ export class CustomerPaymentsService {
       }[] = []
       for (const [index, line] of input.lines.entries()) {
         const account = accountOf.get(line.accountId)
-        if (!account || !account.isActive || !places.includes(account.kind) || !mayUse(actor, account)) {
+        const terminal = account?.kind === 'terminal'
+        if (!account || !account.isActive || !mayUse(actor, account) || !(terminal || places.includes(account.kind))) {
           fields[`lines.${index}.accountId`] = 'Hisob topilmadi'
           continue
         }
-        let shiftId: string | null = null
+        if (terminal && (input.kind !== 'in' || !here?.shiftId || !servesShop(account, here.locationId))) {
+          fields[`lines.${index}.accountId`] =
+            input.kind === 'in'
+              ? `${account.name}: terminal faqat kassada, smena ochiq bo‘lganda ishlatiladi`
+              : `${account.name}: terminal orqali pul berilmaydi`
+          continue
+        }
+        if (byWord && account.registerId !== input.registerId) {
+          fields[`lines.${index}.accountId`] = 'Faqat shu kassaning tortmasidan beriladi'
+          continue
+        }
+        // What is taken at a till onto a card or through a terminal is that shift's too: its report says so,
+        // and a terminal's own slip is checked against it.
+        let shiftId: string | null = account.kind === 'card' || terminal ? (here?.shiftId ?? null) : null
         if (account.kind === 'cash') {
           // Money put into a drawer between shifts would be found by nobody's count.
           const open = await em.findOneBy(Shift, { registerId: account.registerId as string, status: 'open' })
@@ -183,6 +248,38 @@ export class CustomerPaymentsService {
       if (settled !== input.settled) {
         throw AppError.conflict('RATE_CHANGED', 'Kurs o‘zgargan: summani qayta tekshiring')
       }
+      const account = await this.ledger.customerAccount(em, customer, currency)
+
+      // A drawer's money is the day's takings: out of it goes only what the customer is owed — an advance
+      // handed back, a debt of the business paid. Money ahead of that is paid from a safe, a bank or a card.
+      if (input.kind === 'out') {
+        const theirs = Math.max(0, -account.balance)
+        const fromDrawers = lines.reduce((sum, line) => sum + (line.account.kind === 'cash' ? line.settled : 0), 0)
+        if (fromDrawers > theirs) {
+          throw AppError.conflict(
+            'ADVANCE_EXCEEDED',
+            `Kassa tortmasidan faqat mijozning haqi beriladi: ${formatMoney(theirs, currency)}. ` +
+              'Oldindan to‘lov seyf, bank yoki kartadan beriladi',
+          )
+        }
+      }
+
+      // A small remainder let go as the money is taken: no more than change is rounded by, and no more than is left.
+      const forgive = input.forgive ?? 0
+      const forgiveBase = forgive ? (worthInBase(forgive, currency, book) as number) : 0
+      if (forgive) {
+        if (input.kind !== 'in') {
+          throw AppError.validation({ forgive: 'Qoldiq to‘lov olishda kechiladi' })
+        }
+        if (forgive > account.balance - settled) {
+          throw AppError.validation({ forgive: 'Qolgan qarzdan ko‘p kechib bo‘lmaydi' })
+        }
+        if (forgiveBase > settings.changeRoundStep) {
+          throw AppError.validation({
+            forgive: `Ko‘pi bilan ${formatMoney(settings.changeRoundStep, actor.base)} kechiladi; kattasi — hisob tuzatish bilan`,
+          })
+        }
+      }
 
       const payment = await this.save(em, actor, {
         clientKey: input.clientKey,
@@ -190,10 +287,13 @@ export class CustomerPaymentsService {
         customer,
         currency,
         // They owe less after paying, more after being paid.
-        change: -sign * settled,
+        change: -sign * settled - forgive,
         today,
         paidBy: [...new Set(lines.map((line) => line.account.name))].join(', '),
         note: input.note ?? null,
+        forgiven: forgive,
+        approvedBy: byWord ? (approver?.id ?? null) : null,
+        approvedByName: byWord ? (approver?.name ?? null) : null,
       })
       await em.insert(
         CustomerPaymentLine,
@@ -212,7 +312,6 @@ export class CustomerPaymentsService {
         })),
       )
 
-      const account = await this.ledger.customerAccount(em, customer, currency)
       const postings: Posting[] = lines.map((line) => ({
         accountId: line.account.id,
         amount: sign * line.amount,
@@ -220,9 +319,13 @@ export class CustomerPaymentsService {
       }))
       postings.push({
         accountId: account.id,
-        amount: -sign * settled,
-        base: -sign * lines.reduce((sum, line) => sum + line.partnerBase, 0),
+        amount: -sign * settled - forgive,
+        base: -sign * lines.reduce((sum, line) => sum + line.partnerBase, 0) - forgiveBase,
       })
+      if (forgiveBase) {
+        const rounding = await this.ledger.systemAccount(em, actor.orgId, 'rounding')
+        postings.push({ accountId: rounding.id, amount: forgiveBase, base: forgiveBase })
+      }
       const fx = lines.reduce((sum, line) => sum + line.fx, 0)
       if (fx) {
         const difference = await this.ledger.systemAccount(em, actor.orgId, 'fx')
@@ -245,7 +348,10 @@ export class CustomerPaymentsService {
         action: input.kind === 'in' ? 'customer_payment.in' : 'customer_payment.out',
         entity: 'customer_payment',
         entityId: payment.id,
-        summary: `${payment.number}: ${customer.name}, ${formatMoney(settled, currency)} (${payment.paidBy})`,
+        summary:
+          `${payment.number}: ${customer.name}, ${formatMoney(settled, currency)} (${payment.paidBy})` +
+          (forgive ? `; kechildi ${formatMoney(forgive, currency)}` : '') +
+          (payment.approvedByName ? `; tasdiqladi ${payment.approvedByName}` : ''),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, payment)
@@ -310,6 +416,133 @@ export class CustomerPaymentsService {
         summary: `${payment.number}: ${customer.name}, ${
           input.owes === 'customer' ? 'qarzi' : 'haqi'
         } ${formatMoney(input.amount, currency)}`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
+      return this.load(em, payment)
+    })
+  }
+
+  /**
+   * Puts an account right with no money moving, against a kind of expense or income. An expense is the
+   * business's loss — a debt given up — and the customer owes less by it; an income is its gain — a supplier's
+   * bonus — and the business owes less by it.
+   */
+  async adjust(actor: Actor, input: CustomerAdjustInput): Promise<CustomerPaymentDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
+      if (again) {
+        return this.load(em, again)
+      }
+      const customer = await this.customer(em, input.customerId)
+      const currency = this.currencyOf(actor, customer, input.currency)
+      const category = await em.findOneBy(MoneyCategory, { id: input.categoryId, isActive: true })
+      if (!category) {
+        throw AppError.validation({ categoryId: 'Tur topilmadi' })
+      }
+      const today = await this.ledger.today(em, actor.orgId)
+      const book = await this.currencies.book(em, actor, today)
+      const wanting = wantingRate(book, currency)
+      if (wanting) {
+        throw AppError.validation({ amount: wanting })
+      }
+      await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
+      const change = category.kind === 'expense' ? -input.amount : input.amount
+      const base = worthInBase(change, currency, book) as number
+      const payment = await this.save(em, actor, {
+        clientKey: input.clientKey,
+        kind: 'adjust',
+        customer,
+        currency,
+        change,
+        today,
+        paidBy: category.name,
+        note: input.note,
+        categoryId: category.id,
+      })
+      const account = await this.ledger.customerAccount(em, customer, currency)
+      const other = await this.ledger.systemAccount(em, actor.orgId, otherSide(category))
+      await this.ledger.post(
+        em,
+        actor,
+        { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: payment.id },
+        [
+          { accountId: account.id, amount: change, base },
+          { accountId: other.id, amount: -base, base: -base },
+        ],
+      )
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'customer_payment.adjust',
+        entity: 'customer_payment',
+        entityId: payment.id,
+        summary: `${payment.number}: ${customer.name}, ${category.name} ${formatMoney(input.amount, currency)} — ${input.note}`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
+      return this.load(em, payment)
+    })
+  }
+
+  /**
+   * Carries what stands to a customer's good in one of their currencies into another of theirs — or, read the
+   * other way, a debt from the second into the first: the first account owes more by what left it, the second
+   * less by what entered. At the day's rate or a sum agreed; what lies between is the rate's.
+   */
+  async exchange(actor: Actor, input: CustomerExchangeInput): Promise<CustomerPaymentDto> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
+      if (again) {
+        return this.load(em, again)
+      }
+      const customer = await this.customer(em, input.customerId)
+      const from = this.currencyOf(actor, customer, input.from)
+      const to = this.currencyOf(actor, customer, input.to)
+      const today = await this.ledger.today(em, actor.orgId)
+      const book = await this.currencies.book(em, actor, today)
+      const wanting = wantingRate(book, from, to)
+      if (wanting) {
+        throw AppError.validation({ amount: wanting })
+      }
+      const worth = valueLine(input.amount, from, to, book, input.received, await rateLimit(em, actor))
+      if (typeof worth === 'string') {
+        throw AppError.validation({ received: worth })
+      }
+      if (worth.settled !== input.settled) {
+        throw AppError.conflict('RATE_CHANGED', 'Kurs o‘zgargan: summani qayta tekshiring')
+      }
+      await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
+      const payment = await this.save(em, actor, {
+        clientKey: input.clientKey,
+        kind: 'exchange',
+        customer,
+        currency: from,
+        change: input.amount,
+        today,
+        paidBy: '',
+        note: input.note ?? null,
+        toCurrency: to,
+        toAmount: worth.settled,
+        fx: worth.fx,
+      })
+      const left = await this.ledger.customerAccount(em, customer, from)
+      const entered = await this.ledger.customerAccount(em, customer, to)
+      const postings: Posting[] = [
+        { accountId: left.id, amount: input.amount, base: worth.cashBase },
+        { accountId: entered.id, amount: -worth.settled, base: -worth.partnerBase },
+      ]
+      if (worth.fx) {
+        const difference = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+        postings.push({ accountId: difference.id, amount: -worth.fx, base: -worth.fx })
+      }
+      await this.ledger.post(
+        em,
+        actor,
+        { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: payment.id },
+        postings,
+      )
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'customer_payment.exchange',
+        entity: 'customer_payment',
+        entityId: payment.id,
+        summary: `${payment.number}: ${customer.name}, ${formatMoney(input.amount, from)} → ${formatMoney(worth.settled, to)}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, payment)
@@ -506,6 +739,19 @@ export class CustomerPaymentsService {
 
   // ───────────────────────────── Inside ─────────────────────────────
 
+  /** A till, the shop it stands in and the shift open on it, if one is. */
+  private async tillOf(
+    em: EntityManager,
+    registerId: string,
+  ): Promise<{ locationId: string; shiftId: string | null } | null> {
+    const register = await em.findOneBy(Register, { id: registerId })
+    if (!register) {
+      return null
+    }
+    const shift = await em.findOneBy(Shift, { registerId, status: 'open' })
+    return { locationId: register.locationId, shiftId: shift?.id ?? null }
+  }
+
   /** Whoever the payment is with: one put away pays, and is paid, all the same. */
   private async customer(em: EntityManager, id: string): Promise<Customer> {
     const customer = await em.findOneBy(Customer, { id })
@@ -536,6 +782,13 @@ export class CustomerPaymentsService {
       today: string
       paidBy: string
       note: string | null
+      forgiven?: number
+      categoryId?: string
+      toCurrency?: AnyCurrency
+      toAmount?: number
+      fx?: number
+      approvedBy?: string | null
+      approvedByName?: string | null
     },
   ): Promise<CustomerPayment> {
     const number = `TL-${String(await nextNumbers(em, actor.orgId, COUNTER)).padStart(6, '0')}`
@@ -555,6 +808,13 @@ export class CustomerPaymentsService {
         createdByName: actor.name,
         paidBy: data.paidBy,
         note: data.note,
+        forgiven: data.forgiven ?? 0,
+        categoryId: data.categoryId ?? null,
+        toCurrency: data.toCurrency ?? null,
+        toAmount: data.toAmount ?? null,
+        fx: data.fx ?? 0,
+        approvedBy: data.approvedBy ?? null,
+        approvedByName: data.approvedByName ?? null,
         searchKey: searchKey([number, data.customer.name, actor.name, data.note ?? ''].join(' ')),
       }),
     )
@@ -569,6 +829,7 @@ export class CustomerPaymentsService {
       .where('l.paymentId = :id', { id: payment.id })
       .orderBy('l.position')
       .getRawAndEntities()
+    const category = payment.categoryId ? await em.findOneBy(MoneyCategory, { id: payment.categoryId }) : null
     return {
       id: payment.id,
       number: payment.number,
@@ -594,6 +855,13 @@ export class CustomerPaymentsService {
         settled: line.settled,
         fx: line.fx,
       })),
+      forgiven: payment.forgiven,
+      categoryId: payment.categoryId,
+      categoryName: category?.name ?? null,
+      toCurrency: payment.toCurrency,
+      toAmount: payment.toAmount,
+      fx: payment.fx,
+      approvedByName: payment.approvedByName,
     }
   }
 }

@@ -15,6 +15,7 @@ import {
   toIsoDate,
   worthInBase,
   type AccountBar,
+  type AnyCurrency,
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
@@ -237,7 +238,7 @@ interface LastDocument {
  */
 function Till({ context, registers, onSwitch }: TillProps) {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const queryClient = useQueryClient()
   const search = route.useSearch()
   const navigate = route.useNavigate()
@@ -257,7 +258,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // Every way of paying has its field, always there; what is kept is only what was typed into them.
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
   /** The customer at the counter is paying what they owe. */
-  const [takingDebt, setTakingDebt] = useState(false)
+  // Which of the customer's accounts this sale goes on, when not their main one: asked again for the next customer.
+  const [accountPick, setAccountPick] = useState<{ customerId: string; currency: AnyCurrency } | null>(null)
+  // The customer at the till pays what they owe, or is handed back what is theirs.
+  const [takingDebt, setTakingDebt] = useState<'in' | 'out' | null>(null)
   /** What of the sale is to be left owing, and by when: typed while paying, gone with the sale. */
   /** When what is lent today falls due, as the cashier set it; left alone, the customer's days or the business's. */
   const [accountDue, setAccountDue] = useState<string | null | undefined>(undefined)
@@ -570,8 +574,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // theirs there pays first; the rest is lent, and falls due on its day ──
   const buyer = cart.customer ?? null
   const crediting = !!buyer && !returning && toPay > 0
-  // A cart kept from before customers kept a currency of their own puts it in the base.
-  const accountCurrency = buyer?.currency ?? book?.base ?? base()
+  // The account it goes on: the customer's main currency's unless another is picked for this sale. A cart kept
+  // from before customers kept a currency of their own puts it in the base.
+  const accountCurrency =
+    (buyer && accountPick?.customerId === buyer.id ? accountPick.currency : null) ??
+    buyer?.currency ??
+    book?.base ??
+    base()
   const onAccountNow = crediting ? Math.min(account.amount ?? 0, toPay) : 0
   const accountLine =
     crediting && buyer
@@ -1342,6 +1351,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
                   ? {
                       name: buyer.name,
                       currency: accountCurrency,
+                      currencies: [base(), ...me.org.currencies.filter((code) => code !== base())],
+                      onCurrency: (currency) => {
+                        setAccountPick({ customerId: buyer.id, currency })
+                        // What was agreed was agreed in the other currency.
+                        setAccount({ amount: account.amount, received: null })
+                      },
                       sums: { amount: account.amount, received: account.received },
                       line: accountLine,
                       max: toPay,
@@ -1367,7 +1382,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 registerId={registerId}
                 value={cart.customer ?? null}
                 onChange={serve}
-                onPayDebt={() => setTakingDebt(true)}
+                onPayDebt={() => setTakingDebt('in')}
+                onHandBack={
+                  can('customers.pay_out') ||
+                  can('customers.receive') ||
+                  context.approvers.some((approver) => approver.advances)
+                    ? () => setTakingDebt('out')
+                    : undefined
+                }
               />
               <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
                 {/* A code is for a promotion, and promotions are for the retail price. */}
@@ -1513,9 +1535,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
           <PaymentDialog
             buyer={buyer}
             customerId={buyer.id}
-            currency={accounts.find((item) => item.balance > 0)?.currency ?? buyer.currency}
-            kind="in"
-            onClose={() => setTakingDebt(false)}
+            currency={
+              accounts.find((item) => (takingDebt === 'in' ? item.balance > 0 : item.balance < 0))?.currency ??
+              buyer.currency
+            }
+            kind={takingDebt}
+            registerId={context.register.id}
+            approvers={context.approvers.filter((approver) => approver.advances)}
+            onClose={() => setTakingDebt(null)}
             onSaved={() => void knowAgain(buyer)}
           />
         </HotkeyScope>
