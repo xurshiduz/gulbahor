@@ -1,4 +1,5 @@
 import {
+  feeOf,
   formatMoney,
   MONEY_TRANSFER_STATUS_LABELS,
   MONEY_TRANSFER_STATUSES,
@@ -236,9 +237,24 @@ export function TransfersTab() {
           className: 'tabular text-right font-medium whitespace-nowrap',
           headerClassName: 'text-right',
         },
-        cell: ({ row }) => transferSums(row.original),
+        cell: ({ row }) => (
+          <>
+            {transferSums(row.original)}
+            {/* What the bank kept for it left the account too: said under the sum, and found among the expenses. */}
+            {row.original.fee ? (
+              <span className="block text-xs font-normal text-ink-3" title={row.original.feeNumber ?? undefined}>
+                {t('money.feeShort', { amount: money(row.original.fee, row.original.currency) })}
+              </span>
+            ) : null}
+          </>
+        ),
       },
       { id: 'currency', header: t('money.currency'), meta: { exportOnly: true, export: (row) => row.currency } },
+      {
+        id: 'fee',
+        header: t('money.transferFee'),
+        meta: { exportOnly: true, export: (row) => (row.fee ? moneyCell(row.fee, row.currency) : null) },
+      },
       {
         id: 'toAmount',
         header: t('money.exchangeReceived'),
@@ -345,6 +361,7 @@ export function TransferDialog({
   accounts,
   limit,
   setsRates,
+  startFrom = null,
   onClose,
 }: {
   accounts: AccountDto[]
@@ -352,24 +369,50 @@ export function TransferDialog({
   limit: number
   /** This person sets rates: an agreement however far from the day's is theirs to make. */
   setsRates: boolean
+  /** The account the money leaves, when the window is opened for it: a terminal whose money reached the bank. */
+  startFrom?: string | null
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const book = useRateBook()
-  const [fromId, setFromId] = useState<string | null>(null)
-  const [toId, setToId] = useState<string | null>(null)
+  const [fromId, setFromId] = useState<string | null>(startFrom)
+  // Opened for a terminal, its money goes to the bank account — the only one of its currency, when there is one.
+  const [startTo] = useState<string | null>(() => {
+    const start = accounts.find((account) => account.id === startFrom)
+    const banks =
+      start?.kind === 'terminal'
+        ? accounts.filter(
+            (account) => account.isActive && account.kind === 'bank' && account.currency === start.currency,
+          )
+        : []
+    return banks.length === 1 ? banks[0].id : null
+  })
+  const [toId, setToId] = useState<string | null>(startTo)
   const [sums, setSums] = useState<ExchangeSums>({ amount: null, received: null })
+  // What the bank keeps for moving it: seldom there, so the field stays folded until asked for.
+  const [charged, setCharged] = useState(false)
+  const [fee, setFee] = useState<number | null>(null)
+  /** The fee was typed: what the terminal's percent makes of the sum is no longer put in its place. */
+  const [feeTyped, setFeeTyped] = useState(false)
   const [note, setNote] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   // One transfer, one key: sent twice, it is still made once.
   const [clientKey] = useState(uuid)
 
-  // A terminal's money goes to the bank by itself; everything else can be carried.
+  // Everything can be carried but a terminal's money: that goes one way, to the bank, when the bank shows it.
   const movable = accounts.filter((account) => account.isActive && account.kind !== 'terminal')
-  const from = movable.find((account) => account.id === fromId) ?? null
-  const to = movable.find((account) => account.id === toId) ?? null
+  const sources = accounts.filter((account) => account.isActive)
+  const from = sources.find((account) => account.id === fromId) ?? null
+  const settling = from?.kind === 'terminal'
+  const targets = settling
+    ? movable.filter((account) => account.kind === 'bank' && account.currency === from.currency)
+    : movable.filter((account) => account.id !== fromId)
+  const to = targets.find((account) => account.id === toId) ?? null
   const line = exchangeLine(from, to?.currency ?? null, sums, book, limit)
+  // Of what a terminal took the bank keeps its share: worked out from the terminal's percent until typed over.
+  const feeNow = settling && !feeTyped ? feeOf(sums.amount ?? 0, from.feePercent) || null : fee
+  const withFee = charged || settling
   // A card is told from another by its number, a drawer by its till: the till's name is the drawer's own.
   const option = (account: AccountDto) => ({
     value: account.id,
@@ -396,8 +439,10 @@ export function TransferDialog({
       clientKey,
       fromAccountId: fromId,
       toAccountId: toId,
-      amount: sums.amount,
+      // What leaves a terminal is typed whole: what reaches the bank is that less the bank's share.
+      amount: settling && sums.amount ? sums.amount - (feeNow ?? 0) : sums.amount,
       received: receivedOf(line),
+      fee: withFee ? feeNow : null,
       note,
     })
     if (!parsed.success) {
@@ -430,13 +475,16 @@ export function TransferDialog({
             {(id) => (
               <Combobox
                 id={id}
-                autoFocus
-                options={movable.map(option)}
+                // The cursor starts at the first thing still to be said.
+                autoFocus={!startFrom}
+                options={sources.map(option)}
                 value={fromId}
                 onChange={(value) => {
                   setFromId(value)
                   setToId(null)
                   setSums({ amount: null, received: null })
+                  setFee(null)
+                  setFeeTyped(false)
                 }}
                 invalid={!!errors.fromAccountId}
               />
@@ -446,8 +494,9 @@ export function TransferDialog({
             {(id) => (
               <Combobox
                 id={id}
+                autoFocus={!!startFrom && !startTo}
                 // A place of another currency is offered too: the money is changed on the way.
-                options={movable.filter((account) => account.id !== fromId).map(option)}
+                options={targets.map(option)}
                 value={toId}
                 onChange={(value) => {
                   setToId(value)
@@ -459,7 +508,11 @@ export function TransferDialog({
           </Field>
           <Field
             label={
-              line && from ? t('money.exchangeOut', { currency: currencyShort(from.currency, t) }) : t('money.amount')
+              settling
+                ? t('money.terminalGross')
+                : line && from
+                  ? t('money.exchangeOut', { currency: currencyShort(from.currency, t) })
+                  : t('money.amount')
             }
             error={errors.amount}
             required
@@ -468,6 +521,7 @@ export function TransferDialog({
               <MoneyInput
                 id={id}
                 value={sums.amount}
+                autoFocus={!!startFrom && !!startTo}
                 // What leaves is the anchor: typed, what enters follows from the rate afresh.
                 onChange={(amount) => setSums({ amount, received: null })}
                 currency={from?.currency ?? base()}
@@ -489,6 +543,48 @@ export function TransferDialog({
             />
           ) : null}
         </div>
+        {withFee ? (
+          <div className="grid items-start gap-x-3 gap-y-4 sm:grid-cols-2">
+            <Field
+              label={
+                settling && from.feePercent
+                  ? `${t('money.transferFee')} · ${String(from.feePercent).replace('.', ',')}%`
+                  : t('money.transferFee')
+              }
+              error={errors.fee}
+              hint={settling ? t('money.terminalFeeHint') : t('money.transferFeeHint')}
+            >
+              {(id) => (
+                <MoneyInput
+                  id={id}
+                  // Asked for, the cursor goes to it; a terminal's is there from the start and is passed by.
+                  autoFocus={!settling}
+                  value={feeNow}
+                  onChange={(value) => {
+                    setFee(value)
+                    setFeeTyped(true)
+                  }}
+                  currency={from?.currency ?? base()}
+                  invalid={!!errors.fee}
+                />
+              )}
+            </Field>
+            {/* What it comes to: what the account loses in all, or — off a terminal — what the bank account gets. */}
+            {from && sums.amount && (feeNow || settling) ? (
+              <p data-fee-total className="tabular self-center pt-5 text-[13px] text-ink-2">
+                {settling
+                  ? t('money.reachesBank', { amount: money(sums.amount - (feeNow ?? 0), from.currency) })
+                  : t('money.leavesAccount', { amount: money(sums.amount + (feeNow ?? 0), from.currency) })}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div data-enter-skip>
+            <Button variant="soft" size="sm" onClick={() => setCharged(true)}>
+              {t('money.addFee')}
+            </Button>
+          </div>
+        )}
         <Field label={t('receipts.note')}>
           {(id) => <Input id={id} value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} />}
         </Field>

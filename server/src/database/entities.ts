@@ -13,6 +13,7 @@ import type {
   MarkupBase,
   OrgSettings,
   MoneyTransferStatus,
+  MoneyCategoryKey,
   MoneyOpKind,
   MoneyOpStatus,
   CustomerPaymentKind,
@@ -1725,6 +1726,10 @@ export class Account {
   @Column('text', { nullable: true })
   bank: string | null
 
+  /** A terminal's acquiring fee, in percent: what the bank keeps of what it took. */
+  @Column('numeric', { nullable: true, transformer: numericAsNumber })
+  feePercent: number | null
+
   @Column('bigint', { transformer: bigintAsNumber })
   balance: number
 
@@ -2441,6 +2446,10 @@ export class MoneyCategory {
   @Column('int')
   sortOrder: number
 
+  /** What the system writes under it by itself (`bank_fee`), whatever it is called now; null for the rest. */
+  @Column('text', { nullable: true })
+  systemKey: MoneyCategoryKey | null
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
 }
@@ -2501,6 +2510,10 @@ export class MoneyOp {
 
   @Column('text', { nullable: true })
   cancelReason: string | null
+
+  /** The transfer this is the bank's fee for: it goes back with the transfer, and not on its own. */
+  @Column('uuid', { nullable: true })
+  transferId: string | null
 
   @Column('text')
   searchKey: string
@@ -2679,6 +2692,13 @@ export class MoneyTransfer {
   /** What the exchange made for the business against the day's rates: `toBase - base`, a gain when more than nothing. */
   @Column('bigint', { transformer: bigintAsNumber })
   fx: number
+
+  /** What the bank kept for moving it, on top of `amount`, in the currency it left in; and the expense written for it. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  fee: number
+
+  @Column('uuid', { nullable: true })
+  feeOpId: string | null
 
   @Column('uuid', { nullable: true })
   fromShiftId: string | null

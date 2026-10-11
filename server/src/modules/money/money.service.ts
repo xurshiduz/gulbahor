@@ -242,6 +242,7 @@ export class MoneyService {
           'last4',
           'cardNumber',
           'bank',
+          'feePercent',
         ]),
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos']))
@@ -457,6 +458,7 @@ export class MoneyService {
       last4: account.last4,
       cardNumber: account.cardNumber,
       bank: account.bank,
+      feePercent: account.feePercent,
       balance: seesBalances ? account.balance : null,
       isActive: account.isActive,
     }))

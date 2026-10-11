@@ -43,8 +43,17 @@ export const moneyCategoryInputSchema = z.object({
 })
 export type MoneyCategoryInput = z.infer<typeof moneyCategoryInputSchema>
 
+/** Kinds of expense the system writes under by itself: what a bank keeps for moving money. */
+export type MoneyCategoryKey = 'bank_fee'
+
 /** What a business starts with; all of it can be renamed or archived. */
-export const STARTER_MONEY_CATEGORIES: { kind: MoneyOpKind; name: string; inProfit: boolean }[] = [
+export const STARTER_MONEY_CATEGORIES: {
+  kind: MoneyOpKind
+  name: string
+  inProfit: boolean
+  /** What the system itself writes under it, whatever the business renames it to. */
+  key?: MoneyCategoryKey
+}[] = [
   { kind: 'expense', name: 'Ijara', inProfit: true },
   { kind: 'expense', name: 'Ish haqi', inProfit: true },
   { kind: 'expense', name: 'Oshxona', inProfit: true },
@@ -53,7 +62,7 @@ export const STARTER_MONEY_CATEGORIES: { kind: MoneyOpKind; name: string; inProf
   { kind: 'expense', name: 'Tozalik', inProfit: true },
   { kind: 'expense', name: 'Reklama', inProfit: true },
   { kind: 'expense', name: 'Soliq va yig‘imlar', inProfit: true },
-  { kind: 'expense', name: 'Bank komissiyasi', inProfit: true },
+  { kind: 'expense', name: 'Bank komissiyasi', inProfit: true, key: 'bank_fee' },
   { kind: 'expense', name: 'Umidsiz qarzlar', inProfit: true },
   { kind: 'expense', name: 'Boshqa xarajat', inProfit: true },
   { kind: 'expense', name: 'Egasi oldi', inProfit: false },

@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { CardNumberInput } from '@/components/ui/card-number-input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Combobox } from '@/components/ui/combobox'
 import { Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
@@ -98,7 +99,8 @@ export function MoneyPage() {
   const seesStand = can('money.view')
   const [registerForm, setRegisterForm] = useState<RegisterDto | null | undefined>()
   const [accountForm, setAccountForm] = useState<AccountDto | null | undefined>()
-  const [moving, setMoving] = useState(false)
+  /** Money is being moved: from wherever is picked, or from a terminal whose money reached the bank. */
+  const [moving, setMoving] = useState<{ from: string | null } | null>(null)
   const [spending, setSpending] = useState(false)
   const [categoryForm, setCategoryForm] = useState<MoneyCategoryDto | null | undefined>()
   const accounts = useAccounts(seesAccounts)
@@ -110,7 +112,7 @@ export function MoneyPage() {
     tab === 'registers'
       ? setRegisterForm(null)
       : tab === 'transfers' || tab === 'stand'
-        ? setMoving(true)
+        ? setMoving({ from: null })
         : tab === 'ops'
           ? setSpending(true)
           : tab === 'categories'
@@ -180,7 +182,11 @@ export function MoneyPage() {
         </TabPanel>
         <TabPanel value="stand">{seesStand ? <StandTab /> : null}</TabPanel>
         <TabPanel value="accounts">
-          <AccountsTab canManage={canManage} onEdit={setAccountForm} />
+          <AccountsTab
+            canManage={canManage}
+            onEdit={setAccountForm}
+            onSettle={canMove ? (account) => setMoving({ from: account.id }) : undefined}
+          />
         </TabPanel>
         <TabPanel value="transfers">
           <TransfersTab />
@@ -207,7 +213,8 @@ export function MoneyPage() {
           accounts={accounts.data ?? []}
           limit={me.org.settings.maxRateLossPercent}
           setsRates={can('money.rates')}
-          onClose={() => setMoving(false)}
+          startFrom={moving.from}
+          onClose={() => setMoving(null)}
         />
       ) : null}
       {spending ? <MoneyOpDialog onClose={() => setSpending(false)} /> : null}
@@ -449,7 +456,16 @@ function RegisterDialog({ register, onClose }: { register: RegisterDto | null; o
 
 // ───────────────────────────── Accounts ─────────────────────────────
 
-function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (account: AccountDto) => void }) {
+function AccountsTab({
+  canManage,
+  onEdit,
+  onSettle,
+}: {
+  canManage: boolean
+  onEdit: (account: AccountDto) => void
+  /** A terminal's money has reached the bank: for whoever may move money. */
+  onSettle?: (account: AccountDto) => void
+}) {
   const { t } = useTranslation()
   const base = useSession().me.org.baseCurrency
   const queryClient = useQueryClient()
@@ -483,6 +499,9 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
               <span className="font-code text-xs text-ink-3"> *{row.original.last4}</span>
             ) : null}
             {row.original.bank ? <span className="text-ink-3"> · {row.original.bank}</span> : null}
+            {row.original.feePercent ? (
+              <span className="text-ink-3"> · {String(row.original.feePercent).replace('.', ',')}%</span>
+            ) : null}
           </span>
         ),
       },
@@ -525,8 +544,9 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
         id: 'actions',
         header: '',
         meta: { fixed: true, className: 'w-px' },
-        cell: ({ row }) =>
-          canManage ? (
+        cell: ({ row }) => {
+          const settles = !!onSettle && row.original.kind === 'terminal' && row.original.isActive
+          return canManage || settles ? (
             <span onClick={(event) => event.stopPropagation()}>
               <Menu
                 trigger={
@@ -535,26 +555,34 @@ function AccountsTab({ canManage, onEdit }: { canManage: boolean; onEdit: (accou
                   </Button>
                 }
                 items={[
-                  { label: t('common.edit'), icon: <Pencil />, onSelect: () => onEdit(row.original) },
-                  row.original.isActive
-                    ? {
-                        label: t('common.archive'),
-                        icon: <Archive />,
-                        onSelect: () => setActive.mutate({ id: row.original.id, active: false }),
-                      }
-                    : {
-                        label: t('common.restore'),
-                        icon: <ArchiveRestore />,
-                        onSelect: () => setActive.mutate({ id: row.original.id, active: true }),
-                      },
+                  ...(settles
+                    ? [{ label: t('money.settleTerminal'), icon: <Landmark />, onSelect: () => onSettle(row.original) }]
+                    : []),
+                  ...(canManage
+                    ? [
+                        { label: t('common.edit'), icon: <Pencil />, onSelect: () => onEdit(row.original) },
+                        row.original.isActive
+                          ? {
+                              label: t('common.archive'),
+                              icon: <Archive />,
+                              onSelect: () => setActive.mutate({ id: row.original.id, active: false }),
+                            }
+                          : {
+                              label: t('common.restore'),
+                              icon: <ArchiveRestore />,
+                              onSelect: () => setActive.mutate({ id: row.original.id, active: true }),
+                            },
+                      ]
+                    : []),
                 ]}
               />
             </span>
-          ) : null,
+          ) : null
+        },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, canManage, base],
+    [t, canManage, base, onSettle],
   )
 
   return (
@@ -581,6 +609,8 @@ interface AccountValues {
   locationIds: string[]
   cardNumber: string
   bank: string
+  /** A terminal's acquiring fee, in percent. */
+  feePercent: number | null
   /** The till whose drawer this cash is; only for cash. */
   registerId: string | null
 }
@@ -599,6 +629,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
       locationIds: account?.locationIds ?? [],
       cardNumber: account?.cardNumber ? formatCardNumber(account.cardNumber) : '',
       bank: account?.bank ?? '',
+      feePercent: account?.feePercent ?? null,
       registerId: account?.registerId ?? null,
     },
   })
@@ -796,6 +827,29 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
               {(id) => <Input id={id} invalid={!!errors.bank} {...form.register('bank')} />}
             </Field>
           </div>
+        ) : null}
+        {kind === 'terminal' ? (
+          <Field label={t('money.feePercent')} hint={t('money.feePercentHint')} error={errors.feePercent?.message}>
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="feePercent"
+                render={({ field }) => (
+                  <NumberInput
+                    id={id}
+                    value={field.value}
+                    onChange={field.onChange}
+                    decimals={2}
+                    min={0}
+                    max={50}
+                    suffix="%"
+                    invalid={!!errors.feePercent}
+                    className="w-40"
+                  />
+                )}
+              />
+            )}
+          </Field>
         ) : null}
       </Form>
     </Dialog>

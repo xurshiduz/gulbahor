@@ -13,6 +13,8 @@ import {
   type PaymentAccountDto,
   type SystemAccount,
 } from '@erp/core'
+import { randomUUID } from 'node:crypto'
+
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
 
@@ -48,6 +50,7 @@ export async function createMoneyCategories(em: EntityManager, orgId: string): P
       inProfit: category.inProfit,
       isActive: true,
       sortOrder: index + 1,
+      systemKey: category.key ?? null,
     })),
   )
 }
@@ -336,6 +339,114 @@ export class MoneyOpsService {
   }
 
   /**
+   * What a bank kept for moving money: an expense out of the account the money left, written inside the
+   * transfer's own transaction and tied to it. Whoever may send the money may pay what sending it costs, so
+   * nothing is asked of them here; the account is already held and known to have the money.
+   */
+  async feeIn(
+    em: EntityManager,
+    actor: Actor,
+    from: Account,
+    amount: number,
+    shiftId: string | null,
+    transfer: { id: string; number: string },
+  ): Promise<MoneyOp> {
+    const today = await this.ledger.today(em, actor.orgId)
+    const book = await this.currencies.book(em, actor, today)
+    const worth = valueLine(amount, from.currency, book.base, book, null, null)
+    if (typeof worth === 'string') {
+      throw AppError.validation({ fee: worth })
+    }
+    // The business's own "Bank komissiyasi", whatever it is called now; one is made where there is none.
+    const category =
+      (await em.findOneBy(MoneyCategory, { systemKey: 'bank_fee' })) ??
+      (await em.save(
+        em.create(MoneyCategory, {
+          orgId: actor.orgId,
+          kind: 'expense',
+          name: 'Bank komissiyasi',
+          inProfit: true,
+          isActive: true,
+          sortOrder: (await em.countBy(MoneyCategory, {})) + 1,
+          systemKey: 'bank_fee',
+        }),
+      ))
+    const number = `XR-${String(await nextNumbers(em, actor.orgId, 'money_expense')).padStart(6, '0')}`
+    const note = `${transfer.number}: o‘tkazma komissiyasi`
+    const op = await em.save(
+      em.create(MoneyOp, {
+        orgId: actor.orgId,
+        number,
+        clientKey: randomUUID(),
+        kind: 'expense',
+        status: 'posted',
+        categoryId: category.id,
+        total: worth.settled,
+        doneAt: new Date(),
+        doneOn: today,
+        createdBy: actor.userId,
+        createdByName: actor.name,
+        paidBy: from.name,
+        note,
+        transferId: transfer.id,
+        searchKey: searchKey([number, category.name, actor.name, note].join(' ')),
+      }),
+    )
+    await em.insert(MoneyOpLine, {
+      orgId: actor.orgId,
+      opId: op.id,
+      position: 0,
+      accountId: from.id,
+      currency: from.currency,
+      amount,
+      rate: worth.rate,
+      base: worth.settled,
+      fx: 0,
+      shiftId,
+    })
+    const other = await this.ledger.systemAccount(em, actor.orgId, otherSide(category))
+    await this.ledger.post(
+      em,
+      actor,
+      { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: op.id, shiftId },
+      [
+        { accountId: from.id, amount: -amount, base: -worth.settled },
+        { accountId: other.id, amount: worth.settled, base: worth.settled },
+      ],
+    )
+    return op
+  }
+
+  /** The transfer did not happen after all: what was written as its fee goes back with it. */
+  async unfeeIn(em: EntityManager, actor: Actor, id: string, reason: string): Promise<void> {
+    const op = await em.findOneBy(MoneyOp, { id })
+    if (!op || op.status !== 'posted') {
+      return
+    }
+    const [line] = await em.find(MoneyOpLine, { where: { opId: id } })
+    const today = await this.ledger.today(em, actor.orgId)
+    await this.ledger.reverse(
+      em,
+      actor,
+      {
+        date: today,
+        kind: `${DOCUMENT}_cancel`,
+        documentType: DOCUMENT,
+        documentId: id,
+        shiftId: line?.shiftId ?? null,
+      },
+      DOCUMENT,
+    )
+    await em.update(MoneyOp, id, {
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      cancelledBy: actor.userId,
+      cancelledByName: actor.name,
+      cancelReason: reason,
+    })
+  }
+
+  /**
    * Takes one back: the money returns to where it was. What went through a
    * drawer can be taken back only while that shift is open: after it has
    * been counted, one the other way puts things right. Those who do not see
@@ -350,6 +461,13 @@ export class MoneyOpsService {
       }
       if (op.status !== 'posted') {
         throw AppError.conflict('OP_CANCELLED', 'Bu yozuv allaqachon bekor qilingan')
+      }
+      // A transfer's fee is part of the transfer: it goes back when the transfer does.
+      if (op.transferId) {
+        throw AppError.conflict(
+          'OP_OF_TRANSFER',
+          'Bu — o‘tkazma komissiyasi: o‘tkazma rad etilsa yoki qaytarib olinsa, o‘zi qaytadi',
+        )
       }
       const lines = await em.find(MoneyOpLine, { where: { opId: id }, order: { position: 'ASC' } })
       const shiftIds = lines.flatMap((line) => (line.shiftId ? [line.shiftId] : []))

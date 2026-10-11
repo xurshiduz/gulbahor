@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest'
 import type { RateBook } from './currencies'
 import type { AnyCurrency } from './money'
 import {
+  accountInputSchema,
   belowFloor,
   dueIn,
+  feeOf,
   floorOf,
   gross,
+  moneyTransferInputSchema,
   overChangeLoss,
   overRateLoss,
   rateGain,
@@ -488,6 +491,29 @@ describe('saleInputSchema', () => {
     expect(refused({ ...base, lines: twice })).toEqual(['lines.1.epc'])
     expect(refused({ ...base, lines: [{ variantId: ID, qty: 2, epc }] })).toEqual(['lines.0.qty'])
     expect(refused({ ...base, lines: [] })).toEqual(['lines'])
+  })
+})
+
+describe('what a bank keeps for moving money', () => {
+  it('is worked out from a terminal’s percent, to the tiyin', () => {
+    expect(feeOf(som(500_000), 1)).toBe(som(5000))
+    // 1,25% of 333 333,33 is 4 166,666…: rounded half up.
+    expect(feeOf(33_333_333, 1.25)).toBe(416_667)
+    expect(feeOf(som(500_000), null)).toBe(0)
+    expect(feeOf(0, 1)).toBe(0)
+  })
+
+  it('is a terminal’s to keep in percent, and a transfer’s to carry as a sum', () => {
+    const terminal = accountInputSchema.parse({ kind: 'terminal', name: 'Ipak', feePercent: 1.2 })
+    expect(terminal.feePercent).toBe(1.2)
+    expect(accountInputSchema.parse({ kind: 'card', name: 'Humo', feePercent: 1.2 }).feePercent).toBeNull()
+    expect(accountInputSchema.safeParse({ kind: 'terminal', name: 'Ipak', feePercent: 1.234 }).success).toBe(false)
+
+    const transfer = { clientKey: KEY, fromAccountId: ID, toAccountId: KEY, amount: som(100_000) }
+    expect(moneyTransferInputSchema.parse(transfer).fee).toBeNull()
+    expect(moneyTransferInputSchema.parse({ ...transfer, fee: 0 }).fee).toBeNull()
+    expect(moneyTransferInputSchema.parse({ ...transfer, fee: som(1000) }).fee).toBe(som(1000))
+    expect(moneyTransferInputSchema.safeParse({ ...transfer, fee: som(200_000) }).success).toBe(false)
   })
 })
 

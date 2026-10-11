@@ -121,6 +121,16 @@ export const accountInputSchema = z
       .nullish()
       .transform((value) => value || null),
     bank: optionalText(60),
+    /** A terminal's acquiring fee, in percent: what the bank keeps of what the terminal took. */
+    feePercent: z
+      .number()
+      .min(0)
+      .max(50)
+      .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
+        message: 'Ko‘pi bilan 2 ta kasr xona',
+      })
+      .nullish()
+      .transform((value) => value ?? null),
     /**
      * The till whose drawer it is: cash kept in a till, counted with its shifts. Only cash ("Naqd") goes in a
      * till; none, and it is cash kept elsewhere — a safe, what somebody carries.
@@ -145,8 +155,17 @@ export const accountInputSchema = z
     ...account,
     cardNumber: account.kind === 'card' ? account.cardNumber : null,
     last4: account.kind === 'card' && account.cardNumber ? account.cardNumber.slice(-4) : account.last4,
+    feePercent: account.kind === 'terminal' ? account.feePercent : null,
   }))
 export type AccountInput = z.infer<typeof accountInputSchema>
+
+/**
+ * What a bank keeps of `gross` at so many percent, to the smallest coin: the fee offered when a terminal's
+ * money is written as having reached the bank.
+ */
+export function feeOf(gross: number, percent: number | null | undefined): number {
+  return percent && gross > 0 ? Number((BigInt(gross) * BigInt(Math.round(percent * 100)) + 5000n) / 10000n) : 0
+}
 
 /** "9860123456789012" -> "9860 1234 5678 9012" */
 export function formatCardNumber(number: string): string {
@@ -173,6 +192,8 @@ export interface AccountDto {
   /** A card's whole number; null for anything else, and for a card known only by its last four digits. */
   cardNumber: string | null
   bank: string | null
+  /** A terminal's acquiring fee, in percent; null where none is set, and for anything else. */
+  feePercent: number | null
   /** In the account's own currency; null for a person who may not see balances. */
   balance: number | null
   isActive: boolean
@@ -1378,11 +1399,20 @@ export const moneyTransferInputSchema = z
      * the currencies are one, it is the amount and this is not read.
      */
     received: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }).nullish(),
+    /**
+     * What the bank keeps for moving it, on top of `amount`, in the currency of the account it leaves: that
+     * much more leaves the account and is written as an expense.
+     */
+    fee: amountSchema.nullish().transform((value) => value || null),
     note: optionalText(200),
   })
   .refine((transfer) => transfer.fromAccountId !== transfer.toAccountId, {
     path: ['toAccountId'],
     message: 'Boshqa hisobni tanlang',
+  })
+  .refine((transfer) => (transfer.fee ?? 0) <= transfer.amount, {
+    path: ['fee'],
+    message: 'Komissiya summadan katta bo‘lmaydi',
   })
 export type MoneyTransferInput = z.infer<typeof moneyTransferInputSchema>
 
@@ -1408,6 +1438,9 @@ export interface MoneyTransferDto {
   toAmount: number
   /** What the exchange made for the business against the day's rates, in the base: a gain when more than nothing. */
   fx: number
+  /** What the bank kept for moving it, on top of `amount`, in the currency it left in; and the expense that says so. */
+  fee: number
+  feeNumber: string | null
   fromAccountId: string
   fromAccountName: string
   toAccountId: string

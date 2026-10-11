@@ -157,6 +157,7 @@ export class ShiftsService {
           fromAccountId: from.id,
           toAccountId: to.id,
           amount: handover.amount,
+          fee: null,
           note: `${shift.number} yopildi`,
         })
         handedOver.push(await this.transfers.sentNotice(em, sent))

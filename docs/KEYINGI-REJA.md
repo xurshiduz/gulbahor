@@ -1385,6 +1385,16 @@ Egasining so'rovi: qaytim (bir nechta valyutada, hisobga, kartadan), qaytarishda
 - Naqd → karta (bankomat), karta → naqd (yechish), karta → karta, kassa → kassa — hammasi shu bitta oyna. Valyutalar har xil bo'lsa kurs farqi alohida, komissiya alohida ko'rsatiladi.
 - **"Bankka tushdi"**: terminal hisobidan bank hisobiga o'tkazma, ekvayring komissiyasi bilan (foizi terminal kartasida, summasi o'zi chiqadi, tuzatsa bo'ladi).
 
+**O1 qanday qurildi (2026-10-12).**
+
+- **Komissiya — summadan tashqari**: o'tkazmada `fee` (jo'natuvchi hisob valyutasida). `amount` — yo'lga chiqqan (va, bir xil valyutada, yetib borgan) summa; hisobdan jami `amount + fee` chiqadi. Rejadagi "101 000 chiqdi, 100 000 kirdi" shu: summa 100 000, komissiya 1 000. Ayirboshlashda kurs farqi alohida (`fx`), komissiya alohida.
+- **Komissiya — alohida xarajat hujjati** (XR-…, `money_ops.transfer_id`): yuborilganda `MoneyOpsService.feeIn` o'sha tranzaksiyada yozadi (jo'natuvchi hisobdan `−fee`, `expenses` ga), "Xarajatlar" ro'yxatida va smena hisobotida (tortmadan bo'lsa) ko'rinadi. O'tkazma rad etilsa yoki qaytarib olinsa `unfeeIn` uni ham bekor qiladi; o'zi alohida bekor qilinmaydi (`OP_OF_TRANSFER`). `money_transfers.fee`, `fee_op_id`; `MoneyTransferDto.fee`, `feeNumber`.
+- **Xarajat turi**: `money_categories.system_key = 'bank_fee'` — biznesning "Bank komissiyasi" turi (nomi o'zgartirilgan bo'lsa ham shu ishlatiladi; yo'q bo'lsa yaratiladi). Migratsiya `1790000050000-transfer-fees`.
+- **Terminal → bank ("Bankka tushdi")**: terminal hisobidan faqat shu valyutadagi bank hisobiga o'tkaziladi; terminalga pul o'tkazilmaydi. Terminal hisobida `fee_percent` (ekvayring foizi, migratsiya `1790000051000-terminal-fees`; `AccountDto.feePercent`, core `feeOf(gross, percent)`). `money.manage` egasi yozsa, o'tkazma shu zahoti qabul qilingan bo'ladi (bank ko'rsatganini yozadi); `money.collect` egasi yozsa — tasdiq kutadi.
+- **Veb**: o'tkazma oynasida "Komissiya bor" tugmasi maydonni ochadi ("Hisobdan chiqadi: …" yonida); "Hisoblar" ro'yxatida terminal qatorida "Bankka tushdi" — oyna terminal bilan ochiladi, bitta bank hisobi bo'lsa o'zi tanlanadi: "Terminaldan chiqadi" yoziladi, komissiya foizdan o'zi chiqadi (tuzatsa bo'ladi), "Bankka tushadi: …" ko'rinadi. Hisob formasida terminal uchun "Ekvayring komissiyasi, %". O'tkazmalar ro'yxatida summa ostida "komissiya …".
+- **Qilinmadi**: komissiya maydoniga foiz yozish ("1%") — hozir faqat summa (terminalda foiz hisobdan olinadi).
+- Testlar: server `transfer-fees.spec.ts` (11 ta), core `pos.test`. Ekranda: o'tkazma oynasi vaqtinchalik sahifada ko'rildi (komissiya maydoni, terminal oqimi); hisob formasi va "Bankka tushdi" menyusi kirilgan tizimda ko'rilmadi.
+
 ### 17.5. Mijozdan mijozga o'tkazish (O2)
 
 - Hayotdagi holatlar: (1) biri ikkinchisi uchun to'laydi — A ning haqisi B ning qarziga; (2) "menga bermang, falonchiga o'tkazing" — xaridorning qarzi bizning yetkazib beruvchiga qarzimizga qarshi yopiladi (o'zaro hisob); (3) to'lov adashib boshqa mijozga yozilgan.

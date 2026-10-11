@@ -14,7 +14,7 @@ import { In, type EntityManager } from 'typeorm'
 import { AppError } from '../../common/errors'
 import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Account, MoneyTransfer, Register, Shift } from '../../database/entities'
+import { Account, MoneyOp, MoneyTransfer, Register, Shift } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
@@ -22,6 +22,7 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { rateLimit, valueLine, wantingRate } from './agreed'
 import { CurrenciesService } from './currencies.service'
 import { LedgerService } from './ledger.service'
+import { MoneyOpsService } from './ops.service'
 import { mayUse } from './places'
 
 const DOCUMENT = 'money_transfer'
@@ -31,8 +32,12 @@ const moved = (transfer: Pick<MoneyTransfer, 'amount' | 'currency' | 'toAmount' 
   formatMoney(transfer.amount, transfer.currency) +
   (transfer.toCurrency === transfer.currency ? '' : ` → ${formatMoney(transfer.toAmount, transfer.toCurrency)}`)
 
-/** Money moves between the places it is kept; a terminal's money goes to the bank by itself, and the ledger's own accounts are not places. */
+/**
+ * Money moves between the places it is kept; the ledger's own accounts are not places. A terminal's money goes
+ * one way only — to the bank, when the bank says it has come (`settles`).
+ */
 const MOVABLE = ['cash', 'safe', 'bank', 'card']
+const settles = (from: Account | null | undefined) => from?.kind === 'terminal'
 
 /** With no account to ask about (it is gone), nothing stands in the way here. */
 const mayWorkAt = (actor: Actor, account: Account | null | undefined) => !account || mayUse(actor, account)
@@ -55,6 +60,7 @@ export class MoneyTransfersService {
     private readonly realtime: RealtimeService,
     private readonly ledger: LedgerService,
     private readonly currencies: CurrenciesService,
+    private readonly ops: MoneyOpsService,
   ) {}
 
   async send(actor: Actor, input: MoneyTransferInput): Promise<MoneyTransferDto> {
@@ -64,12 +70,21 @@ export class MoneyTransfersService {
         return (await this.rows(em, actor, [again]))[0]
       }
       const sent = await this.sendIn(em, actor, input)
+      // A terminal's money is written down once the bank shows it: whoever runs the money says both that it
+      // left and that it came, in one go.
+      const from = await em.findOneByOrFail(Account, { id: sent.fromAccountId })
+      const arrived = settles(from) && can(actor, 'money.manage')
+      if (arrived) {
+        await this.receiveIn(em, actor, sent)
+      }
       const notice = await this.sentNotice(em, sent)
       afterCommit(() => {
-        this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts'])
-        this.realtime.event(actor.orgId, 'money.sent', notice)
+        this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts', ...(sent.fee ? ['money-ops'] : [])])
+        if (!arrived) {
+          this.realtime.event(actor.orgId, 'money.sent', notice)
+        }
       })
-      return (await this.rows(em, actor, [sent]))[0]
+      return (await this.rows(em, actor, [await em.findOneByOrFail(MoneyTransfer, { id: sent.id })]))[0]
     })
   }
 
@@ -96,11 +111,13 @@ export class MoneyTransfersService {
     const from = await em.findOneBy(Account, { id: input.fromAccountId })
     const to = await em.findOneBy(Account, { id: input.toAccountId })
     const fields: Record<string, string> = {}
-    if (!from || !from.isActive || !MOVABLE.includes(from.kind)) {
+    if (!from || !from.isActive || !(MOVABLE.includes(from.kind) || settles(from))) {
       fields.fromAccountId = 'Hisob topilmadi'
     }
     if (!to || !to.isActive || !MOVABLE.includes(to.kind)) {
       fields.toAccountId = 'Hisob topilmadi'
+    } else if (settles(from) && (to.kind !== 'bank' || to.currency !== from?.currency)) {
+      fields.toAccountId = 'Terminal tushumi shu valyutadagi bank hisobiga o‘tadi'
     }
     const first = Object.values(fields)[0]
     if (!from || !to || first) {
@@ -111,8 +128,10 @@ export class MoneyTransfersService {
     if (!mayWorkAt(actor, to)) {
       throw AppError.validation({ toAccountId: 'Hisob topilmadi' })
     }
+    // What the bank keeps for moving it leaves the account too, on top of the sum.
+    const fee = input.fee ?? 0
     // Said without the sum: a cashier is not told what the books hold.
-    if (input.amount > from.balance) {
+    if (input.amount + fee > from.balance) {
       throw AppError.validation({ amount: 'Hisobda buncha pul yo‘q' })
     }
     const today = await this.ledger.today(em, actor.orgId)
@@ -173,11 +192,20 @@ export class MoneyTransfersService {
         { accountId: transit.id, amount: base, base },
       ],
     )
+    if (fee) {
+      // An expense of its own, tied to the transfer: it shows among the expenses, and goes back with this.
+      const charged = await this.ops.feeIn(em, actor, from, fee, fromShift, transfer)
+      await em.update(MoneyTransfer, transfer.id, { fee, feeOpId: charged.id })
+      transfer.fee = fee
+      transfer.feeOpId = charged.id
+    }
     await this.audit.record(em, actor.orgId, actor, {
       action: 'money_transfer.send',
       entity: 'money_transfer',
       entityId: transfer.id,
-      summary: `${number}: ${from.name} → ${to.name}, ${moved(transfer)}`,
+      summary: `${number}: ${from.name} → ${to.name}, ${moved(transfer)}${
+        fee ? `, komissiya ${formatMoney(fee, from.currency)}` : ''
+      }`,
     })
     return transfer
   }
@@ -185,42 +213,47 @@ export class MoneyTransfersService {
   /** Says the money arrived: it enters the account it was sent to. */
   async receive(actor: Actor, id: string): Promise<MoneyTransferDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const transfer = await this.waiting(em, id)
-      const to = await em.findOneByOrFail(Account, { id: transfer.toAccountId })
-      const toShift = await this.mayTake(em, actor, transfer, to)
-      const today = await this.ledger.today(em, actor.orgId)
-      const transit = await this.ledger.systemAccount(em, actor.orgId, 'transit')
-      // It leaves the account for money on its way at what it was sent at, so nothing of it stays there; it enters at
-      // the sum and worth fixed when it was sent, and what an exchange made or cost goes to the exchange difference.
-      const postings = [
-        { accountId: transit.id, amount: -transfer.base, base: -transfer.base },
-        { accountId: to.id, amount: transfer.toAmount, base: transfer.toBase },
-      ]
-      if (transfer.fx) {
-        const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
-        postings.push({ accountId: fx.id, amount: -transfer.fx, base: -transfer.fx })
-      }
-      await this.ledger.post(
-        em,
-        actor,
-        { date: today, kind: 'money_transfer_receive', documentType: DOCUMENT, documentId: id, shiftId: toShift },
-        postings,
-      )
-      await em.update(MoneyTransfer, id, {
-        status: 'received',
-        toShiftId: toShift,
-        decidedAt: new Date(),
-        decidedBy: actor.userId,
-        decidedByName: actor.name,
-      })
-      await this.audit.record(em, actor.orgId, actor, {
-        action: 'money_transfer.receive',
-        entity: 'money_transfer',
-        entityId: id,
-        summary: `${transfer.number}: ${to.name}, ${moved(transfer)}`,
-      })
+      await this.receiveIn(em, actor, await this.waiting(em, id))
       afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts']))
       return (await this.rows(em, actor, [await em.findOneByOrFail(MoneyTransfer, { id })]))[0]
+    })
+  }
+
+  /** The same inside a transaction that is already open. */
+  private async receiveIn(em: EntityManager, actor: Actor, transfer: MoneyTransfer): Promise<void> {
+    const { id } = transfer
+    const to = await em.findOneByOrFail(Account, { id: transfer.toAccountId })
+    const toShift = await this.mayTake(em, actor, transfer, to)
+    const today = await this.ledger.today(em, actor.orgId)
+    const transit = await this.ledger.systemAccount(em, actor.orgId, 'transit')
+    // It leaves the account for money on its way at what it was sent at, so nothing of it stays there; it enters at
+    // the sum and worth fixed when it was sent, and what an exchange made or cost goes to the exchange difference.
+    const postings = [
+      { accountId: transit.id, amount: -transfer.base, base: -transfer.base },
+      { accountId: to.id, amount: transfer.toAmount, base: transfer.toBase },
+    ]
+    if (transfer.fx) {
+      const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+      postings.push({ accountId: fx.id, amount: -transfer.fx, base: -transfer.fx })
+    }
+    await this.ledger.post(
+      em,
+      actor,
+      { date: today, kind: 'money_transfer_receive', documentType: DOCUMENT, documentId: id, shiftId: toShift },
+      postings,
+    )
+    await em.update(MoneyTransfer, id, {
+      status: 'received',
+      toShiftId: toShift,
+      decidedAt: new Date(),
+      decidedBy: actor.userId,
+      decidedByName: actor.name,
+    })
+    await this.audit.record(em, actor.orgId, actor, {
+      action: 'money_transfer.receive',
+      entity: 'money_transfer',
+      entityId: id,
+      summary: `${transfer.number}: ${to.name}, ${moved(transfer)}`,
     })
   }
 
@@ -230,7 +263,7 @@ export class MoneyTransfersService {
       const transfer = await this.waiting(em, id)
       await this.mayTake(em, actor, transfer, await em.findOneByOrFail(Account, { id: transfer.toAccountId }))
       await this.back(em, actor, transfer, 'rejected', reason)
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts', 'money-ops']))
       return (await this.rows(em, actor, [await em.findOneByOrFail(MoneyTransfer, { id })]))[0]
     })
   }
@@ -243,7 +276,7 @@ export class MoneyTransfersService {
         throw AppError.forbidden('O‘tkazmani uni yuborgan odam qaytarib oladi')
       }
       await this.back(em, actor, transfer, 'cancelled', null)
-      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts']))
+      afterCommit(() => this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts', 'money-ops']))
       return (await this.rows(em, actor, [await em.findOneByOrFail(MoneyTransfer, { id })]))[0]
     })
   }
@@ -400,6 +433,15 @@ export class MoneyTransfersService {
       },
       'money_transfer',
     )
+    // It did not happen, so the bank kept nothing for it.
+    if (transfer.feeOpId) {
+      await this.ops.unfeeIn(
+        em,
+        actor,
+        transfer.feeOpId,
+        `${transfer.number}: o‘tkazma ${status === 'rejected' ? 'rad etildi' : 'qaytarib olindi'}`,
+      )
+    }
     await em.update(MoneyTransfer, transfer.id, {
       status,
       reason,
@@ -427,6 +469,8 @@ export class MoneyTransfersService {
       id: In(accounts.flatMap((account) => (account.registerId ? [account.registerId] : []))),
     })
     const manages = can(actor, 'money.manage')
+    const charged = transfers.flatMap((transfer) => (transfer.feeOpId ? [transfer.feeOpId] : []))
+    const fees = charged.length ? await em.findBy(MoneyOp, { id: In(charged) }) : []
     return transfers.map((transfer) => {
       const to = accountOf.get(transfer.toAccountId)
       const waiting = transfer.status === 'sent'
@@ -440,6 +484,8 @@ export class MoneyTransfersService {
         toCurrency: transfer.toCurrency,
         toAmount: transfer.toAmount,
         fx: transfer.fx,
+        fee: transfer.fee,
+        feeNumber: fees.find((op) => op.id === transfer.feeOpId)?.number ?? null,
         fromAccountId: transfer.fromAccountId,
         fromAccountName: accountOf.get(transfer.fromAccountId)?.name ?? '',
         toAccountId: transfer.toAccountId,
