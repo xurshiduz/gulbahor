@@ -1284,6 +1284,30 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 6-bo'lim.
 - **Ekranda tekshirildi** (sinov bazasi, egasi va kassir bilan): tuzatish, almashtirish, to'lovlar ro'yxati va to'lov oynasi, kassada terminal bilan to'lov va qoldiqni kechish, rahbar PIN'i bilan haqini qaytarish, smena hisoboti. Kassadagi hisob valyutasi tanlovi ekranda ko'rilmadi (sinov bazasida tovar yo'q edi).
 - **Hali qilinmagan**: kassadagi sotuvda qaytimni mijoz hisobida qoldirish va kartaga ortiqcha tushgan pul (egasi 2026-10-11 da so'radi — taklif berildi, qaror kutilmoqda); qaytarish va bekor qilishning to'liq tartibi (almashtirish zanjiri) — M2-5.
 
+### 16.14. Kassada qaytim: boshqa valyutada va mijoz hisobiga (reja; egasi, 2026-10-11)
+
+**Egasining talabi.** Mijoz 100 000 so'm berdi, tovar 75 000 — qaytim 25 000. (1) Kassada so'm tugagan bo'lsa qaytim boshqa valyutada beriladi: kassir "2 $" deb yozadi va bu 25 000 so'm o'rniga ketayotganini kurs bilan ko'radi. (2) Qaytim to'liq yoki qisman mijoz hisobiga yoziladi: "10 000 berdim, 15 000 hisobiga — keyingi safar oladi". (3) Mijozning asosiy valyutasi kassada ko'rinib turadi va shu sotuv uchun o'zgartiriladi (hisob valyutasi tanlovi M2-4 da qilindi).
+
+**Hozir qanday.** Qaytim faqat naqd: asosiy valyutada yoki tanlangan bitta boshqa valyutada — tizim butun birliklarni kun kursida o'zi hisoblaydi, qolganini asosiy valyutada beradi. Summani kassir yozmaydi, kelishilgan qiymat yo'q, hisobga yozib bo'lmaydi.
+
+**Qaror.**
+- Qaytim bloki to'lov qatorlari kabi uch joydan iborat:
+  1. **Naqd, asosiy valyutada** — qolgan hammasi o'zi shu yerga tushadi; faqat shu qism yaxlitlanadi (`changeRoundStep`).
+  2. **Naqd, boshqa valyutada** — kassaning har boshqa tortmasi uchun juft maydon: beriladigan summa (kassir yozadi) va uning asosiy valyutadagi qiymati. Qiymat yozilmasa kun kursi, ustidan yozilsa kelishilgan qiymat ("2 $ ni 25 000 deb berdim"); farq "Kurs farqi"ga. Kun kursidan `maxRateLossPercent` dan uzoq kelishuv — to'lovdagi kabi rahbar tasdig'i bilan. «=» kun kursidagi butun summani taklif qiladi.
+  3. **Mijoz hisobiga** — summa asosiy valyutada; hisob boshqa valyutada bo'lsa juft maydon. Avval mijozning qarzini yopadi, ortgani haqi bo'ladi. Mijoz tanlangan bo'lishi shart; tasdiq so'ralmaydi (bu mijozning o'z puli). Yetkazib beruvchiga yozilmaydi.
+- Tekshiruv: uchala qismning asosiy valyutadagi qiymati yig'indisi ortiqcha to'langan summaga teng (yaxlitlash farqi bundan mustasno); tortmada o'sha valyutadan yetmasa — rad etiladi va kassir qolganini boshqa joyga yozadi.
+- Karta va terminalga chekdan ortiq summa hozircha avvalgidek rad etiladi (egasi alohida so'rasa ochiladi).
+- Baza: `sales.change_kept` (asosiy valyutada), `change_kept_currency`, `change_kept_amount` (hisob valyutasida), `change_fx` (boshqa valyutadagi qaytimning kelishilgan qiymati bilan kun kursi orasidagi farq). Daftar: tortmalar −qaytim, mijoz hisobi −yozilgani, `fx` — farq.
+- Qaytarish: chekdan naqd qaytariladigan chegara berilgan va hisobga yozilgan qaytimni ayirib hisoblanadi. Bekor qilish — `ledger.reverse`: hisobga yozilgani ham qaytadi.
+- Chek va smena hisoboti: "Qaytim: 10 000 so'm", "Qaytim: 2 $ (25 000 so'm o'rniga)", "Hisobiga yozildi: 15 000 so'm".
+- Bo'lak nomi: **M2-4b**. Hajmi ~1,5 kun: core (`settle`), migratsiya, sotuv va qaytarish servisi, kassa paneli, chek, smena hisoboti, testlar.
+
+### 16.15. 2026-10-11 dagi tuzatishlar (egasining tekshiruvidan)
+
+- **0 so'mli chek.** To'lanadigan summa 0 bo'lgan chek (100% chegirma — oilaga tekin) to'lovsiz qabul qilinmas edi ("To'lovni kiriting"). Endi jami 0 bo'lsa to'lov talab qilinmaydi; tovar chiqadi, pul yurmaydi.
+- **Qoldiq joy bo'yicha.** "Qoldiq" sahifasi va uning so'rovlari (`/stock`, `/stock/locations`, `/stock/products/:id`) xodimning o'z joylari bilan cheklanmagan edi — REJA.md dagi "kassir va menejer faqat o'z do'konini ko'radi" qoidasiga zid. Endi hamma joyga biriktirilmagan xodim faqat o'z do'koni yoki skladining qoldig'ini ko'radi; boshqa joy so'ralsa 403; "Yo'lda" ham ko'rinmaydi.
+- **Keraksiz "ruxsat etilmagan" javoblari.** Har tayyor rol bilan (8 ta) va har ruxsatning yolg'iz o'zi bilan (30 ta xodim, 50 ta sahifa holati) menyudagi sahifalar ochib chiqildi. Tayyor rollarda rad javobi yo'q. Yolg'iz ruxsatda 4 ta joy topildi va tuzatildi: Qoldiq sahifasidagi kategoriya va brend filtrlari (`stock.view` yetarli), "Mijoz to'lovlari"dagi mijoz filtri (`customers.debts`, `customers.suppliers`), Rollar sahifasi (`roles.manage` ro'yxatni o'qiydi), hisob tuzatish oynasidagi turlar (`customers.adjust`). `server/src/page-permissions.spec.ts` shularni ushlab turadi. Tekshiruv faqat sahifa ochilishini qamradi — oyna ichidagi har tugma emas.
+
 ### 16.9. Ochiq savollar
 
 1. **Narx turlarining odatiy formulalari** — bir marta kiritiladi: Chakana = tannarx + ?%, Ulgurji = tannarx + ?% (yoki chakana − ?%), Oila = tannarx + ?%, Minimal = tannarx + 5%? Va K-000001 dagi "cargo" 43 000 $ (tovar 32 472 $) — xatomi? Tuzatilmaguncha shu tovarlarning formula narxlariga ishonib bo'lmaydi.

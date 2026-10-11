@@ -355,6 +355,19 @@ describe('Receiving', () => {
         .expect(201)
       const visible = (await keeper.get('/api/receipts')).body.items
       expect(visible.map((item: { locationName: string }) => item.locationName)).toEqual(['Depot'])
+
+      // What is on hand is theirs to see in their own place only: the shop's stock is not.
+      const places = (await keeper.get('/api/stock/locations').expect(200)).body as { name: string }[]
+      expect(places.map((place) => place.name)).toEqual(['Depot'])
+      const everywhere = (await alpha.get('/api/stock?presence=in').expect(200)).body
+      expect(everywhere.total).toBeGreaterThan(0)
+      expect((await keeper.get('/api/stock?presence=in').expect(200)).body.total).toBe(0)
+      const shop = ((await alpha.get('/api/locations')).body.items as { id: string; name: string }[]).find(
+        (place) => place.name !== 'Depot',
+      )!
+      await keeper.get(`/api/stock?locationId=${shop.id}`).expect(403)
+      const model = (await keeper.get(`/api/stock/products/${everywhere.items[0].productId}`).expect(200)).body
+      expect(model.variants.every((variant: { qty: number }) => variant.qty === 0)).toBe(true)
     })
   })
 
@@ -366,8 +379,12 @@ describe('Receiving', () => {
         return (row?.balance ?? 0) as number
       })
     const statement = async (customerId: string, currency?: string) =>
-      (await alpha.get(`/api/customers/${customerId}/statement`).query(currency ? { currency } : {}).expect(200))
-        .body as {
+      (
+        await alpha
+          .get(`/api/customers/${customerId}/statement`)
+          .query(currency ? { currency } : {})
+          .expect(200)
+      ).body as {
         balance: number
         lines: { kind: string; source: string; number: string; documentId: string; change: number; balance: number }[]
       }

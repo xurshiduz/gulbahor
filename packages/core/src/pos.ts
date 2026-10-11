@@ -617,7 +617,8 @@ export const saleInputSchema = z
   })
   .superRefine(taggedOnce)
   .superRefine((sale, context) => {
-    if (!sale.payments.length && !sale.onAccount) {
+    // A receipt that comes to nothing — goods given whole, to family — has nothing to be paid with.
+    if (!sale.payments.length && !sale.onAccount && sale.total > 0) {
       context.addIssue({ code: 'custom', path: ['payments'], message: 'To‘lovni kiriting' })
     }
     if (sale.onAccount && !sale.customerId) {

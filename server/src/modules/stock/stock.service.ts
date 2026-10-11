@@ -99,6 +99,12 @@ function carve(balances: Held[], qty: number): { pieces: Piece[]; missing: numbe
  * it writes the movements and moves the balances by the same amounts in the
  * caller's transaction, so the two can never drift apart.
  */
+/**
+ * The places a person's view of stock is kept to: a seller sees their own shop, a storekeeper their
+ * warehouse. Null for someone who works everywhere.
+ */
+const placesOf = (actor: Actor): string[] | null => (actor.allLocations ? null : actor.locationIds)
+
 @Injectable()
 export class StockService {
   constructor(private readonly db: Db) {}
@@ -255,7 +261,11 @@ export class StockService {
    */
   async locations(actor: Actor): Promise<StockLocationDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const rows = await em.find(Location, { where: { isActive: true }, order: { name: 'ASC' } })
+      const mine = placesOf(actor)
+      // Someone kept to their own places sees those: not the others, and not what is on the way between them.
+      const rows = (await em.find(Location, { where: { isActive: true }, order: { name: 'ASC' } })).filter(
+        (row) => !mine || mine.includes(row.id),
+      )
       // The place for goods on the way comes last, whatever its name sorts as.
       const transit = (row: Location) => (row.kind as string) === TRANSIT
       return [...rows.filter((row) => !transit(row)), ...rows.filter(transit)].map((row) => ({
@@ -267,10 +277,18 @@ export class StockService {
     })
   }
 
-  /** Models with what is on hand of each, in all places or in one. */
+  /** Models with what is on hand of each, in all the places this person works in or in one of them. */
   async list(actor: Actor, query: StockListQuery): Promise<Page<StockListItemDto>> {
+    const mine = placesOf(actor)
+    if (query.locationId && mine && !mine.includes(query.locationId)) {
+      throw AppError.forbidden()
+    }
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const place = query.locationId ? 'AND sb.location_id = :locationId' : ''
+      const place = query.locationId
+        ? 'AND sb.location_id = :locationId'
+        : mine
+          ? 'AND sb.location_id IN (:...places)'
+          : ''
       const onHand = `FROM stock_balances sb JOIN product_variants v ON v.id = sb.variant_id WHERE v.product_id = p.id AND sb.qty > 0 ${place}`
       const present = `EXISTS (SELECT 1 ${onHand})`
 
@@ -293,6 +311,8 @@ export class StockService {
         )
         .where('p.isActive')
       if (query.locationId) qb.setParameter('locationId', query.locationId)
+      // No place at all still makes a list the query can read: one that matches nothing.
+      else if (mine) qb.setParameter('places', mine.length ? mine : [null])
 
       if (query.presence === 'in') qb.andWhere(present)
       if (query.presence === 'out') qb.andWhere(`NOT ${present}`)
@@ -386,12 +406,14 @@ export class StockService {
                   jsonb_object_agg(x.location_id, x.qty) AS by_location
            FROM (
              SELECT sb.location_id, sum(sb.qty)::float8 AS qty, sum(sb.cost_uzs) AS cost_uzs
-             FROM stock_balances sb WHERE sb.variant_id = v.id AND sb.qty > 0 GROUP BY sb.location_id
+             FROM stock_balances sb
+             WHERE sb.variant_id = v.id AND sb.qty > 0 AND ($2::uuid[] IS NULL OR sb.location_id = ANY($2))
+             GROUP BY sb.location_id
            ) x
          ) s ON true
          WHERE v.product_id = $1
          ORDER BY a1.sort_order NULLS FIRST, a1.name, a2.sort_order NULLS FIRST, a2.name, a3.sort_order NULLS FIRST, a3.name, v.created_at`,
-        [productId],
+        [productId, placesOf(actor)],
       )
       const seesCost = can(actor, 'stock.cost')
       const variants: StockVariantDto[] = rows.map((row) => ({

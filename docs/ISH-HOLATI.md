@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-11, M2-3 dan keyin: core 221, web 219, agent 17, server 400 (34 fayl); typecheck (core testlari bilan), lint, check_i18n toza; migratsiya 46000 sinov bazasida orqaga va qayta.
+Oxirgi to'liq tekshiruv: 2026-10-11, M2-4 dan keyin: core 221, web 219, agent 17, server 412 (35 fayl); typecheck, lint, check_i18n toza; migratsiya 47000 sinov bazasida: yozuv bo'lsa orqaga qaytmaydi, yozuvsiz orqaga va qayta.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -232,7 +232,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] M2-1. Mijoz kartasi: telefon ixtiyoriy, asosiy valyuta, o'z narxi (guruhnikidan oldin), "Yetkazib beruvchi" belgisi, qarz sozlamalari (chegara, muddat, qaytarish muddati — faqat `customers.adjust`); mijozlar ruxsatlari kengaydi (`suppliers`, `receive`, `pay_out`, `adjust`).
      - [x] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
      - [x] M2-3. Qarz va muddat: chakana qarz shu hisobga, `customer_dues`, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki.
-     - [ ] M2-4. To'lovlar: tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot.
+     - [x] M2-4. To'lovlar: tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot.
+     - [ ] M2-4b. Kassada qaytim: boshqa valyutada juft maydon bilan (kelishilgan qiymat), to'liq yoki qisman mijoz hisobiga (KEYINGI-REJA 16.14; egasi, 2026-10-11).
      - [ ] M2-5. Qaytarish va bekor qilish: avval hisob, keyin pul; almashtirish zanjiri; bekor qilingan chekdagi to'lov avans bo'lib qoladi.
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
@@ -245,7 +246,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-M2-4: to'lovlar — tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot (egasi bilan boshlanadi)
+M2-5: qaytarish va bekor qilish — avval hisob, keyin pul; almashtirish zanjiri (egasi bilan boshlanadi). Undan oldin egasining qarori: kassadagi sotuvda qaytimni mijoz hisobida qoldirish va kartaga ortiqcha tushgan pul (taklif 2026-10-11 da berildi)
 
 ## Ish daraxti nusxalari
 
@@ -279,3 +280,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `47d0bfc33e5a804018b7539201845dcf3cc1cceb` | M2-1: mijoz kartasi — telefon ixtiyoriy, asosiy valyuta, o'z narxi, yetkazib beruvchi belgisi, qarz sozlamalari (customers.adjust), migratsiya 44000, mijozlar ruxsatlari kengaydi |
 | `6abdf6a24ff80317b366a4c79eebd6c6bc953578` | M2-2: bitta ro'yxat — hamkorlar mijozlarga ko'chdi (migratsiya 45000), hisob har valyutada, TL- mijoz to'lovlari, kirim va YQ- yetkazib beruvchi hisobida o'z valyutasida, istalgan mijoz hisobiga sotuv, ruxsatlar; Mijozlar ro'yxatida Turi va Hisob-kitob ustunlari, filtrlar, qator menyusi; ekranda tekshirildi |
 | `dd0c32ffcb37d4636c56b5b779c122913af39ad2` | M2-3: qarz mijoz hisobida — customer_dues (migratsiya 46000, eski chakana qarz bo'lsa to'xtaydi), ageBalance va accountBar (core), standingsOf, kassada bitta "Qarzga / Hisobidan" bloki (haqi avval, qarzga muddat, to'siqlar, biznes chegarasi 0 — har qarz tasdiq bilan), muddatni o'zgartirish, Qarzdorlar, kassir kassada to'lov oladi; rollar tekshiruvi: yetkazib beruvchi belgisi faqat customers.suppliers bilan, to'lov oynasida faqat ruxsat etilgan tur; ekranda tekshirildi |
+| `88e06ca51de88ec5fa93d8ad01e3ea4fee6d0d02` | M2-4: hisob tuzatish (xarajat yoki kirim turiga qarshi, Umidsiz qarzlar turi), hisob ichida almashtirish (juft maydon, kurs farqi), to'lov olishda qoldiqni kechish (yaxlitlash qadamigacha), tortmadan faqat mijozning haqisi beriladi (ADVANCE_EXCEEDED), kassir rahbar PIN'i bilan haqini qaytaradi, kassada terminal bilan to'lov va terminal solishtiruvi, smena hisobotida karta va terminal qatorlari, kassada hisob valyutasini tanlash; migratsiya 47000; ekranda egasi va kassir bilan tekshirildi |

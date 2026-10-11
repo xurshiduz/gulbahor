@@ -57,13 +57,25 @@ export class CustomersController {
     private readonly payments: CustomerPaymentsService,
   ) {}
 
-  /** Customers to pick among on a document: whoever makes receipts or sends goods back picks the supplier here. */
+  /**
+   * Customers to pick among on a document, or to filter a list by: whoever makes receipts or sends goods back
+   * picks the supplier here, and whoever may look at payments finds one customer's.
+   */
   @Get('brief')
   brief(
     @CurrentActor() actor: Actor,
     @Query(zod(customerBriefQuerySchema)) query: CustomerBriefQuery,
   ): Promise<CustomerBriefDto[]> {
-    anyOf(actor, 'customers.view', 'customers.receive', 'customers.pay_out', 'receipts.view', 'supplier_returns.view')
+    anyOf(
+      actor,
+      'customers.view',
+      'customers.receive',
+      'customers.pay_out',
+      'customers.debts',
+      'customers.suppliers',
+      'receipts.view',
+      'supplier_returns.view',
+    )
     return this.customers.brief(actor, query)
   }
 

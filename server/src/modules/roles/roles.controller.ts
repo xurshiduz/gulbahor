@@ -1,8 +1,9 @@
 import { idSchema, roleInputSchema, type RoleDto, type RoleInput } from '@erp/core'
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
 
+import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
-import { Actor, Can, CurrentActor } from '../auth/actor'
+import { Actor, Can, can, CurrentActor } from '../auth/actor'
 import { RolesService } from './roles.service'
 
 @Controller('roles')
@@ -11,8 +12,10 @@ export class RolesController {
 
   /** Needed to pick roles for a person as well as to manage them. */
   @Get()
-  @Can('users.view')
   list(@CurrentActor() actor: Actor): Promise<RoleDto[]> {
+    if (!can(actor, 'users.view') && !can(actor, 'roles.manage')) {
+      throw AppError.forbidden()
+    }
     return this.roles.list(actor)
   }
 

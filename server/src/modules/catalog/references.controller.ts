@@ -23,9 +23,10 @@ import {
 } from '@erp/core'
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
 
+import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
 import { Db } from '../../database/db.service'
-import { Actor, Can, CurrentActor } from '../auth/actor'
+import { Actor, Can, can, CurrentActor } from '../auth/actor'
 import { RealtimeService } from '../realtime/realtime.service'
 import { AttributesService } from './attributes.service'
 import { BrandsService } from './brands.service'
@@ -35,13 +36,21 @@ import { applyStarter } from './starter'
 
 const id = () => Param('id', zod(idSchema))
 
+/** Categories and brands by name: for the catalogue's keepers, and for whoever filters stock by them. */
+function seesNames(actor: Actor) {
+  if (!can(actor, 'products.view') && !can(actor, 'stock.view')) {
+    throw AppError.forbidden()
+  }
+}
+
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categories: CategoriesService) {}
 
+  /** The names lists are filtered by: whoever looks at stock needs them as much as whoever keeps the catalogue. */
   @Get()
-  @Can('products.view')
   list(@CurrentActor() actor: Actor): Promise<CategoryDto[]> {
+    seesNames(actor)
     return this.categories.list(actor)
   }
 
@@ -86,8 +95,8 @@ export class BrandsController {
   constructor(private readonly brands: BrandsService) {}
 
   @Get()
-  @Can('products.view')
   list(@CurrentActor() actor: Actor): Promise<BrandDto[]> {
+    seesNames(actor)
     return this.brands.list(actor)
   }
 

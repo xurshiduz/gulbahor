@@ -33,10 +33,13 @@ function seesOps(actor: Actor) {
 export class MoneyOpsController {
   constructor(private readonly ops: MoneyOpsService) {}
 
-  /** Whoever may write an expense has to be able to say what it was for. */
+  /**
+   * Whoever may write an expense has to be able to say what it was for; so has whoever puts a customer's
+   * account right against one.
+   */
   @Get('categories')
   categories(@CurrentActor() actor: Actor): Promise<MoneyCategoryDto[]> {
-    if (!can(actor, 'money.categories')) {
+    if (!can(actor, 'money.categories') && !can(actor, 'customers.adjust')) {
       seesOps(actor)
     }
     return this.ops.categories(actor)

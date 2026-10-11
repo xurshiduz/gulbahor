@@ -744,4 +744,24 @@ describe('Till', () => {
       expect(after.rounding - before.rounding).toBe(-som(400))
     })
   })
+
+  describe('a receipt that comes to nothing', () => {
+    it('is made with no payment at all: the goods leave, no money moves', async () => {
+      const before = await balances()
+      const stock = await onHand(scarf)
+      // A scarf given whole: the discount is its price.
+      const sale = (
+        await sell({ lines: [{ variantId: scarf, qty: 1, discount: som(40_000) }], payments: [], total: 0 }).expect(201)
+      ).body
+      expect(sale).toMatchObject({ total: 0, discount: som(40_000), changeUzs: 0, payments: [] })
+      expect(await onHand(scarf)).toBe(stock - 1)
+      const after = await balances()
+      expect(after.cash_UZS).toBe(before.cash_UZS)
+      expect(after.sales).toBe(before.sales)
+      // A receipt with something to pay still says how.
+      const unpaid = await sell({ lines: [{ variantId: scarf, qty: 1 }], payments: [], total: som(40_000) })
+      expect(unpaid.status).toBe(400)
+      expect(unpaid.body.error.fields.payments).toBe('To‘lovni kiriting')
+    })
+  })
 })
