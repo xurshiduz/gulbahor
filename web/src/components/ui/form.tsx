@@ -36,7 +36,11 @@ export function Form({ onSubmit, children, className, id }: FormProps) {
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== 'Enter' || event.defaultPrevented) {
+    // A checkbox or a switch keeps Enter from pressing it, and so hides the key from everyone after it:
+    // Ctrl+Enter on one saves all the same.
+    const onToggle =
+      (event.ctrlKey || event.metaKey) && (event.target as HTMLElement).matches('[role="checkbox"], [role="switch"]')
+    if (event.key !== 'Enter' || (event.defaultPrevented && !onToggle)) {
       return
     }
     const form = ref.current

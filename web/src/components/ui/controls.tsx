@@ -78,6 +78,71 @@ export function Select({ id, value, onChange, options, placeholder, invalid, dis
   )
 }
 
+// ───────────────────────────── Segments ─────────────────────────────
+
+interface SegmentsProps<T extends string> {
+  id?: string
+  value: T
+  onChange: (value: T) => void
+  options: { value: T; label: string }[]
+  className?: string
+}
+
+/**
+ * A choice among two or three things, all of them in sight: pressed, not opened. The arrows move between them,
+ * and Tab passes the group as one field.
+ */
+export function Segments<T extends string>({ id, value, onChange, options, className }: SegmentsProps<T>) {
+  const move = (step: number, from: HTMLElement) => {
+    const next =
+      options[(options.findIndex((option) => option.value === value) + step + options.length) % options.length]
+    onChange(next.value)
+    // The cursor follows the choice, as it does in a group of radio buttons.
+    window.setTimeout(() => {
+      const buttons = [...(from.parentElement?.children ?? [])] as HTMLElement[]
+      buttons.find((button) => button.dataset.segment === next.value)?.focus()
+    })
+  }
+  return (
+    <div
+      id={id}
+      role="radiogroup"
+      className={cn('flex h-8.5 w-full gap-0.5 rounded-md border border-line-strong bg-sunken p-0.5', className)}
+    >
+      {options.map((option) => {
+        const chosen = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={chosen}
+            data-segment={option.value}
+            tabIndex={chosen ? 0 : -1}
+            onClick={() => onChange(option.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                event.preventDefault()
+                move(1, event.currentTarget)
+              } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                event.preventDefault()
+                move(-1, event.currentTarget)
+              }
+            }}
+            className={cn(
+              'min-w-0 flex-1 truncate rounded px-2 text-[13px] transition-colors',
+              'focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/40',
+              chosen ? 'bg-surface font-medium text-ink shadow-card' : 'text-ink-2 hover:text-ink',
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ───────────────────────────── Checkbox and switch ─────────────────────────────
 
 interface ToggleProps {

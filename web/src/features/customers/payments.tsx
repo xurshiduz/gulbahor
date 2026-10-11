@@ -35,7 +35,7 @@ import { Button } from '@/components/ui/button'
 import { FilterCombo, FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { Combobox } from '@/components/ui/combobox'
 import { DateInput } from '@/components/ui/date-input'
-import { Checkbox, Select } from '@/components/ui/controls'
+import { Checkbox, Segments, Select } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut, Spinner } from '@/components/ui/feedback'
@@ -207,7 +207,11 @@ export function PaymentDialog({
   const tillId = tills.some((till) => till.id === pickedTill) ? pickedTill : defaultTill(tills, tillHere(), lastTill())
   // What this person keeps out of sight: a seldom used drawer or account, back from "another account" when wanted.
   const [hidden, setHidden] = useHiddenPlaces()
-  const shown = useMemo(() => rows ?? startRows(places, tillId, hidden), [rows, places, tillId, hidden])
+  // Until something is typed the lines follow whose account it is: the places in its currency come first.
+  const shown = useMemo(
+    () => rows ?? startRows(places, tillId, hidden, currency),
+    [rows, places, tillId, hidden, currency],
+  )
   const pickTill = (id: string) => {
     setPickedTill(id)
     keepTill(id)
@@ -435,16 +439,19 @@ export function PaymentDialog({
           <Field label={t('payments.kind')}>
             {(id) => (
               <div data-enter-skip>
-                <Select
+                {/* Both in sight: which way the money goes is pressed, not looked for in a list. */}
+                <Segments
                   id={id}
                   value={kind}
-                  onChange={(value) => setKind(value as 'in' | 'out')}
+                  onChange={setKind}
                   // Only the ways money may go for this person: one who takes payments need not pay any out.
                   options={[
                     ...(can('customers.receive') || kind === 'in'
-                      ? [{ value: 'in', label: t('payments.takeIn') }]
+                      ? [{ value: 'in' as const, label: t('payments.takeInShort') }]
                       : []),
-                    ...(mayHandBack || kind === 'out' ? [{ value: 'out', label: t('payments.payOut') }] : []),
+                    ...(mayHandBack || kind === 'out'
+                      ? [{ value: 'out' as const, label: t('payments.payOutShort') }]
+                      : []),
                   ]}
                 />
               </div>

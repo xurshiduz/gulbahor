@@ -654,10 +654,21 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const accountRateAsk = !!accountLine?.strays && !context.mayOverDiscount
 
   // ── The money: paid in, or handed back ──
-  const rows = useMemo(
-    () => (refunding && returning ? refundRows(context, returning.found) : tenderRows(context)),
-    [context, refunding, returning],
-  )
+  // A customer who deals in another currency the till keeps is asked for it first: its row leads, and —
+  // nothing typed — cash in it is what is meant. Typing anywhere else pays otherwise, as ever.
+  const prefer =
+    !returning &&
+    buyer?.currency &&
+    buyer.currency !== (book?.base ?? base()) &&
+    context.currencies.includes(buyer.currency) &&
+    tillWorth(100, buyer.currency, book) !== null
+      ? buyer.currency
+      : null
+  const rows = useMemo(() => {
+    const list = refunding && returning ? refundRows(context, returning.found) : tenderRows(context)
+    const theirs = `cash:${prefer}`
+    return prefer ? [...list.filter((row) => row.key === theirs), ...list.filter((row) => row.key !== theirs)] : list
+  }, [context, refunding, returning, prefer])
   const tenders = useMemo(() => rows.map((row) => ({ ...row, ...paid[row.key] })), [rows, paid])
   // What was typed for paying means nothing for handing back, and the other way round.
   useEffect(() => setPaid({}), [refunding])
@@ -729,9 +740,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
       refunding && returning
         ? suggestRefunds(toRefund - keptNow, returning.found, context.changeRoundStep)
         : toPay - onAccountNow
-          ? { cash: toPay - onAccountNow }
+          ? prefer
+            ? { [`cash:${prefer}`]: dueIn(toPay - onAccountNow, prefer, book) ?? 0 }
+            : { cash: toPay - onAccountNow }
           : {},
-    [refunding, returning, toRefund, keptNow, toPay, onAccountNow, context.changeRoundStep],
+    [refunding, returning, toRefund, keptNow, toPay, onAccountNow, context.changeRoundStep, prefer, book],
   )
 
   const focusField = (kind: TenderKind) => {
@@ -778,7 +791,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
       toast.error(t('pos.badDiscount'))
       return
     }
-    wanted.current = kind
+    // With no way of paying asked for, the cursor goes to the customer's own currency where they have one here.
+    wanted.current = kind ?? (prefer ? 'other' : null)
     setPaying(true)
     // Each payment starts with what is hidden out of sight again.
     setPeek(false)
@@ -1529,6 +1543,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               onBack={() => backToCart()}
               hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces, peek, onPeek: setPeek }}
               offAccount={offAccount}
+              prefer={prefer}
               keep={
                 keeper
                   ? {

@@ -367,6 +367,51 @@ function Refund({
   )
 }
 
+describe('a customer who deals in dollars', () => {
+  /** 121 000 so'm to pay — 10 $ at 12 100 — by someone whose own currency is the dollar. */
+  function Theirs({ onComplete }: { onComplete: (rows: TenderRow[]) => void }) {
+    const due = som(121_000)
+    const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
+    const list = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
+    const rows = [...list.filter((row) => row.key === 'cash:USD'), ...list.filter((row) => row.key !== 'cash:USD')]
+    return (
+      <TenderPanel
+        context={context}
+        rows={rows}
+        onPatch={(key, patch) => setPaid((current) => ({ ...current, [key]: { ...current[key], ...patch } }))}
+        returning={null}
+        refunding={false}
+        due={due}
+        suggested={{ 'cash:USD': 1000 }}
+        settlement={settle(due, tendersOf(enteredRows(rows), false), { book, roundStep: 0 })}
+        refund={settleRefund(0, [], { book, roundStep: 0 })}
+        prefer="USD"
+        action="Sotish"
+        busy={false}
+        onComplete={() => onComplete(enteredRows(rows))}
+        onBack={() => undefined}
+      />
+    )
+  }
+
+  it('is told what is to pay in dollars, and asked for dollars first', async () => {
+    const sold = vi.fn()
+    render(<Theirs onComplete={sold} />)
+    // What is to pay, said in their currency in full sight.
+    expect(plain(document.querySelector('[data-prefer]')?.textContent)).toBe('= 10,00 $')
+    // Their row leads, and shows faintly what is meant when nothing is typed.
+    const first = document.querySelector('[data-tender]')
+    expect(first?.getAttribute('data-tender')).toBe('cash:USD')
+    expect(plain(field('cash:USD').placeholder)).toBe('10,00')
+    expect(plain(screen.getByText(/Hech narsa yozilmasa/).textContent)).toContain('naqd dollarda')
+    // Paying otherwise is typing elsewhere, as ever.
+    await userEvent.type(field('cash'), '121000{Enter}')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+    expect(sold.mock.calls[0][0].map((row: TenderRow) => [row.key, row.amount])).toEqual([['cash', som(121_000)]])
+  })
+})
+
 describe('money handed back', () => {
   it('goes back in dollars for what is owed, and says what the rate makes of them', async () => {
     const done = vi.fn()

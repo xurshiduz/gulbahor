@@ -83,6 +83,11 @@ interface TenderPanelProps {
   hiding?: Hiding | null
   /** Handing back: so much of it may stay on the customer's account instead. Offered when there is someone whose. */
   keep?: KeepPanel | null
+  /**
+   * The currency the customer deals in, when it is not the base and the till keeps it: what is to pay is said in
+   * it too, in full sight, and — nothing typed — it is what is meant.
+   */
+  prefer?: AnyCurrency | null
 }
 
 /** What of the money owed for goods brought back stays on the customer's account. */
@@ -158,6 +163,7 @@ export function TenderPanel({
   offAccount = 0,
   hiding = null,
   keep = null,
+  prefer = null,
 }: TenderPanelProps) {
   const { t } = useTranslation()
   const accountId = useId()
@@ -326,9 +332,18 @@ export function TenderPanel({
           <span className="text-sm font-medium">{refunding ? t('pos.toRefund') : t('pos.toPay')}</span>
           <span className={cn('tabular text-2xl font-semibold', refunding && 'text-warn')}>{money(due)}</span>
         </div>
-        {others.length && due ? (
+        {/* In the customer's own currency it is said plainly; in the others the till takes, in passing. */}
+        {prefer && due && unit(prefer) !== null ? (
+          <p data-prefer className="tabular text-right text-base font-semibold text-ink-2">
+            = {money(dueIn(due, prefer, book) as number, prefer)}
+          </p>
+        ) : null}
+        {others.some((code) => code !== prefer) && due ? (
           <p className="tabular text-right text-xs text-ink-3">
-            {others.map((code) => `≈ ${money(dueIn(due, code, book) as number, code)}`).join(' · ')}
+            {others
+              .filter((code) => code !== prefer)
+              .map((code) => `≈ ${money(dueIn(due, code, book) as number, code)}`)
+              .join(' · ')}
           </p>
         ) : null}
       </div>
@@ -499,7 +514,13 @@ export function TenderPanel({
           </div>
         ) : null}
         {!entered.length ? (
-          <p className="text-xs text-ink-3">{t(refunding ? 'pos.enterHintRefund' : 'pos.enterHint', baseWords(t))}</p>
+          <p className="text-xs text-ink-3">
+            {t(
+              refunding ? 'pos.enterHintRefund' : 'pos.enterHint',
+              // What is meant when nothing is typed: cash in the customer's currency where they have one here.
+              prefer && !refunding && suggested[`cash:${prefer}`] ? currencyWords(t, prefer) : baseWords(t),
+            )}
+          </p>
         ) : refunding ? (
           refund.problem === 'over' ? (
             <p className="text-bad">{t('pos.refundOver')}</p>

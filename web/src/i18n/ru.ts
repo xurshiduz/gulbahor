@@ -353,6 +353,8 @@ export const ru: Dictionary = {
     one: 'Платёж',
     takeIn: 'Принять оплату',
     payOut: 'Выдать оплату',
+    takeInShort: 'Принять',
+    payOutShort: 'Выдать',
     opening: 'Начальный остаток',
     openingOwes: 'Кто должен',
     openingCustomer: 'Клиент должен нам',

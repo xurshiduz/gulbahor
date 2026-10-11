@@ -117,9 +117,21 @@ export function startRows(
   tillId: string | null,
   /** What this person keeps out of sight (`placeKey`). */
   hidden: string[] = [],
+  /**
+   * The currency of the account being settled: the places that hold it come first among the drawers and among
+   * the rest — a customer who deals in dollars most often pays in them.
+   */
+  first: AnyCurrency | null = null,
 ): PaymentRow[] {
+  const theirs = (list: PaymentAccountDto[]) =>
+    first
+      ? [
+          ...list.filter((account) => account.currency === first),
+          ...list.filter((account) => account.currency !== first),
+        ]
+      : list
   const drawers = somFirst(accounts.filter((account) => tillId !== null && account.registerId === tillId))
-  return [...drawers, ...accounts.filter(apart)]
+  return [...theirs(drawers), ...theirs(accounts.filter(apart))]
     .filter((account) => !hidden.includes(placeKey(account)))
     .map((account) => blank(account.id))
 }

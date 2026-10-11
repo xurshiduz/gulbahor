@@ -354,6 +354,8 @@ export const uz = {
     one: 'To‘lov',
     takeIn: 'To‘lov olish',
     payOut: 'To‘lov berish',
+    takeInShort: 'Olish',
+    payOutShort: 'Berish',
     opening: 'Boshlang‘ich qoldiq',
     openingOwes: 'Kim qarzdor',
     openingCustomer: 'Mijoz bizdan qarzdor',

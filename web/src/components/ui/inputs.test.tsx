@@ -8,6 +8,7 @@ import { useScanner } from '@/lib/scanner'
 
 import { CardNumberInput } from './card-number-input'
 import { Combobox } from './combobox'
+import { Segments } from './controls'
 import { DateInput } from './date-input'
 import { Form } from './form'
 import { MoneyInput } from './money-input'
@@ -529,5 +530,43 @@ describe('useScanner', () => {
     const input = screen.getByLabelText('name')
     await userEvent.type(input, '12345{Enter}', { delay: 60 })
     expect(onScan).not.toHaveBeenCalled()
+  })
+})
+
+describe('Segments', () => {
+  function Way({ onValue }: { onValue: (value: string) => void }) {
+    const [value, setValue] = useState<'in' | 'out'>('in')
+    return (
+      <Segments
+        value={value}
+        onChange={(next) => {
+          setValue(next)
+          onValue(next)
+        }}
+        options={[
+          { value: 'in', label: 'Olish' },
+          { value: 'out', label: 'Berish' },
+        ]}
+      />
+    )
+  }
+
+  it('shows every choice, takes a click, and moves with the arrows as one field', async () => {
+    const onValue = vi.fn()
+    render(<Way onValue={onValue} />)
+    const [taking, paying] = screen.getAllByRole('radio')
+    expect(taking.getAttribute('aria-checked')).toBe('true')
+    // Tab reaches the one chosen; the other is an arrow away.
+    expect([taking.tabIndex, paying.tabIndex]).toEqual([0, -1])
+    await userEvent.click(paying)
+    expect(onValue).toHaveBeenLastCalledWith('out')
+    expect(paying.getAttribute('aria-checked')).toBe('true')
+    paying.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    // Past the last it comes round to the first, and the cursor goes with the choice.
+    expect(onValue).toHaveBeenLastCalledWith('in')
+    await vi.waitFor(() => expect(document.activeElement).toBe(taking))
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(onValue).toHaveBeenLastCalledWith('out')
   })
 })

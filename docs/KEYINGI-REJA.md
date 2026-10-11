@@ -1420,6 +1420,14 @@ Egasining so'rovi: qaytim (bir nechta valyutada, hisobga, kartadan), qaytarishda
 5. "Turi" ro'yxati o'rniga ikkita tugma (Olish / Berish). Ctrl+Enter kursor belgilash katakchasida turganda ham saqlaydi (hozir saqlamaydi).
 6. Har bo'lak o'z oynasini shu qoidada chiqaradi; oxirida hamma oyna bir marta yonma-yon solishtirib chiqiladi.
 
+**U1 dan qurilgani (2026-10-12).**
+
+- **Ikki tugma** (5-band): mijoz to'lovi oynasida "Turi" ro'yxati o'rniga "Olish | Berish" — `components/ui/controls.tsx` dagi `Segments` (hammasi ko'rinib turadi, ←/→ bilan almashadi, Tab uchun bitta maydon).
+- **Ctrl+Enter katakchada** (5-band): kursor belgilash katakchasida yoki `Switch` da tursa ham saqlaydi (`Form` va `Dialog`: Radix katakchasi Enter'ni o'ziga olib, tugmani "band" qilib ko'rsatar edi).
+- **Mijoz valyutasi** (4-band): mijoz to'lovi oynasida hisob valyutasidagi joylar tepada turadi (`startRows(..., first)`: tortmalar ichida ham, qolgan joylar ichida ham). Kassada: mijozning asosiy valyutasi asosiy valyutadan boshqa bo'lsa va kassada shu valyuta tortmasi bo'lsa (`prefer`) — "To'lanadi" ostida shu valyutadagi summa aniq ko'rinadi ("= 10,00 $"), shu valyutaning naqd qatori birinchi turadi, kursor o'sha yerga tushadi va hech narsa yozilmasa shu valyutada naqd deb olinadi; boshqa qatorga yozilsa — avvalgidek.
+- **Yashirin, bir bosishda** (2-band): qaytimni bo'lish (F10), komissiya ("Komissiya bor"), qaytarishda boshqa kartadan o'tkazish — yashirin turadi. **Qilinmadi**: boshqa valyutadagi joylarni "Boshqa valyutalar (N)" ostiga yig'ish — egasining 2026-10-09 dagi qaroriga ("standart holatda hamma joy ko'rinadi, keraksizini xodim o'zi yashiradi") zid, shuning uchun egasidan so'raladi.
+- **Qolgani**: hamma to'lov oynasini kirilgan tizimda yonma-yon solishtirib chiqish (6-band).
+
 ### 17.7. Tartib va hajm
 
 | № | Bo'lak | ~kun | Izoh |

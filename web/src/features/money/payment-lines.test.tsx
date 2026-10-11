@@ -60,6 +60,14 @@ describe('the lines a payment opens with', () => {
     expect(ids(startRows(till, 'till-2'))).toEqual(['s2', 'd2', 'safe', 'card'])
   })
 
+  it('put the places in the customer’s own currency first, drawers and the rest alike', () => {
+    expect(ids(startRows(till, 'till-1', [], 'USD'))).toEqual(['d1', 's1', 'safe', 'card'])
+    // In the base nothing moves: so'm is first already.
+    expect(ids(startRows(till, 'till-1', [], 'UZS'))).toEqual(['s1', 'd1', 'card', 'safe'])
+    // A currency no place holds changes nothing.
+    expect(ids(startRows(till, 'till-1', [], 'CNY'))).toEqual(['s1', 'd1', 'safe', 'card'])
+  })
+
   it('are every place that is no till when there is no till to go through', () => {
     expect(ids(startRows(till, null))).toEqual(['safe', 'card'])
   })

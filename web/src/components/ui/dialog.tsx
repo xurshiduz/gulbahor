@@ -60,7 +60,10 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
           }}
           onKeyDown={(event) => {
             // Ctrl+Enter saves from anywhere in the dialog; inside the form, the form has already taken it.
-            if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.defaultPrevented) {
+            // A checkbox keeps Enter to itself and so looks taken; outside a form nobody has taken it.
+            const target = event.target as HTMLElement
+            const onToggle = target.matches('[role="checkbox"], [role="switch"]') && !target.closest('form')
+            if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || (event.defaultPrevented && !onToggle)) {
               return
             }
             const submit = event.currentTarget.querySelector<HTMLButtonElement>('button[type="submit"]:not(:disabled)')
