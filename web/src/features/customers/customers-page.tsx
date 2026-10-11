@@ -1,8 +1,13 @@
 import {
+  CREDIT_MODES,
   CUSTOMER_GENDER_LABELS,
   CUSTOMER_GENDERS,
   customerInputSchema,
+  DEFAULT_CUSTOMER_TERMS,
   formatMoney,
+  TILL_PRICE_KINDS,
+  type AnyCurrency,
+  type CreditMode,
   type CustomerDto,
   type CustomerGender,
   type CustomerGroupDto,
@@ -21,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FilterSelect } from '@/components/ui/column-filters'
 import { Combobox } from '@/components/ui/combobox'
-import { Menu, Select, TabPanel, Tabs, type MenuItem } from '@/components/ui/controls'
+import { Checkbox, Menu, Select, TabPanel, Tabs, type MenuItem } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog } from '@/components/ui/dialog'
@@ -29,10 +34,14 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input, Textarea } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Page, SearchInput } from '@/components/ui/page'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { TagInput } from '@/components/ui/tag-input'
 import { useSession } from '@/features/auth/session'
+import { usePriceTypes } from '@/features/catalog/catalog'
+import { currencyName } from '@/features/money/currencies-view'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
@@ -127,8 +136,22 @@ export function CustomersPage() {
         {
           id: 'phone',
           header: t('customers.phone'),
-          meta: { export: (row) => formatPhone(row.phone), className: 'tabular whitespace-nowrap' },
-          cell: ({ row }) => formatPhone(row.original.phone),
+          meta: {
+            export: (row) => (row.phone ? formatPhone(row.phone) : null),
+            className: 'tabular whitespace-nowrap',
+          },
+          cell: ({ row }) => (row.original.phone ? formatPhone(row.original.phone) : ''),
+        },
+        {
+          id: 'price',
+          header: t('customers.price'),
+          meta: { export: (row) => row.priceType?.name ?? null, className: 'whitespace-nowrap' },
+          cell: ({ row }) => (
+            <span className="flex items-center gap-1">
+              {row.original.priceType ? <Badge tone="info">{row.original.priceType.name}</Badge> : null}
+              {row.original.isSupplier ? <Badge>{t('customers.supplier')}</Badge> : null}
+            </span>
+          ),
         },
         {
           id: 'groups',
@@ -484,6 +507,8 @@ function Figure({ label, value, hint, tone, icon, active, onClick }: FigureProps
   )
 }
 
+const RETAIL = 'retail'
+
 interface Values {
   name: string
   phone: string
@@ -492,6 +517,14 @@ interface Values {
   note: string
   groupIds: string[]
   tags: string[]
+  currency: AnyCurrency
+  priceTypeId: string
+  isSupplier: boolean
+  credit: CreditMode
+  creditLimit: number | null
+  due: 'default' | 'days' | 'none'
+  dueDays: number | null
+  returnDays: number | null
 }
 
 export function CustomerDialog({
@@ -507,7 +540,10 @@ export function CustomerDialog({
   onSaved: () => void
 }) {
   const { t } = useTranslation()
+  const { can, me } = useSession()
+  const priceTypes = usePriceTypes()
   const formId = 'customer-form'
+  const terms = customer?.terms ?? DEFAULT_CUSTOMER_TERMS
   const form = useForm<Values>({
     defaultValues: {
       name: customer?.name ?? '',
@@ -517,9 +553,25 @@ export function CustomerDialog({
       note: customer?.note ?? '',
       groupIds: customer?.groups.map((group) => group.id) ?? [],
       tags: customer?.tags ?? [],
+      currency: customer?.currency ?? me.org.baseCurrency,
+      priceTypeId: customer?.priceType?.id ?? RETAIL,
+      isSupplier: customer?.isSupplier ?? false,
+      credit: terms.credit,
+      creditLimit: terms.creditLimit,
+      due: terms.noDue ? 'none' : terms.dueDays ? 'days' : 'default',
+      dueDays: terms.dueDays,
+      returnDays: terms.returnDays,
     },
   })
   const errors = form.formState.errors
+  // Credit and the days given are an account's terms: only who may adjust accounts sees and sets them.
+  const setsTerms = can('customers.adjust')
+  const kept = [me.org.baseCurrency, ...me.org.currencies.filter((code) => code !== me.org.baseCurrency)]
+  // A price of their own: any the business keeps beside the retail one and the floor.
+  const prices = (priceTypes.data ?? []).filter(
+    (type) => (type.isActive && TILL_PRICE_KINDS.includes(type.kind)) || type.id === customer?.priceType?.id,
+  )
+  const [credit, due] = form.watch(['credit', 'due'])
 
   const mutation = useMutation({
     mutationFn: (input: CustomerInput) =>
@@ -551,10 +603,21 @@ export function CustomerDialog({
         id={formId}
         onSubmit={() =>
           void form.handleSubmit((values) => {
+            const { credit, creditLimit, due, dueDays, returnDays, priceTypeId, ...card } = values
             const input = zodCheck(form, customerInputSchema, {
-              ...values,
+              ...card,
               birthday: values.birthday || null,
               gender: values.gender || null,
+              priceTypeId: priceTypeId === RETAIL ? null : priceTypeId,
+              terms: setsTerms
+                ? {
+                    credit,
+                    creditLimit: credit === 'limit' ? creditLimit : null,
+                    dueDays: due === 'days' ? dueDays : null,
+                    noDue: due === 'none',
+                    returnDays,
+                  }
+                : undefined,
             })
             if (input) {
               mutation.mutate(input)
@@ -563,7 +626,10 @@ export function CustomerDialog({
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('customers.phone')} hint={t('customers.phoneHint')} error={errors.phone?.message} required>
+          <Field label={t('customers.name')} error={errors.name?.message} required>
+            {(id) => <Input id={id} autoFocus={!customer} invalid={!!errors.name} {...form.register('name')} />}
+          </Field>
+          <Field label={t('customers.phone')} hint={t('customers.phoneHint')} error={errors.phone?.message}>
             {(id) => (
               <Controller
                 control={form.control}
@@ -571,7 +637,6 @@ export function CustomerDialog({
                 render={({ field }) => (
                   <PhoneInput
                     id={id}
-                    autoFocus={!customer}
                     value={field.value}
                     onChange={field.onChange}
                     onBlur={field.onBlur}
@@ -580,9 +645,6 @@ export function CustomerDialog({
                 )}
               />
             )}
-          </Field>
-          <Field label={t('customers.name')} error={errors.name?.message} required>
-            {(id) => <Input id={id} invalid={!!errors.name} {...form.register('name')} />}
           </Field>
           <Field label={t('customers.birthday')} error={errors.birthday?.message}>
             {(id) => (
@@ -612,6 +674,43 @@ export function CustomerDialog({
               />
             )}
           </Field>
+          <Field label={t('customers.price')} hint={t('customers.priceHint')} error={errors.priceTypeId?.message}>
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="priceTypeId"
+                render={({ field }) => (
+                  <Select
+                    id={id}
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={[
+                      { value: RETAIL, label: t('customers.priceRetail') },
+                      ...prices.map((type) => ({ value: type.id, label: type.name })),
+                    ]}
+                  />
+                )}
+              />
+            )}
+          </Field>
+          {kept.length > 1 ? (
+            <Field label={t('customers.currency')} hint={t('customers.currencyHint')} error={errors.currency?.message}>
+              {(id) => (
+                <Controller
+                  control={form.control}
+                  name="currency"
+                  render={({ field }) => (
+                    <Select
+                      id={id}
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={kept.map((code) => ({ value: code, label: currencyName(code, t) }))}
+                    />
+                  )}
+                />
+              )}
+            </Field>
+          ) : null}
         </div>
         {groups.length || customer?.groups.length ? (
           <Field label={t('customers.groups')} hint={t('customers.groupsHint')} error={errors.groupIds?.message}>
@@ -656,6 +755,126 @@ export function CustomerDialog({
         <Field label={t('partners.note')} error={errors.note?.message}>
           {(id) => <Textarea id={id} rows={2} {...form.register('note')} />}
         </Field>
+        <div data-enter-skip>
+          <Controller
+            control={form.control}
+            name="isSupplier"
+            render={({ field }) => (
+              <Checkbox checked={field.value} onChange={field.onChange} label={t('customers.supplier')} />
+            )}
+          />
+          <p className="mt-1 text-xs text-ink-3">{t('customers.supplierHint')}</p>
+        </div>
+        {setsTerms ? (
+          <fieldset className="flex flex-col gap-3 rounded-lg border border-line p-3">
+            <legend className="px-1 text-xs font-medium text-ink-2">{t('customers.terms')}</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t('customers.credit')} error={errors.credit?.message}>
+                {(id) => (
+                  <Controller
+                    control={form.control}
+                    name="credit"
+                    render={({ field }) => (
+                      <Select
+                        id={id}
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={CREDIT_MODES.map((mode) => ({ value: mode, label: t(`customers.credit_${mode}`) }))}
+                      />
+                    )}
+                  />
+                )}
+              </Field>
+              {credit === 'limit' ? (
+                <Field label={t('customers.creditLimit')} error={errors.creditLimit?.message} required>
+                  {(id) => (
+                    <Controller
+                      control={form.control}
+                      name="creditLimit"
+                      render={({ field }) => (
+                        <MoneyInput
+                          id={id}
+                          value={field.value}
+                          onChange={field.onChange}
+                          invalid={!!errors.creditLimit}
+                        />
+                      )}
+                    />
+                  )}
+                </Field>
+              ) : (
+                <span />
+              )}
+              <Field label={t('customers.dueDays')} error={errors.dueDays?.message}>
+                {(id) => (
+                  <Controller
+                    control={form.control}
+                    name="due"
+                    render={({ field }) => (
+                      <Select
+                        id={id}
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={[
+                          { value: 'default', label: t('customers.byBusiness', { days: me.org.settings.debtDays }) },
+                          { value: 'days', label: t('customers.ownDays') },
+                          { value: 'none', label: t('customers.noDue') },
+                        ]}
+                      />
+                    )}
+                  />
+                )}
+              </Field>
+              {due === 'days' ? (
+                <Field label={t('customers.dueDaysOwn')} error={errors.dueDays?.message} required>
+                  {(id) => (
+                    <Controller
+                      control={form.control}
+                      name="dueDays"
+                      render={({ field }) => (
+                        <NumberInput
+                          id={id}
+                          value={field.value}
+                          onChange={field.onChange}
+                          min={1}
+                          max={3650}
+                          suffix={t('customers.days')}
+                          invalid={!!errors.dueDays}
+                        />
+                      )}
+                    />
+                  )}
+                </Field>
+              ) : (
+                <span />
+              )}
+              <Field
+                label={t('customers.returnDays')}
+                hint={t('customers.byBusiness', { days: me.org.settings.returnDays })}
+                error={errors.returnDays?.message}
+              >
+                {(id) => (
+                  <Controller
+                    control={form.control}
+                    name="returnDays"
+                    render={({ field }) => (
+                      <NumberInput
+                        id={id}
+                        value={field.value}
+                        onChange={field.onChange}
+                        min={0}
+                        max={3650}
+                        suffix={t('customers.days')}
+                        placeholder={String(me.org.settings.returnDays)}
+                        invalid={!!errors.returnDays}
+                      />
+                    )}
+                  />
+                )}
+              </Field>
+            </div>
+          </fieldset>
+        ) : null}
       </Form>
     </Dialog>
   )

@@ -2,6 +2,7 @@ import type {
   AccountKind,
   AnyCurrency,
   AttributeKind,
+  CreditMode,
   CurrencyCode,
   CustomerGender,
   DebtPaymentStatus,
@@ -712,15 +713,42 @@ export class Customer {
   @Column('text')
   name: string
 
-  /** In full, with the country code: what they are known by. */
-  @Column('text')
-  phone: string
+  /** In full, with the country code; none for someone known by name alone. */
+  @Column('text', { nullable: true })
+  phone: string | null
 
   @Column('date', { nullable: true })
   birthday: string | null
 
   @Column('text', { nullable: true })
   gender: CustomerGender | null
+
+  /** The currency their dealings are usually in: every window picks it for them first. */
+  @Column('text')
+  currency: AnyCurrency
+
+  /** Their own price; null for the retail one. */
+  @Column('uuid', { nullable: true })
+  priceTypeId: string | null
+
+  @Column('boolean')
+  isSupplier: boolean
+
+  @Column('text')
+  credit: CreditMode
+
+  /** Their own credit ceiling, in the base; only with `credit = 'limit'`. */
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  creditLimit: number | null
+
+  @Column('int', { nullable: true })
+  dueDays: number | null
+
+  @Column('boolean')
+  noDue: boolean
+
+  @Column('int', { nullable: true })
+  returnDays: number | null
 
   @Column('text', { nullable: true })
   note: string | null

@@ -8,7 +8,8 @@ import { emptyHandings, handingIn, HandoverFields, handingLine, handoversOf, typ
 
 const som = (amount: number) => amount * 100
 
-const safe = (id: string, name: string, currency: 'UZS' | 'USD') => ({ id, name, currency, kind: 'safe' }) as AccountDto
+const safe = (id: string, name: string, currency: 'UZS' | 'USD', locationIds = ['shop']) =>
+  ({ id, name, currency, kind: 'safe', locationIds }) as AccountDto
 
 describe('handing cash over', () => {
   const safes = [safe('s1', 'Seyf', 'UZS'), safe('s2', 'Seyf $', 'USD')]
@@ -21,6 +22,12 @@ describe('handing cash over', () => {
     // No safe for dollars: there is nowhere to hand them over to — unless they may be changed on the way.
     expect(emptyHandings([safes[0]], ['UZS', 'USD']).USD?.toAccountId).toBeNull()
     expect(emptyHandings([safes[0]], ['UZS', 'USD'], true).USD?.toAccountId).toBe('s1')
+  })
+
+  it('hands over to the shop’s own safe before one kept for every shop', () => {
+    const everywhere = safe('s0', 'Rahbar', 'UZS', [])
+    expect(emptyHandings([everywhere, ...safes], ['UZS']).UZS?.toAccountId).toBe('s1')
+    expect(emptyHandings([everywhere], ['UZS']).UZS?.toAccountId).toBe('s0')
   })
 
   it('sends only what holds a sum', () => {

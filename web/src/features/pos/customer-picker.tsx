@@ -154,8 +154,13 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium">{value.name}</span>
             <span className="tabular block truncate text-xs text-ink-3">
-              {formatPhone(value.phone)}
-              {groups.length ? <span className="text-accent-ink"> · {groups.join(', ')}</span> : null}
+              {value.phone ? formatPhone(value.phone) : null}
+              {groups.length ? (
+                <span className="text-accent-ink">
+                  {value.phone ? ' · ' : ''}
+                  {groups.join(', ')}
+                </span>
+              ) : null}
             </span>
           </span>
           <Button
@@ -242,7 +247,9 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
               className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
             >
               <span className="min-w-0 flex-1 truncate font-medium">{customer.name}</span>
-              <span className="tabular shrink-0 text-xs text-ink-3">{formatPhone(customer.phone)}</span>
+              {customer.phone ? (
+                <span className="tabular shrink-0 text-xs text-ink-3">{formatPhone(customer.phone)}</span>
+              ) : null}
             </button>
           ))}
           {partners.map((item, index) => (
@@ -347,7 +354,7 @@ function NewCustomerDialog({ registerId, typed, onClose, onAdded }: NewCustomerD
       }
     >
       <Form id="pos-customer-form" onSubmit={submit}>
-        <Field label={t('customers.phone')} error={errors.phone} required>
+        <Field label={t('customers.phone')} error={errors.phone}>
           {(id) => (
             <PhoneInput id={id} autoFocus={!phoneFirst} value={phone} onChange={setPhone} invalid={!!errors.phone} />
           )}

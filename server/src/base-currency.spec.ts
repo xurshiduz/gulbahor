@@ -304,6 +304,7 @@ describe('A base other than the so’m', () => {
   describe('chosen until the first money is written', () => {
     let zeta: Business
     let product: string
+    let buyer: string
     const tillDrawers = async () =>
       (
         await sql<{ till: string; name: string; currency: string }[]>(
@@ -334,6 +335,12 @@ describe('A base other than the so’m', () => {
         .put('/api/org')
         .send({ name: 'Zeta', settings: { autoLockMinutes: 10, debtLimit: minor(5_000_000) } })
         .expect(200)
+      buyer = (
+        await zeta.agent
+          .post('/api/customers')
+          .send({ name: 'Ulgurji', terms: { credit: 'limit', creditLimit: minor(12_650_000) } })
+          .expect(201)
+      ).body.id
     }, 60_000)
 
     it('says it may change, and what would be carried across', async () => {
@@ -394,6 +401,11 @@ describe('A base other than the so’m', () => {
       expect(me.org.currencies).toEqual(['UZS'])
       // A dollar is counted in whole ones; the debt limit is 5 000 000 / 12 650 = 395,26 $.
       expect(me.org.settings).toMatchObject({ changeRoundStep: minor(1), debtLimit: minor(395) })
+      // A customer who dealt in so'm deals in dollars, their own ceiling carried: 12 650 000 so'm = 1 000 $.
+      expect((await zeta.agent.get(`/api/customers/${buyer}`).expect(200)).body).toMatchObject({
+        currency: 'USD',
+        terms: { credit: 'limit', creditLimit: minor(1000) },
+      })
 
       const types = (await zeta.agent.get('/api/price-types').expect(200)).body as {
         currency: string

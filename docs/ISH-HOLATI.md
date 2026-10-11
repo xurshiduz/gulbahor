@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-09, etiketka 54×34 dan keyin: core 217, web 218, agent 17, server 395 (34 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-10, V9 yopilganda: core 217, web 219, agent 17, server 395 (34 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -210,7 +210,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 5c. Veb: asosiy valyuta sessiyadan, "so'm" so'zlari valyuta nomi bilan.
      - [x] 5d. Tanlash: API, qulf, narxlarni o'tkazish, sozlamalar va yangi biznes formasi.
      - [x] 5e. Tekshiruv: to'liq testlar, ekranda tenge va dollar asosli biznes, hujjatlar.
-   - [ ] V9. Hamma valyuta teng: dollarning alohida o'rni yo'q (egasi, 2026-10-08); reja — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
+   - [x] V9. Hamma valyuta teng: dollarning alohida o'rni yo'q (egasi, 2026-10-08); reja — KEYINGI-REJA, 8-bo'lim, "9-bosqich rejasi".
      - [x] 9a. Valyutalar va kurslar: dollar oddiy valyuta, `usd` moduli va `exchange_rates` yo'q, kurs istalgan valyutaga nisbatan, yangi biznes so'm bilan.
      - [x] 9b. Narx istalgan yoqilgan valyutada.
      - [x] 9c. Tannarx valyutasi va kirim; partiyaning kelgan valyutasi.
@@ -219,7 +219,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] 9e. Smena va inkassatsiya: har tortma sanog'i.
      - [x] 9e+. Standart holatda hamma valyuta va hisob ko'rinadi, keraksizi xodimning o'zi uchun yashiriladi (egasi so'radi, 2026-10-09).
      - [x] 9e++. Kassa tortmasi — kassaga biriktirilgan "Naqd" hisob: egasi o'zi ochadi, nomlaydi, arxivlaydi; kassa formasida "Naqd valyutalar" yo'q (egasi so'radi, 2026-10-09).
-     - [ ] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
+     - [x] 9f. Tekshiruv: to'liq testlar, ekranda, hujjatlar.
    - [ ] T1. To'rt til: o'zbek lotin va kirill, rus, ingliz (egasi, 2026-10-08; YOL-XARITA, 3-bo'lim). V9 dan keyin.
    - [ ] V6. Terminal → bank tushumi.
    - [ ] V7. Kurs farqi hisoboti.
@@ -229,6 +229,11 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula; + fiks / kursga bog'langan narx, narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati (KEYINGI-REJA, V9 bo'limi "Narx, mijoz hisobi…", 16.10) (~13 kun).
    - [ ] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun).
+     - [ ] M2-1. Mijoz kartasi: telefon ixtiyoriy, asosiy valyuta, o'z narxi (guruhnikidan oldin), "Yetkazib beruvchi" belgisi, qarz sozlamalari (chegara, muddat, qaytarish muddati — faqat `customers.adjust`); mijozlar ruxsatlari kengaydi (`suppliers`, `receive`, `pay_out`, `adjust`).
+     - [ ] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
+     - [ ] M2-3. Qarz va muddat: chakana qarz shu hisobga, `customer_dues`, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki.
+     - [ ] M2-4. To'lovlar: tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot.
+     - [ ] M2-5. Qaytarish va bekor qilish: avval hisob, keyin pul; almashtirish zanjiri; bekor qilingan chekdagi to'lov avans bo'lib qoladi.
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
@@ -240,7 +245,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-V9 / 9f: tekshiruv — to'liq testlar, ekranda (so'm biznesi dollar va yuan bilan, tenge asosli), hujjatlar
+M2 yagona mijoz (M3 ekranlari bilan birga chiqadi): texnik reja V9 ga moslandi (MIJOZLAR-TEXNIK, 3-bo'lim); keyingi — migratsiya 44000 va core
 
 ## Ish daraxti nusxalari
 
@@ -270,3 +275,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `16d94e84b1e685186924a2a3ba549bc7247f60f8` | V9 / 9e: smena sanog'i har tortma valyutasida (shift_counts), ochish/yopish cash: {valyuta: summa}, Z-hisobot har valyuta (ShiftTotals.cash), topshirish kassa valyutalaridan, Smenalar ro'yxatida har valyuta farqi; valyuta yoqilganda hamma kassaga qo'shiladi |
 | `4e9e222e8e743166db2176f1e786f40b78182788` | Kassa va to'lov oynalarida hamma valyuta va hisob standart holatda ko'rinadi; xodim o'zi uchun yashiradi (places.hidden: cash:CNY yoki hisob), kassada ko'z belgisi va Yashirilgan: …, oynalarda X va Yana hisob…; har kassa hamma valyutada (migratsiya 42000), dollar tortmasi ($); Pul holatida hamma valyuta va har kurs |
 | `e9bb62c755d03b8499898fff9b22db72bdd4f0b1` | V9 / kassa tortmasi = kassaga biriktirilgan Naqd hisob (accounts.register_id, accounts_till, syncTills, registers.currencies — kesh; BASE_DRAWER, DRAWER_HELD, SHIFT_OPEN), migratsiya 43000, hisob formasida Kassa maydoni va Naqd birinchi, kassa formasida Naqd valyutalar yo'q; asosiy valyuta almashtirilganda tortma o'chirilmaydi va egasi bergan nom qoladi |
+| `826665d22e9b60634d048636045ee75cb1062594` | V9 / 9f: ekranda so'm (dollar va yuan bilan) va tenge biznesi; kassasiz Naqd hisobning Do'kon izohi, topshirishda do'konning o'z seyfi oldin; CLAUDE.md dagi V9 dan oldingi gaplar yangilandi |

@@ -1,13 +1,15 @@
 import { z } from 'zod'
 
 import type { CustomerDebtBrief } from './debts'
-import { idSchema, listQuerySchema, optionalText, phoneSchema, requiredText } from './schemas'
+import { ALL_CURRENCY_CODES, type AnyCurrency } from './money'
+import { idSchema, listQuerySchema, optionalPhoneSchema, optionalText, requiredText } from './schemas'
 
 /**
- * The people who buy in the shops. A customer is known by their phone
- * number: it is what they say at the till, and no two customers of one
- * business share it. What they have bought is not typed anywhere: it is the
- * sum of their receipts, less what came back.
+ * The people the business deals with: who buys in the shops, who buys in
+ * bulk, who supplies the goods — one book (KEYINGI-REJA, 16). Only the name is
+ * required; a phone, when there is one, is theirs alone in the business. What
+ * they have bought is not typed anywhere: it is the sum of their receipts,
+ * less what came back.
  */
 
 export const CUSTOMER_GENDERS = ['female', 'male'] as const
@@ -18,9 +20,70 @@ export const CUSTOMER_GENDER_LABELS: Record<CustomerGender, string> = {
   male: 'Erkak',
 }
 
+/**
+ * How the till may lend to them: as the business does for anyone (`default`), never (`none`), up to their own
+ * ceiling (`limit`), or without one (`unlimited`).
+ */
+export const CREDIT_MODES = ['default', 'none', 'limit', 'unlimited'] as const
+export type CreditMode = (typeof CREDIT_MODES)[number]
+
+/**
+ * What a customer is allowed on credit and how long they are given: set by who may adjust accounts, and sent only
+ * by them — a form without it leaves the terms as they are.
+ */
+export const customerTermsSchema = z
+  .object({
+    credit: z.enum(CREDIT_MODES).default('default'),
+    /** Their own ceiling, in the base: what the till lends them without a word. */
+    creditLimit: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullish()
+      .transform((value) => value ?? null),
+    /** The days a debt of theirs is given; null for the business's own. */
+    dueDays: z
+      .number()
+      .int()
+      .min(1)
+      .max(3650)
+      .nullish()
+      .transform((value) => value ?? null),
+    /** Their debts are given no day at all. */
+    noDue: z.boolean().default(false),
+    /** The days within which they may bring goods back; null for the business's own. */
+    returnDays: z
+      .number()
+      .int()
+      .min(0)
+      .max(3650)
+      .nullish()
+      .transform((value) => value ?? null),
+  })
+  .superRefine((terms, context) => {
+    if (terms.credit === 'limit' && terms.creditLimit === null) {
+      context.addIssue({ code: 'custom', path: ['creditLimit'], message: 'Chegarani kiriting' })
+    }
+    if (terms.noDue && terms.dueDays !== null) {
+      context.addIssue({ code: 'custom', path: ['dueDays'], message: 'Muddatsiz qarzga kun yozilmaydi' })
+    }
+  })
+  .transform((terms) => ({ ...terms, creditLimit: terms.credit === 'limit' ? terms.creditLimit : null }))
+export type CustomerTerms = z.infer<typeof customerTermsSchema>
+
+export const DEFAULT_CUSTOMER_TERMS: CustomerTerms = {
+  credit: 'default',
+  creditLimit: null,
+  dueDays: null,
+  noDue: false,
+  returnDays: null,
+}
+
 export const customerInputSchema = z.object({
   name: requiredText(120),
-  phone: phoneSchema,
+  /** Optional; an Uzbek number only — a foreign one is written in the note. */
+  phone: optionalPhoneSchema,
   birthday: z.iso
     .date()
     .nullish()
@@ -38,6 +101,13 @@ export const customerInputSchema = z.object({
     .max(20)
     .default([])
     .transform((tags) => [...new Set(tags)]),
+  /** The currency their dealings are usually in: what every window picks for them first. The base when not said. */
+  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
+  /** The price they buy at, when it is not the retail one: the till takes it with them. */
+  priceTypeId: idSchema.nullish().transform((value) => value ?? null),
+  /** They supply goods: the cashier sees none of their sums, and selling to their account needs a word. */
+  isSupplier: z.boolean().default(false),
+  terms: customerTermsSchema.optional(),
 })
 export type CustomerInput = z.infer<typeof customerInputSchema>
 
@@ -142,7 +212,7 @@ export type CustomerListQuery = z.infer<typeof customerListQuerySchema>
 export interface CustomerBrief {
   id: string
   name: string
-  phone: string
+  phone: string | null
 }
 
 /**
@@ -161,6 +231,10 @@ export interface PosCustomerDto extends CustomerBrief {
   discountPercent: number
   discountReason: string | null
   priceType: { id: string; name: string } | null
+  /** Whose the price is: their own, or their group's. */
+  priceFrom: 'own' | 'group' | null
+  /** They supply goods: the till shows none of their sums. */
+  supplier: boolean
   noDebt: boolean
   noLayaway: boolean
   noExchange: boolean
@@ -169,6 +243,11 @@ export interface PosCustomerDto extends CustomerBrief {
 }
 
 export interface CustomerDto extends CustomerBrief {
+  currency: AnyCurrency
+  /** Their own price; null for the retail one. */
+  priceType: { id: string; name: string } | null
+  isSupplier: boolean
+  terms: CustomerTerms
   groups: { id: string; name: string }[]
   tags: string[]
   birthday: string | null

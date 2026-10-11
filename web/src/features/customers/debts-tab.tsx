@@ -33,11 +33,11 @@ const route = getRouteApi('/customers')
 const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 /** Who owes: the name, and under it the number they are rung on. */
-function Who({ name, phone }: { name: string; phone: string }) {
+function Who({ name, phone }: { name: string; phone: string | null }) {
   return (
     <span className="flex flex-col leading-tight">
       <span className="font-medium">{name}</span>
-      <span className="tabular text-xs text-ink-3">{formatPhone(phone)}</span>
+      {phone ? <span className="tabular text-xs text-ink-3">{formatPhone(phone)}</span> : null}
     </span>
   )
 }

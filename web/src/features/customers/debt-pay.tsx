@@ -45,7 +45,7 @@ import { useRateBook } from '@/features/money/rates'
 const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 
 interface DebtPayDialogProps {
-  customer: { id: string; name: string; phone: string }
+  customer: { id: string; name: string; phone: string | null }
   /** What they owe now, in so'm: no more than this is taken. */
   owed: number
   onClose: () => void
@@ -217,7 +217,7 @@ export function DebtPayDialog({ customer, owed, onClose, onPaid }: DebtPayDialog
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{customer.name}</p>
-            <p className="tabular text-xs text-ink-3">{formatPhone(customer.phone)}</p>
+            {customer.phone ? <p className="tabular text-xs text-ink-3">{formatPhone(customer.phone)}</p> : null}
           </div>
           <div className="flex items-end gap-4">
             <div className="text-right text-[13px] leading-tight">

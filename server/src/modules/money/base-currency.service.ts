@@ -119,7 +119,10 @@ export class BaseCurrencyService {
     const promotions: { id: string; amount: number }[] = await em.query(
       `SELECT id, value::float8 AS amount FROM promotions WHERE kind = 'price'`,
     )
-    if ((prices.length || tiers.length || promotions.length || settings.debtLimit > 0) && !rebased) {
+    const ceilings: { id: string; amount: number }[] = await em.query(
+      `SELECT id, credit_limit::float8 AS amount FROM customers WHERE credit_limit IS NOT NULL`,
+    )
+    if ((prices.length || tiers.length || promotions.length || ceilings.length || settings.debtLimit > 0) && !rebased) {
       throw AppError.validation({ currency: wantingRate(book, next) ?? `${CURRENCIES[next].name} kursi qo‘yilmagan` })
     }
     const carried = (amount: number, rounded: boolean) => {
@@ -144,6 +147,14 @@ export class BaseCurrencyService {
     for (const promotion of promotions) {
       await em.query(`UPDATE promotions SET value = $2 WHERE id = $1`, [promotion.id, carried(promotion.amount, true)])
     }
+    // A customer whose dealings were in the old base deals in the new one; their own ceiling is carried with it.
+    for (const ceiling of ceilings) {
+      await em.query(`UPDATE customers SET credit_limit = $2 WHERE id = $1`, [
+        ceiling.id,
+        carried(ceiling.amount, true),
+      ])
+    }
+    await em.query(`UPDATE customers SET currency = $2 WHERE currency = $1`, [old, next])
 
     // ── The accounts that hold the base, all empty yet ──
     // A till sells in its base: a drawer it has in the new currency is its base one now, put away or not, and the

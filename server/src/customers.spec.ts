@@ -23,6 +23,31 @@ interface CustomerRow {
  * whoever keeps the base or at the till, and what they have bought read from
  * their receipts.
  */
+/** What a form sends back for a card as it stands: the terms are only sent by who sets them. */
+const cardInput = (card: {
+  name: string
+  phone: string | null
+  birthday: string | null
+  gender: string | null
+  note: string | null
+  groups: { id: string }[]
+  tags: string[]
+  currency: string
+  priceType: { id: string } | null
+  isSupplier: boolean
+}) => ({
+  name: card.name,
+  phone: card.phone,
+  birthday: card.birthday,
+  gender: card.gender,
+  note: card.note,
+  groupIds: card.groups.map((group) => group.id),
+  tags: card.tags,
+  currency: card.currency,
+  priceTypeId: card.priceType?.id ?? null,
+  isSupplier: card.isSupplier,
+})
+
 describe('Customers', () => {
   let harness: Harness
   let alpha: Agent
@@ -99,7 +124,7 @@ describe('Customers', () => {
     await harness.close()
   })
 
-  it('are known by their phone number, one to a business', async () => {
+  it('are known by their phone number, one to a business, and may have none', async () => {
     nodira = (
       await alpha
         .post('/api/customers')
@@ -120,11 +145,15 @@ describe('Customers', () => {
     const twice = await alpha.post('/api/customers').send({ name: 'Boshqa', phone: '+998 (90) 123-45-67' })
     expect(twice.status).toBe(400)
     expect(twice.body.error.fields.phone).toContain('Nodira Karimova')
-    expect((await alpha.post('/api/customers').send({ name: 'Raqamsiz' })).status).toBe(400)
     expect((await alpha.post('/api/customers').send({ name: 'Chala', phone: '90 123' })).status).toBe(400)
     // Another business may have a customer with that very number.
     await beta.post('/api/customers').send({ name: 'Nodira', phone: '901234567' }).expect(201)
     expect((await beta.get('/api/customers').expect(200)).body.total).toBe(1)
+    // Only the name is needed: two people known by name alone are two customers.
+    const nameless = (await beta.post('/api/customers').send({ name: 'Raqamsiz' }).expect(201)).body
+    expect(nameless).toMatchObject({ phone: null, currency: 'UZS', priceType: null, isSupplier: false })
+    await beta.post('/api/customers').send({ name: 'Raqamsiz', phone: '' }).expect(201)
+    expect((await beta.get('/api/customers').query({ q: 'raqamsiz' }).expect(200)).body.total).toBe(2)
   })
 
   it('are found by a name in any script, or by a few digits of the phone', async () => {
@@ -240,6 +269,104 @@ describe('Customers', () => {
     // Someone who bought long ago and not since has lapsed.
     await sql(`UPDATE sales SET sold_at = now() - interval '120 days' WHERE customer_id = $1`, [nodira.id])
     expect((await alpha.get('/api/customers').expect(200)).body.summary.lapsed).toBe(1)
+  })
+
+  describe('their card', () => {
+    it('keeps their currency among those the business keeps, the base unless said', async () => {
+      const made = (await alpha.post('/api/customers').send({ name: 'Valyutali' }).expect(201)).body
+      expect(made.currency).toBe('UZS')
+      const yuan = await alpha.put(`/api/customers/${made.id}`).send({ ...cardInput(made), currency: 'CNY' })
+      expect(yuan.body.error.fields.currency).toBe('Bu valyuta yoqilmagan: Pul → Kurslar')
+      const dollars = (
+        await alpha
+          .put(`/api/customers/${made.id}`)
+          .send({ ...cardInput(made), currency: 'USD' })
+          .expect(200)
+      ).body
+      expect(dollars.currency).toBe('USD')
+      // A form that does not say the currency leaves it as it is.
+      const { currency: _currency, ...unsaid } = cardInput(dollars)
+      expect((await alpha.put(`/api/customers/${made.id}`).send(unsaid).expect(200)).body.currency).toBe('USD')
+    })
+
+    it('marks who supplies goods, and the till is told', async () => {
+      const made = (await alpha.post('/api/customers').send({ name: 'Yiwu Textile', isSupplier: true }).expect(201))
+        .body
+      expect(made.isSupplier).toBe(true)
+      const picked = (await cashier.get('/api/pos/customers').query({ q: 'yiwu' }).expect(200)).body[0]
+      expect(picked.supplier).toBe(true)
+    })
+
+    it('lets only who may adjust accounts set the terms; a form without them keeps them', async () => {
+      const roles = (await alpha.get('/api/roles')).body as { id: string; templateKey: string }[]
+      await alpha
+        .post('/api/users')
+        .send({
+          fullName: 'Aziz Menejer',
+          login: 'menejer',
+          password: PASSWORD,
+          roleIds: [roles.find((role) => role.templateKey === 'store_manager')!.id],
+          allLocations: true,
+          locationIds: [],
+        })
+        .expect(201)
+      const manager = await harness.signIn('menejer')
+      const made = (await manager.post('/api/customers').send({ name: 'Ulgurji Ali' }).expect(201)).body
+      expect(made.terms).toEqual({
+        credit: 'default',
+        creditLimit: null,
+        dueDays: null,
+        noDue: false,
+        returnDays: null,
+      })
+
+      const terms = { credit: 'limit', creditLimit: som(5_000_000), dueDays: 45, noDue: false, returnDays: 30 }
+      const refused = await manager.put(`/api/customers/${made.id}`).send({ ...cardInput(made), terms })
+      expect(refused.status).toBe(403)
+      const set = (
+        await alpha
+          .put(`/api/customers/${made.id}`)
+          .send({ ...cardInput(made), terms })
+          .expect(200)
+      ).body
+      expect(set.terms).toEqual(terms)
+      // The manager still keeps the card; the terms stay as they were set.
+      const renamed = (
+        await manager
+          .put(`/api/customers/${made.id}`)
+          .send({ ...cardInput(set), name: 'Ulgurji Ali aka' })
+          .expect(200)
+      ).body
+      expect(renamed).toMatchObject({ name: 'Ulgurji Ali aka', terms })
+      // Sent back unchanged, they are no change.
+      await manager
+        .put(`/api/customers/${made.id}`)
+        .send({ ...cardInput(renamed), terms })
+        .expect(200)
+
+      const limitless = await alpha
+        .put(`/api/customers/${made.id}`)
+        .send({ ...cardInput(set), terms: { credit: 'limit' } })
+      expect(limitless.body.error.fields['terms.creditLimit']).toBe('Chegarani kiriting')
+      const both = await alpha
+        .put(`/api/customers/${made.id}`)
+        .send({ ...cardInput(set), terms: { noDue: true, dueDays: 10 } })
+      expect(both.body.error.fields['terms.dueDays']).toBe('Muddatsiz qarzga kun yozilmaydi')
+      const open = (
+        await alpha
+          .put(`/api/customers/${made.id}`)
+          .send({ ...cardInput(set), terms: { credit: 'unlimited', creditLimit: som(1), noDue: true } })
+          .expect(200)
+      ).body
+      // A ceiling means nothing without the limit.
+      expect(open.terms).toEqual({
+        credit: 'unlimited',
+        creditLimit: null,
+        dueDays: null,
+        noDue: true,
+        returnDays: null,
+      })
+    })
   })
 
   it('count the days to a birthday the way the calendar does', () => {
@@ -370,6 +497,8 @@ describe('Customers', () => {
         discountPercent: 0,
         discountReason: null,
         priceType: { id: familyPrice, name: 'Oila' },
+        priceFrom: 'group',
+        supplier: false,
         noDebt: false,
         noLayaway: false,
         noExchange: true,
@@ -388,6 +517,33 @@ describe('Customers', () => {
       expect((await scarfSale(other.id, familyPrice, som(30_000))).status).toBe(400)
       // A member may still buy at the retail price.
       await scarfSale(nodira.id, null, som(50_000)).expect(201)
+    })
+
+    it("put a customer's own price before their group's, and the retail one is no price of their own", async () => {
+      const sardor = (await cashier.get('/api/pos/customers').query({ q: 'sardor' }).expect(200)).body[0]
+      const card = (await alpha.get(`/api/customers/${sardor.id}`).expect(200)).body
+      const own = (
+        await alpha
+          .put(`/api/customers/${sardor.id}`)
+          .send({ ...cardInput(card), priceTypeId: familyPrice })
+          .expect(200)
+      ).body
+      expect(own.priceType).toEqual({ id: familyPrice, name: 'Oila' })
+      const picked = (await cashier.get('/api/pos/customers').query({ q: 'sardor' }).expect(200)).body[0]
+      expect(picked).toMatchObject({ priceType: { id: familyPrice, name: 'Oila' }, priceFrom: 'own' })
+      // The price is theirs: no group, no word.
+      await scarfSale(sardor.id, familyPrice, som(30_000)).expect(201)
+
+      const types = (await alpha.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
+      const retail = await alpha
+        .put(`/api/customers/${sardor.id}`)
+        .send({ ...cardInput(card), priceTypeId: types.find((type) => type.kind === 'retail')!.id })
+        .expect(200)
+      expect(retail.body.priceType).toBeNull()
+      const floor = await alpha
+        .put(`/api/customers/${sardor.id}`)
+        .send({ ...cardInput(card), priceTypeId: types.find((type) => type.kind === 'min')!.id })
+      expect(floor.body.error.fields.priceTypeId).toBe('Narx turi topilmadi')
     })
 
     it('refuse what is not done for the group, and leave the rest alone', async () => {

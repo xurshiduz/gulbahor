@@ -616,6 +616,15 @@ Egasi so'radi: "Kassa tortmasini tizim yaratmasdan, biznes egasi o'zi naqd qilib
 - **Ekran** (`features/money/money-page.tsx`): hisob formasida "Turi" tartibi — Naqd (yangi hisobda standart), Plastik karta, Bank terminali, Bank hisob raqami; "Naqd"da "Kassa" maydoni (bo'sh — "Kassaga biriktirilmagan"; tanlansa "Do'kon" maydoni yo'qoladi); tortmani tahrirlash "Naqd" va kassasi bilan ochiladi; "Hisoblar"da tortmada ham "…" menyusi (tahrirlash, arxivlash, tiklash). Kassa formasida "Naqd valyutalar" yo'q, "Do'kon" ostida izoh: kassa naqdi — "Hisoblar"dagi shu kassaga biriktirilgan "Naqd" hisoblar. "Kassalar" ro'yxatidagi "Naqd valyutalar" ustuni qoldi (tortmalardan).
 - **Testlar**: `till-currencies.spec.ts` (kassa bilan ochilgan tortmalar, keraksizini arxivlash, `DRAWER_HELD` / `BASE_DRAWER` / `SHIFT_OPEN`, qo'lda ochilgan tortma, ikkinchi tortma va arxivdagisi, bo'sh tortmani ajratish, karta kassaga biriktirilmasligi, keyin yoqilgan yevro hamma kassada), `pos.spec.ts` (hisoblar ro'yxatida tortmalar), `base-currency.spec.ts` (almashtirishda tortmalar va egasi bergan nom, ikki tomonga).
 
+### 9f — tekshiruv (2026-10-10)
+
+- **Testlar**: core 217, web 219, agent 17, server 395; typecheck, lint, `check_i18n` toza.
+- **Ekranda** (sinov bazasida ikki namunaviy biznes, alohida server 3101/5191; lokal baza tegilmadi):
+  - so'm biznesi, dollar (12 650) va yuan (1 750) bilan: "Kassalar" (Kassa 1 — UZS · USD · CNY, Kassa 2 — UZS · USD, yuan tortmasi arxivda), kassa formasi ("Naqd valyutalar" yo'q, izoh), "Hisoblar" (tortmalarda "…" menyusi, tortmani tahrirlash — "Naqd" + kassasi, yangi hisob — standart "Naqd"), "Pul holati" (uch valyuta, jami 2 608 500 so'm va ikki kurs), kassa (to'lov qatorlari: so'm, dollar va yuan naqdi, Humo, dollardagi Visa, terminal; 700 ¥ — 1 225 000 so'm, qaytim 25 000), smena yopish (har tortma maydoni, yuan "Yuan seyf"ga), yuan kirimi (1 ¥ = 1 760, kun kursi 1 750, 50 $ xarajat ≈ 632 500 so'm, tannarx 10 136 500), "Kurslar";
+  - tenge biznesi, dollar (480) bilan: "Pul holati" (68 000 ₸), hisoblar ("Kassa 1 (₸)", "Kassa 1 ($)"), kassa (25 $ lik tovar 12 000 ₸, "Naqd tenge" va "Naqd dollar", ustun "Tengeda").
+- **Topilib tuzatilgani**: (1) kassasiz "Naqd" hisob formasida "Do'kon" izohi "hamma do'kon kassasida chiqadi" derdi — aslida bunday naqd sotuvda chiqmaydi, unga inkassatsiya bilan topshiriladi; endi alohida izoh (`money.safeShopHint`). (2) Inkassatsiya va smena yopilishidagi topshirishda standart manzil alifbo bo'yicha birinchi seyf edi ("Rahbar" — hamma do'kon uchun); endi do'konning o'z seyfi oldin (`emptyHandings`).
+- **Kuzatildi, o'zgartirilmadi**: "Pul holati"da kassa tortmasi joy nomi bilan ("So'm naqd · Kassa 1") chiqadi, egasi bergan nom bilan emas — kassasiz joyda nom qavs ichida.
+
 ### Narx, mijoz hisobi va hisobot valyutasi (egasining qarori, 2026-10-08)
 
 ERP'lardagi amaliyot bilan solishtirib kelishildi (1C: narx turlari, boshqaruv valyutasi, shartnoma valyutasi; SAP: parallel valyuta; Odoo: pricelist). 16-bo'limning tegishli qarorlarini almashtiradi — ro'yxati 16.10 da.

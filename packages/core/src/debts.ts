@@ -43,7 +43,7 @@ export interface CustomerDebtDto {
   id: string
   customerId: string
   customerName: string
-  customerPhone: string
+  customerPhone: string | null
   saleId: string
   saleNumber: string
   soldAt: string
@@ -165,7 +165,7 @@ export interface DebtPaymentDto {
   status: DebtPaymentStatus
   customerId: string
   customerName: string
-  customerPhone: string
+  customerPhone: string | null
   /** In so'm. */
   total: number
   paidAt: string

@@ -707,7 +707,7 @@ function AccountDialog({ account, onClose }: { account: AccountDto | null; onClo
         {tillId ? null : (
           <Field
             label={shared ? t('money.shops') : t('money.shop')}
-            hint={shared ? t('money.shopsHint') : t('money.shopHint')}
+            hint={shared ? t('money.shopsHint') : kind === 'safe' ? t('money.safeShopHint') : t('money.shopHint')}
             error={errors.locationIds?.message}
           >
             {(id) => (

@@ -1,5 +1,7 @@
 import {
+  DEFAULT_CUSTOMER_TERMS,
   searchKey,
+  type AnyCurrency,
   type CustomerDto,
   type CustomerGroupDto,
   type CustomerGroupInput,
@@ -10,6 +12,7 @@ import {
   type LoyaltyTier,
   type Page,
   type PosCustomerDto,
+  type CustomerTerms,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
@@ -19,13 +22,32 @@ import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import { Customer, CustomerGroup, CustomerGroupMember, LoyaltyTierRow, PriceType } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
-import type { Actor } from '../auth/actor'
+import { can, type Actor } from '../auth/actor'
+import { CurrenciesService } from '../money/currencies.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { loyaltyTiers, rulesOf } from './groups'
 
 const SORTABLE = { name: 'c.name', createdAt: 'c.createdAt' }
 
-const AUDITED: (keyof Customer & string)[] = ['name', 'phone', 'birthday', 'gender', 'note', 'tags', 'isActive']
+const AUDITED: (keyof Customer & string)[] = [
+  'name',
+  'phone',
+  'birthday',
+  'gender',
+  'note',
+  'tags',
+  'currency',
+  'priceTypeId',
+  'isSupplier',
+  'credit',
+  'creditLimit',
+  'dueDays',
+  'noDue',
+  'returnDays',
+  'isActive',
+]
+
+const TERMS: (keyof CustomerTerms)[] = ['credit', 'creditLimit', 'dueDays', 'noDue', 'returnDays']
 
 interface Bought {
   customer_id: string
@@ -35,10 +57,10 @@ interface Bought {
 }
 
 /**
- * The people who buy in the shops: who they are, and, from their receipts,
- * what they have bought. A customer is known by their phone number, one to a
- * business. They are written down by whoever keeps the base, or at the till
- * the first time they buy.
+ * The people the business deals with: who they are, and, from their receipts,
+ * what they have bought. Only a name is needed; a phone, when there is one, is
+ * theirs alone in the business. They are written down by whoever keeps the
+ * book, or at the till the first time they buy.
  */
 @Injectable()
 export class CustomersService {
@@ -46,6 +68,7 @@ export class CustomersService {
     private readonly db: Db,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async list(actor: Actor, query: CustomerListQuery): Promise<Page<CustomerDto> & { summary: CustomerSummary }> {
@@ -106,17 +129,16 @@ export class CustomersService {
 
   async create(actor: Actor, input: CustomerInput, locationId: string | null = null): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      await this.assertPhoneFree(em, input.phone)
-      const { groupIds, ...fields } = input
+      const fields = await this.fields(em, actor, input, DEFAULT_CUSTOMER_TERMS)
       const saved = await em.save(
         em.create(Customer, { orgId: actor.orgId, ...fields, locationId, isActive: true, searchKey: keyOf(input) }),
       )
-      await this.setGroups(em, actor.orgId, saved.id, groupIds)
+      await this.setGroups(em, actor.orgId, saved.id, input.groupIds)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'customer.create',
         entity: 'customer',
         entityId: saved.id,
-        summary: `${saved.name}, ${saved.phone}`,
+        summary: saved.phone ? `${saved.name}, ${saved.phone}` : saved.name,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
       return (await this.dtos(em, [saved]))[0]
@@ -126,10 +148,9 @@ export class CustomersService {
   async update(actor: Actor, id: string, input: CustomerInput): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
-      await this.assertPhoneFree(em, input.phone, id)
-      const { groupIds, ...fields } = input
+      const fields = await this.fields(em, actor, input, termsOf(before), id)
       await em.update(Customer, id, { ...fields, searchKey: keyOf(input) })
-      await this.setGroups(em, actor.orgId, id, groupIds)
+      await this.setGroups(em, actor.orgId, id, input.groupIds)
       const after = await this.find(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'customer.update',
@@ -343,6 +364,38 @@ export class CustomersService {
 
   // ───────────────────────────── Inside ─────────────────────────────
 
+  /**
+   * What is written to the card, checked: the phone theirs alone, a currency the business keeps, a price they may
+   * buy at, and the terms — changed only by who may adjust accounts; a form without them keeps what stands.
+   */
+  private async fields(em: EntityManager, actor: Actor, input: CustomerInput, standing: CustomerTerms, id?: string) {
+    if (input.phone) {
+      await this.assertPhoneFree(em, input.phone, id)
+    }
+    const currency: AnyCurrency = input.currency ?? (id ? (await this.find(em, id)).currency : actor.base)
+    if (!(await this.currencies.kept(em, actor)).includes(currency)) {
+      throw AppError.validation({ currency: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+    }
+    const terms = input.terms ?? standing
+    if (TERMS.some((key) => terms[key] !== standing[key]) && !can(actor, 'customers.adjust')) {
+      throw AppError.forbidden('Qarz va muddatni hisob tuzatish ruxsati bor xodim o‘zgartiradi')
+    }
+    const { groupIds: _groups, terms: _terms, ...card } = input
+    return { ...card, currency, priceTypeId: await this.priceOf(em, input.priceTypeId), ...terms }
+  }
+
+  /** Their own price: the retail one is no price of their own, and the floor is not one at all. */
+  private async priceOf(em: EntityManager, id: string | null): Promise<string | null> {
+    if (!id) {
+      return null
+    }
+    const type = await em.findOneBy(PriceType, { id, isActive: true })
+    if (!type || type.kind === 'min') {
+      throw AppError.validation({ priceTypeId: 'Narx turi topilmadi' })
+    }
+    return type.kind === 'retail' ? null : type.id
+  }
+
   private async find(em: EntityManager, id: string): Promise<Customer> {
     const customer = await em.findOneBy(Customer, { id })
     if (!customer) {
@@ -385,6 +438,11 @@ export class CustomersService {
       [ids],
     )
     const rules = await rulesOf(em, customers)
+    const prices: { id: string; name: string }[] = await em.query(
+      `SELECT id, name FROM price_types WHERE id = ANY($1)`,
+      [customers.flatMap((customer) => customer.priceTypeId ?? [])],
+    )
+    const priceOf = new Map(prices.map((type) => [type.id, type]))
     return customers.map((customer) => {
       const row = boughtBy.get(customer.id)
       return {
@@ -392,6 +450,10 @@ export class CustomersService {
         id: customer.id,
         name: customer.name,
         phone: customer.phone,
+        currency: customer.currency,
+        priceType: customer.priceTypeId ? (priceOf.get(customer.priceTypeId) ?? null) : null,
+        isSupplier: customer.isSupplier,
+        terms: termsOf(customer),
         groups: memberships
           .filter((member) => member.customer_id === customer.id)
           .map((member) => ({ id: member.id, name: member.name })),
@@ -442,8 +504,16 @@ const DAYS_TO_BIRTHDAY = `(
   ) x WHERE x.d >= 0
 )`
 
-function keyOf(customer: { name: string; phone: string; note: string | null; tags: string[] }): string {
+function keyOf(customer: { name: string; phone: string | null; note: string | null; tags: string[] }): string {
   // The number is looked for as it is said: with the country code, or from the operator's two digits on.
-  const digits = customer.phone.replace(/\D/g, '')
+  const digits = (customer.phone ?? '').replace(/\D/g, '')
   return searchKey(`${customer.name} ${digits} ${digits.slice(3)} ${customer.note ?? ''} ${customer.tags.join(' ')}`)
 }
+
+const termsOf = (customer: Customer): CustomerTerms => ({
+  credit: customer.credit,
+  creditLimit: customer.creditLimit,
+  dueDays: customer.dueDays,
+  noDue: customer.noDue,
+  returnDays: customer.returnDays,
+})

@@ -1,5 +1,7 @@
 # Final spec: technical notes (branch cloud/exchange-partners)
 
+> **Read section 3 first.** Sections 1–2 were written before V9 (2026-10-06). Section 3 (2026-10-10) lists what changes in them now that every currency is equal, customers keep a balance per currency, and phase 1 (pricing, M1) is put off.
+
 ## 0. Order, numbering, gates
 - Two migrations:
   - `1790000035000-price-formulas.ts` (phase 1) runs first. It still updates `partners.price_type_id`, because that table still exists at that point.
@@ -504,7 +506,7 @@
    SELECT org_id, phone, count(*) FROM partners WHERE phone IS NOT NULL GROUP BY 1, 2 HAVING count(*) > 1;
    ```
 3. Partners sharing a phone with a customer, and partners sharing a name with a customer (informational, for the owner's merge list).
-4. Currency-mismatched prices, and whether any `exchange_rates` row exists.
+4. Currency-mismatched prices (`exchange_rates` is gone since V9; rates are `currency_rates`).
 5. `pg_dump`. Then run `up`, then `down`, on a copy.
 
 ### Pitfalls
@@ -515,3 +517,39 @@
 - `sale_payments` stay immutable; due dates live in `customer_dues`.
 - Store the retail kind as null everywhere (customers, groups).
 - The `mixed` location route for warehouse wholesale needs a check of the gate, stock pages and transfers before it is recommended. This is open question 3.
+
+## 3. After V9 (2026-10-10): what changes in section 2
+
+The owner's decisions are in `KEYINGI-REJA.md`, 8th part, "Narx, mijoz hisobi va hisobot valyutasi" (9–13), and 16.10. The owner put M1 (pricing) off and asked for M2 (one customer book) next.
+
+**Order and numbering**
+- M2 (book and ledger) and M3 (screens) ship together; M4 follows in pieces. M1 is not a prerequisite. Decision 10's "formula or Chakana narxida" fallback waits for M1. Until then, a price type with no price for a product falls back to retail, as it does today.
+- One migration: `1790000044000-one-customer-book.ts`. The numbers 35000 and 36000 were taken by other work. It must not assume `price-formulas` ran. Retail-kind price types are still normalised to null here.
+
+**A balance per currency**
+- A customer has one account per currency: `accounts.kind = 'customer'`, `customer_id`, and `currency`, with UNIQUE `(customer_id, currency)`. Each account opens on its first posting: `LedgerService.customerAccount(em, customer, currency)`. A partner's existing account moves as it is, in its currency.
+- `customers.currency` is the customer's **main** currency. It is the default in every window and document, set to the base by default. It is a default only: it may change at any time, and nothing locks it.
+- Every document is in one currency and touches only that currency's account:
+  - a sale on account: `onAccount { currency, amount (base), settled? }`, defaulting to the main currency;
+  - a TL payment: the customer side's currency, chosen in the window and defaulting to the main currency;
+  - **a receipt: the supplier's account in the receipt's own currency.** `owe`, `creditIn` and `inAccount` no longer convert, so the supplier's debt is exactly what was written;
+  - a supplier return (YQ-): the receipt's currency.
+- `customer_dues` rows hang on a sale or payment, so they are per currency by construction.
+- `standingsOf` and `ageBalance` run per account and return `{ currency, owed, credit, overdue, overdueSince, nextDue, nextDueAmount }[]`.
+- **Limit and bars** work on the total in the base at today's book: `Σ (owed − credit)` over the currencies, plus this sale's account part.
+  - If any currency involved has no rate, the account block is off and `wantingRate` says which rate is missing. Selling for money still works.
+  - `adds` is computed in the base.
+  - "Overdue" is any currency's overdue.
+- **In-account exchange** (`hisob ichida almashtirish`): a TL kind `exchange`. One entry moves an amount from the customer's A account to their B account, at the day's rate or an agreed sum (`valueLine`). The difference goes to `fx`. Permission: `customers.adjust`. It is shown in both currencies' statements.
+- Merge (M4): each currency's balance moves to the survivor's account in the same currency. No conversion happens unless a person chooses it.
+- Statement (akt-sverka): one block per currency, then a total in the base at today's book.
+
+**Places since V9**
+- A till's drawers are cash accounts given to the till, in any currency (`register_id`). For `pos.sell`, the places are this register's active drawers, plus cards (each in its own currency) and base terminals that `servesShop`, with an open shift.
+- The Z-report already counts per currency (`shift_counts`, `ShiftTotals.cash`). Customer in and out are added to `ShiftCashMoves` per currency; they are not grouped by account name.
+
+**Things section 2 names that are gone or renamed**
+- `takesDollars` and dollar-only branches: use the till's currencies and the book.
+- `partners.currency` single-currency checks (`PartnersService.assertCurrency`): the main currency is checked against `CurrenciesService.kept`. Account currencies are checked per document.
+- `sales.uzs_per_usd` is kept for old receipts only.
+

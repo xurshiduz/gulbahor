@@ -49,8 +49,10 @@ export const handingIn = (value: Handings, currency: AnyCurrency): Handing => va
  * currency.
  */
 export function emptyHandings(safes: AccountDto[], currencies: AnyCurrency[], anyCurrency = false): Handings {
+  // The shop's own safe before one kept for every shop (the owner's own cash, say).
+  const own = [...safes].sort((a, b) => Number(!a.locationIds.length) - Number(!b.locationIds.length))
   const only = (currency: AnyCurrency) =>
-    safes.find((safe) => safe.currency === currency)?.id ?? (anyCurrency && safes.length === 1 ? safes[0].id : null)
+    own.find((safe) => safe.currency === currency)?.id ?? (anyCurrency && safes.length === 1 ? safes[0].id : null)
   return Object.fromEntries(
     currencies.map((currency) => [currency, { amount: null, toAccountId: only(currency), received: null }]),
   )
