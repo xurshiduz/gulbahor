@@ -42,7 +42,7 @@ export class CustomerPaymentsController {
   /** The accounts a payment can go through. */
   @Get('accounts')
   accounts(@CurrentActor() actor: Actor): Promise<PaymentAccountDto[]> {
-    if (!can(actor, 'customers.receive') && !can(actor, 'customers.pay_out')) {
+    if (!can(actor, 'customers.receive') && !can(actor, 'customers.pay_out') && !can(actor, 'pos.sell')) {
       throw AppError.forbidden()
     }
     return this.payments.accounts(actor)

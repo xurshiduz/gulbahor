@@ -5,6 +5,8 @@ import {
   customerInputSchema,
   customerListQuerySchema,
   customerQuickSchema,
+  debtorListQuerySchema,
+  dueChangeSchema,
   idSchema,
   loyaltyInputSchema,
   type AnyCurrency,
@@ -20,6 +22,10 @@ import {
   type LoyaltyTier,
   type CustomerQuickInput,
   type CustomerStatementDto,
+  type DebtorDto,
+  type DebtorListQuery,
+  type DebtorSummary,
+  type DueChangeInput,
   type Page,
 } from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
@@ -69,6 +75,22 @@ export class CustomersController {
   ): Promise<CustomerBriefDto> {
     anyOf(actor, 'customers.manage', 'receipts.manage')
     return this.customers.quick(actor, input)
+  }
+
+  /** Who owes the business, and what of it is late: the service says whose accounts this person keeps. */
+  @Get('debtors')
+  debtors(
+    @CurrentActor() actor: Actor,
+    @Query(zod(debtorListQuerySchema)) query: DebtorListQuery,
+  ): Promise<Page<DebtorDto> & { summary: DebtorSummary }> {
+    return this.customers.debtors(actor, query)
+  }
+
+  /** A debt given another day: the service says who may. */
+  @Put('dues/:id')
+  @HttpCode(204)
+  moveDue(@CurrentActor() actor: Actor, @id() dueId: string, @Body(zod(dueChangeSchema)) input: DueChangeInput) {
+    return this.customers.moveDue(actor, dueId, input)
   }
 
   /** One of a customer's accounts: every change, and what was owed after each. */

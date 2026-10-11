@@ -9,12 +9,14 @@ import {
   formatMoney,
   tillsOf,
   type AnyCurrency,
+  type CustomerBalance,
   type CustomerDto,
   type CustomerPaymentDto,
   type CustomerPaymentKind,
   type CustomerStatementDto,
   type Page as PageOf,
   type PaymentAccountDto,
+  type PosCustomerDto,
 } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
@@ -26,6 +28,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FilterCombo, FilterDates, FilterSelect } from '@/components/ui/column-filters'
 import { Combobox } from '@/components/ui/combobox'
+import { DateInput } from '@/components/ui/date-input'
 import { Select } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog } from '@/components/ui/dialog'
@@ -41,7 +44,7 @@ import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatDay } from '@/lib/format'
 import { useRateBook } from '@/features/money/rates'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
@@ -100,10 +103,8 @@ const useCustomer = (id: string | null) =>
   })
 
 /** What a customer owes in one currency; null for a person who may not see it. */
-const balanceIn = (customer: CustomerDto | undefined, currency: AnyCurrency | null) =>
-  !customer || !currency || customer.balances === null
-    ? null
-    : (customer.balances.find((item) => item.currency === currency)?.balance ?? 0)
+const balanceIn = (balances: CustomerBalance[] | null | undefined, currency: AnyCurrency | null) =>
+  !balances || !currency ? null : (balances.find((item) => item.currency === currency)?.balance ?? 0)
 
 /** The currencies a customer's money may be counted in: the business's, their main one first. */
 function useKept() {
@@ -119,7 +120,14 @@ interface PaymentDialogProps {
   /** Which of their accounts: their main currency's unless said. */
   currency?: AnyCurrency
   kind?: 'in' | 'out'
+  /**
+   * The customer at the till: known from the till itself, so a cashier with no say over customers' accounts
+   * takes what they bring, into the till's own places.
+   */
+  buyer?: PosCustomerDto
   onClose: () => void
+  /** The money is in: whoever opened this may want to know the customer again. */
+  onSaved?: () => void
 }
 
 /**
@@ -134,7 +142,9 @@ export function PaymentDialog({
   customerId: fixedCustomer,
   currency: fixedCurrency,
   kind: startKind = 'in',
+  buyer,
   onClose,
+  onSaved,
 }: PaymentDialogProps) {
   const { t } = useTranslation()
   const { can, me } = useSession()
@@ -153,10 +163,11 @@ export function PaymentDialog({
   // Payments entered one after another: each starts with the cursor where the first did.
   const [round, setRound] = useState(0)
 
-  const { choices, search } = useCustomerChoices([customerId])
-  const customer = useCustomer(customerId).data
+  const { choices, search } = useCustomerChoices([customerId], false, !buyer)
+  const customer = useCustomer(buyer ? null : customerId).data
+  const balances = buyer ? buyer.accounts : customer?.balances
   // The account it settles: the one picked, else the customer's main one.
-  const currency = pickedCurrency ?? customer?.currency ?? null
+  const currency = pickedCurrency ?? buyer?.currency ?? customer?.currency ?? null
   const accounts = useQuery({
     queryKey: ['customer-payments', 'accounts'],
     queryFn: ({ signal }) => api.get<PaymentAccountDto[]>('/customer-payments/accounts', undefined, signal),
@@ -164,7 +175,7 @@ export function PaymentDialog({
   // The day's rates, all of them: a line may be in any currency the business keeps.
   const dayRate = useRateBook()
   const setsRates = can('money.rates')
-  const balance = balanceIn(customer, currency)
+  const balance = balanceIn(balances, currency)
   const places = useMemo(() => accounts.data ?? [], [accounts.data])
 
   // The till the money goes through: the one picked here, else the one that stands to reason.
@@ -230,6 +241,7 @@ export function PaymentDialog({
       api.post<CustomerPaymentDto>('/customer-payments', input),
     onSuccess: (payment, { more }) => {
       refresh(queryClient)
+      onSaved?.()
       toast.success(t('payments.saved', { number: payment.number }))
       if (!more) {
         onClose()
@@ -371,9 +383,14 @@ export function PaymentDialog({
                   id={id}
                   value={kind}
                   onChange={(value) => setKind(value as 'in' | 'out')}
+                  // Only the ways money may go for this person: one who takes payments need not pay any out.
                   options={[
-                    { value: 'in', label: t('payments.takeIn') },
-                    { value: 'out', label: t('payments.payOut') },
+                    ...(can('customers.receive') || kind === 'in'
+                      ? [{ value: 'in', label: t('payments.takeIn') }]
+                      : []),
+                    ...(can('customers.pay_out') || kind === 'out'
+                      ? [{ value: 'out', label: t('payments.payOut') }]
+                      : []),
                   ]}
                 />
               </div>
@@ -385,13 +402,20 @@ export function PaymentDialog({
                 id={id}
                 autoFocus={!fixedCustomer}
                 disabled={!!fixedCustomer}
-                options={choices.map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                  hint: [item.isSupplier ? t('customers.supplier') : '', item.phoneTail ? `…${item.phoneTail}` : '']
-                    .filter(Boolean)
-                    .join(' · '),
-                }))}
+                options={
+                  buyer
+                    ? [{ value: buyer.id, label: buyer.name }]
+                    : choices.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                        hint: [
+                          item.isSupplier ? t('customers.supplier') : '',
+                          item.phoneTail ? `…${item.phoneTail}` : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
+                      }))
+                }
                 onQuery={search}
                 value={customerId}
                 onChange={(id) => {
@@ -701,6 +725,18 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay }:
     placeholderData: keepPreviousData,
   })
   const data = query.data
+  const queryClient = useQueryClient()
+  // A debt's day is moved by whoever keeps that account, or may lend at the till.
+  const movesDays =
+    !!data && (can(data.customer.isSupplier ? 'customers.suppliers' : 'customers.debts') || can('pos.debt'))
+  const moveDue = useMutation({
+    mutationFn: ({ id, dueDate }: { id: string; dueDate: string | null }) =>
+      api.put(`/customers/dues/${id}`, { dueDate }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success(t('common.saved'))
+    },
+  })
   // Every currency they have an account in, and their main one even before it has one.
   const currencies = data
     ? [...new Set([data.customer.currency, ...(data.customer.balances ?? []).map((item) => item.currency)])]
@@ -761,6 +797,7 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay }:
               <th className="px-2 py-1.5">{t('payments.document')}</th>
               <th className="px-2 py-1.5 text-right">{t('payments.change')}</th>
               <th className="px-2 py-1.5 text-right">{t('payments.balance')}</th>
+              <th className="px-2 py-1.5">{t('pos.debtDue')}</th>
               <th className="py-1.5 pl-2">{t('receipts.note')}</th>
             </tr>
           </thead>
@@ -812,6 +849,20 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay }:
                 </td>
                 <td className="tabular px-2 py-1.5 text-right font-medium whitespace-nowrap">
                   {money(line.balance, data.currency)}
+                </td>
+                {/* The day a debt falls due, beside the sale or the opening balance that made it. */}
+                <td className="px-2 py-1 whitespace-nowrap">
+                  {line.due && movesDays ? (
+                    <span className="block w-36" data-enter-skip>
+                      <DateInput
+                        value={line.due.dueDate ?? ''}
+                        onChange={(date) => moveDue.mutate({ id: line.due!.id, dueDate: date || null })}
+                        warnPast
+                      />
+                    </span>
+                  ) : line.due ? (
+                    <span className="tabular">{line.due.dueDate ? formatDay(line.due.dueDate) : t('pos.noDue')}</span>
+                  ) : null}
                 </td>
                 <td className="py-1.5 pl-2 text-ink-2">{line.note ?? ''}</td>
               </tr>

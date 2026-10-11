@@ -67,20 +67,27 @@ describe('a receipt on paper', () => {
     expect(bare.text).toContain('Jami983 000 so‘m')
   })
 
-  it('names what was left owing, and the day it is to be paid by', () => {
+  it('names what went on the account, and the day it is to be paid by', () => {
     const lent = {
       ...sale,
       payments: [
         sale.payments[0],
-        { ...sale.payments[1], method: 'debt', accountName: 'Mijozlar qarzi', amount: 48_300_000, base: 48_300_000 },
+        {
+          ...sale.payments[1],
+          method: 'account',
+          accountName: 'Nodira Yusupova',
+          currency: 'UZS',
+          amount: 48_300_000,
+          base: 48_300_000,
+        },
       ],
-      debt: { amount: 48_300_000, left: 48_300_000, dueDate: '2026-11-04' },
+      due: { id: 'd1', dueDate: '2026-11-04' },
     } as SaleDto
     const { container } = render(<ReceiptPaper sale={lent} template={DEFAULT_RECEIPT_TEMPLATE} orgName="Gulbahor" />)
     const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? null)
-    // A debt lies in no drawer: the books' own name for it stays off the paper.
-    expect(text).toContain('Qarzga483 000 so‘m')
-    expect(text).not.toContain('Mijozlar qarzi')
+    // The account is the customer's, not a place: its name in the books stays off the paper.
+    expect(text).toContain('Hisobiga483 000 so‘m')
+    expect(text).not.toContain('Nodira Yusupova483')
     expect(text).toContain('To‘lash muddati04.11.2026')
     // Nothing owed, no day.
     expect(printed().text).not.toContain('To‘lash muddati')

@@ -312,7 +312,6 @@ describe('Returns', () => {
       expect(found.caps).toEqual({
         cash: som(100_000),
         accounts: [{ accountId: cardId, method: 'card', name: 'Humo', last4: '3073', left: som(200_000) }],
-        debt: 0,
         account: 0,
       })
 

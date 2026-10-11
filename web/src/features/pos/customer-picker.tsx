@@ -1,4 +1,4 @@
-import { customerInputSchema, formatMoney, type PosCustomerDto } from '@erp/core'
+import { customerInputSchema, formatMoney, type AnyCurrency, type PosCustomerDto } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { BellRing, UserRound, UserRoundPlus, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
@@ -29,7 +29,7 @@ export interface CustomerPickerHandle {
   focus: () => void
 }
 
-const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
+const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(minor, currency, { minor: 'auto' })
 
 /** Digits alone are a phone being typed; anything else is a name. */
 const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())
@@ -105,6 +105,10 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
     // A cart kept from before groups were known has a customer without them.
     const groups = value.groups ?? []
     const reminders = value.reminders ?? []
+    // What stands on their accounts: none for a cart kept from before accounts were known, nor for a supplier.
+    const standing = (value.accounts ?? []).filter((account) => account.balance)
+    const owes = standing.some((account) => account.balance > 0)
+    const late = standing.some((account) => account.overdue > 0)
     return (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-2.5 py-1.5 text-[13px]">
@@ -131,27 +135,36 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
             <X />
           </Button>
         </div>
-        {/* What they owe already: said before more is lent, with the way to take it there and then. */}
-        {value.debt?.owed ? (
-          <p
+        {/* What they owe already, or what is theirs to spend: said before more goes on the account, with the
+            way to take money there and then. */}
+        {standing.length ? (
+          <div
             role="note"
             className={cn(
               'flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-[13px]',
-              value.debt.overdue ? 'bg-bad-soft text-bad' : 'bg-sunken text-ink-2',
+              late ? 'bg-bad-soft text-bad' : 'bg-sunken text-ink-2',
             )}
           >
-            <span>
-              <span className="font-medium">{t('pos.customerDebt', { amount: money(value.debt.owed) })}</span>
-              {value.debt.overdue ? (
-                <span> · {t('pos.customerOverdue', { amount: money(value.debt.overdue) })}</span>
-              ) : null}
+            <span className="flex flex-col">
+              {standing.map((account) => (
+                <span key={account.currency}>
+                  <span className="font-medium">
+                    {account.balance > 0
+                      ? t('pos.customerDebt', { amount: money(account.balance, account.currency) })
+                      : t('pos.customerCredit', { amount: money(-account.balance, account.currency) })}
+                  </span>
+                  {account.overdue ? (
+                    <span> · {t('pos.customerOverdue', { amount: money(account.overdue, account.currency) })}</span>
+                  ) : null}
+                </span>
+              ))}
             </span>
-            {onPayDebt ? (
+            {onPayDebt && owes ? (
               <Button size="sm" tabIndex={-1} onClick={onPayDebt}>
                 {t('debts.take')}
               </Button>
             ) : null}
-          </p>
+          </div>
         ) : null}
         {/* What their groups ask the cashier to remember: it stays in sight for the whole sale. */}
         {reminders.map((reminder) => (

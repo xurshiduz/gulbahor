@@ -1256,6 +1256,20 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 4-bo'lim.
 - **"Mijozlar" ro'yxati**: "Turi" (yetkazib beruvchi) va "Hisob-kitob" (har valyutadagi qoldiq: "qarzi 2 050,00 $", "haqi 2 000 000 so'm") ustunlari, ikkalasining filtri; qator menyusida hisob-kitob, to'lov olish va berish, boshlang'ich qoldiq.
 - **Hali qilinmagan**: chakana qarz (`customer_debts`, "Qarzlar" va "Qarz to'lovlari" tablari) alohida turibdi — M2-3 da shu hisobga qo'shiladi, muddat va chegara ham shunda; kassada hisob valyutasini tanlash, tuzatish, kechish, hisob ichida almashtirish — M2-4; qaytarish va bekor qilishning yangi tartibi — M2-5.
 
+### 16.12. M2-3 qanday qurildi (2026-10-11)
+
+Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 5-bo'lim.
+
+- **Qarz — mijoz hisobining o'zi.** Alohida "chakana qarz" (Qarzlar, Qarz to'lovlari, kassadagi alohida "Qarzga" qatori) yo'q. Kassada bitta blok — "Qarzga / Hisobidan": mijozning haqisi bo'lsa avval undan olinadi (tasdiqsiz), qolgani qarz bo'ladi va unga muddat qo'yiladi (standart — bugundan mijozning o'z kunlari yoki biznesning "Qarz muddati"; muddatsiz mijozda — muddatsiz).
+- **To'siqlar** (kassir rahbar PIN'isiz o'ta olmaydi): mijoz yetkazib beruvchi (haqidan olsa ham), guruhi yoki kartasi qarzga bermaydi, telefoni yo'q va kartada o'z sharti yo'q, muddati o'tgan qarzi bor, jami qarzi chegaradan oshadi. Chegara: kartadagi o'z chegarasi, "cheklovsiz", aks holda biznesniki; **biznesning chegarasi 0 bo'lsa har qarz rahbar tasdig'i bilan** (egasining 2026-10-06 dagi javobi). Hisoblar har valyutada bo'lsa, jami asosiy valyutada bugungi kursda.
+- **Muddati o'tgan** hech qayerda saqlanmaydi: har safar hisobdan o'qiladi. Tushgan pul avval muddati eng yaqin qarzni yopadi; qaytgan tovar o'z chekining qarzidan ayiriladi; bekor qilingan chek yoki to'lov hisobga kirmaydi.
+- **Muddatni o'zgartirish** — hisob-kitobda har qarzli qator yonida (sana maydoni); o'sha hisobni ko'radigan xodim yoki "qarzga sotish" ruxsati egasi; tarixga yoziladi.
+- **"Mijozlar → Qarzdorlar"**: har qarzdor hisob (valyuta bo'yicha), qancha muddati o'tgan va qachondan, keyingi muddat; tepada jami asosiy valyutada; qatordan hisob-kitob va to'lov olish.
+- **Kassir qarz to'lovini kassada oladi** (mijoz kartochkasidagi "To'lov olish"): faqat kassa naqdi va kartaga, yetkazib beruvchidan emas.
+- **Boshlang'ich qoldiqqa muddat** qo'yish mumkin (eski qarz) — u ham muddati o'tganlar hisobiga kiradi.
+- **Bazada eski chakana qarz bo'lsa** migratsiya to'xtaydi: avval ular yopilishi kerak (lokal bazada yo'q edi).
+- **Hali qilinmagan**: kassada hisob valyutasini tanlash, tuzatish va kechish, hisob ichida almashtirish, kassada terminal bilan to'lov, tortmadan haqini qaytarish — M2-4; qaytarish va bekor qilishning to'liq tartibi (almashtirish zanjiri) — M2-5.
+
 ### 16.9. Ochiq savollar
 
 1. **Narx turlarining odatiy formulalari** — bir marta kiritiladi: Chakana = tannarx + ?%, Ulgurji = tannarx + ?% (yoki chakana − ?%), Oila = tannarx + ?%, Minimal = tannarx + 5%? Va K-000001 dagi "cargo" 43 000 $ (tovar 32 472 $) — xatomi? Tuzatilmaguncha shu tovarlarning formula narxlariga ishonib bo'lmaydi.

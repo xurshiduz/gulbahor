@@ -1,97 +1,158 @@
 import { describe, expect, it } from 'vitest'
 
-import { debtBar, debtPaymentInputSchema, debtState, saleDebtSchema, spreadOverDebts } from './debts'
+import { accountBar, addedDebt, ageBalance, type AccountBarInput, type AccountEvent } from './debts'
 import { saleInputSchema } from './pos'
 
 const som = (amount: number) => amount * 100
 const ID = '11111111-1111-4111-8111-111111111111'
 const KEY = '22222222-2222-4222-8222-222222222222'
 
-describe('how a debt stands', () => {
-  it('is open until its day, overdue after it, and closed once nothing is owed', () => {
-    const debt = { left: som(300_000), dueDate: '2026-11-04', cancelled: false }
-    expect(debtState(debt, '2026-10-05')).toBe('open')
-    // The day itself is still in time.
-    expect(debtState(debt, '2026-11-04')).toBe('open')
-    expect(debtState(debt, '2026-11-05')).toBe('overdue')
-    expect(debtState({ ...debt, left: 0 }, '2026-12-01')).toBe('closed')
-    expect(debtState({ ...debt, cancelled: true }, '2026-12-01')).toBe('cancelled')
-  })
-})
+const balanceOf = (events: AccountEvent[]) =>
+  events.reduce((sum, event) => sum + (event.type === 'credit' ? -event.amount : event.amount), 0)
 
-describe('money brought against debts', () => {
-  const debts = [
-    { id: 'old', left: som(200_000) },
-    { id: 'paid', left: 0 },
-    { id: 'new', left: som(500_000) },
+describe('an account, aged', () => {
+  // KEYINGI-REJA, 16.3: Aziz.
+  const aziz: AccountEvent[] = [
+    { type: 'charge', id: 'oct1', amount: som(2_000_000), due: '2026-10-31' },
+    { type: 'charge', id: 'oct10', amount: som(1_000_000), due: '2026-11-09' },
+    { type: 'credit', amount: som(1_500_000) },
   ]
 
-  it('pays them in the order given, each as far as it is owed', () => {
-    expect(spreadOverDebts(debts, som(300_000))).toEqual({
-      parts: [
-        { debtId: 'old', amount: som(200_000) },
-        { debtId: 'new', amount: som(100_000) },
+  it('pays what falls due first, and calls what is left past its day overdue', () => {
+    expect(ageBalance(aziz, '2026-11-02')).toEqual({
+      owed: som(1_500_000),
+      credit: 0,
+      overdue: som(500_000),
+      overdueSince: '2026-10-31',
+      nextDue: '2026-11-09',
+      nextDueAmount: som(1_000_000),
+    })
+    // Before the first day nothing is late, and the day itself is still in time.
+    expect(ageBalance(aziz, '2026-10-31')).toMatchObject({
+      overdue: 0,
+      nextDue: '2026-10-31',
+      nextDueAmount: som(500_000),
+    })
+  })
+
+  it('takes goods brought back off the receipt they were sold on, not off what is late', () => {
+    const back = ageBalance([...aziz, { type: 'credit', amount: som(400_000), target: 'oct10' }], '2026-11-02')
+    expect(back).toMatchObject({ owed: som(1_100_000), overdue: som(500_000), nextDueAmount: som(600_000) })
+  })
+
+  it('spends what is theirs first, and lends only the rest', () => {
+    const events: AccountEvent[] = [
+      { type: 'credit', amount: som(500_000) },
+      { type: 'charge', id: 'sale', amount: som(800_000), due: '2026-10-01' },
+    ]
+    expect(ageBalance(events, '2026-10-20')).toMatchObject({ owed: som(300_000), credit: 0, overdue: som(300_000) })
+    expect(ageBalance(events.slice(0, 1), '2026-10-20')).toMatchObject({ owed: 0, credit: som(500_000) })
+  })
+
+  it('never makes a supplier late: what they are owed is no debt of theirs', () => {
+    const supplier: AccountEvent[] = [
+      { type: 'credit', amount: som(30_000) },
+      { type: 'charge', id: 'goods', amount: som(2_000), due: null },
+      { type: 'debit', amount: som(1_000) },
+    ]
+    expect(ageBalance(supplier, '2027-01-01')).toMatchObject({ owed: 0, credit: som(27_000), overdue: 0 })
+    // The receipt undone, they owe — but nothing of it ever had a day.
+    const undone = ageBalance([...supplier, { type: 'debit', amount: som(30_000) }], '2027-01-01')
+    expect(undone).toMatchObject({ owed: som(3_000), overdue: 0, nextDue: null })
+  })
+
+  it('keeps a debt given no day out of what is late, and pays it after the dated ones', () => {
+    const events: AccountEvent[] = [
+      { type: 'charge', id: 'open', amount: som(100), due: null },
+      { type: 'charge', id: 'dated', amount: som(100), due: '2026-10-01' },
+      { type: 'debit', amount: som(100) },
+      { type: 'credit', amount: som(150) },
+    ]
+    // The dated one is paid first, then half of the one with no day; money paid out to them waits last.
+    expect(ageBalance(events, '2026-12-01')).toMatchObject({ owed: som(150), overdue: 0 })
+  })
+
+  it('always agrees with the balance', () => {
+    const histories: AccountEvent[][] = [
+      aziz,
+      [
+        { type: 'credit', amount: som(70) },
+        { type: 'charge', id: 'a', amount: som(50), due: '2026-01-01' },
+        { type: 'credit', amount: som(10), target: 'a' },
+        { type: 'debit', amount: som(200) },
+        { type: 'credit', amount: som(500) },
       ],
-      rest: 0,
-    })
-    expect(spreadOverDebts(debts, som(150_000))).toEqual({ parts: [{ debtId: 'old', amount: som(150_000) }], rest: 0 })
-  })
-
-  it('leaves over what no debt takes', () => {
-    expect(spreadOverDebts(debts, som(800_000)).rest).toBe(som(100_000))
-    expect(spreadOverDebts([], som(1)).rest).toBe(som(1))
+    ]
+    for (const events of histories) {
+      const age = ageBalance(events, '2026-06-01')
+      expect(age.owed - age.credit).toBe(balanceOf(events))
+      expect(age.owed > 0 && age.credit > 0).toBe(false)
+    }
   })
 })
 
-describe('what stands in the way of lending more', () => {
-  const customer = { noDebt: false, owed: som(400_000), overdue: 0 }
+describe('what stands in the way of a sale on account', () => {
+  const customer: AccountBarInput = {
+    supplier: false,
+    barred: false,
+    hasPhone: true,
+    credit: 'default',
+    creditLimit: null,
+    owedBase: 0,
+    overdue: false,
+  }
 
-  it('is nothing for a customer in good standing, within what the shop lends', () => {
-    expect(debtBar(customer, som(500_000), 0)).toBeNull()
-    expect(debtBar(customer, som(600_000), som(1_000_000))).toBeNull()
+  it('is nothing at all when their haqi covers it, unless they supply goods', () => {
+    expect(addedDebt(-som(500_000), som(800_000))).toBe(som(300_000))
+    expect(addedDebt(-som(500_000), som(400_000))).toBe(0)
+    expect(addedDebt(som(100_000), som(400_000))).toBe(som(400_000))
+    expect(accountBar(customer, 0, 0)).toBeNull()
+    expect(accountBar({ ...customer, supplier: true }, 0, som(10_000_000))).toBe('supplier')
   })
 
-  it("is the group's bar first, then lateness, then the limit", () => {
-    expect(debtBar({ ...customer, noDebt: true, overdue: som(1) }, som(1), som(1))).toBe('barred')
-    expect(debtBar({ ...customer, overdue: som(100_000) }, som(1), 0)).toBe('overdue')
-    expect(debtBar(customer, som(600_001), som(1_000_000))).toBe('over_limit')
+  it('needs a word for every debt where the business lends nothing without one', () => {
+    expect(accountBar(customer, som(1), 0)).toBe('over_limit')
+    expect(accountBar(customer, som(1_000_000), som(1_000_000))).toBeNull()
+    expect(accountBar({ ...customer, owedBase: som(1) }, som(1_000_000), som(1_000_000))).toBe('over_limit')
+  })
+
+  it('reads the card first: no credit, their own ceiling, or none at all', () => {
+    expect(accountBar({ ...customer, credit: 'none' }, som(1), som(10_000_000))).toBe('barred')
+    expect(accountBar({ ...customer, barred: true }, som(1), som(10_000_000))).toBe('barred')
+    expect(accountBar({ ...customer, credit: 'limit', creditLimit: som(5_000_000) }, som(5_000_000), 0)).toBeNull()
+    expect(accountBar({ ...customer, credit: 'unlimited', owedBase: som(99_000_000) }, som(1), 0)).toBeNull()
+  })
+
+  it('stops a customer with no phone unless their card says otherwise, and anyone already late', () => {
+    expect(accountBar({ ...customer, hasPhone: false }, som(1), som(10_000_000))).toBe('no_phone')
+    expect(accountBar({ ...customer, hasPhone: false, credit: 'unlimited' }, som(1), 0)).toBeNull()
+    expect(accountBar({ ...customer, overdue: true, credit: 'unlimited' }, som(1), 0)).toBe('overdue')
   })
 })
 
-describe('the contracts', () => {
-  it('take a debt as a sum and a day', () => {
-    expect(saleDebtSchema.parse({ amount: som(100_000), dueDate: '2026-11-04' })).toEqual({
-      amount: som(100_000),
-      dueDate: '2026-11-04',
+describe('a sale on account', () => {
+  const sale = {
+    clientKey: KEY,
+    registerId: ID,
+    lines: [{ variantId: ID, qty: 1 }],
+    total: som(100_000),
+  }
+
+  it('needs a customer, and may say when the debt falls due', () => {
+    const lent = saleInputSchema.safeParse({ ...sale, onAccount: { amount: som(100_000) } })
+    expect(lent.error?.issues[0]).toMatchObject({ path: ['customerId'] })
+    const dated = saleInputSchema.parse({
+      ...sale,
+      customerId: ID,
+      onAccount: { amount: som(100_000), dueDate: '2026-11-04' },
     })
-    expect(saleDebtSchema.safeParse({ amount: 0, dueDate: '2026-11-04' }).success).toBe(false)
-    expect(saleDebtSchema.safeParse({ amount: som(1), dueDate: '04.11.2026' }).success).toBe(false)
+    expect(dated.onAccount).toMatchObject({ amount: som(100_000), dueDate: '2026-11-04' })
+    expect(
+      saleInputSchema.safeParse({ ...sale, customerId: ID, onAccount: { amount: 1, dueDate: '4.11' } }).success,
+    ).toBe(false)
   })
 
-  it('let a sale be made wholly on credit, to a customer who is on the books', () => {
-    const sale = {
-      clientKey: KEY,
-      registerId: ID,
-      customerId: ID,
-      lines: [{ variantId: ID, qty: 1 }],
-      total: som(500_000),
-      debt: { amount: som(500_000), dueDate: '2026-11-04' },
-    }
-    expect(saleInputSchema.parse(sale)).toMatchObject({ payments: [], debt: sale.debt })
-    // Nobody to owe it: no debt.
-    expect(saleInputSchema.safeParse({ ...sale, customerId: null }).success).toBe(false)
-    // Neither money nor a debt: not a sale.
-    expect(saleInputSchema.safeParse({ ...sale, debt: null }).success).toBe(false)
-  })
-
-  it('take a payment in one or more places', () => {
-    const payment = {
-      clientKey: KEY,
-      customerId: ID,
-      lines: [{ accountId: ID, amount: som(100_000) }],
-      total: som(100_000),
-    }
-    expect(debtPaymentInputSchema.parse(payment)).toMatchObject({ note: null })
-    expect(debtPaymentInputSchema.safeParse({ ...payment, lines: [] }).success).toBe(false)
+  it('is paid in some way: money, or the account', () => {
+    expect(saleInputSchema.safeParse(sale).error?.issues[0]).toMatchObject({ path: ['payments'] })
   })
 })

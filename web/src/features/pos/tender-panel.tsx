@@ -81,11 +81,7 @@ interface TenderPanelProps {
   busy: boolean
   onComplete: () => void
   onBack: () => void
-  /** Leaving part of it owing: offered when someone on the books is buying. */
-  lend?: Lending | null
-  /** Goods brought back on a receipt that still leaves something owing: so much comes off the debt, not out of the drawer. */
-  offDebt?: number
-  /** Putting part of it on the customer's account: offered when a customer is buying. */
+  /** Putting part of it on the customer's account — out of what is theirs there, the rest as a debt: offered when a customer is buying. */
   onAccount?: OnAccount | null
   /** Goods brought back on a receipt that put something on a customer's account: so much comes off it there. */
   offAccount?: number
@@ -105,22 +101,19 @@ export interface OnAccount {
   book: RateBook | null
   /** An agreed sum however far from the day's rate is this person's to make. */
   setsRates: boolean
+  /** What stands on the account now, in its currency: above zero they owe, below it the money is theirs (haqi). */
+  balance: number | null
+  /** Of what goes there now, in the account's currency: what their haqi covers, and what is lent. */
+  prepaid: number
+  lent: number
+  /** When what is lent falls due; null: never. */
+  dueDate: string | null
+  /** Their debts are given no day: the day may be left empty. */
+  noDue: boolean
+  onDueDate: (date: string | null) => void
   /** Why a manager's word will be asked for, when it will. */
   warning: string | null
   onChange: (sums: ExchangeSums) => void
-}
-
-export interface Lending {
-  amount: number | null
-  dueDate: string
-  /** The most that can be left owing: what there is to pay. */
-  max: number
-  /** What the customer owes already. */
-  owed: number
-  /** Why a manager's word will be asked for, when it will. */
-  warning: string | null
-  onAmount: (amount: number | null) => void
-  onDueDate: (date: string) => void
 }
 
 /**
@@ -145,14 +138,11 @@ export function TenderPanel({
   busy,
   onComplete,
   onBack,
-  lend = null,
-  offDebt = 0,
   onAccount = null,
   offAccount = 0,
   hiding = null,
 }: TenderPanelProps) {
   const { t } = useTranslation()
-  const lendId = useId()
   const accountId = useId()
   const dueId = useId()
   const sums = useRef<HTMLDivElement>(null)
@@ -199,10 +189,8 @@ export function TenderPanel({
     ? refund.problem === null && refund.due === 0
     : settlement.problem === null && settlement.due === 0
 
-  // What is left owing is not for the money to cover.
-  const owing =
-    (lend ? Math.min(lend.amount ?? 0, lend.max) : 0) +
-    (onAccount ? Math.min(onAccount.sums.amount ?? 0, onAccount.max) : 0)
+  // What goes on the account is not for the money to cover.
+  const owing = onAccount ? Math.min(onAccount.sums.amount ?? 0, onAccount.max) : 0
 
   /** What is left for a row to cover once the others have paid theirs, in so'm. */
   const restFor = (row: TenderRow): number => {
@@ -287,13 +275,13 @@ export function TenderPanel({
     })
   }
 
-  /** Enter in the sum lent takes it and goes back to the money: the rest is paid there, and sold from there. */
+  /** Enter in the account's sum takes it and goes back to the money: the rest is paid there, and sold from there. */
   const backToMoney = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target
     if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey || !(target instanceof HTMLElement)) {
       return
     }
-    if (target.id !== lendId) {
+    if (target.id !== accountId) {
       return
     }
     event.preventDefault()
@@ -514,42 +502,6 @@ export function TenderPanel({
         )}
       </div>
 
-      {lend ? (
-        // Not one of the sums Enter walks: lending is decided, not fallen into.
-        <div
-          data-enter-skip
-          data-lend
-          className="flex flex-col gap-1.5 border-t border-line pt-3"
-          onKeyDown={backToMoney}
-        >
-          <div className={ROW}>
-            <label htmlFor={lendId} className="min-w-0 text-[13px] text-ink-2">
-              {t('pos.debt')}
-              {lend.owed ? (
-                <span className="text-xs text-ink-3"> · {t('pos.debtOwed', { amount: money(lend.owed) })}</span>
-              ) : null}
-            </label>
-            {/* "=" leaves owing whatever the money typed above has not covered. */}
-            <MoneyInput
-              id={lendId}
-              value={lend.amount}
-              onChange={lend.onAmount}
-              currency={base()}
-              fillValue={Math.min(lend.max, (lend.amount ?? 0) + settlement.due)}
-              invalid={(lend.amount ?? 0) > lend.max}
-            />
-            {lend.amount ? (
-              <>
-                <label htmlFor={dueId} className="text-right text-xs text-ink-3">
-                  {t('pos.debtDue')}
-                </label>
-                <DateInput id={dueId} value={lend.dueDate} onChange={lend.onDueDate} warnPast />
-              </>
-            ) : null}
-          </div>
-          {lend.amount && lend.warning ? <p className="text-xs text-warn">{lend.warning}</p> : null}
-        </div>
-      ) : null}
       {onAccount ? (
         // Like lending, decided rather than fallen into: Enter does not walk into it.
         <div
@@ -559,8 +511,18 @@ export function TenderPanel({
           onKeyDown={backToMoney}
         >
           <div className={ROW}>
-            <label htmlFor={accountId} className="min-w-0 truncate text-[13px] text-ink-2">
-              {t('pos.onAccount')} · {onAccount.name}
+            <label htmlFor={accountId} className="min-w-0 text-[13px] text-ink-2">
+              <span className="block truncate">
+                {t('pos.onAccount')} · {onAccount.name}
+              </span>
+              {/* What stands there already: what they owe, or what is theirs to spend first. */}
+              {onAccount.balance ? (
+                <span className={cn('block text-xs', onAccount.balance > 0 ? 'text-ink-3' : 'text-ok')}>
+                  {onAccount.balance > 0
+                    ? t('pos.debtOwed', { amount: money(onAccount.balance, onAccount.currency) })
+                    : t('pos.creditHeld', { amount: money(-onAccount.balance, onAccount.currency) })}
+                </span>
+              ) : null}
             </label>
             {/* "=" puts on the account whatever the money typed above has not covered. */}
             <MoneyInput
@@ -606,6 +568,33 @@ export function TenderPanel({
               className="text-right"
             />
           ) : null}
+          {/* What their haqi covers and what is lent, and by when the lent part is to be paid. */}
+          {onAccount.sums.amount && (onAccount.prepaid || onAccount.lent) ? (
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-ink-3">
+              {onAccount.prepaid ? (
+                <span className="tabular">
+                  {t('pos.fromCredit', { amount: money(onAccount.prepaid, onAccount.currency) })}
+                </span>
+              ) : null}
+              {onAccount.lent ? (
+                <>
+                  <span className="tabular">
+                    {t('pos.lent', { amount: money(onAccount.lent, onAccount.currency) })}
+                  </span>
+                  <label htmlFor={dueId}>{t('pos.debtDue')}</label>
+                  <span className="w-36">
+                    <DateInput
+                      id={dueId}
+                      value={onAccount.dueDate ?? ''}
+                      onChange={(date) => onAccount.onDueDate(date || null)}
+                      warnPast
+                    />
+                  </span>
+                  {onAccount.noDue && !onAccount.dueDate ? <span>{t('pos.noDue')}</span> : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
           {onAccount.sums.amount && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}
         </div>
       ) : null}
@@ -613,12 +602,6 @@ export function TenderPanel({
         <div className="flex items-baseline justify-between border-t border-line pt-3 text-[13px]">
           <span className="text-ink-2">{t('pos.offAccount')}</span>
           <span className="tabular font-medium">{money(offAccount)}</span>
-        </div>
-      ) : null}
-      {offDebt ? (
-        <div className="flex items-baseline justify-between border-t border-line pt-3 text-[13px]">
-          <span className="text-ink-2">{t('pos.offDebt')}</span>
-          <span className="tabular font-medium">{money(offDebt)}</span>
         </div>
       ) : null}
 

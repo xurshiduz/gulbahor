@@ -372,7 +372,7 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE s.shift_id = $1 AND s.status = 'completed'
        GROUP BY p.method, ${PLACE_NAME}, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'debt', 'account'], p.method), p.currency DESC, 2`,
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'exchange', 'account'], p.method), p.currency DESC, 2`,
       [shiftId],
     )
     const moved = await this.transfers.ofShift(em, shiftId)
@@ -388,12 +388,6 @@ export class ShiftsService {
        WHERE l.shift_id = $1 AND o.status = 'posted' GROUP BY o.kind, l.currency`,
       [shiftId],
     )
-    const debts: { currency: AnyCurrency; amount: number }[] = await em.query(
-      `SELECT l.currency, sum(l.amount)::float8 AS amount
-       FROM debt_payment_lines l JOIN debt_payments p ON p.id = l.payment_id
-       WHERE l.shift_id = $1 AND p.status = 'posted' GROUP BY l.currency`,
-      [shiftId],
-    )
     const [returns]: { returns: number; returned: number }[] = await em.query(
       `SELECT count(*)::int AS returns, coalesce(sum(total), 0)::float8 AS returned
        FROM sale_returns WHERE shift_id = $1`,
@@ -407,7 +401,7 @@ export class ShiftsService {
        JOIN accounts a ON a.id = p.account_id
        WHERE r.shift_id = $1
        GROUP BY p.method, ${PLACE_NAME}, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'debt', 'account'], p.method), p.currency DESC, 2`,
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'account'], p.method), p.currency DESC, 2`,
       [shiftId],
     )
     const seen = [
@@ -416,7 +410,6 @@ export class ShiftsService {
       ...(Object.keys({ ...moved.out, ...moved.in }) as AnyCurrency[]),
       ...customers.map((row) => row.currency),
       ...ops.map((row) => row.currency),
-      ...debts.map((row) => row.currency),
     ]
     const cash: ShiftCashMoves[] = [...new Set(seen)].map((currency) => ({
       currency,
@@ -427,7 +420,6 @@ export class ShiftsService {
       customersOut: customers.find((row) => row.kind === 'out' && row.currency === currency)?.amount ?? 0,
       expenses: ops.find((row) => row.kind === 'expense' && row.currency === currency)?.amount ?? 0,
       income: ops.find((row) => row.kind === 'income' && row.currency === currency)?.amount ?? 0,
-      debts: debts.find((row) => row.currency === currency)?.amount ?? 0,
     }))
     return {
       sales: sales.sales,

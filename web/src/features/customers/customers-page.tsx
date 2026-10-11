@@ -63,7 +63,7 @@ import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
-import { DebtPaymentsTab, DebtsTab } from './debts-tab'
+import { DebtorsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
 import { OpeningDialog, PaymentDialog, StatementDialog, useDebtText } from './payments'
@@ -106,8 +106,8 @@ export function CustomersPage() {
   const groups = useCustomerGroups(seesBase)
 
   const { edit, tab: asked, debtState: _debts, ...filters } = search
-  // Whoever keeps the debts without the base has those two sheets and no other.
-  const tab = seesBase || asked === 'payments' ? asked : 'debts'
+  // Whoever keeps the debts without the base has that sheet and no other.
+  const tab = seesBase ? asked : 'debts'
   // Only these two sheets have something to add.
   const adds = canManage && (tab === 'list' || tab === 'groups')
   const list = useQuery({
@@ -203,8 +203,18 @@ export function CustomersPage() {
               cell: ({ row }) => (
                 <span className="flex flex-col items-end">
                   {owing(row.original).map((item) => (
-                    <span key={item.currency} className={cn('font-medium', item.balance > 0 && 'text-bad')}>
-                      {debtText(item.balance, item.currency)}
+                    <span key={item.currency} className="flex flex-col items-end leading-tight">
+                      <span className={cn('font-medium', item.balance > 0 && 'text-bad')}>
+                        {debtText(item.balance, item.currency)}
+                      </span>
+                      {/* What of it is past its day is the part somebody has to ring about. */}
+                      {item.overdue ? (
+                        <span className="text-xs text-bad">
+                          {t('pos.customerOverdue', {
+                            amount: formatMoney(item.overdue, item.currency, { minor: 'auto' }),
+                          })}
+                        </span>
+                      ) : null}
                     </span>
                   ))}
                 </span>
@@ -294,22 +304,6 @@ export function CustomersPage() {
               <span className="font-medium">{money(row.original.purchases)}</span>
             ) : (
               <span className="text-ink-3">—</span>
-            ),
-        },
-        {
-          id: 'debt',
-          header: t('debts.owes'),
-          meta: {
-            export: (row) => moneyCell(row.debt, base()),
-            className: 'tabular text-right whitespace-nowrap',
-            headerClassName: 'text-right',
-          },
-          // What is past its day is the part somebody has to ring about.
-          cell: ({ row }) =>
-            row.original.debt ? (
-              <span className={cn('font-medium', row.original.overdue && 'text-bad')}>{money(row.original.debt)}</span>
-            ) : (
-              ''
             ),
         },
         {
@@ -435,12 +429,7 @@ export function CustomersPage() {
                 { value: 'loyalty', label: t('customers.loyalty') },
               ]
             : []),
-          ...(seesDebts
-            ? [
-                { value: 'debts', label: t('debts.title') },
-                { value: 'payments', label: t('debts.payments') },
-              ]
-            : []),
+          ...(seesBalances ? [{ value: 'debts', label: t('debts.title') }] : []),
         ]}
       >
         <TabPanel value="groups">
@@ -449,8 +438,7 @@ export function CustomersPage() {
         <TabPanel value="loyalty">
           <LoyaltyTab />
         </TabPanel>
-        <TabPanel value="debts">{seesDebts ? <DebtsTab /> : null}</TabPanel>
-        <TabPanel value="payments">{seesDebts ? <DebtPaymentsTab /> : null}</TabPanel>
+        <TabPanel value="debts">{seesBalances ? <DebtorsTab /> : null}</TabPanel>
         <TabPanel value="list">
           {summary ? (
             <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
@@ -914,7 +902,13 @@ export function CustomerDialog({
             control={form.control}
             name="isSupplier"
             render={({ field }) => (
-              <Checkbox checked={field.value} onChange={field.onChange} label={t('customers.supplier')} />
+              <Checkbox
+                checked={field.value}
+                onChange={field.onChange}
+                // Moving a customer across the mark moves their account out of or into someone's sight.
+                disabled={!!customer && !can('customers.suppliers')}
+                label={t('customers.supplier')}
+              />
             )}
           />
           <p className="mt-1 text-xs text-ink-3">{t('customers.supplierHint')}</p>

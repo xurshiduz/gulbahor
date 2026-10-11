@@ -1,9 +1,4 @@
-import {
-  customerGroupInputSchema,
-  TILL_PRICE_KINDS,
-  type CustomerGroupDto,
-  type CustomerGroupInput,
-} from '@erp/core'
+import { customerGroupInputSchema, TILL_PRICE_KINDS, type CustomerGroupDto, type CustomerGroupInput } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Archive, ArchiveRestore, Pencil, UsersRound } from 'lucide-react'

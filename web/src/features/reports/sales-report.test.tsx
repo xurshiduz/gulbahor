@@ -63,7 +63,7 @@ const report: SalesReportDto = {
     { method: 'cash', currency: 'UZS', amount: som(11_000_000), base: som(11_000_000) },
     { method: 'card', currency: 'UZS', amount: som(6_000_000), base: som(6_000_000) },
     { method: 'cash', currency: 'USD', amount: 15_000, base: som(1_800_000) },
-    { method: 'debt', currency: 'UZS', amount: som(200_000), base: som(200_000) },
+    { method: 'account', currency: 'UZS', amount: som(200_000), base: som(200_000) },
   ],
   cashiers: [{ id: 'c1', name: 'Dilnoza Karimova', receipts: 40, sold: som(20_000_000) }],
   products: [
@@ -160,7 +160,7 @@ describe('the sales report', () => {
       'Naqd so‘m11 000 000 so‘m58%',
       'Kartaga6 000 000 so‘m32%',
       'Naqd dollar1 800 000 so‘m9%150,00 $',
-      'Qarzga200 000 so‘m1%',
+      'Hisobiga200 000 so‘m1%',
     ])
     expect(rows('Kassirlar')).toEqual(['Dilnoza Karimova20 000 000 so‘m100%40 ta chek'])
     expect(rows('Kategoriyalar')).toEqual([

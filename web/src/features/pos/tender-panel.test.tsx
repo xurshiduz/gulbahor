@@ -36,12 +36,12 @@ const context = {
 } as unknown as PosContextDto
 
 interface Borrower {
-  /** What they owe already. */
-  owed: number
+  /** What stands on their account already: above zero they owe, below it the money is theirs. */
+  balance: number
   warning?: string
 }
 
-/** The money for a sale of `due`, kept the way the till keeps it; with a `borrower`, part of it may be left owing. */
+/** The money for a sale of `due`, kept the way the till keeps it; with a `borrower`, part of it may go on their account. */
 function Money({
   due,
   onComplete,
@@ -57,6 +57,7 @@ function Money({
   const rows = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
   const entered = enteredRows(rows)
   const owing = Math.min(lent ?? 0, due)
+  const prepaid = borrower ? Math.min(owing, Math.max(0, -borrower.balance)) : 0
   const settlement = settle(due - owing, tendersOf(entered, false), {
     book,
     changeCurrency: 'UZS',
@@ -72,16 +73,24 @@ function Money({
       due={due}
       suggested={due - owing ? { cash: due - owing } : {}}
       settlement={settlement}
-      lend={
+      onAccount={
         borrower
           ? {
-              amount: lent,
-              dueDate,
+              name: 'Nodira',
+              currency: 'UZS',
+              sums: { amount: lent, received: null },
+              line: null,
               max: due,
-              owed: borrower.owed,
+              book,
+              setsRates: false,
+              balance: borrower.balance,
+              prepaid,
+              lent: owing - prepaid,
+              dueDate,
+              noDue: false,
+              onDueDate: (date) => setDueDate(date ?? ''),
               warning: borrower.warning ?? null,
-              onAmount: setLent,
-              onDueDate: setDueDate,
+              onChange: (sums) => setLent(sums.amount),
             }
           : null
       }
@@ -189,21 +198,38 @@ describe('Enter in the money', () => {
   })
 })
 
-describe('leaving part of it owing', () => {
+describe('putting part of it on the customer’s account', () => {
   it('is offered only when someone on the books is buying', () => {
     const { unmount } = render(<Money due={som(200_000)} onComplete={() => undefined} />)
     expect(screen.queryByLabelText(/Qarzga/)).toBeNull()
     unmount()
-    render(<Money due={som(200_000)} onComplete={() => undefined} borrower={{ owed: som(150_000) }} />)
+    render(<Money due={som(200_000)} onComplete={() => undefined} borrower={{ balance: som(150_000) }} />)
     // What they owe already stands beside the field, before more is lent.
-    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-lend]')?.textContent)).toContain('qarzi 150 000 so‘m')
+    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-on-account]')?.textContent)).toContain(
+      'qarzi 150 000 so‘m',
+    )
     // No day is asked for until something is lent.
     expect(screen.queryByLabelText('To‘lash muddati')).toBeNull()
   })
 
+  it('spends what is theirs first, and asks a day only for what is lent', async () => {
+    render(<Money due={som(800_000)} onComplete={() => undefined} borrower={{ balance: -som(500_000) }} />)
+    const into = screen.getByLabelText(/Qarzga/)
+    expect(plain(into.closest('[data-on-account]')?.textContent)).toContain('haqi 500 000 so‘m')
+    await userEvent.type(into, '400000{Tab}')
+    const block = () => plain(into.closest('[data-on-account]')?.textContent)
+    expect(block()).toContain('Haqidan: 400 000 so‘m')
+    expect(screen.queryByLabelText('To‘lash muddati')).toBeNull()
+    await userEvent.clear(into)
+    await userEvent.type(into, '800000{Tab}')
+    expect(block()).toContain('Haqidan: 500 000 so‘m')
+    expect(block()).toContain('Qarzga: 300 000 so‘m')
+    expect(screen.getByLabelText('To‘lash muddati')).toBeTruthy()
+  })
+
   it('takes what is lent off what is to be paid, and asks by when', async () => {
     const sold = vi.fn()
-    render(<Money due={som(1_000_000)} onComplete={sold} borrower={{ owed: 0, warning: 'Rahbar tasdig‘i kerak' }} />)
+    render(<Money due={som(1_000_000)} onComplete={sold} borrower={{ balance: 0, warning: 'Rahbar tasdig‘i kerak' }} />)
     expect(screen.queryByText('Rahbar tasdig‘i kerak')).toBeNull()
     // Enter takes the sum and goes back to the money: the rest is paid there, and nothing is sold yet.
     await userEvent.type(screen.getByLabelText(/Qarzga/), '300000{Enter}')
@@ -220,7 +246,7 @@ describe('leaving part of it owing', () => {
   })
 
   it('fills in with "=" whatever the money typed has not covered', async () => {
-    render(<Money due={som(1_000_000)} onComplete={() => undefined} borrower={{ owed: 0 }} />)
+    render(<Money due={som(1_000_000)} onComplete={() => undefined} borrower={{ balance: 0 }} />)
     await userEvent.type(field('cash'), '400000{Tab}')
     const lend = screen.getByLabelText(/Qarzga/) as HTMLInputElement
     lend.focus()
@@ -232,7 +258,7 @@ describe('leaving part of it owing', () => {
 
   it('is stepped over by Enter: lending is decided, not fallen into', async () => {
     const sold = vi.fn()
-    render(<Money due={som(200_000)} onComplete={sold} borrower={{ owed: 0 }} />)
+    render(<Money due={som(200_000)} onComplete={sold} borrower={{ balance: 0 }} />)
     // Through every sum to the last, and never past it into the debt.
     await userEvent.type(field('cash'), '50000{Enter}')
     for (const key of ['cash:USD', 'account:humo', 'account:uzcard', 'account:pos']) {

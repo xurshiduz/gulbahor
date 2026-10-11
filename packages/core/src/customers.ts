@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { CustomerDebtBrief } from './debts'
+import type { AccountAge } from './debts'
 import { ALL_CURRENCY_CODES, type AnyCurrency } from './money'
 import { idSchema, listQuerySchema, optionalPhoneSchema, optionalText, requiredText } from './schemas'
 
@@ -212,8 +212,11 @@ export const customerListQuerySchema = listQuerySchema.extend({
 })
 export type CustomerListQuery = z.infer<typeof customerListQuerySchema>
 
-/** What a customer owes in one currency; negative when the business owes them. */
-export interface CustomerBalance {
+/**
+ * One of a customer's accounts: what they owe in its currency (negative when the business owes them), and how
+ * that stands against the days it falls due.
+ */
+export interface CustomerBalance extends AccountAge {
   currency: AnyCurrency
   balance: number
 }
@@ -283,8 +286,18 @@ export interface PosCustomerDto extends CustomerBrief {
   noDebt: boolean
   noLayaway: boolean
   noExchange: boolean
-  /** What they owe the shop now, and how much of it is past its day. */
-  debt: CustomerDebtBrief
+  /**
+   * Their accounts, one to a currency, with what is past its day: what the till weighs before lending them more.
+   * Null for a supplier, unless this person may see suppliers' accounts.
+   */
+  accounts: CustomerBalance[] | null
+  /** How the till may lend to them, as set on their card. */
+  credit: CreditMode
+  /** Their own ceiling, in the base, for `limit`. */
+  creditLimit: number | null
+  /** The days a debt of theirs is given (null: the business's), or none at all. */
+  dueDays: number | null
+  noDue: boolean
 }
 
 export interface CustomerDto extends CustomerBrief {
@@ -309,9 +322,6 @@ export interface CustomerDto extends CustomerBrief {
   lastSaleAt: string | null
   /** What their groups or their loyalty tier take off for them, in percent. */
   discountPercent: number
-  /** What they owe the shop now; of it, what is past its day. */
-  debt: number
-  overdue: number
   /** Their accounts, one to a currency; null for a person who may not see them. */
   balances: CustomerBalance[] | null
 }

@@ -259,7 +259,6 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
             moves.out ||
             moves.customersIn ||
             moves.customersOut ||
-            moves.debts ||
             moves.income ||
             moves.expenses ||
             moves.change)
@@ -314,11 +313,7 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
           <Row
             key={`back:${refund.method}:${refund.accountName}:${refund.currency}`}
             label={
-              refund.method === 'debt'
-                ? t('pos.offDebt')
-                : refund.method === 'account'
-                  ? t('pos.offAccount')
-                  : `${t('sales.refunded')}: ${paymentLabel(refund)}`
+              refund.method === 'account' ? t('pos.offAccount') : `${t('sales.refunded')}: ${paymentLabel(refund)}`
             }
             value={`−${money(refund.amount, refund.currency)}`}
           />
@@ -371,7 +366,6 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
               {moves?.customersOut ? (
                 <Row label={t('pos.customersOut')} value={`−${money(moves.customersOut, currency)}`} />
               ) : null}
-              {moves?.debts ? <Row label={t('pos.debtsIn')} value={`+${money(moves.debts, currency)}`} /> : null}
               {moves?.income ? <Row label={t('pos.otherIn')} value={`+${money(moves.income, currency)}`} /> : null}
               {moves?.expenses ? (
                 <Row label={t('pos.expensesOut')} value={`−${money(moves.expenses, currency)}`} />

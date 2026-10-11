@@ -194,7 +194,7 @@ export interface OrgSettings {
   receiptLineSupplier: boolean
   /** A debt is given for this many days unless the cashier sets another day. */
   debtDays: number
-  /** What one customer may owe at most, in so'm tiyin; more needs someone allowed to lend. 0 sets no limit. */
+  /** What one customer may owe in the base without someone's word; more needs someone allowed to lend. 0: every debt needs it. */
   debtLimit: number
   /** How the receipts look on paper; what is not set here is as `DEFAULT_RECEIPT_TEMPLATE` has it. */
   receipt?: Partial<ReceiptTemplate>

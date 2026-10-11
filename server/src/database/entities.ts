@@ -5,7 +5,6 @@ import type {
   CreditMode,
   CurrencyCode,
   CustomerGender,
-  DebtPaymentStatus,
   ExpenseBasis,
   Gender,
   ImageFormat,
@@ -2104,6 +2103,10 @@ export class SalePayment {
   @Column('bigint', { transformer: bigintAsNumber, default: 0 })
   fx: number
 
+  /** On an account: what of it the customer's own money there covered, in its currency — the rest was lent. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  prepaid: number
+
   @Column('text', { nullable: true })
   reference: string | null
 }
@@ -2482,9 +2485,12 @@ export class MoneyOpLine {
   shiftId: string | null
 }
 
-/** What a customer owes for one receipt. */
-@Entity('customer_debts')
-export class CustomerDebt {
+/**
+ * The day a debt falls due: what a sale put on a customer's account, or an opening balance, added to what they owe.
+ * Apart from the payment, which never changes, so that the day can be moved.
+ */
+@Entity('customer_dues')
+export class CustomerDue {
   @PrimaryGeneratedColumn('uuid')
   id: string
 
@@ -2494,145 +2500,28 @@ export class CustomerDebt {
   @Column('uuid')
   customerId: string
 
-  @Column('uuid')
-  saleId: string
+  @Column('uuid', { nullable: true })
+  saleId: string | null
 
-  @Column('uuid')
-  locationId: string
+  @Column('uuid', { nullable: true })
+  paymentId: string | null
 
-  /** What was lent, in so'm. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  amount: number
+  /** Null: it never falls due. */
+  @Column('date', { nullable: true })
+  dueDate: string | null
 
-  /** What has come back as money. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  paid: number
+  /** Who last moved the day, and when. */
+  @Column('uuid', { nullable: true })
+  changedBy: string | null
 
-  /** What goods brought back took off. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  returned: number
+  @Column('text', { nullable: true })
+  changedByName: string | null
 
-  @Column('date')
-  dueDate: string
-
-  @Column('boolean')
-  cancelled: boolean
+  @Column('timestamptz', { nullable: true })
+  changedAt: Date | null
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date
-}
-
-/** Money a customer brought against what they owe. */
-@Entity('debt_payments')
-export class DebtPayment {
-  @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column('uuid')
-  orgId: string
-
-  @Column('text')
-  number: string
-
-  @Column('uuid')
-  clientKey: string
-
-  @Column('text')
-  status: DebtPaymentStatus
-
-  @Column('uuid')
-  customerId: string
-
-  /** What it comes to, in so'm. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  total: number
-
-  @Column('timestamptz')
-  paidAt: Date
-
-  @Column('date')
-  paidOn: string
-
-  @Column('text')
-  paidBy: string
-
-  @Column('uuid', { nullable: true })
-  createdBy: string | null
-
-  @Column('text', { nullable: true })
-  createdByName: string | null
-
-  @Column('text', { nullable: true })
-  note: string | null
-
-  @Column('timestamptz', { nullable: true })
-  cancelledAt: Date | null
-
-  @Column('uuid', { nullable: true })
-  cancelledBy: string | null
-
-  @Column('text', { nullable: true })
-  cancelledByName: string | null
-
-  @Column('text', { nullable: true })
-  cancelReason: string | null
-}
-
-@Entity('debt_payment_lines')
-export class DebtPaymentLine {
-  @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column('uuid')
-  orgId: string
-
-  @Column('uuid')
-  paymentId: string
-
-  @Column('int')
-  position: number
-
-  @Column('uuid')
-  accountId: string
-
-  @Column('text')
-  currency: AnyCurrency
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  amount: number
-
-  @Column('numeric', { nullable: true, transformer: numericAsNumber })
-  rate: number | null
-
-  /** The line's worth in so'm. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  base: number
-
-  /** What the rate gave the business (+) or cost it (−) on this line, in so'm: the money's worth at the day's rate against what it was counted as. */
-  @Column('bigint', { transformer: bigintAsNumber })
-  fx: number
-
-  @Column('uuid', { nullable: true })
-  shiftId: string | null
-}
-
-/** How much of a payment went to which debt. */
-@Entity('debt_payment_parts')
-export class DebtPaymentPart {
-  @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column('uuid')
-  orgId: string
-
-  @Column('uuid')
-  paymentId: string
-
-  @Column('uuid')
-  debtId: string
-
-  @Column('bigint', { transformer: bigintAsNumber })
-  amount: number
 }
 
 /** One drawer of a shift, in one currency: what it opened with and what the closing count found. */
@@ -2906,10 +2795,7 @@ export const ENTITIES = [
   MoneyCategory,
   MoneyOp,
   MoneyOpLine,
-  CustomerDebt,
-  DebtPayment,
-  DebtPaymentLine,
-  DebtPaymentPart,
+  CustomerDue,
   Customer,
   CustomerGroup,
   CustomerGroupMember,

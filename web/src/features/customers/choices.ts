@@ -9,7 +9,7 @@ import { api } from '@/lib/api'
  * is typed (the book is too long to hold), those who supply goods first when asked, and the ones already picked
  * always among them.
  */
-export function useCustomerChoices(picked: (string | null | undefined)[], suppliersFirst = false) {
+export function useCustomerChoices(picked: (string | null | undefined)[], suppliersFirst = false, enabled = true) {
   const [q, setQ] = useState('')
   const ids = [...new Set(picked.filter((id): id is string => !!id))].sort().join(',')
   const query = useQuery({
@@ -21,6 +21,7 @@ export function useCustomerChoices(picked: (string | null | undefined)[], suppli
         signal,
       ),
     placeholderData: keepPreviousData,
+    enabled,
   })
   return { choices: query.data ?? [], search: setQ, loaded: !!query.data }
 }

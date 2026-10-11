@@ -239,19 +239,11 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   value={paidText(payment)}
                 />
               ))}
-              {sale.debt ? (
-                <>
-                  <Line label={t('pos.debtDue')} value={formatDay(sale.debt.dueDate)} />
-                  {/* How it stands now, not how it stood at the till: nothing for the paper. */}
-                  {sale.debt.left !== sale.debt.amount ? (
-                    <div className="print:hidden">
-                      <Line
-                        label={t('sales.debtLeft')}
-                        value={sale.debt.left ? money(sale.debt.left) : t('debts.state_closed')}
-                      />
-                    </div>
-                  ) : null}
-                </>
+              {sale.due ? (
+                <Line
+                  label={t('pos.debtDue')}
+                  value={sale.due.dueDate ? formatDay(sale.due.dueDate) : t('pos.noDue')}
+                />
               ) : null}
               {/* The day's rate of each other currency it was paid in, as the books took the money. */}
               {[...new Set(sale.payments.filter((payment) => payment.currency !== base()).map((p) => p.currency))].map(

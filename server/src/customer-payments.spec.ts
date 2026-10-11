@@ -160,7 +160,7 @@ describe('Customer payments', () => {
         .expect(201)
       expect(await balances()).toMatchObject({ Anvar: usd(1850), 'Guangzhou Textile': -som(5_000_000) })
       const listed = (await accountant.get('/api/customers').query({ sort: 'name' }).expect(200)).body.items
-      expect(listed.map((customer: { balances: unknown }) => customer.balances)).toEqual([
+      expect(listed.map((customer: { balances: unknown }) => customer.balances)).toMatchObject([
         [{ currency: 'USD', balance: usd(1850) }],
         [{ currency: 'UZS', balance: -som(5_000_000) }],
       ])

@@ -133,7 +133,7 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
           <Row key={index} label={paymentLabel(payment)} value={paidText(payment)} />
         ))}
         {/* The day the customer has agreed to: on the paper they take away. */}
-        {sale.debt ? <Row label={t('pos.debtDue')} value={formatDay(sale.debt.dueDate)} /> : null}
+        {sale.due?.dueDate ? <Row label={t('pos.debtDue')} value={formatDay(sale.due.dueDate)} /> : null}
         {sale.changeUzs || sale.changeOther ? (
           <Row label={t('pos.change')} value={changeText(sale.changeUzs, sale.changeOther, sale.changeCurrency)} />
         ) : null}

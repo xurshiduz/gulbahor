@@ -1,6 +1,9 @@
 import {
   DEFAULT_CUSTOMER_TERMS,
+  formatDate,
+  fromIsoDate,
   searchKey,
+  worthInBase,
   type AnyCurrency,
   type CustomerBalance,
   type CustomerBriefDto,
@@ -17,6 +20,10 @@ import {
   type PosCustomerDto,
   type CustomerQuickInput,
   type CustomerTerms,
+  type DebtorDto,
+  type DebtorListQuery,
+  type DebtorSummary,
+  type DueChangeInput,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, Not, type EntityManager } from 'typeorm'
@@ -27,6 +34,7 @@ import { Db } from '../../database/db.service'
 import {
   Account,
   Customer,
+  CustomerDue,
   CustomerGroup,
   CustomerGroupMember,
   LoyaltyTierRow,
@@ -37,6 +45,7 @@ import { can, type Actor } from '../auth/actor'
 import { CurrenciesService } from '../money/currencies.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { loyaltyTiers, rulesOf } from './groups'
+import { businessDay, standingsOf } from './standing'
 
 const SORTABLE = { name: 'c.name', createdAt: 'c.createdAt' }
 
@@ -143,7 +152,10 @@ export class CustomersService {
       applySearch(qb, 'c.search_key', query.q)
       if (query.supplier === 'first') qb.orderBy('c.isSupplier', 'DESC')
       // Without a search, the whole of those who supply goods: a receipt picks among them.
-      const rows = await qb.addOrderBy('c.name').limit(query.q ? 30 : 200).getMany()
+      const rows = await qb
+        .addOrderBy('c.name')
+        .limit(query.q ? 30 : 200)
+        .getMany()
       const missing = query.ids.filter((id) => !rows.some((row) => row.id === id))
       if (missing.length) {
         rows.unshift(...(await em.findBy(Customer, { id: In(missing) })))
@@ -205,7 +217,7 @@ export class CustomersService {
       const qb = em.createQueryBuilder(Customer, 'c').where('c.isActive')
       applySearch(qb, 'c.search_key', q)
       const rows = await qb.orderBy('c.name').limit(10).getMany()
-      const rules = await rulesOf(em, rows)
+      const rules = await rulesOf(em, rows, can(actor, 'customers.suppliers'))
       return rows.map((row) => rules.get(row.id) as PosCustomerDto)
     })
   }
@@ -214,7 +226,112 @@ export class CustomersService {
   async forTill(actor: Actor, id: string): Promise<PosCustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const customer = await this.find(em, id)
-      return (await rulesOf(em, [customer])).get(id) as PosCustomerDto
+      return (await rulesOf(em, [customer], can(actor, 'customers.suppliers'))).get(id) as PosCustomerDto
+    })
+  }
+
+  /**
+   * Who owes the business, one row to an account that owes, with what of it is late: the buyers' for whoever
+   * keeps the debts, the suppliers' for whoever keeps theirs. Those late come first, the longest late first; then
+   * by the day the next falls due. Over it, the sums in the base at today's rates.
+   */
+  async debtors(actor: Actor, query: DebtorListQuery): Promise<Page<DebtorDto> & { summary: DebtorSummary }> {
+    const debts = can(actor, 'customers.debts')
+    const suppliers = can(actor, 'customers.suppliers')
+    if (!debts && !suppliers) {
+      throw AppError.forbidden()
+    }
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const qb = em
+        .createQueryBuilder(Customer, 'c')
+        .where(`EXISTS (SELECT 1 FROM accounts a WHERE a.customer_id = c.id AND a.kind = 'customer' AND a.balance > 0)`)
+      if (!debts || !suppliers) {
+        qb.andWhere(debts ? 'NOT c.isSupplier' : 'c.isSupplier')
+      }
+      applySearch(qb, 'c.search_key', query.q)
+      const customers = await qb.orderBy('c.name').getMany()
+      const today = await businessDay(em, actor.orgId)
+      const standings = await standingsOf(
+        em,
+        customers.map((customer) => customer.id),
+        today,
+      )
+      const rows: DebtorDto[] = customers.flatMap((customer) =>
+        (standings.get(customer.id) ?? [])
+          .filter((account) => account.owed > 0)
+          .map(({ balance: _balance, ...account }) => ({
+            customerId: customer.id,
+            customerName: customer.name,
+            phone: customer.phone,
+            isSupplier: customer.isSupplier,
+            ...account,
+          })),
+      )
+      const book = await this.currencies.book(em, actor, today)
+      const inBase = (amount: number, currency: AnyCurrency) => worthInBase(amount, currency, book) ?? 0
+      const late = rows.filter((row) => row.overdue > 0)
+      const summary: DebtorSummary = {
+        owed: rows.reduce((sum, row) => sum + inBase(row.owed, row.currency), 0),
+        debtors: new Set(rows.map((row) => row.customerId)).size,
+        overdue: late.reduce((sum, row) => sum + inBase(row.overdue, row.currency), 0),
+        overdueDebtors: new Set(late.map((row) => row.customerId)).size,
+      }
+      const listed = (query.state === 'overdue' ? late : rows).sort(
+        (a, b) =>
+          Number(b.overdue > 0) - Number(a.overdue > 0) ||
+          (a.overdueSince ?? '').localeCompare(b.overdueSince ?? '') ||
+          (a.nextDue ?? '9999').localeCompare(b.nextDue ?? '9999') ||
+          a.customerName.localeCompare(b.customerName),
+      )
+      const start = (query.page - 1) * query.size
+      return {
+        items: listed.slice(start, start + query.size),
+        total: listed.length,
+        page: query.page,
+        size: query.size,
+        summary,
+      }
+    })
+  }
+
+  /**
+   * A debt given another day to fall due: by whoever keeps that customer's account, or may lend at the till. No
+   * day at all only for a customer whose debts are given none, or by whoever sets their terms.
+   */
+  async moveDue(actor: Actor, dueId: string, input: DueChangeInput): Promise<void> {
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const due = await em.findOneBy(CustomerDue, { id: dueId })
+      if (!due) {
+        throw AppError.notFound('Qarz topilmadi')
+      }
+      const customer = await this.find(em, due.customerId)
+      if (!can(actor, customer.isSupplier ? 'customers.suppliers' : 'customers.debts') && !can(actor, 'pos.debt')) {
+        throw AppError.forbidden()
+      }
+      if (input.dueDate === null && !customer.noDue && !can(actor, 'customers.adjust')) {
+        throw AppError.validation({ dueDate: 'Muddatni kiriting' })
+      }
+      if (input.dueDate === due.dueDate) {
+        return
+      }
+      await em.update(CustomerDue, dueId, {
+        dueDate: input.dueDate,
+        changedBy: actor.userId,
+        changedByName: actor.name,
+        changedAt: new Date(),
+      })
+      const [{ number }]: { number: string }[] = await em.query(
+        `SELECT coalesce((SELECT number FROM sales WHERE id = $1), (SELECT number FROM customer_payments WHERE id = $2)) AS number`,
+        [due.saleId, due.paymentId],
+      )
+      const day = (value: string | null) => (value ? formatDate(fromIsoDate(value)!) : 'muddatsiz')
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'customer.due',
+        entity: 'customer',
+        entityId: customer.id,
+        summary: `${customer.name}, ${number}: ${day(due.dueDate)} → ${day(input.dueDate)}`,
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
     })
   }
 
@@ -240,6 +357,12 @@ export class CustomersService {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
       const fields = await this.fields(em, actor, input, termsOf(before), id)
+      // The mark decides who sees the account: only who keeps the suppliers' accounts moves a customer across it.
+      if (fields.isSupplier !== before.isSupplier && !can(actor, 'customers.suppliers')) {
+        throw AppError.forbidden(
+          'Yetkazib beruvchi belgisini yetkazib beruvchilar hisobini ko‘radigan xodim o‘zgartiradi',
+        )
+      }
       await em.update(Customer, id, { ...fields, searchKey: keyOf(input) })
       if (before.name !== input.name) {
         // Their accounts are named after them in the books.
@@ -548,13 +671,12 @@ export class CustomersService {
       [customers.flatMap((customer) => customer.priceTypeId ?? [])],
     )
     const priceOf = new Map(prices.map((type) => [type.id, type]))
-    const accounts = await em.find(Account, { where: { customerId: In(ids) }, order: { createdAt: 'ASC' } })
+    // Their main currency's account first.
     const balancesOf = (customer: Customer): CustomerBalance[] | null =>
       can(actor, customer.isSupplier ? 'customers.suppliers' : 'customers.debts')
-        ? accounts
-            .filter((account) => account.customerId === customer.id)
-            .sort((a, b) => Number(b.currency === customer.currency) - Number(a.currency === customer.currency))
-            .map((account) => ({ currency: account.currency, balance: account.balance }))
+        ? [...(rules.get(customer.id)?.accounts ?? [])].sort(
+            (a, b) => Number(b.currency === customer.currency) - Number(a.currency === customer.currency),
+          )
         : null
     return customers.map((customer) => {
       const row = boughtBy.get(customer.id)
@@ -581,8 +703,6 @@ export class CustomersService {
         salesCount: row?.sales ?? 0,
         purchases: row?.purchases ?? 0,
         lastSaleAt: row?.last_at ? row.last_at.toISOString() : null,
-        debt: rules.get(customer.id)?.debt.owed ?? 0,
-        overdue: rules.get(customer.id)?.debt.overdue ?? 0,
         balances: balancesOf(customer),
       }
     })

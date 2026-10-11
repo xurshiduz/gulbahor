@@ -1,7 +1,8 @@
 import {
+  accountBar,
   addDays,
+  addedDebt,
   CURRENCIES,
-  debtBar,
   dueIn,
   formatMoney,
   overDiscountLimit,
@@ -12,6 +13,8 @@ import {
   tillWorth,
   todayIn,
   toIsoDate,
+  worthInBase,
+  type AccountBar,
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
@@ -37,7 +40,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Page } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
-import { DebtPayDialog } from '@/features/customers/debt-pay'
+import { PaymentDialog } from '@/features/customers/payments'
 import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/exchange'
 import { useHiddenPlaces } from '@/features/money/hidden-places'
 import { useRegisters } from '@/features/money/money-page'
@@ -89,7 +92,6 @@ const route = getRouteApi('/pos')
 const REGISTER_KEY = 'gb.pos.register'
 /** The retail price in the list of price types: it has no id of its own there. */
 const RETAIL = 'retail'
-const NOTHING_OWED = { owed: 0, overdue: 0, dueDate: null }
 const cartKey = (registerId: string) => `gb.pos.cart.${registerId}`
 
 const money = (minor: number, currency: CurrencyCode = base()) => formatMoney(minor, currency, { minor: 'auto' })
@@ -257,7 +259,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** The customer at the counter is paying what they owe. */
   const [takingDebt, setTakingDebt] = useState(false)
   /** What of the sale is to be left owing, and by when: typed while paying, gone with the sale. */
-  const [lent, setLent] = useState<{ amount: number | null; dueDate: string | null }>({ amount: null, dueDate: null })
+  /** When what is lent today falls due, as the cashier set it; left alone, the customer's days or the business's. */
+  const [accountDue, setAccountDue] = useState<string | null | undefined>(undefined)
   /** What of the sale goes on the customer's account: so much of it, and — agreed — what that is in its currency. */
   const [account, setAccount] = useState<ExchangeSums>({ amount: null, received: null })
   // The day's rates: what every currency taken here is worth, and what goes on a customer's account in another.
@@ -439,6 +442,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       refreshCart(at)
     }
     setAccount({ amount: null, received: null })
+    setAccountDue(undefined)
     // Found, the cursor goes back to the goods.
     window.setTimeout(focusSearch)
   }
@@ -558,35 +562,17 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** More came back than is being taken: the till owes the customer. */
   const refunding = !!returning && credit > totals.total
   const toPay = refunding ? 0 : totals.total - credit
-  // What the receipt still leaves owing comes off first: money is handed back only for what was paid.
-  const offDebt = refunding && returning ? Math.min(credit - totals.total, returning.found.caps.debt) : 0
-  // Then what the sale put on the customer's account: it comes off there, not out of the drawer.
-  const offAccount =
-    refunding && returning ? Math.min(credit - totals.total - offDebt, returning.found.caps.account ?? 0) : 0
-  const toRefund = refunding ? credit - totals.total - offDebt - offAccount : 0
-  // ── Leaving part of it owing: a plain sale, to someone on the books ──
-  const buyer = cart.customer ?? null
-  const lending = !!buyer && !returning && toPay > 0
-  const owedNow = lending ? Math.min(lent.amount ?? 0, toPay) : 0
-  const dueDate = lent.dueDate ?? toIsoDate(addDays(todayIn(), context.debtDays))
-  // A cart kept from before debts were known has a customer without one.
-  const standing = buyer?.debt ?? NOTHING_OWED
-  const lendBar = buyer && owedNow ? debtBar({ noDebt: buyer.noDebt, ...standing }, owedNow, context.debtLimit) : null
-  const lendAsk = !!lendBar && !context.mayLend
-  const lendWhy =
-    !buyer || !lendBar
-      ? null
-      : lendBar === 'barred'
-        ? t('pos.debtBarred', { name: buyer.name })
-        : lendBar === 'overdue'
-          ? t('pos.debtLate', { name: buyer.name, amount: money(standing.overdue) })
-          : t('pos.debtOverLimit', { name: buyer.name, limit: money(context.debtLimit) })
+  // What the sale put on the customer's account comes off there first: money is handed back only for what was paid.
+  const offAccount = refunding && returning ? Math.min(credit - totals.total, returning.found.caps.account ?? 0) : 0
+  const toRefund = refunding ? credit - totals.total - offAccount : 0
 
-  // ── Putting part of it on the customer's account: in its currency, at the day's rate or a sum agreed ──
+  // ── Putting part of it on the customer's account: in its currency, at the day's rate or a sum agreed. What is
+  // theirs there pays first; the rest is lent, and falls due on its day ──
+  const buyer = cart.customer ?? null
   const crediting = !!buyer && !returning && toPay > 0
   // A cart kept from before customers kept a currency of their own puts it in the base.
   const accountCurrency = buyer?.currency ?? book?.base ?? base()
-  const onAccountNow = crediting ? Math.min(account.amount ?? 0, toPay - owedNow) : 0
+  const onAccountNow = crediting ? Math.min(account.amount ?? 0, toPay) : 0
   const accountLine =
     crediting && buyer
       ? exchangeLine(
@@ -597,7 +583,51 @@ function Till({ context, registers, onSwitch }: TillProps) {
           context.maxRateLossPercent,
         )
       : null
-  const accountAsk = onAccountNow > 0 && !context.mayLend
+  // A cart kept from before accounts were known has a customer without them; a supplier's are not shown here.
+  const accounts = buyer?.accounts ?? []
+  const balanceNow = accounts.find((item) => item.currency === accountCurrency)?.balance ?? 0
+  const settledNow = accountLine ? (accountLine.settled ?? 0) : onAccountNow
+  const lentNow = settledNow ? addedDebt(balanceNow, settledNow) : 0
+  const prepaidNow = settledNow - lentNow
+  const dueDate =
+    accountDue !== undefined
+      ? accountDue
+      : buyer?.noDue
+        ? null
+        : toIsoDate(addDays(todayIn(), buyer?.dueDays ?? context.debtDays))
+  // Weighed as the server weighs it: in the base at today's rates, across all their accounts.
+  const accountStop: AccountBar | null =
+    buyer && settledNow
+      ? accountBar(
+          {
+            supplier: buyer.supplier,
+            barred: buyer.noDebt,
+            hasPhone: !!buyer.phone,
+            credit: buyer.credit ?? 'default',
+            creditLimit: buyer.creditLimit ?? null,
+            owedBase: accounts.reduce((sum, item) => sum + (worthInBase(item.balance, item.currency, book) ?? 0), 0),
+            overdue: accounts.some((item) => item.overdue > 0),
+          },
+          lentNow ? (worthInBase(lentNow, accountCurrency, book) ?? 0) : 0,
+          context.debtLimit,
+        )
+      : null
+  const accountAsk = !!accountStop && !context.mayLend
+  const late = accounts.find((item) => item.overdue > 0)
+  const accountWhy =
+    !buyer || !accountStop
+      ? null
+      : accountStop === 'over_limit'
+        ? buyer.credit === 'limit' || context.debtLimit
+          ? t('pos.debtOverLimit', {
+              name: buyer.name,
+              limit: money(buyer.credit === 'limit' ? (buyer.creditLimit ?? 0) : context.debtLimit),
+            })
+          : t('pos.debtNeedsWord', { name: buyer.name })
+        : t(`pos.accountBar_${accountStop}`, {
+            name: buyer.name,
+            amount: late ? money(late.overdue, late.currency) : '',
+          })
   const accountRateAsk = !!accountLine?.strays && !context.mayOverDiscount
 
   // ── The money: paid in, or handed back ──
@@ -613,7 +643,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** Money of another currency taken for more over the rate than the shop lets a cashier give alone. */
   const overRate = !refunding && overRateLoss(typed, book, context.maxRateLossPercent)
   const rateAsk = overRate && !context.mayOverDiscount
-  const settlement = settle(toPay - owedNow - onAccountNow, refunding ? [] : typed, {
+  const settlement = settle(toPay - onAccountNow, refunding ? [] : typed, {
     book,
     changeCurrency,
     roundStep: context.changeRoundStep,
@@ -624,10 +654,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     () =>
       refunding && returning
         ? suggestRefunds(toRefund, returning.found, context.changeRoundStep)
-        : toPay - owedNow - onAccountNow
-          ? { cash: toPay - owedNow - onAccountNow }
+        : toPay - onAccountNow
+          ? { cash: toPay - onAccountNow }
           : {},
-    [refunding, returning, toRefund, toPay, owedNow, onAccountNow, context.changeRoundStep],
+    [refunding, returning, toRefund, toPay, onAccountNow, context.changeRoundStep],
   )
 
   const focusField = (kind: TenderKind) => {
@@ -720,8 +750,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
     clientKey.current = uuid()
     setCart(EMPTY_CART)
     setPaid({})
-    setLent({ amount: null, dueDate: null })
     setAccount({ amount: null, received: null })
+    setAccountDue(undefined)
     setReturning(null)
     setPaying(false)
     for (const key of ['pos', 'sales', 'returns', 'stock']) {
@@ -838,33 +868,20 @@ function Till({ context, registers, onSwitch }: TillProps) {
     const late = !!returning && returning.found.late && !returning.found.free
     // Goods taken instead of the ones brought back, for a customer whose group does not have that done.
     const barred = !!returning && returning.found.noExchange && cart.lines.length > 0 && !returning.found.free
-    if ((lent.amount ?? 0) > toPay && lending) {
-      toast.error(t('pos.debtOver'))
-      return
-    }
     if ((account.amount ?? 0) > toPay && crediting) {
       toast.error(t('pos.onAccountOver'))
       return
     }
     if (
       !approval &&
-      (overLimit ||
-        underAsk ||
-        rateAsk ||
-        priceAsk ||
-        late ||
-        beyond ||
-        barred ||
-        lendAsk ||
-        accountAsk ||
-        accountRateAsk)
+      (overLimit || underAsk || rateAsk || priceAsk || late || beyond || barred || accountAsk || accountRateAsk)
     ) {
       const who = context.approvers.filter(
         (approver) =>
           (!(overLimit || underAsk || rateAsk || accountRateAsk) || approver.discount) &&
           (!priceAsk || approver.prices) &&
           (!(late || beyond || barred) || approver.returns) &&
-          (!(lendAsk || accountAsk) || approver.debts),
+          (!accountAsk || approver.debts),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -905,8 +922,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           late ? t('pos.returnLate', { days: returning?.found.returnDays }) : null,
           barred ? t('pos.approvalExchange', { name: returning?.found.sale.customerName }) : null,
           beyond ? t('pos.approvalRefund') : null,
-          lendAsk ? lendWhy : null,
-          accountAsk ? t('pos.approvalAccount', { name: buyer?.name }) : null,
+          accountAsk ? accountWhy : null,
           accountRateAsk && accountLine
             ? t('pos.approvalAccountRate', {
                 name: buyer?.name,
@@ -940,9 +956,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
         registerId,
         ...goods,
         payments: amounts,
-        debt: owedNow ? { amount: owedNow, dueDate } : null,
         onAccount: onAccountNow
-          ? { currency: accountCurrency, amount: onAccountNow, settled: receivedOf(accountLine) }
+          ? {
+              currency: accountCurrency,
+              amount: onAccountNow,
+              settled: receivedOf(accountLine),
+              ...(lentNow ? { dueDate } : {}),
+            }
           : null,
         approval,
       })
@@ -1316,20 +1336,6 @@ function Till({ context, registers, onSwitch }: TillProps) {
               onComplete={() => complete()}
               onBack={() => backToCart()}
               hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces, peek, onPeek: setPeek }}
-              lend={
-                lending && buyer
-                  ? {
-                      amount: lent.amount,
-                      dueDate,
-                      max: toPay,
-                      owed: standing.owed,
-                      warning: lendAsk ? lendWhy : null,
-                      onAmount: (amount) => setLent((current) => ({ ...current, amount })),
-                      onDueDate: (date) => setLent((current) => ({ ...current, dueDate: date || null })),
-                    }
-                  : null
-              }
-              offDebt={offDebt}
               offAccount={offAccount}
               onAccount={
                 crediting && buyer
@@ -1341,7 +1347,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       max: toPay,
                       book,
                       setsRates: context.mayOverDiscount,
-                      warning: accountAsk ? t('pos.onAccountAsk') : null,
+                      // A supplier's account is not shown at the till.
+                      balance: buyer.accounts ? balanceNow : null,
+                      prepaid: prepaidNow,
+                      lent: lentNow,
+                      dueDate,
+                      noDue: !!buyer.noDue,
+                      onDueDate: setAccountDue,
+                      warning: accountAsk ? accountWhy : null,
                       onChange: setAccount,
                     }
                   : null
@@ -1497,11 +1510,13 @@ function Till({ context, registers, onSwitch }: TillProps) {
       {takingDebt && buyer ? (
         // The till under it keeps quiet: its keys and its scanner are the window's while it is open.
         <HotkeyScope>
-          <DebtPayDialog
-            customer={buyer}
-            owed={standing.owed}
+          <PaymentDialog
+            buyer={buyer}
+            customerId={buyer.id}
+            currency={accounts.find((item) => item.balance > 0)?.currency ?? buyer.currency}
+            kind="in"
             onClose={() => setTakingDebt(false)}
-            onPaid={() => void knowAgain(buyer)}
+            onSaved={() => void knowAgain(buyer)}
           />
         </HotkeyScope>
       ) : null}

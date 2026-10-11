@@ -1,7 +1,11 @@
 import {
+  accountBar,
+  addDays,
   belowFloor,
-  debtBar,
   DEFAULT_ORG_SETTINGS,
+  fromIsoDate,
+  toIsoDate,
+  worthInBase,
   floorOf,
   cartAutos,
   formatMoney,
@@ -18,8 +22,10 @@ import {
   CURRENCIES,
   variantLabel,
   worthOf,
+  type AccountBar,
   type AnyCurrency,
   type LineAuto,
+  type LocalDate,
   type LineWorth,
   type Page,
   type PosItemDto,
@@ -38,8 +44,8 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Account,
-  CustomerDebt,
   Customer,
+  CustomerDue,
   Location,
   Organization,
   PriceType,
@@ -68,6 +74,15 @@ import { allows, ApprovalsService, type Approver } from './approvals.service'
 import { sellables } from './items'
 
 const DOCUMENT = 'sale'
+
+/** What the till is told when a sale on account needs someone's word, and why. */
+const ACCOUNT_BAR_CODES: Record<AccountBar, string> = {
+  supplier: 'SUPPLIER_ON_ACCOUNT',
+  barred: 'NO_DEBT',
+  no_phone: 'NO_PHONE',
+  overdue: 'DEBT_OVERDUE',
+  over_limit: 'DEBT_OVER_LIMIT',
+}
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
 
@@ -375,71 +390,26 @@ export class SalesService {
       throw AppError.validation({ payments: 'Qaytarilgan tovar summasi yetarli: qo‘shimcha to‘lov kerak emas' })
     }
 
-    // ── What is left owing: only to a customer on the books, and only as far as the shop lends. ──
-    const owed = input.debt?.amount ?? 0
-    let lentByWord = false
-    if (input.debt) {
-      if (!customer || !rules) {
-        throw AppError.validation({ customerId: 'Qarzga sotish uchun mijozni tanlang' })
-      }
-      if (input.debt.dueDate < today) {
-        throw AppError.validation({ debt: 'Qarz muddati o‘tgan kunga qo‘yilmaydi' })
-      }
-      if (owed > totals.total - used) {
-        throw AppError.validation({ debt: 'Qarz chek summasidan oshmasligi kerak' })
-      }
-      // Two sales to one customer wait for each other here, so that neither is lent past the limit unseen.
-      await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
-      const standing = (await rulesOf(em, [customer])).get(customer.id) ?? rules
-      const bar = debtBar(
-        { noDebt: standing.noDebt, owed: standing.debt.owed, overdue: standing.debt.overdue },
-        owed,
-        settings.debtLimit,
-      )
-      if (bar && !can(actor, 'pos.debt')) {
-        if (!allows(approver, 'pos.debt')) {
-          const why =
-            bar === 'barred'
-              ? `${customer.name}: bu mijozga qarzga berilmaydi`
-              : bar === 'overdue'
-                ? `${customer.name}: muddati o‘tgan qarzi bor (${formatMoney(standing.debt.overdue, base)})`
-                : `${customer.name}: qarzi chegaradan oshadi (${formatMoney(standing.debt.owed + owed, base)}, chegara ${formatMoney(settings.debtLimit, base)})`
-          throw AppError.badRequest(
-            bar === 'barred' ? 'NO_DEBT' : bar === 'overdue' ? 'DEBT_OVERDUE' : 'DEBT_OVER_LIMIT',
-            approver ? `${approver.name} qarzga sotishni tasdiqlay olmaydi` : `${why}: rahbar tasdig‘i kerak`,
-            { debt: why },
-          )
-        }
-        lentByWord = true
-      }
-    }
-    // ── What goes on the customer's account: in one of its currencies, at the day's rate or at a sum agreed. ──
+    // ── What goes on the customer's account: in one of its currencies, at the day's rate or a sum agreed. What
+    // is theirs there (haqi) pays first; only the rest is lent, and a cashier lends only as far as the customer's
+    // terms and the business's limit go — further, someone's word. ──
     const onAccount = input.onAccount?.amount ?? 0
     let accountWorth: LineWorth | null = null
     let soldByWord = false
     let accountOverRate = false
+    let prepaid = 0
+    let lent = 0
+    let dueDate: string | null = null
     const accountCurrency = input.onAccount?.currency ?? customer?.currency ?? base
     if (input.onAccount) {
-      if (!customer) {
+      if (!customer || !rules) {
         throw AppError.validation({ customerId: 'Hisobiga yozish uchun mijozni tanlang' })
       }
-      if (onAccount > totals.total - used - owed) {
+      if (onAccount > totals.total - used) {
         throw AppError.validation({ onAccount: 'Hisobiga yoziladigan summa chekdan oshmasligi kerak' })
       }
       if (accountCurrency !== base && !actor.currencies.includes(accountCurrency)) {
         throw AppError.validation({ onAccount: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
-      }
-      if (!can(actor, 'pos.debt')) {
-        if (!allows(approver, 'pos.debt')) {
-          throw AppError.badRequest(
-            'ON_ACCOUNT_NEEDS_WORD',
-            approver
-              ? `${approver.name} mijoz hisobiga sotishni tasdiqlay olmaydi`
-              : `${customer.name} hisobiga sotish uchun rahbar tasdig‘i kerak`,
-            { onAccount: 'Rahbar tasdig‘i kerak' },
-          )
-        }
-        soldByWord = true
       }
       const wanting = wantingRate(book, book.base, accountCurrency)
       if (wanting) {
@@ -458,15 +428,84 @@ export class SalesService {
           { onAccount: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
         )
       }
+      // Two sales to one customer, or a sale and a payment, wait for each other here: neither lends past the
+      // limit unseen. The accounts are read again once held.
+      await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
+      const held = (await rulesOf(em, [customer])).get(customer.id)?.accounts ?? []
+      const balance = held.find((account) => account.currency === accountCurrency)?.balance ?? 0
+      prepaid = Math.min(accountWorth.settled, Math.max(0, -balance))
+      lent = accountWorth.settled - prepaid
+      // Weighed in the base at today's rates: what they owe across their accounts, and what this adds.
+      const unrated = lent
+        ? wantingRate(book, book.base, ...held.filter((a) => a.balance).map((a) => a.currency))
+        : null
+      if (unrated) {
+        throw AppError.validation({ onAccount: unrated })
+      }
+      const owedBase = held.reduce(
+        (sum, account) => sum + (worthInBase(account.balance, account.currency, book) ?? 0),
+        0,
+      )
+      const adds = lent ? (worthInBase(lent, accountCurrency, book) ?? 0) : 0
+      const late = held.find((account) => account.overdue > 0)
+      const bar = accountBar(
+        {
+          supplier: customer.isSupplier,
+          barred: rules.noDebt,
+          hasPhone: !!customer.phone,
+          credit: customer.credit,
+          creditLimit: customer.creditLimit,
+          owedBase,
+          overdue: !!late,
+        },
+        adds,
+        settings.debtLimit,
+      )
+      if (bar && !can(actor, 'pos.debt')) {
+        if (!allows(approver, 'pos.debt')) {
+          const limit = customer.credit === 'limit' ? (customer.creditLimit ?? 0) : settings.debtLimit
+          const why =
+            bar === 'supplier'
+              ? `${customer.name} — yetkazib beruvchi`
+              : bar === 'barred'
+                ? `${customer.name}: bu mijozga qarzga berilmaydi`
+                : bar === 'no_phone'
+                  ? `${customer.name}: telefoni yo‘q mijozga qarz berilmaydi`
+                  : bar === 'overdue'
+                    ? `${customer.name}: muddati o‘tgan qarzi bor (${formatMoney(late?.overdue ?? 0, late?.currency ?? base)})`
+                    : limit
+                      ? `${customer.name}: qarzi chegaradan oshadi (${formatMoney(owedBase + adds, base)}, chegara ${formatMoney(limit, base)})`
+                      : `${customer.name}: qarzga faqat rahbar tasdig‘i bilan beriladi`
+          throw AppError.badRequest(
+            ACCOUNT_BAR_CODES[bar],
+            approver ? `${approver.name} qarzga sotishni tasdiqlay olmaydi` : `${why}: rahbar tasdig‘i kerak`,
+            { onAccount: why },
+          )
+        }
+        soldByWord = true
+      }
+      // The day the debt falls due: the one the cashier set, else the customer's own days or the business's.
+      if (lent) {
+        const asked = input.onAccount.dueDate
+        if (asked === null && !customer.noDue) {
+          throw AppError.validation({ 'onAccount.dueDate': 'Qarz muddatini kiriting' })
+        }
+        if (asked && asked < today) {
+          throw AppError.validation({ 'onAccount.dueDate': 'Qarz muddati o‘tgan kunga qo‘yilmaydi' })
+        }
+        dueDate =
+          asked !== undefined
+            ? asked
+            : customer.noDue
+              ? null
+              : toIsoDate(addDays(fromIsoDate(today) as LocalDate, customer.dueDays ?? settings.debtDays))
+      }
     }
     const vouched =
-      ((overLimit || under.length > 0 || overRate || accountOverRate) && !alone) ||
-      pricedByWord ||
-      lentByWord ||
-      soldByWord
+      ((overLimit || under.length > 0 || overRate || accountOverRate) && !alone) || pricedByWord || soldByWord
 
     const settlement = settle(
-      totals.total - used - owed - onAccount,
+      totals.total - used - onAccount,
       payments.map((payment) => ({ ...payment, value: payment.base })),
       {
         book,
@@ -499,7 +538,6 @@ export class SalesService {
             PAYMENT_METHOD_LABELS[payment.method] +
             (payment.currency !== base ? ` ${CURRENCIES[payment.currency].symbol}` : ''),
         ),
-        ...(owed ? [PAYMENT_METHOD_LABELS.debt] : []),
         ...(onAccount ? [PAYMENT_METHOD_LABELS.account] : []),
       ]),
     ].join(', ')
@@ -540,9 +578,7 @@ export class SalesService {
         autoReason: totals.auto ? autoReason(autos, rules?.discountReason ?? null) : null,
         promoCode: input.promoCode,
         note: input.note ?? null,
-        searchKey: searchKey(
-          [number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' '),
-        ),
+        searchKey: searchKey([number, actor.name, seller?.fullName ?? '', customer?.name ?? ''].join(' ')),
       }),
     )
     const lines = await em.save(
@@ -638,29 +674,6 @@ export class SalesService {
         reference: null,
       })
     }
-    if (input.debt && customer) {
-      // What is owed stands in the books as money that is to come.
-      const receivables = await this.ledger.systemAccount(em, actor.orgId, 'receivables')
-      paid.push({
-        method: 'debt',
-        accountId: receivables.id,
-        currency: base,
-        amount: owed,
-        base: owed,
-        reference: null,
-      })
-      await em.insert(CustomerDebt, {
-        orgId: actor.orgId,
-        customerId: customer.id,
-        saleId: sale.id,
-        locationId: register.locationId,
-        amount: owed,
-        paid: 0,
-        returned: 0,
-        dueDate: input.debt.dueDate,
-        cancelled: false,
-      })
-    }
     if (accountWorth && customer) {
       // On the customer's account in that currency; its worth there is what the day's rates make of that sum.
       const account = await this.ledger.customerAccount(em, customer, accountCurrency)
@@ -671,8 +684,13 @@ export class SalesService {
         amount: accountWorth.settled,
         base: onAccount,
         fx: accountWorth.partnerBase - onAccount,
+        prepaid,
         reference: null,
       })
+      if (lent) {
+        // What it lends falls due on its day, kept apart from the payment so that the day can be moved.
+        await em.insert(CustomerDue, { orgId: actor.orgId, customerId: customer.id, saleId: sale.id, dueDate })
+      }
     }
     await em.insert(
       SalePayment,
@@ -750,24 +768,12 @@ export class SalesService {
           'Bu chek almashtirish bilan to‘langan: bekor qilinmaydi, tovar qaytarish orqali olinadi',
         )
       }
-      // Money already brought against what it left owing was brought for a sale that stood.
-      const debt = await em.findOneBy(CustomerDebt, { saleId: id })
-      if (debt?.paid) {
-        throw AppError.conflict(
-          'SALE_DEBT_PAID',
-          'Bu chekning qarziga to‘lov tushgan: avval o‘sha to‘lov bekor qilinadi',
-        )
-      }
       const [open]: { id: string }[] = await em.query(
         `SELECT id FROM shifts WHERE id = $1 AND status = 'open' FOR UPDATE`,
         [sale.shiftId],
       )
       if (!open) {
         throw AppError.conflict('SHIFT_CLOSED', 'Smena yopilgan. Bu chek qaytarish orqali rasmiylashtiriladi')
-      }
-      if (debt) {
-        // The sale never was: nothing is owed for it.
-        await em.update(CustomerDebt, debt.id, { cancelled: true })
       }
       const today = await this.ledger.today(em, actor.orgId)
 
@@ -919,7 +925,7 @@ export class SalesService {
     const returns = sale.returnedTotal
       ? await em.find(SaleReturn, { where: { saleId: sale.id }, order: { returnedAt: 'ASC' } })
       : []
-    const debt = await em.findOneBy(CustomerDebt, { saleId: sale.id })
+    const due = await em.findOneBy(CustomerDue, { saleId: sale.id })
 
     return {
       ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
@@ -932,10 +938,7 @@ export class SalesService {
       changeOther: sale.changeOther,
       changeCurrency: sale.changeCurrency,
       rounding: sale.rounding,
-      debt:
-        debt && !debt.cancelled
-          ? { amount: debt.amount, left: debt.amount - debt.paid - debt.returned, dueDate: debt.dueDate }
-          : null,
+      due: due && sale.status === 'completed' ? { id: due.id, dueDate: due.dueDate } : null,
       note: sale.note,
       voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
       voidedByName: sale.voidedByName,

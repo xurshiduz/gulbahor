@@ -367,6 +367,35 @@ describe('Customers', () => {
         returnDays: null,
       })
     })
+
+    it("lets only who keeps the suppliers' accounts move a customer across the supplier mark", async () => {
+      // The store manager keeps the buyers' debts, not the suppliers' accounts.
+      const manager = await harness.signIn('menejer')
+      const supplier = (
+        await manager.post('/api/customers').send({ name: 'Guangzhou Textile', isSupplier: true }).expect(201)
+      ).body
+      expect(supplier.isSupplier).toBe(true)
+      // Taken off, the supplier's account would show to the manager; put on, a buyer's would hide from them.
+      await manager
+        .put(`/api/customers/${supplier.id}`)
+        .send({ ...cardInput(supplier), isSupplier: false })
+        .expect(403)
+      const buyer = (await manager.post('/api/customers').send({ name: 'Do‘kon Ali' }).expect(201)).body
+      await manager
+        .put(`/api/customers/${buyer.id}`)
+        .send({ ...cardInput(buyer), isSupplier: true })
+        .expect(403)
+      // The rest of the card is still the manager's to keep.
+      await manager
+        .put(`/api/customers/${supplier.id}`)
+        .send({ ...cardInput(supplier), note: 'Guangzhou' })
+        .expect(200)
+      const moved = await alpha
+        .put(`/api/customers/${supplier.id}`)
+        .send({ ...cardInput(supplier), isSupplier: false })
+        .expect(200)
+      expect(moved.body.isSupplier).toBe(false)
+    })
   })
 
   it('count the days to a birthday the way the calendar does', () => {
@@ -503,7 +532,11 @@ describe('Customers', () => {
         noDebt: false,
         noLayaway: false,
         noExchange: true,
-        debt: { owed: 0, overdue: 0, dueDate: null },
+        accounts: [],
+        credit: 'default',
+        creditLimit: null,
+        dueDays: null,
+        noDue: false,
       })
     })
 

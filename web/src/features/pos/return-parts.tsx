@@ -330,8 +330,10 @@ export function ReturnDialog({ returnId, onClose }: { returnId: string; onClose:
             {data.refunds.map((refund, index) => (
               <Row
                 key={index}
-                // What came off a debt was never money: it is not said to have been handed back.
-                label={refund.method === 'debt' ? t('pos.offDebt') : `${t('sales.refunded')}: ${paymentLabel(refund)}`}
+                // What came off the customer's account was never money: it is not said to have been handed back.
+                label={
+                  refund.method === 'account' ? t('pos.offAccount') : `${t('sales.refunded')}: ${paymentLabel(refund)}`
+                }
                 value={
                   refund.currency !== base()
                     ? `${money(refund.amount, refund.currency)} = ${money(refund.base)}`

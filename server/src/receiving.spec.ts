@@ -468,7 +468,7 @@ describe('Receiving', () => {
       expect((await statement(yiwu)).balance).toBe(-50_000)
       expect((await statement(yiwu, 'TRY')).balance).toBe(-34_000)
       const card = (await alpha.get(`/api/customers/${yiwu}`).expect(200)).body
-      expect(card.balances).toEqual([
+      expect(card.balances).toMatchObject([
         { currency: 'CNY', balance: -50_000 },
         { currency: 'TRY', balance: -34_000 },
       ])

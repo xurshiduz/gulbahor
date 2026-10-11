@@ -24,8 +24,24 @@ const nodira: PosCustomerDto = {
   noDebt: false,
   noLayaway: false,
   noExchange: true,
-  debt: { owed: 0, overdue: 0, dueDate: null },
+  accounts: [],
+  credit: 'default',
+  creditLimit: null,
+  dueDays: null,
+  noDue: false,
 }
+
+/** One of their accounts, in so'm. */
+const account = (balance: number, overdue = 0) => ({
+  currency: 'UZS' as const,
+  balance,
+  owed: Math.max(0, balance),
+  credit: Math.max(0, -balance),
+  overdue,
+  overdueSince: overdue ? '2026-09-01' : null,
+  nextDue: null,
+  nextDueAmount: 0,
+})
 
 /** The picker as the till holds it: one customer, or none. */
 function Counter({ onAsked }: { onAsked?: (q: string) => void }) {
@@ -98,28 +114,35 @@ describe('who is at the counter', () => {
 
   it('is seen to owe, with the way to take it there and then', async () => {
     const takes = vi.fn()
-    const owing = (debt: PosCustomerDto['debt']) => (
+    const owing = (accounts: PosCustomerDto['accounts']) => (
       <QueryClientProvider client={new QueryClient()}>
         <CustomerPicker
           registerId="r1"
-          value={{ ...nodira, reminders: [], debt }}
+          value={{ ...nodira, reminders: [], accounts }}
           onChange={() => undefined}
           onPayDebt={takes}
         />
       </QueryClientProvider>
     )
-    const { rerender } = render(owing({ owed: 45_000_000, overdue: 0, dueDate: '2026-11-04' }))
+    const { rerender } = render(owing([account(45_000_000)]))
     expect(plain(screen.getByRole('note').textContent)).toContain('Qarzi: 450 000 so‘m')
     expect(screen.getByRole('note').textContent).not.toContain('muddati o‘tgani')
     await userEvent.click(screen.getByRole('button', { name: 'To‘lov olish' }))
     expect(takes).toHaveBeenCalledTimes(1)
 
     // What is past its day is said apart: it is why more may not be lent.
-    rerender(owing({ owed: 45_000_000, overdue: 20_000_000, dueDate: '2026-09-01' }))
+    rerender(owing([account(45_000_000, 20_000_000)]))
     expect(plain(screen.getByRole('note').textContent)).toContain('muddati o‘tgani 200 000 so‘m')
 
-    // Nothing owed, nothing said.
-    rerender(owing({ owed: 0, overdue: 0, dueDate: null }))
+    // What is theirs to spend is said too, with nothing to take.
+    rerender(owing([account(-10_000_000)]))
+    expect(plain(screen.getByRole('note').textContent)).toContain('Haqi: 100 000 so‘m')
+    expect(screen.queryByRole('button', { name: 'To‘lov olish' })).toBeNull()
+
+    // Nothing owed, nothing said; a supplier's accounts are not shown at all.
+    rerender(owing([account(0)]))
+    expect(screen.queryByRole('note')).toBeNull()
+    rerender(owing(null))
     expect(screen.queryByRole('note')).toBeNull()
   })
 })

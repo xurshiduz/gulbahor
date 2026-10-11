@@ -152,7 +152,8 @@ describe('Sales on account', () => {
     it('takes a manager’s word from a cashier who may not sell on account alone', async () => {
       const alone = await sell({ customerId: elaris, onAccount: { amount: som(1_265_000) } }, cashier)
       expect(alone.status).toBe(400)
-      expect(alone.body.error.code).toBe('ON_ACCOUNT_NEEDS_WORD')
+      // Elaris has no phone, and the business lends nothing without a word anyway.
+      expect(alone.body.error.code).toBe('NO_PHONE')
       const before = (await owes(elaris)).balance
       const sale = (
         await sell(
@@ -246,7 +247,7 @@ describe('Sales on account', () => {
       expect((await owes(elaris)).balance).toBe(before + usd(200))
 
       const found = (await alpha.get('/api/returns/lookup').query({ code: sale.number }).expect(200)).body
-      expect(found.caps).toMatchObject({ cash: 0, debt: 0, account: som(2_530_000) })
+      expect(found.caps).toMatchObject({ cash: 0, account: som(2_530_000) })
       await ret(sale, som(1_265_000)).expect(201)
       expect((await owes(elaris)).balance).toBe(before + usd(100))
 

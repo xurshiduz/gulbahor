@@ -30,7 +30,6 @@ import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import {
   Account,
-  CustomerDebt,
   Customer,
   Location,
   Organization,
@@ -87,8 +86,6 @@ function isLate(soldOn: string, today: string, returnDays: number): boolean {
 interface Caps {
   cash: number
   accounts: { accountId: string; method: TenderMethod; name: string; last4: string | null; left: number }[]
-  /** What the receipt still leaves owing. */
-  debt: number
   /** What of it still stands on the customer's account, in the base. */
   account: number
 }
@@ -362,19 +359,14 @@ export class ReturnsService {
         credit = sold.credit
         exchange = sold.sale
       }
-      // ── What the receipt still leaves owing comes off first: nobody is handed money they have not paid. ──
-      const [owing]: { id: string; left: number }[] = await em.query(
-        `SELECT id, (amount - paid - returned)::float8 AS left FROM customer_debts
-         WHERE sale_id = $1 AND NOT cancelled FOR UPDATE`,
-        [sale.id],
-      )
-      const offDebt = Math.min(total - credit, owing?.left ?? 0)
-      // ── What the sale put on the customer's account comes off it next, at what the sale wrote, not today's rate. ──
+      // ── What the sale put on the customer's account comes off it first, at what the sale wrote, not today's rate:
+      // nobody is handed money for goods they took on account. ──
       const onAccount = await this.accountPart(em, sale.id)
-      const offAccount = onAccount
-        ? Math.min(total - credit - offDebt, onAccount.put.base - onAccount.returned.base)
-        : 0
-      const due = total - credit - offDebt - offAccount
+      if (onAccount && sale.customerId) {
+        await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [sale.customerId])
+      }
+      const offAccount = onAccount ? Math.min(total - credit, onAccount.put.base - onAccount.returned.base) : 0
+      const due = total - credit - offAccount
 
       // ── The money that goes back: the way it was paid, unless this person may do otherwise. ──
       const caps = await this.caps(em, sale)
@@ -483,22 +475,6 @@ export class ReturnsService {
           })),
         )
       }
-      const receivables = offDebt ? await this.ledger.systemAccount(em, actor.orgId, 'receivables') : null
-      if (receivables && owing) {
-        // Written down beside the money handed back: so much of what came back was never paid for.
-        await em.insert(SaleReturnPayment, {
-          orgId: actor.orgId,
-          returnId: made.id,
-          position: refunds.length,
-          method: 'debt',
-          accountId: receivables.id,
-          currency: base,
-          amount: offDebt,
-          base: offDebt,
-          reference: null,
-        })
-        await em.query(`UPDATE customer_debts SET returned = returned + $2 WHERE id = $1`, [owing.id, offDebt])
-      }
       // What was sold is unsold; its worth goes back out of the accounts, or on towards the goods taken instead.
       const postings: Posting[] = [
         { accountId: (await this.ledger.systemAccount(em, actor.orgId, 'sales')).id, amount: total, base: total },
@@ -507,9 +483,6 @@ export class ReturnsService {
       if (credit) {
         const account = await this.ledger.systemAccount(em, actor.orgId, 'exchange')
         postings.push({ accountId: account.id, amount: -credit, base: -credit })
-      }
-      if (receivables) {
-        postings.push({ accountId: receivables.id, amount: -offDebt, base: -offDebt })
       }
       if (onAccount && offAccount) {
         const share = accountShare(onAccount.put, onAccount.returned, offAccount)
@@ -522,7 +495,7 @@ export class ReturnsService {
         await em.insert(SaleReturnPayment, {
           orgId: actor.orgId,
           returnId: made.id,
-          position: refunds.length + (receivables ? 1 : 0),
+          position: refunds.length,
           method: 'account',
           accountId: onAccount.accountId,
           currency: onAccount.currency,
@@ -619,7 +592,7 @@ export class ReturnsService {
   private async caps(em: EntityManager, sale: Sale): Promise<Caps> {
     const payments = await em.findBy(SalePayment, { saleId: sale.id })
     const byAccount = new Map<string, { method: TenderMethod; paid: number }>()
-    // A debt is no place money went into: it has no account of its own to go back to.
+    // What went on the customer's account is no place money went into: it goes back there, not to a drawer.
     let notCash = 0
     for (const payment of payments) {
       if (payment.method === 'cash') {
@@ -645,13 +618,10 @@ export class ReturnsService {
     )
     const cashBack = back.reduce((sum, row) => sum + (row.method === 'cash' ? row.base : 0), 0) + rounding
     const accounts = byAccount.size ? await em.findBy(Account, { id: In([...byAccount.keys()]) }) : []
-    const debt = await em.findOneBy(CustomerDebt, { saleId: sale.id, cancelled: false })
     const onAccount = await this.accountPart(em, sale.id)
     return {
       account: onAccount ? onAccount.put.base - onAccount.returned.base : 0,
-      // What was left owing and has been paid since was paid in money: it may go back as money.
-      cash: Math.max(0, sale.total - notCash + (debt?.paid ?? 0) - cashBack),
-      debt: debt ? debt.amount - debt.paid - debt.returned : 0,
+      cash: Math.max(0, sale.total - notCash - cashBack),
       accounts: accounts.map((account) => {
         const entry = byAccount.get(account.id) as { method: TenderMethod; paid: number }
         const gone = back.reduce((sum, row) => sum + (row.account_id === account.id ? row.base : 0), 0)

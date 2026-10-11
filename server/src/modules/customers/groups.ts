@@ -2,7 +2,7 @@ import { tierPercent, type LoyaltyTier, type PosCustomerDto } from '@erp/core'
 import type { EntityManager } from 'typeorm'
 
 import { LoyaltyTierRow, type Customer } from '../../database/entities'
-import { debtsOf, NO_DEBT } from './debts'
+import { businessDay, standingsOf } from './standing'
 
 interface OwnPrice {
   id: string
@@ -43,8 +43,16 @@ const said = (percent: number) => `${String(percent).replace('.', ',')}%`
  * purchases at the retail price so far have earned in the loyalty programme,
  * whichever is more: the two are never added together, and buying in bulk at
  * another price does not raise it.
+ *
+ * With them go their accounts as they stand today and the terms they are lent
+ * on: what the till weighs before putting more on an account. A supplier's
+ * accounts go only to someone who may see suppliers' accounts (`seesSuppliers`).
  */
-export async function rulesOf(em: EntityManager, customers: Customer[]): Promise<Map<string, PosCustomerDto>> {
+export async function rulesOf(
+  em: EntityManager,
+  customers: Customer[],
+  seesSuppliers = true,
+): Promise<Map<string, PosCustomerDto>> {
   if (!customers.length) {
     return new Map()
   }
@@ -76,7 +84,7 @@ export async function rulesOf(em: EntityManager, customers: Customer[]): Promise
       )
     : []
   const boughtBy = new Map(bought.map((row) => [row.customer_id, row.purchases]))
-  const debts = await debtsOf(em, ids)
+  const standings = await standingsOf(em, ids, await businessDay(em, customers[0].orgId))
 
   return new Map(
     customers.map((customer) => {
@@ -111,7 +119,11 @@ export async function rulesOf(em: EntityManager, customers: Customer[]): Promise
           noDebt: groups.some((group) => group.no_debt),
           noLayaway: groups.some((group) => group.no_layaway),
           noExchange: groups.some((group) => group.no_exchange),
-          debt: debts.get(customer.id) ?? NO_DEBT,
+          accounts: customer.isSupplier && !seesSuppliers ? null : (standings.get(customer.id) ?? []),
+          credit: customer.credit,
+          creditLimit: customer.creditLimit,
+          dueDays: customer.dueDays,
+          noDue: customer.noDue,
         },
       ]
     }),

@@ -368,6 +368,8 @@ export const customerOpeningInputSchema = z.object({
   /** Who owes: the customer, or the business. */
   owes: z.enum(['customer', 'us']),
   amount: positive,
+  /** When what the customer owes falls due; left out, it never does and is late for nothing. */
+  dueDate: z.iso.date().nullish(),
   note: optionalText(300),
 })
 export type CustomerOpeningInput = z.infer<typeof customerOpeningInputSchema>
@@ -438,6 +440,8 @@ export interface CustomerStatementLine {
   /** What the customer owed after it; negative when the business owed them. */
   balance: number
   note: string | null
+  /** A sale or an opening balance that added a debt: the day it falls due (null: never), which may be moved. */
+  due: { id: string; dueDate: string | null } | null
 }
 
 /** One of a customer's accounts from its first entry: every change and what was owed after each. */

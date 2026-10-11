@@ -228,7 +228,10 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'customers.suppliers', title: 'Yetkazib beruvchilar hisobini ko‘rish' },
       { key: 'customers.receive', title: 'To‘lov olish va uni bekor qilish' },
       { key: 'customers.pay_out', title: 'Mijozga pul berish' },
-      { key: 'customers.adjust', title: 'Hisob tuzatish: boshlang‘ich qoldiq, umidsiz qarz, qarz chegarasi va muddati' },
+      {
+        key: 'customers.adjust',
+        title: 'Hisob tuzatish: boshlang‘ich qoldiq, umidsiz qarz, qarz chegarasi va muddati',
+      },
     ],
   },
   {
@@ -333,7 +336,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   {
     key: 'accountant',
     name: 'Hisobchi',
-    description: 'Pul, kartalar, hamkorlar bilan hisob-kitob va hisobotlar.',
+    description: 'Pul, kartalar, mijoz va yetkazib beruvchilar bilan hisob-kitob va hisobotlar.',
     permissions: [
       'locations.view',
       'products.view',

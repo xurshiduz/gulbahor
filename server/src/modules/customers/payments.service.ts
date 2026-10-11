@@ -19,7 +19,7 @@ import { In, type EntityManager } from 'typeorm'
 import { AppError } from '../../common/errors'
 import { applySearch } from '../../common/listing'
 import { Db } from '../../database/db.service'
-import { Account, Customer, CustomerPayment, CustomerPaymentLine, Shift } from '../../database/entities'
+import { Account, Customer, CustomerDue, CustomerPayment, CustomerPaymentLine, Shift } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
@@ -37,6 +37,8 @@ const COUNTER = 'partner_payment'
 
 /** Where a customer's money can go, or come from: the places the business keeps its own. */
 const PLACES = ['cash', 'safe', 'bank', 'card']
+/** Where a cashier takes it at the till: into a drawer, or onto a card. */
+const TILL_PLACES = ['cash', 'card']
 
 const CHANGED = ['customer-payments', 'customers', 'money', 'pos', 'shifts']
 
@@ -46,6 +48,13 @@ const MAY: Record<CustomerPaymentKind, string> = {
   out: 'customers.pay_out',
   opening: 'customers.adjust',
 }
+
+/**
+ * A cashier with no say over customers' money still takes what a customer brings to the till — into a drawer or
+ * onto a card, from anyone but a supplier — and nothing else.
+ */
+const atTill = (actor: Actor, kind: CustomerPaymentKind) =>
+  kind === 'in' && !can(actor, MAY.in) && can(actor, 'pos.sell')
 
 /**
  * Money changing hands with customers (TL-). A payment settles one of the
@@ -72,25 +81,33 @@ export class CustomerPaymentsService {
   /** The accounts a payment can go through, for the form: balances only for those who may see them. */
   async accounts(actor: Actor): Promise<PaymentAccountDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      return this.money.paymentAccounts(em, actor, PLACES)
+      const till = !can(actor, MAY.in) && !can(actor, MAY.out)
+      return this.money.paymentAccounts(em, actor, till ? TILL_PLACES : PLACES)
     })
   }
 
   async create(actor: Actor, input: CustomerPaymentInput): Promise<CustomerPaymentDto> {
-    if (!can(actor, MAY[input.kind])) {
+    const till = atTill(actor, input.kind)
+    if (!can(actor, MAY[input.kind]) && !till) {
       throw AppError.forbidden()
     }
+    const places = till ? TILL_PLACES : PLACES
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
       if (again) {
         return this.load(em, again)
       }
       const customer = await this.customer(em, input.customerId)
+      if (till && customer.isSupplier) {
+        throw AppError.forbidden('Yetkazib beruvchidan to‘lovni hisob-kitob ruxsati bor xodim oladi')
+      }
       const currency = this.currencyOf(actor, customer, input.currency)
       const today = await this.ledger.today(em, actor.orgId)
       const book = await this.currencies.book(em, actor, today)
       const limit = await rateLimit(em, actor)
       const sign = input.kind === 'in' ? 1 : -1
+      // Two payments, or a payment and a sale on account, never weigh one customer's account at once.
+      await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
 
       // The accounts are held: two payments out of one account cannot both spend the same money.
       const ids = [...new Set(input.lines.map((line) => line.accountId))].sort()
@@ -112,7 +129,7 @@ export class CustomerPaymentsService {
       }[] = []
       for (const [index, line] of input.lines.entries()) {
         const account = accountOf.get(line.accountId)
-        if (!account || !account.isActive || !PLACES.includes(account.kind) || !mayUse(actor, account)) {
+        if (!account || !account.isActive || !places.includes(account.kind) || !mayUse(actor, account)) {
           fields[`lines.${index}.accountId`] = 'Hisob topilmadi'
           continue
         }
@@ -142,14 +159,7 @@ export class CustomerPaymentsService {
           }
         }
         // What the two sides agreed the money settles stands as agreed, within what this person may agree to.
-        const worth = valueLine(
-          line.amount,
-          account.currency,
-          currency,
-          book,
-          changes ? line.settled : null,
-          limit,
-        )
+        const worth = valueLine(line.amount, account.currency, currency, book, changes ? line.settled : null, limit)
         if (typeof worth === 'string') {
           fields[`lines.${index}.settled`] = worth
           continue
@@ -258,6 +268,9 @@ export class CustomerPaymentsService {
       if (wanting) {
         throw AppError.validation({ amount: wanting })
       }
+      if (input.dueDate && input.owes !== 'customer') {
+        throw AppError.validation({ dueDate: 'Muddat mijoz qarziga qo‘yiladi' })
+      }
       const change = input.owes === 'customer' ? input.amount : -input.amount
       const base = worthInBase(change, currency, book) as number
       const payment = await this.save(em, actor, {
@@ -270,6 +283,15 @@ export class CustomerPaymentsService {
         paidBy: '',
         note: input.note ?? null,
       })
+      if (input.dueDate) {
+        // A debt from before the books falls due like any other.
+        await em.insert(CustomerDue, {
+          orgId: actor.orgId,
+          customerId: customer.id,
+          paymentId: payment.id,
+          dueDate: input.dueDate,
+        })
+      }
       const account = await this.ledger.customerAccount(em, customer, currency)
       const before = await this.ledger.systemAccount(em, actor.orgId, 'opening')
       await this.ledger.post(
@@ -415,14 +437,20 @@ export class CustomerPaymentsService {
         kind: CustomerPaymentKind | null
         note: string | null
         cancel_reason: string | null
+        due_id: string | null
+        due_date: string | null
       }[] = account
         ? await em.query(
             `SELECT e.created_at AS at, e.kind AS entry_kind, e.document_type, l.amount::float8 AS change, e.document_id,
                     coalesce(p.number, r.number, s.number, sr.number, sd.number) AS number, p.kind,
                     coalesce(p.note, r.note, s.note, sd.note) AS note,
-                    coalesce(p.cancel_reason, s.void_reason) AS cancel_reason
+                    coalesce(p.cancel_reason, s.void_reason) AS cancel_reason,
+                    d.id AS due_id, d.due_date::text AS due_date
              FROM ledger_lines l
              JOIN ledger_entries e ON e.id = l.entry_id
+             LEFT JOIN customer_dues d
+               ON (e.document_type = 'sale' AND d.sale_id = e.document_id)
+               OR (e.document_type = '${DOCUMENT}' AND d.payment_id = e.document_id)
              LEFT JOIN customer_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
              LEFT JOIN receipts r ON r.id = e.document_id AND e.document_type = 'receipt'
              LEFT JOIN sales s ON s.id = e.document_id AND e.document_type = 'sale'
@@ -434,6 +462,13 @@ export class CustomerPaymentsService {
           )
         : []
       let balance = 0
+      const undone = new Set(
+        rows.flatMap((row) =>
+          row.document_id && (row.entry_kind.endsWith('_cancel') || row.entry_kind === 'sale_void')
+            ? [row.document_id]
+            : [],
+        ),
+      )
       const lines: CustomerStatementLine[] = rows.map((row) => {
         balance += row.change
         const cancelled = row.entry_kind.endsWith('_cancel') || row.entry_kind === 'sale_void'
@@ -453,6 +488,11 @@ export class CustomerPaymentsService {
           change: row.change,
           balance,
           note: cancelled ? row.cancel_reason : row.note,
+          // The day stays with the line that made the debt, and goes once the document is undone.
+          due:
+            row.due_id && !cancelled && row.change > 0 && !undone.has(row.document_id as string)
+              ? { id: row.due_id, dueDate: row.due_date }
+              : null,
         }
       })
       return {
