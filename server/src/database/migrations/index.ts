@@ -46,6 +46,7 @@ import { OneCustomerBook1790000045000 } from './1790000045000-one-customer-book'
 import { CustomerDues1790000046000 } from './1790000046000-customer-dues'
 import { CustomerAdjustments1790000047000 } from './1790000047000-customer-adjustments'
 import { SaleChanges1790000048000 } from './1790000048000-sale-changes'
+import { ReturnKeeps1790000049000 } from './1790000049000-return-keeps'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -97,4 +98,5 @@ export const MIGRATIONS = [
   CustomerDues1790000046000,
   CustomerAdjustments1790000047000,
   SaleChanges1790000048000,
+  ReturnKeeps1790000049000,
 ]

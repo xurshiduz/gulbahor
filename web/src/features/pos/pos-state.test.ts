@@ -16,11 +16,13 @@ import {
   EMPTY_CART,
   linesTotal,
   refundRows,
+  refundsOf,
   roundTotals,
   splitMultiplier,
   suggestRefunds,
   underFloor,
   type Cart,
+  type TenderRow,
 } from './pos-state'
 import { uuid } from '@/lib/uuid'
 
@@ -356,6 +358,20 @@ describe('goods coming back', () => {
       cards: [{ id: 'other' }],
       terminals: [{ id: 'pos' }],
     } as unknown as PosContextDto
+    // Handed back in dollars: at the rate while that fits what is owed, for what is owed once it is more.
+    const rates: RateBook = { base: 'UZS', rates: { USD: { against: 'UZS', way: 'in', value: 12_650 } } }
+    const row = (key: string, currency: 'UZS' | 'USD', amount: number, value: number | null = null) =>
+      ({ key, method: 'cash', currency, accountId: null, amount, value, reference: '' }) as TenderRow
+    const handed = (rows: TenderRow[]) => refundsOf(rows, som(75_000), rates).map((item) => [item.amount, item.value])
+    expect(handed([row('cash:USD', 'USD', 500)])).toEqual([[500, null]])
+    // Six dollars are 75 900: they go for the 75 000 owed, and for less beside so'm already handed back.
+    expect(handed([row('cash:USD', 'USD', 600)])).toEqual([[600, som(75_000)]])
+    expect(handed([row('cash', 'UZS', som(10_000)), row('cash:USD', 'USD', 600)])).toEqual([
+      [som(10_000), null],
+      [600, som(65_000)],
+    ])
+    expect(handed([row('cash:USD', 'USD', 600, som(74_000))])).toEqual([[600, som(74_000)]])
+
     // The fields are cash, and the card the receipt was paid with: not the shop's other cards.
     expect(refundRows(context, mixed).map((row) => [row.key, row.method, row.currency, row.accountId])).toEqual([
       ['cash', 'cash', 'UZS', null],

@@ -417,15 +417,16 @@ export class ShiftsService {
        FROM sale_returns WHERE shift_id = $1`,
       [shiftId],
     )
-    const refunds: typeof payments = await em.query(
-      `SELECT p.method, ${PLACE_NAME} AS account_name, p.currency, sum(p.amount)::float8 AS amount,
+    // What stayed on customers' accounts is told apart from what came off debts the sales had made.
+    const refunds: ((typeof payments)[number] & { kept: boolean })[] = await em.query(
+      `SELECT p.method, ${PLACE_NAME} AS account_name, p.currency, p.kept, sum(p.amount)::float8 AS amount,
               sum(p.base)::float8 AS base
        FROM sale_return_payments p
        JOIN sale_returns r ON r.id = p.return_id
        JOIN accounts a ON a.id = p.account_id
        WHERE r.shift_id = $1
-       GROUP BY p.method, ${PLACE_NAME}, p.currency
-       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'account'], p.method), p.currency DESC, 2`,
+       GROUP BY p.method, ${PLACE_NAME}, p.currency, p.kept
+       ORDER BY array_position(ARRAY['cash', 'card', 'terminal', 'account'], p.method), p.kept, p.currency DESC, 2`,
       [shiftId],
     )
     const seen = [
@@ -468,6 +469,7 @@ export class ShiftsService {
         currency: row.currency,
         amount: row.amount,
         base: row.base,
+        ...(row.kept ? { kept: true } : {}),
       })),
       customers: beside,
       changes,

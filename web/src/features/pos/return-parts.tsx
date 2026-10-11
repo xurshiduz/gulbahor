@@ -327,6 +327,16 @@ export function ReturnDialog({ returnId, onClose }: { returnId: string; onClose:
                 value={money(data.exchangeTotal)}
               />
             ) : null}
+            {data.kept ? (
+              <Row
+                label={`${t('pos.keptOnAccount')} · ${data.kept.customerName}`}
+                value={
+                  data.kept.currency !== base()
+                    ? `${money(data.kept.base)} (${money(data.kept.amount, data.kept.currency)})`
+                    : money(data.kept.amount)
+                }
+              />
+            ) : null}
             {data.refunds.map((refund, index) => (
               <Row
                 key={index}

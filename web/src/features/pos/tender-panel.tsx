@@ -1,6 +1,7 @@
 import {
   CURRENCIES,
   dueIn,
+  exchange,
   formatMoney,
   tillWorth,
   worthOf,
@@ -27,7 +28,8 @@ import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 import { ChangeRows, type ChangePanel } from './change-rows'
-import { changeOf, changeWords, enteredRows, tendersOf, type Returning, type TenderRow } from './pos-state'
+import { GivenInput, GivenNote } from './given-for'
+import { changeOf, changeWords, enteredRows, refundsOf, tendersOf, type Returning, type TenderRow } from './pos-state'
 import { TakenInput, TakenNote } from './taken-for'
 import { RATE, ROW, UNDER } from './tender-grid'
 
@@ -79,6 +81,26 @@ interface TenderPanelProps {
   offAccount?: number
   /** Seldom used rows kept out of sight; none hidden without it. */
   hiding?: Hiding | null
+  /** Handing back: so much of it may stay on the customer's account instead. Offered when there is someone whose. */
+  keep?: KeepPanel | null
+}
+
+/** What of the money owed for goods brought back stays on the customer's account. */
+export interface KeepPanel {
+  /** Whose account. */
+  name: string
+  currency: AnyCurrency
+  /** What stands there now, in its currency: above zero they owe, below it the money is theirs. */
+  balance: number | null
+  /** So much of what is owed, in the base. */
+  amount: number | null
+  /** What that comes to on the account, in its currency, where it was agreed; null: the day's rate. */
+  settled: number | null
+  /** The most that can stay there: what there is to hand back. */
+  max: number
+  /** The agreed sum lies further from the rate than a cashier may go alone. */
+  strays: boolean
+  onChange: (sums: { amount: number | null; settled: number | null }) => void
 }
 
 export interface OnAccount {
@@ -135,9 +157,11 @@ export function TenderPanel({
   onAccount = null,
   offAccount = 0,
   hiding = null,
+  keep = null,
 }: TenderPanelProps) {
   const { t } = useTranslation()
   const accountId = useId()
+  const keepId = useId()
   const dueId = useId()
   const sums = useRef<HTMLDivElement>(null)
   const { book } = context
@@ -145,7 +169,9 @@ export function TenderPanel({
   const unit = (currency: AnyCurrency) => tillWorth(100, currency, book)
   const foreign = (row: TenderRow) => row.currency !== base()
   const entered = enteredRows(rows)
-  const typed = tendersOf(entered, refunding)
+  // What stays on the account is not for the money to hand back.
+  const keeping = refunding && keep ? Math.min(keep.amount ?? 0, keep.max) : 0
+  const typed = refunding ? refundsOf(entered, due - keeping, book) : tendersOf(entered, false)
   // A hidden row stays out of sight unless it holds a sum — typed, or what is meant when nothing is typed.
   const tucked = (row: TenderRow) => {
     const place = tenderPlace(row)
@@ -191,7 +217,7 @@ export function TenderPanel({
     const others = typed
       .filter((_, index) => entered[index].key !== row.key)
       .reduce((sum, item) => sum + (worthOf(item, book) ?? 0), 0)
-    return Math.max(0, due - owing - others)
+    return Math.max(0, due - owing - keeping - others)
   }
   /** What a row would have to hold to cover the rest: what "=" fills in. */
   const fillOf = (row: TenderRow): number => {
@@ -225,6 +251,8 @@ export function TenderPanel({
     alone: context.mayOverDiscount,
     onChange: (value: number | null) => onPatch(row.key, { value }),
   })
+  /** The same pair where money goes back: what the notes are handed over for. */
+  const givenFor = (row: TenderRow) => ({ ...takenFor(row), rest: restFor(row) })
   // Somewhere on the panel a sum has a second one beside it: the columns are named then.
   const paired = rows.some((row) => foreign(row) && unit(row.currency) !== null) || !!onAccount?.line
   // What is to pay, said in each other currency the till takes too.
@@ -277,7 +305,7 @@ export function TenderPanel({
     if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey || !(target instanceof HTMLElement)) {
       return
     }
-    if (target.id !== accountId) {
+    if (target.id !== accountId && target.id !== keepId) {
       return
     }
     event.preventDefault()
@@ -410,9 +438,10 @@ export function TenderPanel({
                     </span>
                     <span className={UNDER}>{t('pos.takenFor', baseWords(t))}</span>
                     {refunding ? (
-                      <span className="tabular pr-2.5 text-right text-[13px] text-ink-3">
-                        {row.amount ? money(tillWorth(row.amount, row.currency, book) as number) : ''}
-                      </span>
+                      // Handed back for what the rate makes them, or for a worth agreed: a Tab away.
+                      <div data-enter-skip>
+                        <GivenInput {...givenFor(row)} />
+                      </div>
                     ) : (
                       // Enter walks the sums given; what they are taken for is a Tab away.
                       <div data-enter-skip>
@@ -433,7 +462,13 @@ export function TenderPanel({
                   />
                 </div>
               ) : null}
-              {foreign(row) && unit(row.currency) !== null && !refunding ? <TakenNote {...takenFor(row)} /> : null}
+              {foreign(row) && unit(row.currency) !== null ? (
+                refunding ? (
+                  <GivenNote {...givenFor(row)} />
+                ) : (
+                  <TakenNote {...takenFor(row)} />
+                )
+              ) : null}
             </div>
           )
         })}
@@ -623,6 +658,67 @@ export function TenderPanel({
             </div>
           ) : null}
           {onAccount.sums.amount && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}
+        </div>
+      ) : null}
+      {refunding && keep ? (
+        // Decided, not fallen into: Enter walks the money, and this is a Tab away.
+        <div
+          data-enter-skip
+          data-keep
+          className="flex flex-col gap-1.5 border-t border-line pt-3"
+          onKeyDown={backToMoney}
+        >
+          <div className={ROW}>
+            <label htmlFor={keepId} className="min-w-0 text-[13px] text-ink-2">
+              <span className="block truncate">{t('pos.keepOnAccount', { name: keep.name })}</span>
+              {keep.balance ? (
+                <span className={cn('block text-xs', keep.balance > 0 ? 'text-ink-3' : 'text-ok')}>
+                  {keep.balance > 0
+                    ? t('pos.debtOwed', { amount: money(keep.balance, keep.currency) })
+                    : t('pos.creditHeld', { amount: money(-keep.balance, keep.currency) })}
+                </span>
+              ) : null}
+            </label>
+            {/* "=" keeps there whatever the money typed above has not handed back. */}
+            <MoneyInput
+              id={keepId}
+              value={keep.amount}
+              onChange={(amount) => keep.onChange({ amount, settled: null })}
+              currency={base()}
+              fillValue={Math.min(keep.max, (keep.amount ?? 0) + refund.due)}
+              invalid={(keep.amount ?? 0) > keep.max}
+            />
+            {keep.currency !== base() && unit(keep.currency) !== null ? (
+              <>
+                <span className={RATE}>
+                  {formatMoney(unit(keep.currency) as number, base(), { minor: 'auto', symbol: false })}
+                </span>
+                <span className={UNDER}>{t('pos.onAccountIn', { currency: keep.currency })}</span>
+                <MoneyInput
+                  aria-label={t('pos.onAccountIn', { currency: keep.currency })}
+                  value={keeping ? keep.settled : null}
+                  onChange={(settled) => keep.onChange({ amount: keep.amount, settled })}
+                  currency={keep.currency}
+                  placeholder={
+                    keeping && exchange(keeping, base(), keep.currency, book) !== null
+                      ? formatMoney(exchange(keeping, base(), keep.currency, book) as number, keep.currency, {
+                          symbol: false,
+                          group: ' ',
+                        })
+                      : undefined
+                  }
+                  invalid={keep.strays}
+                />
+              </>
+            ) : null}
+          </div>
+          {keep.strays ? (
+            <p className="text-right text-xs text-bad">
+              {t(context.approvers.some((approver) => approver.discount) ? 'pos.rateLossAsk' : 'pos.changeLossStop', {
+                percent: String(context.maxRateLossPercent).replace('.', ','),
+              })}
+            </p>
+          ) : null}
         </div>
       ) : null}
       {offAccount ? (

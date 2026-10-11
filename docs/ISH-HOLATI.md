@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-11, M2-4 va tekshiruv tuzatishlaridan keyin: core 221, web 219, agent 17, server 417 (36 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-11, Q1 dan keyin: core 228, web 227, agent 17, server 433 (37 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -233,12 +233,13 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
      - [x] M2-3. Qarz va muddat: chakana qarz shu hisobga, `customer_dues`, muddati o'tgan hisobi, to'siqlar va chegara, "Qarzga / Hisobidan" bloki.
      - [x] M2-4. To'lovlar: tuzatish, kechish, hisob ichida almashtirish, kassada terminal, tortmadan berish chegarasi, Z-hisobot.
-     - [ ] Q1 (avvalgi M2-4b). Kassada qaytim: har tortma valyutasida juft maydon bilan, mijoz hisobiga, kartadan; `sale_changes`; kartaga ortiqcha to'lov (KEYINGI-REJA 17.2).
+     - [x] Q1 (avvalgi M2-4b). Kassada qaytim: har tortma valyutasida juft maydon bilan, mijoz hisobiga, kartadan; `sale_changes`; kartaga ortiqcha to'lov (KEYINGI-REJA 17.2).
      - [ ] O1. O'tkazmada bank komissiyasi (ikki summa, farqi xarajatga) va terminal → bank tushumi (17.4; avvalgi V8 va V6).
      - [ ] O2. Mijozdan mijozga o'tkazish — o'zaro hisob (17.5).
      - [ ] U1. To'lov oynalari ko'rinishi: bitta ko'rinish, kam ishlatiladigani yashirin, mijoz valyutasi (17.6).
      - [ ] N0. Tizim nomi — egasi tanlagach (17.8).
-     - [ ] M2-5 (Q2). Qaytarish va bekor qilish: avval hisob, keyin pul; almashtirish zanjiri; bekor qilingan chekdagi to'lov avans bo'lib qoladi.
+     - [ ] Q2a. Qaytarishda pul: mijoz hisobida qoldirish, boshqa valyutada kelishilgan qiymat, almashtirishda farq hisobga, mijozning o'z qaytarish muddati (KEYINGI-REJA 17.3).
+     - [ ] Q2b (M2-5 dan qolgani). Almashtirib olingan tovar qaytganda asl chekka borish; smenasi yopilgan chekda mijozni almashtirish; qarzini to'lagan mijoz qaytarganda "Pulini berish"; qaytarishda chek to'lanmagan kartaga o'tkazish qatori.
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
@@ -250,7 +251,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-Egasining qarori kutilmoqda: tizim nomi (KEYINGI-REJA 17.8) va pul oqimi rejasi (17-bo'lim). Tasdiqlangach — Q1: kassada qaytim (17.2).
+Q1 tugadi (commit qilinmagan: M2-4, tuzatishlar, Q1 — egasi aytganda). Navbatda Q2 = M2-5: qaytarishda pulni qaytarish yo'llari (KEYINGI-REJA 17.3). Tizim nomini egasi keyinroq qo'yadi.
 
 ## Ish daraxti nusxalari
 
@@ -286,3 +287,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `dd0c32ffcb37d4636c56b5b779c122913af39ad2` | M2-3: qarz mijoz hisobida — customer_dues (migratsiya 46000, eski chakana qarz bo'lsa to'xtaydi), ageBalance va accountBar (core), standingsOf, kassada bitta "Qarzga / Hisobidan" bloki (haqi avval, qarzga muddat, to'siqlar, biznes chegarasi 0 — har qarz tasdiq bilan), muddatni o'zgartirish, Qarzdorlar, kassir kassada to'lov oladi; rollar tekshiruvi: yetkazib beruvchi belgisi faqat customers.suppliers bilan, to'lov oynasida faqat ruxsat etilgan tur; ekranda tekshirildi |
 | `88e06ca51de88ec5fa93d8ad01e3ea4fee6d0d02` | M2-4: hisob tuzatish (xarajat yoki kirim turiga qarshi, Umidsiz qarzlar turi), hisob ichida almashtirish (juft maydon, kurs farqi), to'lov olishda qoldiqni kechish (yaxlitlash qadamigacha), tortmadan faqat mijozning haqisi beriladi (ADVANCE_EXCEEDED), kassir rahbar PIN'i bilan haqini qaytaradi, kassada terminal bilan to'lov va terminal solishtiruvi, smena hisobotida karta va terminal qatorlari, kassada hisob valyutasini tanlash; migratsiya 47000; ekranda egasi va kassir bilan tekshirildi |
 | `7adca6de5c00a956e78afb583cced835a308253b` | 2026-10-11 tuzatishlari: 0 so'mli chek to'lovsiz o'tadi; Qoldiq xodimning o'z joylari bilan cheklandi; keraksiz 403 lar (kategoriya va brend, mijoz filtri, rollar, tuzatish turlari) — har rol va har ruxsat bilan sahifalar aylanib chiqildi; qaytim rejasi (16.14) |
+| `774be60897f5825890c6315722e60c1bb1c21e97` | Q1: kassada qaytim qismlarga bo'linadi — boshqa tortma valyutasi (kelishilgan qiymat bilan), mijoz hisobiga, kartadan (pos.return_any yoki PIN); sale_changes (migratsiya 48000), kartaga ortiqcha to'lov; chek, smena, hisobot |

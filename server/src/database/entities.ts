@@ -2276,6 +2276,14 @@ export class SaleReturnPayment {
   @Column('bigint', { transformer: bigintAsNumber })
   base: number
 
+  /** Handed back, or kept, for an agreed worth: what that left the shop with (+) or cost it (−) against the rate. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  fx: number
+
+  /** By `account`: left on the customer's account instead of being handed back — not what came off a debt. */
+  @Column('boolean', { default: false })
+  kept: boolean
+
   @Column('text', { nullable: true })
   reference: string | null
 }

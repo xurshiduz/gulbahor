@@ -396,6 +396,28 @@ export function tendersOf(entered: readonly TenderRow[], refunding: boolean): Te
   }))
 }
 
+/**
+ * The rows typed for handing money back, as it is counted and sent. Notes of another currency worth more than
+ * what is left to hand back go for what is left, as change does; a worth typed is the worth.
+ */
+export function refundsOf(entered: readonly TenderRow[], due: number, book: RateBook): Tender[] {
+  const paired = (row: TenderRow) => row.method === 'cash' && row.currency !== book.base
+  const plain = entered.map((row) => {
+    const atRate = tillWorth(row.amount as number, row.currency, book) ?? 0
+    return paired(row) ? (row.value ?? atRate) : atRate
+  })
+  const all = plain.reduce((sum, value) => sum + value, 0)
+  return entered.map((row, index) => {
+    const rest = due - (all - plain[index])
+    return {
+      method: row.method,
+      currency: row.currency,
+      amount: row.amount as number,
+      value: paired(row) ? (row.value ?? (rest > 0 && plain[index] > rest ? rest : null)) : null,
+    }
+  })
+}
+
 // ───────────────────────────── Goods coming back ─────────────────────────────
 
 /** A receipt goods are being brought back on, and how many of each of its lines. */

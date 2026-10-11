@@ -907,7 +907,8 @@ export interface RefundSettlement {
 /**
  * Money handed back against what a customer is owed. Cash in the base may be
  * the rest of it rounded to the till's step, as change is; nothing else may
- * differ from the sum.
+ * differ from the sum. Notes of another currency count for what the day's
+ * rate makes them, or for a worth agreed (`value`), as change does.
  */
 export function settleRefund(
   due: number,
@@ -915,7 +916,7 @@ export function settleRefund(
   options: { book: RateBook; roundStep: number },
 ): RefundSettlement {
   const { book } = options
-  const values = refunds.map((refund) => tillWorth(refund.amount, refund.currency, book))
+  const values = refunds.map((refund) => worthOf(refund, book))
   if (values.some((value) => value === null)) {
     return { paid: 0, due, rounding: 0, problem: 'rate' }
   }
@@ -954,11 +955,38 @@ export const exchangeInputSchema = z
     discount: amountSchema.default(0),
     /** For the difference, when the new goods are worth more. */
     payments: z.array(salePaymentInputSchema).max(10).default([]),
+    /** What of the difference goes on the customer's account, as in any sale. */
+    onAccount: saleOnAccountSchema.nullish().transform((value) => value ?? null),
     change: changeField,
     total: amountSchema,
   })
   .superRefine(taggedOnce)
+  .superRefine((goods, context) => {
+    if (goods.onAccount && !goods.customerId) {
+      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Hisobiga yozish uchun mijozni tanlang' })
+    }
+  })
 export type ExchangeInput = z.infer<typeof exchangeInputSchema>
+
+/**
+ * What of the money owed for goods brought back stays on the customer's
+ * account instead of being handed over: it pays what they owe first, and the
+ * rest is theirs to spend next time.
+ */
+export const returnKeepSchema = z.object({
+  /** Whose account, when the receipt names nobody: a receipt's own customer is the one it stays with. */
+  customerId: idSchema.nullish().transform((value) => value ?? null),
+  /** Which of their accounts: their main currency unless said. */
+  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
+  /** So much of what is owed, in the base. */
+  amount: amountSchema.refine((value) => value > 0, { message: 'Summani kiriting' }),
+  /** What that comes to on the account, in its currency, where it was agreed; left out, the day's rate. */
+  settled: amountSchema
+    .refine((value) => value > 0, { message: 'Summani kiriting' })
+    .nullish()
+    .transform((value) => value ?? null),
+})
+export type ReturnKeepInput = z.infer<typeof returnKeepSchema>
 
 export const returnInputSchema = z
   .object({
@@ -970,6 +998,8 @@ export const returnInputSchema = z
     reason: optionalText(200),
     /** How the money goes back. Empty when all of it goes towards the goods taken instead. */
     refunds: z.array(salePaymentInputSchema).max(10).default([]),
+    /** What of it stays on the customer's account instead. */
+    keep: returnKeepSchema.nullish().transform((value) => value ?? null),
     exchange: exchangeInputSchema.nullish().transform((value) => value ?? null),
     /** What the till showed as the value coming back: if the receipt has changed since, the return is refused. */
     total: amountSchema,
@@ -1036,8 +1066,10 @@ export interface ReturnDto extends ReturnListItemDto {
     total: number
     epc: string | null
   }[]
-  /** The money handed back. */
+  /** The money handed back, and what came off the customer's account for goods taken on it. */
   refunds: SalePaymentDto[]
+  /** What stayed on a customer's account instead of being handed back: whose, and how much in its currency and in the base. */
+  kept: { customerName: string; currency: AnyCurrency; amount: number; base: number } | null
 }
 
 /** A receipt as the till sees it when goods are brought back. */
@@ -1241,7 +1273,15 @@ export interface ShiftTotals {
   /** Returns made in the shift: how many, what the goods were worth, and the money handed back for them. */
   returns: number
   returned: number
-  refunds: { method: PaymentMethod; accountName: string; currency: AnyCurrency; amount: number; base: number }[]
+  refunds: {
+    method: PaymentMethod
+    accountName: string
+    currency: AnyCurrency
+    amount: number
+    base: number
+    /** Left on customers' accounts instead of being handed back; without it, `account` is what came off a debt. */
+    kept?: boolean
+  }[]
   /**
    * Customers' payments made at this till that did not pass through its drawers: onto a card or through a
    * terminal. What passed through a drawer is in `cash`.

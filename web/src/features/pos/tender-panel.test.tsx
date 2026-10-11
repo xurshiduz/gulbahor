@@ -6,6 +6,7 @@ import {
   type PosContextDto,
   type PosItemDto,
   type RateBook,
+  type ReturnableDto,
 } from '@erp/core'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -17,6 +18,8 @@ import {
   changeLines,
   changeRows,
   enteredRows,
+  refundRows,
+  refundsOf,
   tenderRows,
   tendersOf,
   type Cart,
@@ -310,6 +313,103 @@ describe('the change', () => {
     expect(sold.mock.calls[0][0]).toEqual([
       { key: 'account', way: 'account', currency: 'USD', accountId: null, amount: 100, value: som(12_100) },
     ])
+  })
+})
+
+/** 75 000 owed for goods brought back on a receipt paid in cash; with a `keeper`, part of it may stay on their account. */
+function Refund({
+  onComplete,
+  keeper,
+}: {
+  onComplete: (rows: { amount: number; value?: number | null }[], kept: number) => void
+  keeper?: { name: string; balance: number; currency: 'UZS' | 'USD' }
+}) {
+  const due = som(75_000)
+  const found = { caps: { cash: due, accounts: [], account: 0 }, free: false } as unknown as ReturnableDto
+  const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
+  const [keeping, setKeeping] = useState<{ amount: number | null; settled: number | null }>({
+    amount: null,
+    settled: null,
+  })
+  const rows = refundRows(context, found).map((row) => ({ ...row, ...paid[row.key] }))
+  const kept = keeper ? Math.min(keeping.amount ?? 0, due) : 0
+  const typed = refundsOf(enteredRows(rows), due - kept, book)
+  return (
+    <TenderPanel
+      context={context}
+      rows={rows}
+      onPatch={(key, patch) => setPaid((current) => ({ ...current, [key]: { ...current[key], ...patch } }))}
+      returning={{ found, qty: {}, reason: '' }}
+      refunding
+      due={due}
+      suggested={kept < due ? { cash: due - kept } : {}}
+      settlement={settle(0, [], { book, roundStep: 0 })}
+      refund={settleRefund(due - kept, typed, { book, roundStep: 0 })}
+      keep={
+        keeper
+          ? {
+              name: keeper.name,
+              currency: keeper.currency,
+              balance: keeper.balance,
+              amount: keeping.amount,
+              settled: keeping.settled,
+              max: due,
+              strays: false,
+              onChange: setKeeping,
+            }
+          : null
+      }
+      action="Qaytarish"
+      busy={false}
+      onComplete={() => onComplete(typed, kept)}
+      onBack={() => undefined}
+    />
+  )
+}
+
+describe('money handed back', () => {
+  it('goes back in dollars for what is owed, and says what the rate makes of them', async () => {
+    const done = vi.fn()
+    render(<Refund onComplete={done} />)
+    // Seven dollars are 84 700 at 12 100: they go for the 75 000 owed, which is further than a cashier may give.
+    await userEvent.type(field('cash:USD'), '7{Enter}')
+    const row = () => plain(document.querySelector('[data-tender="cash:USD"]')?.textContent)
+    await waitFor(() => expect(row()).toContain('Kun kursida 84 700 so‘m · farq do‘kon zarariga 9 700 so‘m'))
+    expect(row()).toContain('Kursdan farq 2% dan oshdi: sotishda rahbar tasdig‘i so‘raladi')
+    const worth = document.querySelectorAll<HTMLInputElement>('[data-tender="cash:USD"] input')[1]
+    expect(plain(worth.placeholder)).toBe('75 000')
+    // A worth typed is the worth: six dollars and a bit of so'm would be nearer, so the cashier says 74 000.
+    await userEvent.clear(field('cash:USD'))
+    await userEvent.type(field('cash:USD'), '6')
+    await userEvent.type(worth, '74000')
+    await userEvent.tab()
+    await waitFor(() => expect(row()).toContain('farq do‘kon foydasiga 1 400 so‘m'))
+    expect(plain(screen.getByText(/Yana .* qaytarilishi kerak/).textContent)).toContain('1 000')
+  })
+
+  it('stays on the customer’s account as far as the cashier says, the rest in the hand', async () => {
+    const done = vi.fn()
+    render(<Refund onComplete={done} keeper={{ name: 'Nodira', balance: som(20_000), currency: 'UZS' }} />)
+    const block = () => plain(document.querySelector('[data-keep]')?.textContent)
+    expect(block()).toContain('Hisobida qoldirish · Nodira')
+    expect(block()).toContain('qarzi 20 000 so‘m')
+    const keep = document.querySelector<HTMLInputElement>('[data-keep] input') as HTMLInputElement
+    // "=" keeps there all that is owed; then nothing is left for the drawer.
+    await userEvent.type(keep, '=')
+    expect(plain(keep.value)).toBe('75 000')
+    await userEvent.clear(keep)
+    await userEvent.type(keep, '50000{Enter}')
+    // Enter takes it and goes back to the money, where the rest shows as what is meant.
+    await waitFor(() => expect(document.activeElement).toBe(field('cash')))
+    expect(plain(field('cash').placeholder)).toBe('25 000')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(done).toHaveBeenCalledTimes(1))
+    expect(done.mock.calls[0]).toEqual([[], som(50_000)])
+  })
+
+  it('is not offered where there is nobody whose account it could stay on', () => {
+    render(<Refund onComplete={() => undefined} />)
+    expect(document.querySelector('[data-keep]')).toBeNull()
   })
 })
 

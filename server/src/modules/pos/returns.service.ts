@@ -5,9 +5,13 @@ import {
   formatMoney,
   normalizeEpc,
   accountShare,
+  overChangeLoss,
+  rateGap,
   returnShare,
   searchKey,
+  settleLine,
   settleRefund,
+  straysFromRate,
   tillWorth,
   type AnyCurrency,
   UNIT_INFO,
@@ -47,6 +51,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
+import { wantingRate } from '../money/agreed'
 import { tillCurrenciesOf, tillCurrencyProblem } from '../money/base'
 import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
@@ -144,12 +149,14 @@ export class ReturnsService {
       const settings = await this.settings(em, actor.orgId)
       const today = await this.ledger.today(em, actor.orgId)
       const buyer = sale.customerId ? await em.findOneBy(Customer, { id: sale.customerId }) : null
+      // A customer may have days of their own for bringing goods back: a wholesale buyer a month, say.
+      const returnDays = buyer?.returnDays ?? settings.returnDays
       return {
         // Whoever may take goods back sees the receipt they are brought back on, whoever rang it up.
         sale: await this.sales.loadIn(em, actor, sale),
         lineId,
-        late: isLate(sale.soldOn, today, settings.returnDays),
-        returnDays: settings.returnDays,
+        late: isLate(sale.soldOn, today, returnDays),
+        returnDays,
         free: can(actor, 'pos.return_any'),
         noExchange: buyer ? !!(await rulesOf(em, [buyer])).get(buyer.id)?.noExchange : false,
         caps: await this.caps(em, sale),
@@ -196,19 +203,21 @@ export class ReturnsService {
       // What a cashier may not do alone goes through on their own right, or on a manager's PIN given with it.
       const own = can(actor, 'pos.return_any')
       const free = own || allows(approver, 'pos.return_any')
-      const late = isLate(sale.soldOn, today, settings.returnDays)
+      const buyer = sale.customerId ? await em.findOneBy(Customer, { id: sale.customerId }) : null
+      // The customer's own days for bringing goods back, where their card gives them any.
+      const returnDays = buyer?.returnDays ?? settings.returnDays
+      const late = isLate(sale.soldOn, today, returnDays)
       if (late && !free) {
         throw AppError.conflict(
           'RETURN_LATE',
           approver
             ? `${approver.name} muddati o‘tgan qaytarishni tasdiqlay olmaydi`
-            : `Qaytarish muddati (${settings.returnDays} kun) o‘tgan: rahbar ruxsati kerak`,
+            : `Qaytarish muddati (${returnDays} kun) o‘tgan: rahbar ruxsati kerak`,
         )
       }
 
       // What is not done for a customer's group is refused here, not left to the cashier's memory.
-      const buyer = input.exchange && sale.customerId ? await em.findOneBy(Customer, { id: sale.customerId }) : null
-      const barred = buyer ? !!(await rulesOf(em, [buyer])).get(buyer.id)?.noExchange : false
+      const barred = input.exchange && buyer ? !!(await rulesOf(em, [buyer])).get(buyer.id)?.noExchange : false
       if (barred && !free) {
         throw AppError.conflict(
           'NO_EXCHANGE',
@@ -368,6 +377,62 @@ export class ReturnsService {
       const offAccount = onAccount ? Math.min(total - credit, onAccount.put.base - onAccount.returned.base) : 0
       const due = total - credit - offAccount
 
+      // ── What of the money owed stays on the customer's account instead of being handed over: it pays what
+      // they owe first, the rest is theirs next time. Nobody's word is needed: no money leaves the shop. ──
+      // A sum kept in another currency for less than the rate makes it, or notes handed back so, give away
+      // what a discount would: past the shop's limit, the same word.
+      const mayRate = can(actor, 'pos.discount') || allows(approver, 'pos.discount')
+      let overRate = false
+      let kept: { accountId: string; name: string; currency: AnyCurrency; settled: number; atRate: number } | null =
+        null
+      const keeping = input.keep?.amount ?? 0
+      if (input.keep) {
+        if (input.keep.customerId && sale.customerId && input.keep.customerId !== sale.customerId) {
+          throw AppError.validation({ keep: 'Pul chekdagi mijozning hisobida qoldiriladi' })
+        }
+        const keeper =
+          buyer ?? (input.keep.customerId ? await em.findOneBy(Customer, { id: input.keep.customerId }) : null)
+        if (!keeper || !keeper.isActive) {
+          throw AppError.validation({
+            keep: keeper ? `${keeper.name} arxivda` : 'Hisobida qoldirish uchun mijozni tanlang',
+          })
+        }
+        // A supplier's account is the business's dealings with them, kept out of the till's hands.
+        if (keeper.isSupplier) {
+          throw AppError.validation({ keep: `${keeper.name} — yetkazib beruvchi: hisobida qoldirilmaydi` })
+        }
+        if (keeping > due) {
+          throw AppError.validation({
+            keep: due ? `Hisobida ko‘pi bilan ${formatMoney(due, base)} qoldiriladi` : 'Qaytariladigan pul yo‘q',
+          })
+        }
+        const currency = input.keep.currency ?? keeper.currency ?? base
+        if (currency !== base && !actor.currencies.includes(currency)) {
+          throw AppError.validation({ keep: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+        }
+        const wanting = wantingRate(book, book.base, currency)
+        if (wanting) {
+          throw AppError.validation({ keep: wanting })
+        }
+        const worth = settleLine(keeping, book.base, currency, book, input.keep.settled)
+        if (worth.agreed && straysFromRate(worth, settings.maxRateLossPercent)) {
+          overRate = true
+          if (!mayRate) {
+            const gap = String(rateGap(worth)).replace('.', ',')
+            throw AppError.badRequest(
+              'RATE_LOSS_OVER_LIMIT',
+              approver
+                ? `${approver.name} kun kursidan uzoq kelishilgan summani tasdiqlay olmaydi`
+                : `Kelishilgan summa kun kursidan ${gap}% farq qiladi: rahbar tasdig‘i kerak`,
+              { keep: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
+            )
+          }
+        }
+        await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [keeper.id])
+        const account = await this.ledger.customerAccount(em, keeper, currency)
+        kept = { accountId: account.id, name: keeper.name, currency, settled: worth.settled, atRate: worth.partnerBase }
+      }
+
       // ── The money that goes back: the way it was paid, unless this person may do otherwise. ──
       const caps = await this.caps(em, sale)
       const accounts = await em.findBy(Account, {
@@ -380,7 +445,10 @@ export class ReturnsService {
         account: Account
         currency: AnyCurrency
         amount: number
+        /** What of the money owed it stands for: what was agreed, or what the rate makes it. */
         base: number
+        /** That, over what the rate makes it. */
+        fx: number
         reference: string | null
       }[] = []
       for (const [index, refund] of input.refunds.entries()) {
@@ -414,26 +482,54 @@ export class ReturnsService {
             continue
           }
         }
+        // Notes of another currency go back for what the rate makes them, or for a worth agreed.
+        if (refund.value !== null && (currency === base || refund.method !== 'cash')) {
+          fields[`refunds.${index}.value`] = 'Kelishilgan qiymat naqd chet valyuta uchun yoziladi'
+          continue
+        }
+        const atRate = tillWorth(refund.amount, currency, book) as number
+        const worth = refund.value ?? atRate
         refunds.push({
           method: refund.method,
           account: account as Account,
           currency,
           amount: refund.amount,
-          base: tillWorth(refund.amount, currency, book) as number,
+          base: worth,
+          fx: worth - atRate,
           reference: refund.reference ?? null,
         })
       }
       throwIfAny(fields)
 
-      const settlement = settleRefund(due, refunds, { book, roundStep: settings.changeRoundStep })
+      const settlement = settleRefund(
+        due - keeping,
+        refunds.map((refund) => ({ ...refund, value: refund.base })),
+        { book, roundStep: settings.changeRoundStep },
+      )
       if (settlement.problem === 'over') {
-        throw AppError.validation({ refunds: `Qaytariladigan pul ${formatMoney(due, base)} dan oshmasligi kerak` })
+        throw AppError.validation({
+          refunds: `Qaytariladigan pul ${formatMoney(due - keeping, base)} dan oshmasligi kerak`,
+        })
       }
+      const cheap = overChangeLoss(
+        refunds.map((refund) => ({ way: 'cash' as const, ...refund })),
+        settings.maxRateLossPercent,
+      )
+      if (cheap && !mayRate) {
+        throw AppError.badRequest(
+          'RATE_LOSS_OVER_LIMIT',
+          approver
+            ? `${approver.name} kun kursidan uzoq qaytarishni tasdiqlay olmaydi`
+            : `Pul kun kursidan ${settings.maxRateLossPercent}% dan ko‘proq arzonga qaytarilmoqda: rahbar tasdig‘i kerak`,
+          { refunds: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
+        )
+      }
+      overRate ||= cheap
       if (settlement.due > 0) {
         throw AppError.validation({ refunds: `Yana ${formatMoney(settlement.due, base)} qaytarilishi kerak` })
       }
       const elsewhere = refunds.reduce((sum, refund) => sum + (refund.method === 'cash' ? 0 : refund.base), 0)
-      if (due - elsewhere > caps.cash) {
+      if (due - keeping - elsewhere > caps.cash) {
         otherwise = true
         if (!free) {
           throw AppError.badRequest(
@@ -457,7 +553,8 @@ export class ReturnsService {
         }
       }
       // The manager's word is written down only where it was needed.
-      const vouched = !own && (late || otherwise || barred) ? approver : null
+      const vouched =
+        (!own && (late || otherwise || barred)) || (overRate && !can(actor, 'pos.discount')) ? approver : null
 
       if (refunds.length) {
         await em.insert(
@@ -471,15 +568,40 @@ export class ReturnsService {
             currency: refund.currency,
             amount: refund.amount,
             base: refund.base,
+            fx: refund.fx,
             reference: refund.reference,
           })),
         )
       }
       // What was sold is unsold; its worth goes back out of the accounts, or on towards the goods taken instead.
+      // A drawer gives its notes up at the day's rate, whatever they were handed back for.
       const postings: Posting[] = [
         { accountId: (await this.ledger.systemAccount(em, actor.orgId, 'sales')).id, amount: total, base: total },
-        ...refunds.map((refund) => ({ accountId: refund.account.id, amount: -refund.amount, base: -refund.base })),
+        ...refunds.map((refund) => ({
+          accountId: refund.account.id,
+          amount: -refund.amount,
+          base: -(refund.base - refund.fx),
+        })),
       ]
+      // What the rate keeps of it all: + the shop's gain.
+      let gained = refunds.reduce((sum, refund) => sum + refund.fx, 0)
+      if (kept) {
+        await em.insert(SaleReturnPayment, {
+          orgId: actor.orgId,
+          returnId: made.id,
+          position: refunds.length + 1,
+          method: 'account',
+          accountId: kept.accountId,
+          currency: kept.currency,
+          amount: kept.settled,
+          base: keeping,
+          fx: keeping - kept.atRate,
+          kept: true,
+          reference: null,
+        })
+        postings.push({ accountId: kept.accountId, amount: -kept.settled, base: -kept.atRate })
+        gained += keeping - kept.atRate
+      }
       if (credit) {
         const account = await this.ledger.systemAccount(em, actor.orgId, 'exchange')
         postings.push({ accountId: account.id, amount: -credit, base: -credit })
@@ -504,10 +626,11 @@ export class ReturnsService {
           reference: null,
         })
         postings.push({ accountId: onAccount.accountId, amount: -share, base: -(offAccount + fxBack) })
-        if (fxBack) {
-          const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
-          postings.push({ accountId: fx.id, amount: fxBack, base: fxBack })
-        }
+        gained -= fxBack
+      }
+      if (gained) {
+        const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
+        postings.push({ accountId: fx.id, amount: -gained, base: -gained })
       }
       if (settlement.rounding) {
         const account = await this.ledger.systemAccount(em, actor.orgId, 'rounding')
@@ -533,11 +656,21 @@ export class ReturnsService {
         entityId: made.id,
         summary: `${number}: ${sale.number} dan ${made.qty} dona, ${formatMoney(total, base)}${
           exchange ? `, almashtirildi (${exchange.number})` : ''
-        }${late ? ', muddati o‘tgan' : ''}${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${
-          input.reason ? `. ${input.reason}` : ''
-        }`,
+        }${kept ? `, ${kept.name} hisobida qoldirildi: ${formatMoney(kept.settled, kept.currency)}` : ''}${
+          late ? ', muddati o‘tgan' : ''
+        }${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${input.reason ? `. ${input.reason}` : ''}`,
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['returns', 'sales', 'stock', 'shifts', 'money', 'pos']))
+      // What came off a customer's account, or stayed on it, moves what stands there.
+      const touched = [
+        'returns',
+        'sales',
+        'stock',
+        'shifts',
+        'money',
+        'pos',
+        ...(kept || offAccount ? ['customers'] : []),
+      ]
+      afterCommit(() => this.realtime.changed(actor.orgId, touched))
       return this.load(em, await em.findOneByOrFail(SaleReturn, { id: made.id }))
     })
   }
@@ -649,7 +782,7 @@ export class ReturnsService {
     const back: { base: number }[] = await em.query(
       `SELECT p.base::float8 AS base, p.amount::float8 AS amount
        FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
-       WHERE r.sale_id = $1 AND p.method = 'account'`,
+       WHERE r.sale_id = $1 AND p.method = 'account' AND NOT p.kept`,
       [saleId],
     )
     const rows = back as { base: number; amount: number }[]
@@ -728,9 +861,15 @@ export class ReturnsService {
       .createQueryBuilder(SaleReturnPayment, 'rp')
       .innerJoin(Account, 'a', 'a.id = rp.accountId')
       .addSelect('a.name', 'account_name')
-      .where('rp.returnId = :id', { id: row.id })
+      .where('rp.returnId = :id AND NOT rp.kept', { id: row.id })
       .orderBy('rp.position')
       .getRawAndEntities()
+    const [stayed]: { name: string; currency: AnyCurrency; amount: number; base: number }[] = await em.query(
+      `SELECT c.name, rp.currency, rp.amount::float8 AS amount, rp.base::float8 AS base
+       FROM sale_return_payments rp JOIN accounts a ON a.id = rp.account_id JOIN customers c ON c.id = a.customer_id
+       WHERE rp.return_id = $1 AND rp.kept`,
+      [row.id],
+    )
     return {
       ...summary,
       shiftNumber: shift.number,
@@ -750,9 +889,12 @@ export class ReturnsService {
         currency: refund.currency,
         amount: refund.amount,
         base: refund.base,
-        fx: 0,
+        fx: refund.fx,
         reference: refund.reference,
       })),
+      kept: stayed
+        ? { customerName: stayed.name, currency: stayed.currency, amount: stayed.amount, base: stayed.base }
+        : null,
     }
   }
 }

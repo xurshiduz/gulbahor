@@ -495,6 +495,31 @@ describe('returns', () => {
   const cash = (amount: number, currency: 'UZS' | 'USD' = 'UZS'): Tender => ({ method: 'cash', currency, amount })
   const options = { book: book(12_850, 'UZS'), roundStep: som(1000) }
 
+  it('hands notes of another currency back for a worth agreed, as change is given', () => {
+    // 25 000 owed and no so'm in the drawer: two dollars for it, though the rate makes them 25 700.
+    const agreed = settleRefund(som(25_000), [{ ...cash(usd(2), 'USD'), value: som(25_000) }], options)
+    expect(agreed).toMatchObject({ paid: som(25_000), due: 0, rounding: 0, problem: null })
+    // At the rate they are more than is owed.
+    expect(settleRefund(som(25_000), [cash(usd(2), 'USD')], options).problem).toBe('over')
+  })
+
+  it('takes what stays on the account, and the goods taken instead on it, each with whose it is', () => {
+    const input = {
+      clientKey: KEY,
+      registerId: ID,
+      saleId: ID,
+      lines: [{ saleLineId: ID, qty: 1 }],
+      total: som(95_000),
+    }
+    const kept = returnInputSchema.parse({ ...input, keep: { amount: som(95_000) } })
+    expect(kept.keep).toEqual({ customerId: null, amount: som(95_000), settled: null })
+    expect(returnInputSchema.parse(input).keep).toBeNull()
+    expect(returnInputSchema.safeParse({ ...input, keep: { amount: 0 } }).success).toBe(false)
+    const goods = { lines: [{ variantId: ID, qty: 1 }], total: som(120_000), onAccount: { amount: som(25_000) } }
+    expect(returnInputSchema.safeParse({ ...input, exchange: goods }).success).toBe(false)
+    expect(returnInputSchema.safeParse({ ...input, exchange: { ...goods, customerId: ID } }).success).toBe(true)
+  })
+
   it('values what comes back at what was paid for it, and the parts add up', () => {
     // Three shirts sold for 256 500 after a discount: 85 500 each.
     const line = { qty: 3, total: som(256_500), returnedQty: 0, returnedTotal: 0 }

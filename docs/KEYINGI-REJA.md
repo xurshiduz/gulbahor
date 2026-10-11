@@ -1367,6 +1367,17 @@ Egasining so'rovi: qaytim (bir nechta valyutada, hisobga, kartadan), qaytarishda
 - Standart — to'langan usulda (hozirgi chegaralar). Boshqa usul yoki valyutada — hozirgidek "istalgan usulda qaytarish" ruxsati yoki rahbar PIN'i. "Mijoz hisobiga" — tasdiqsiz.
 - M2-5 ning qolgani shu bo'lakda: almashtirish zanjiri; bekor qilingan chekka tushgan to'lov avans bo'lib qoladi.
 
+**Q2 ning birinchi qismi qanday qurildi (Q2a, 2026-10-11).**
+
+- **Hisobida qoldirish**: qaytarishda `keep: { customerId?, currency?, amount (asosiy valyutada), settled? }` — qaytariladigan pulning shu qismi mijoz hisobida qoladi (avval qarzini yopadi, ortgani haqi). Kimniki: chekdagi mijoz; chek mijozsiz bo'lsa — hozir tanlangani (`keep.customerId`); chekdagi mijozdan boshqasiga yozilmaydi; yetkazib beruvchiga va arxivdagiga yo'q. Tasdiq so'ralmaydi (do'kondan pul chiqmaydi). Hisob boshqa valyutada bo'lsa kun kursida yoki kelishilgan summa bilan (`maxRateLossPercent` dan uzoq bo'lsa — `pos.discount` yoki tasdiq). Bazada `sale_return_payments.kept` (usuli `account`, lekin chekning hisob qismidan ayirilgani emas) va `fx` (migratsiya `1790000049000-return-keeps`); `ReturnDto.kept`. Qarzga olingan tovar avvalgidek o'z qarzidan ayiriladi (`offAccount`) — unga `keep` kerak emas.
+- **Boshqa valyutada kelishilgan qiymat bilan qaytarish**: naqd chet valyuta qatorida `value` (asosiy valyutada) — qaytimdagi kabi; `settleRefund` endi `worthOf` bilan sanaydi; farq `fx` ga; kursdan chegaradan ko'p arzonga — `pos.discount` yoki tasdiq (`RATE_LOSS_OVER_LIMIT`). Kassada ikkinchi maydon endi yoziladi (`features/pos/given-for.tsx`: `GivenInput`, `GivenNote`); kursdagi qiymati qolgan summadan ko'p valyuta qolgan summa o'rniga ketadi (`refundsOf`).
+- **Almashtirishda farq hisobga** (16.5, 30-holat): `exchange.onAccount` — yangi chekdagi kabi (to'siqlar, muddat). Kassada "Qarzga / Hisobidan" bloki almashtirishda ham chiqadi.
+- **Mijozning o'z qaytarish muddati** (32-holat): `customers.return_days` bo'lsa do'konnikidan oldin turadi (`ReturnableDto.returnDays` ham shuni aytadi).
+- Qaytarish uchun chek tanlanganda chekdagi mijoz kassaga o'zi qo'yiladi (savatda boshqa mijoz bo'lmasa).
+- Smena hisobotida "Hisobida qoldirildi" qatori "Hisobidan ayirildi"dan alohida (`ShiftTotals.refunds[].kept`).
+- Testlar: server `return-keeps.spec.ts` (10 ta), core `pos.test`, veb `tender-panel.test` (money handed back), `pos-state.test`.
+- **Q2 dan qolgani (Q2b)**: almashtirib olingan tovar qaytganda asl chekka borish (31-holat — hozir bunday qaytarishda naqd faqat rahbar ruxsati bilan beriladi); smenasi yopilgan chekda mijozni almashtirish (33); qarzini to'lab bo'lgan mijoz tovarni qaytarganda "Pulini berish" taklifi (29 — hozir mijoz tanlanib, "Haqini qaytarish" bilan beriladi, kassirga rahbar PIN'i kerak); qaytarishda chek to'lanmagan kartaga o'tkazish qatori (server `pos.return_any` bilan qabul qiladi, kassada qatori yo'q).
+
 ### 17.4. O'tkazma: bank komissiyasi va terminal tushumi (O1 = V8 + V6)
 
 - Bir xil valyutadagi ikki joy orasidagi o'tkazmada ham **ikki summa** bo'lishi mumkin: "Chiqadi" va "Kiradi". Farqi — komissiya: 101 000 chiqdi, 100 000 kirdi → 1 000 so'm "Bank komissiyasi" xarajatiga o'zi yoziladi. Standart holatda bitta summa; ikkinchisi "Komissiya bor" bosilganda ochiladi (foiz yozsa ham bo'ladi: `1%`).

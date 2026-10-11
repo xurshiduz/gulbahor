@@ -311,9 +311,11 @@ export function ShiftReport({ shift }: { shift: ShiftDto }) {
         )}
         {totals.refunds.map((refund) => (
           <Row
-            key={`back:${refund.method}:${refund.accountName}:${refund.currency}`}
+            key={`back:${refund.method}:${refund.kept ? 'kept' : ''}:${refund.accountName}:${refund.currency}`}
             label={
-              refund.method === 'account' ? t('pos.offAccount') : `${t('sales.refunded')}: ${paymentLabel(refund)}`
+              refund.method === 'account'
+                ? t(refund.kept ? 'pos.keptOnAccount' : 'pos.offAccount')
+                : `${t('sales.refunded')}: ${paymentLabel(refund)}`
             }
             value={`−${money(refund.amount, refund.currency)}`}
           />
