@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-12, Q1, Q2a, O1, O2, Q2b-1, U1a dan keyin: core 232, web 234, agent 17, server 461 (40 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-12, Q1, Q2a, O1, O2, Q2b-1/2, U1a dan keyin: core 232, web 234, agent 17, server 467 (41 fayl); typecheck, lint, check_i18n toza.
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -241,8 +241,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [ ] N0. Tizim nomi — egasi tanlagach (17.8).
      - [x] Q2a. Qaytarishda pul: mijoz hisobida qoldirish, boshqa valyutada kelishilgan qiymat, almashtirishda farq hisobga, mijozning o'z qaytarish muddati (KEYINGI-REJA 17.3).
      - [x] Q2b-1. Qaytarishda do'konning boshqa kartasidan o'tkazish qatori; hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi (haqi va "Haqini qaytarish").
-     - [ ] Q2b-2. Chekda mijozni almashtirish (16.5, 33-holat): hisobdagi qismi va muddati yangi mijozga ko'chadi.
-     - [ ] Q2b-3 (M2-5 dan qolgani). Almashtirib olingan tovar qaytganda asl chekka borish (31-holat): almashtirishda qarzni yangi chekka ko'chirish, naqd chegarasini asl chekdan olish.
+     - [x] Q2b-2. Chekda mijozni almashtirish (16.5, 33-holat): hisobdagi qismi va muddati yangi mijozga ko'chadi.
+     - [ ] Q2b-3. Almashtirib olingan tovar qaytadi (31-holat): almashtirishda qarz yangi chekka ko'chadi, naqd chegarasi asl chekdan olinadi. Q2 (M2-5) shu bilan tugadi.
    - [ ] M3. Yagona mijoz: ekranlar (~5 kun).
    - [ ] M4. Qo'shimcha holatlar: almashtirish, birlashtirish, akt-sverka, boshlang'ich qoldiq Excel'dan (~7 kun).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
@@ -254,7 +254,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-Q2b-2: chekda mijozni almashtirish (16.5, 33-holat), keyin almashtirib olingan tovar qaytganda asl chekka borish (31-holat). Commit qilinmagan: M2-4 dan beri hammasi — egasi aytganda. U1b va tizim nomi — egasi bilan.
+Q2b-3: almashtirib olingan tovar qaytganda asl chekka borish — almashtirishda qarz yangi chekka ko'chadi, naqd chegarasi asl chekdan olinadi. Commit qilinmagan: M2-4 dan beri hammasi — egasi aytganda.
 
 ## Ish daraxti nusxalari
 
@@ -296,3 +296,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `e55ff4bca9a5ae4e54cb149df475618fc8bae880` | O2: mijozdan mijozga o'tkazish (TL- turi transfer, customer_payments.to_customer_id, migratsiya 52000; CustomerTransferDialog) |
 | `e55ff4bca9a5ae4e54cb149df475618fc8bae880` | Q2b-1: qaytarishda boshqa kartadan o'tkazish qatori (yashirin, tasdiq bilan); hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi |
 | `554abe7434c9f65382820d522eb6934020398983` | U1a: 'Olish | Berish' ikki tugma (Segments), Ctrl+Enter katakchada, mijoz valyutasi birinchi (to'lov oynasi va kassa) |
+| `3d681a5a330bb6f138721535a008999a2d138550` | Q2b-2: chekda mijozni almashtirish (POST /sales/:id/customer, sale_customer yozuvi, muddat qarz egasiniki) |

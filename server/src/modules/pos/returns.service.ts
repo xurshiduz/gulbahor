@@ -35,6 +35,7 @@ import { Db } from '../../database/db.service'
 import {
   Account,
   Customer,
+  CustomerDue,
   Location,
   Organization,
   Register,
@@ -69,6 +70,10 @@ const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || ac
 /** The share of an exchange difference that goes with `part` of `whole`, rounded half away from nothing. */
 const fxShareOf = (fx: number, whole: number, part: number) =>
   Math.sign(fx) * Number((BigInt(Math.abs(fx)) * BigInt(part) * 2n + BigInt(whole)) / (BigInt(whole) * 2n))
+
+/** `part` of `whole` of a sum, rounded half up. */
+const shareOf = (sum: number, whole: number, part: number) =>
+  Number((BigInt(sum) * BigInt(part) * 2n + BigInt(whole)) / (BigInt(whole) * 2n))
 
 /** Quantities are kept to three decimals; they are added up as whole thousandths. */
 const milli = (qty: number) => Math.round(qty * 1000)
@@ -355,27 +360,65 @@ export class ReturnsService {
         )
       }
 
-      // ── An exchange: the goods taken instead are a sale, paid first with what came back. ──
-      let credit = 0
-      let exchange: Sale | null = null
-      if (input.exchange) {
-        const sold = await this.sales.createIn(
-          em,
-          actor,
-          { ...input.exchange, clientKey: randomUUID(), registerId: register.id, note: null } as SaleInput,
-          total,
-          approver,
-        )
-        credit = sold.credit
-        exchange = sold.sale
-      }
       // ── What the sale put on the customer's account comes off it first, at what the sale wrote, not today's rate:
-      // nobody is handed money for goods they took on account. ──
+      // nobody is handed money for goods they took on account — nor does a debt stay behind on goods that are gone,
+      // whether money goes back for them or other goods are taken instead. ──
       const onAccount = await this.accountPart(em, sale.id)
       if (onAccount && sale.customerId) {
         await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [sale.customerId])
       }
-      const offAccount = onAccount ? Math.min(total - credit, onAccount.put.base - onAccount.returned.base) : 0
+      const offAccount = onAccount ? Math.min(total, onAccount.put.base - onAccount.returned.base) : 0
+      // The share of it in the account's own currency, and of what the sale wrote down as the rate's.
+      const share = onAccount && offAccount ? accountShare(onAccount.put, onAccount.returned, offAccount) : 0
+      const fxBack =
+        onAccount && offAccount
+          ? offAccount === onAccount.put.base - onAccount.returned.base
+            ? onAccount.fx - onAccount.returned.fx
+            : fxShareOf(onAccount.fx, onAccount.put.base, offAccount)
+          : 0
+
+      // ── An exchange: the goods taken instead are a sale. What was paid in money for the goods that came back
+      // pays for them first; what was still owed for those goes on with these, as far as they are worth it — the
+      // same debt, now on the receipt that has the goods, so that it comes off again if they are brought back. ──
+      let credit = 0
+      let exchange: Sale | null = null
+      if (input.exchange) {
+        const worth = input.exchange.total
+        // What came back is worth more than what is taken: the customer is owed money and pays none.
+        if (total > worth && input.exchange.payments.length) {
+          throw AppError.validation({ payments: 'Qaytarilgan tovar summasi yetarli: qo‘shimcha to‘lov kerak emas' })
+        }
+        const paying = Math.min(total - offAccount, worth)
+        const carried = onAccount ? Math.min(offAccount, worth - paying) : 0
+        const day = carried ? await em.findOneBy(CustomerDue, { saleId: sale.id }) : null
+        const sold = await this.sales.createIn(
+          em,
+          actor,
+          {
+            ...input.exchange,
+            // The debt is whoever's the first receipt was.
+            customerId: carried ? sale.customerId : input.exchange.customerId,
+            clientKey: randomUUID(),
+            registerId: register.id,
+            note: null,
+          } as SaleInput,
+          paying,
+          approver,
+          carried && onAccount
+            ? {
+                accountId: onAccount.accountId,
+                currency: onAccount.currency,
+                base: carried,
+                settled: carried === offAccount ? share : Math.min(share, shareOf(share, offAccount, carried)),
+                fx: carried === offAccount ? fxBack : fxShareOf(fxBack, offAccount, carried),
+                dated: !!day,
+                dueDate: day?.dueDate ?? null,
+              }
+            : null,
+        )
+        credit = sold.credit
+        exchange = sold.sale
+      }
       const due = total - credit - offAccount
 
       // ── What of the money owed stays on the customer's account instead of being handed over: it pays what
@@ -609,13 +652,8 @@ export class ReturnsService {
         postings.push({ accountId: account.id, amount: -credit, base: -credit })
       }
       if (onAccount && offAccount) {
-        const share = accountShare(onAccount.put, onAccount.returned, offAccount)
         // The account was put at its worth on the day of the sale: the same share of that worth comes off,
         // and what the sale wrote down as an exchange difference goes back with it.
-        const last = offAccount === onAccount.put.base - onAccount.returned.base
-        const fxBack = last
-          ? onAccount.fx - onAccount.returned.fx
-          : fxShareOf(onAccount.fx, onAccount.put.base, offAccount)
         await em.insert(SaleReturnPayment, {
           orgId: actor.orgId,
           returnId: made.id,
@@ -729,11 +767,16 @@ export class ReturnsService {
     const byAccount = new Map<string, { method: TenderMethod; paid: number }>()
     // What went on the customer's account is no place money went into: it goes back there, not to a drawer.
     let notCash = 0
+    // What goods brought back paid for: no money of this receipt's own.
+    let swapped = 0
     for (const payment of payments) {
       if (payment.method === 'cash') {
         continue
       }
       notCash += payment.base
+      if (payment.method === 'exchange') {
+        swapped += payment.base
+      }
       if (payment.method === 'card' || payment.method === 'terminal') {
         const entry = byAccount.get(payment.accountId) ?? { method: payment.method, paid: 0 }
         entry.paid += payment.base
@@ -754,9 +797,13 @@ export class ReturnsService {
     const cashBack = back.reduce((sum, row) => sum + (row.method === 'cash' ? row.base : 0), 0) + rounding
     const accounts = byAccount.size ? await em.findBy(Account, { id: In([...byAccount.keys()]) }) : []
     const onAccount = await this.accountPart(em, sale.id)
+    // Goods taken in exchange were paid with the goods before them. Where that first receipt was paid in cash,
+    // cash is what goes back for these — as far as that receipt still has cash to go back.
+    const own = Math.max(0, sale.total - notCash)
+    const inherited = swapped ? Math.min(swapped - Math.max(0, cashBack - own), await this.originRoom(em, sale.id)) : 0
     return {
       account: onAccount ? onAccount.put.base - onAccount.returned.base : 0,
-      cash: Math.max(0, sale.total - notCash - cashBack),
+      cash: Math.max(0, own - cashBack) + Math.max(0, inherited),
       accounts: accounts.map((account) => {
         const entry = byAccount.get(account.id) as { method: TenderMethod; paid: number }
         const gone = back.reduce((sum, row) => sum + (row.account_id === account.id ? row.base : 0), 0)
@@ -769,6 +816,48 @@ export class ReturnsService {
         }
       }),
     }
+  }
+
+  /** The cash a receipt was paid with, and the cash (with what rounding kept) that has gone back against it. */
+  private async cashOf(em: EntityManager, saleId: string): Promise<{ own: number; back: number }> {
+    const [row]: { total: number; other: number; back: number }[] = await em.query(
+      `SELECT s.total::float8 AS total,
+              (SELECT coalesce(sum(p.base), 0) FROM sale_payments p
+               WHERE p.sale_id = s.id AND p.method <> 'cash')::float8 AS other,
+              ((SELECT coalesce(sum(p.base), 0) FROM sale_return_payments p JOIN sale_returns r ON r.id = p.return_id
+                WHERE r.sale_id = s.id AND p.method = 'cash')
+               + (SELECT coalesce(sum(r.rounding), 0) FROM sale_returns r WHERE r.sale_id = s.id))::float8 AS back
+       FROM sales s WHERE s.id = $1`,
+      [saleId],
+    )
+    return { own: Math.max(0, row.total - row.other), back: row.back }
+  }
+
+  /**
+   * The cash that may still go back through goods taken in exchange for a receipt's own: what the receipt those
+   * goods were first sold on was paid in cash, less what has gone back against it — directly, or through any
+   * of the receipts made in exchange for it, this one among them. Nothing where this receipt came of no
+   * exchange. One step back only: a receipt itself paid with goods has no cash of its own to pass on.
+   */
+  private async originRoom(em: EntityManager, saleId: string): Promise<number> {
+    const [origin]: { sale_id: string }[] = await em.query(
+      `SELECT sale_id FROM sale_returns WHERE exchange_sale_id = $1 LIMIT 1`,
+      [saleId],
+    )
+    if (!origin) {
+      return 0
+    }
+    const first = await this.cashOf(em, origin.sale_id)
+    const children: { id: string }[] = await em.query(
+      `SELECT exchange_sale_id AS id FROM sale_returns WHERE sale_id = $1 AND exchange_sale_id IS NOT NULL`,
+      [origin.sale_id],
+    )
+    let through = 0
+    for (const child of children) {
+      const cash = await this.cashOf(em, child.id)
+      through += Math.max(0, cash.back - cash.own)
+    }
+    return Math.max(0, first.own - first.back - through)
   }
 
   /**

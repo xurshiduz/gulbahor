@@ -90,6 +90,23 @@ const ACCOUNT_BAR_CODES: Record<AccountBar, string> = {
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
 
+/**
+ * A debt that goes on with goods taken in exchange: what the goods brought back had put on the customer's
+ * account and still stood there. It is no new lending — the same sum on the same account, now for the goods
+ * that are out — so none of the bars on lending are asked about it.
+ */
+export interface Carried {
+  accountId: string
+  currency: AnyCurrency
+  /** In the sale's money, in the account's, and what the first sale wrote down as the rate's between them. */
+  base: number
+  settled: number
+  fx: number
+  /** The day it falls due, where the first sale's debt had one (`dated`). */
+  dated: boolean
+  dueDate: string | null
+}
+
 function throwIfAny(fields: Record<string, string>) {
   const first = Object.values(fields)[0]
   if (first) {
@@ -144,6 +161,7 @@ export class SalesService {
     input: SaleInput,
     credit: number,
     approver: Approver | null = null,
+    carry: Carried | null = null,
   ): Promise<{ sale: Sale; credit: number }> {
     const register = await em.findOneBy(Register, { id: input.registerId })
     if (!register || !register.isActive || !mayWorkAt(actor, register.locationId)) {
@@ -392,6 +410,8 @@ export class SalesService {
     }
     // Goods brought back pay first; the customer's money is for what is left.
     const used = Math.min(credit, totals.total)
+    // And what they still owed for those goods goes on with these.
+    const carried = carry?.base ?? 0
     if (used < credit && payments.length) {
       throw AppError.validation({ payments: 'Qaytarilgan tovar summasi yetarli: qo‘shimcha to‘lov kerak emas' })
     }
@@ -411,7 +431,12 @@ export class SalesService {
       if (!customer || !rules) {
         throw AppError.validation({ customerId: 'Hisobiga yozish uchun mijozni tanlang' })
       }
-      if (onAccount > totals.total - used) {
+      if (carry && accountCurrency !== carry.currency) {
+        throw AppError.validation({
+          onAccount: `Qaytgan tovarning qarzi ${carry.currency} hisobida: farq ham shu hisobga yoziladi`,
+        })
+      }
+      if (onAccount > totals.total - used - carried) {
         throw AppError.validation({ onAccount: 'Hisobiga yoziladigan summa chekdan oshmasligi kerak' })
       }
       if (accountCurrency !== base && !actor.currencies.includes(accountCurrency)) {
@@ -574,7 +599,7 @@ export class SalesService {
     throwIfAny(fields)
 
     const settlement = settle(
-      totals.total - used - onAccount,
+      totals.total - used - onAccount - carried,
       payments.map((payment) => ({ ...payment, value: payment.base })),
       {
         book,
@@ -601,7 +626,7 @@ export class SalesService {
       throw AppError.validation({ payments: `To‘lov yetarli emas: yana ${formatMoney(settlement.due, base)}` })
     }
     if (settlement.problem === 'change_over') {
-      const over = settlement.paid - (totals.total - used - onAccount)
+      const over = settlement.paid - (totals.total - used - onAccount - carried)
       throw AppError.validation({
         change: over
           ? `Qaytim ${formatMoney(over, base)} dan oshmasligi kerak`
@@ -652,7 +677,7 @@ export class SalesService {
             PAYMENT_METHOD_LABELS[payment.method] +
             (payment.currency !== base ? ` ${CURRENCIES[payment.currency].symbol}` : ''),
         ),
-        ...(onAccount ? [PAYMENT_METHOD_LABELS.account] : []),
+        ...(onAccount || carried ? [PAYMENT_METHOD_LABELS.account] : []),
       ]),
     ].join(', ')
     const sale = await em.save(
@@ -784,22 +809,30 @@ export class SalesService {
         reference: null,
       })
     }
-    if (accountWorth && customer) {
+    if ((accountWorth && customer) || carry) {
       // On the customer's account in that currency; its worth there is what the day's rates make of that sum.
-      const account = await this.ledger.customerAccount(em, customer, accountCurrency)
+      // A debt carried on from goods brought back is one line with it: the same account, as the first sale wrote it.
+      const account = accountWorth && customer ? await this.ledger.customerAccount(em, customer, accountCurrency) : null
       paid.push({
         method: 'account',
-        accountId: account.id,
-        currency: accountCurrency,
-        amount: accountWorth.settled,
-        base: onAccount,
-        fx: accountWorth.partnerBase - onAccount,
+        accountId: (account?.id ?? carry?.accountId) as string,
+        currency: accountWorth ? accountCurrency : (carry as Carried).currency,
+        amount: (accountWorth?.settled ?? 0) + (carry?.settled ?? 0),
+        base: onAccount + carried,
+        fx: (accountWorth ? accountWorth.partnerBase - onAccount : 0) + (carry?.fx ?? 0),
         prepaid,
         reference: null,
       })
-      if (lent) {
-        // What it lends falls due on its day, kept apart from the payment so that the day can be moved.
-        await em.insert(CustomerDue, { orgId: actor.orgId, customerId: customer.id, saleId: sale.id, dueDate })
+      if ((lent || carry?.dated) && customer) {
+        // What it lends falls due on its day, kept apart from the payment so that the day can be moved. A debt
+        // carried on keeps the day it had; with new lending beside it, the earlier of the two.
+        const days = [lent ? dueDate : null, carry?.dated ? carry.dueDate : null].filter((day): day is string => !!day)
+        await em.insert(CustomerDue, {
+          orgId: actor.orgId,
+          customerId: customer.id,
+          saleId: sale.id,
+          dueDate: days.sort()[0] ?? null,
+        })
       }
     }
     await em.insert(
@@ -845,6 +878,7 @@ export class SalesService {
     const gained =
       payments.reduce((sum, payment) => sum + payment.fx, 0) +
       (accountWorth ? accountWorth.partnerBase - onAccount : 0) +
+      (carry?.fx ?? 0) +
       changed.reduce((sum, line) => sum + line.fx, 0)
     if (gained) {
       const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
