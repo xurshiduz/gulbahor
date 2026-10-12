@@ -34,7 +34,8 @@ export function HomePage() {
     enabled: can('audit.view'),
   })
 
-  const modules = MODULES.filter((module) => me.org.modules.includes(module.key))
+  // What the business has switched on, of what can be switched: not what every business has, nor what is not built.
+  const modules = MODULES.filter((module) => module.state === 'optional' && me.org.modules.includes(module.key))
 
   return (
     <Page title={t('home.greeting', { name: me.user.fullName.split(' ')[0] })} flow>
@@ -42,9 +43,15 @@ export function HomePage() {
         {/* What the day has sold comes first, for whoever may read it. */}
         {can('reports.sales') ? <SalesToday /> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {can('locations.view') ? <Stat to="/locations" icon={Building2} label={t('home.places')} value={locations.data?.total} /> : null}
-          {can('users.view') ? <Stat to="/users" icon={Users} label={t('home.people')} value={users.data?.total} /> : null}
-          {can('roles.manage') ? <Stat to="/roles" icon={KeyRound} label={t('nav.roles')} value={undefined} hideValue /> : null}
+          {can('locations.view') ? (
+            <Stat to="/locations" icon={Building2} label={t('home.places')} value={locations.data?.total} />
+          ) : null}
+          {can('users.view') ? (
+            <Stat to="/users" icon={Users} label={t('home.people')} value={users.data?.total} />
+          ) : null}
+          {can('roles.manage') ? (
+            <Stat to="/roles" icon={KeyRound} label={t('nav.roles')} value={undefined} hideValue />
+          ) : null}
           {!me.user.hasPin ? (
             <Link
               to="/profile"
@@ -86,7 +93,10 @@ export function HomePage() {
               ) : (
                 <ul className="flex flex-col">
                   {recent.data?.items.map((item) => (
-                    <li key={item.id} className="flex items-baseline gap-3 border-b border-line py-1.5 text-[13px] last:border-0">
+                    <li
+                      key={item.id}
+                      className="flex items-baseline gap-3 border-b border-line py-1.5 text-[13px] last:border-0"
+                    >
                       <span className="tabular w-28 shrink-0 text-xs text-ink-3">{formatRecent(item.at)}</span>
                       <span className="min-w-0 flex-1 truncate">
                         <span className="font-medium">{item.actorName ?? t('audit.system')}</span>
@@ -119,7 +129,10 @@ function Stat({
   hideValue?: boolean
 }) {
   return (
-    <Link to={to} className="flex items-center gap-3 rounded-lg border border-line bg-surface p-4 shadow-card transition-colors hover:border-line-strong">
+    <Link
+      to={to}
+      className="flex items-center gap-3 rounded-lg border border-line bg-surface p-4 shadow-card transition-colors hover:border-line-strong"
+    >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-ink">
         <Icon className="size-4.5" />
       </span>

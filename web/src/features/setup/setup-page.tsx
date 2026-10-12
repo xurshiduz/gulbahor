@@ -14,6 +14,7 @@ import { applyServerErrors, Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { AuthLayout } from '@/features/auth/login-page'
 import { useSession } from '@/features/auth/session'
+import { switched } from '@/features/settings/module-list'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
@@ -68,15 +69,7 @@ export function SetupPage() {
   }
 
   const toggleModule = (key: string, checked: boolean) => {
-    const next = new Set(modules)
-    if (checked) {
-      next.add(key)
-      MODULES.find((module) => module.key === key)?.requires?.forEach((required) => next.add(required))
-    } else {
-      next.delete(key)
-      MODULES.filter((module) => module.requires?.includes(key)).forEach((dependent) => next.delete(dependent.key))
-    }
-    form.setValue('modules', [...next], { shouldDirty: true })
+    form.setValue('modules', switched(modules, key, checked), { shouldDirty: true })
   }
 
   const steps = [t('setup.stepBusiness'), t('setup.stepPlaces'), t('setup.stepModules')]
@@ -211,12 +204,17 @@ export function SetupPage() {
           <>
             <p className="text-xs text-ink-3">{t('setup.modulesHint')}</p>
             <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {MODULES.map((module) => (
+              {/* What every business has anyway is not asked about; what is not built yet is remembered. */}
+              {MODULES.filter((module) => module.state !== 'included').map((module) => (
                 <Checkbox
                   key={module.key}
                   checked={modules.includes(module.key)}
                   onChange={(checked) => toggleModule(module.key, checked)}
-                  label={module.title}
+                  label={
+                    module.state === 'planned'
+                      ? `${module.title} · ${t('settings.notReady').toLowerCase()}`
+                      : module.title
+                  }
                   hint={module.description}
                 />
               ))}

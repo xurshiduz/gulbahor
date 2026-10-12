@@ -1,4 +1,4 @@
-import { MODULES, orgUpdateSchema, type OrgDto } from '@erp/core'
+import { orgUpdateSchema, type OrgDto } from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Controller, useForm } from 'react-hook-form'
@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Switch, TabPanel, Tabs } from '@/components/ui/controls'
-import { Badge } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodSubmit } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -20,6 +19,7 @@ import { toast } from '@/lib/toast'
 
 import { BaseCurrencyCard } from './base-currency'
 import { LabelSettings } from './label-settings'
+import { ModuleList, switched } from './module-list'
 import { ReceiptSettings } from './receipt-settings'
 
 const route = getRouteApi('/settings')
@@ -290,61 +290,19 @@ function BusinessSettings() {
 }
 
 function ModuleSettings() {
-  const { t } = useTranslation()
   const { me } = useSession()
   const saveOrg = useSaveOrg()
-  const enabled = new Set(me.org.modules)
 
   const mutation = useMutation({
     mutationFn: (modules: string[]) => api.put<OrgDto>('/org/modules', { modules }),
     onSuccess: (org) => saveOrg(org),
   })
 
-  const toggle = (key: string, on: boolean) => {
-    const next = new Set(enabled)
-    if (on) {
-      next.add(key)
-      MODULES.find((module) => module.key === key)?.requires?.forEach((required) => next.add(required))
-    } else {
-      next.delete(key)
-      // Whatever needs this module cannot stay on without it.
-      MODULES.filter((module) => module.requires?.includes(key)).forEach((dependent) => next.delete(dependent.key))
-    }
-    mutation.mutate([...next])
-  }
-
   return (
-    <div className="flex flex-col gap-3">
-      <Card className="divide-y divide-line p-0">
-        {MODULES.map((module) => {
-          const required = module.requires
-            ?.map((key) => MODULES.find((item) => item.key === key)?.title)
-            .filter(Boolean)
-          return (
-            <div key={module.key} className="px-4 py-3">
-              <Switch
-                checked={enabled.has(module.key)}
-                onChange={(on) => toggle(module.key, on)}
-                disabled={mutation.isPending}
-                label={
-                  <span className="flex items-center gap-2">
-                    {module.title}
-                    {!module.ready ? <Badge tone="warn">{t('settings.notReady')}</Badge> : null}
-                  </span>
-                }
-                hint={
-                  <>
-                    {module.description}
-                    {required?.length ? (
-                      <span className="text-ink-2"> {t('settings.requires', { name: required.join(', ') })}.</span>
-                    ) : null}
-                  </>
-                }
-              />
-            </div>
-          )
-        })}
-      </Card>
-    </div>
+    <ModuleList
+      enabled={new Set(me.org.modules)}
+      onToggle={(key, on) => mutation.mutate(switched(me.org.modules, key, on))}
+      busy={mutation.isPending}
+    />
   )
 }

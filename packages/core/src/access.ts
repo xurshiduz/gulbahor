@@ -4,12 +4,18 @@
  * enforces exactly what the screens show.
  */
 
+/**
+ * Where a module stands. `optional` — built, and a business's to switch on or off: off, it is neither in the menu
+ * nor in the forms. `included` — built, and part of every business: there is nothing to switch. `planned` — not
+ * built yet: the choice is remembered, and the module is on from the day it is.
+ */
+export type ModuleState = 'optional' | 'included' | 'planned'
+
 export interface ModuleInfo {
   key: string
   title: string
   description: string
-  /** Not built yet: the choice is remembered, nothing appears in the UI. */
-  ready: boolean
+  state: ModuleState
   requires?: string[]
 }
 
@@ -18,68 +24,71 @@ export const MODULES: ModuleInfo[] = [
     key: 'rfid',
     title: 'RFID',
     description: 'Har dona alohida kuzatiladi: etiketka chop etish, RFID bilan sotish, sanash va darvoza.',
-    ready: true,
+    state: 'optional',
   },
   {
     key: 'partners',
-    title: 'Hamkorlar',
-    description: 'Boshqa sotuvchilarga qarzga tovar berish, to‘lovlar, akt-sverka, kredit limiti.',
-    ready: false,
+    title: 'Mijoz va yetkazib beruvchi hisobi',
+    description:
+      'Qarzga tovar berish va olish, har valyutada alohida hisob, to‘lovlar, akt-sverka, qarz chegarasi — «Mijozlar» bo‘limida.',
+    state: 'included',
+  },
+  {
+    key: 'retail_credit',
+    title: 'Mijozga qarzga sotish',
+    description:
+      'Kassada «Qarzga / Balansidan»: to‘lash muddati, qarz chegarasi, muddati o‘tgan qarz va rahbar tasdig‘i.',
+    state: 'included',
+  },
+  {
+    key: 'terminal',
+    title: 'Bank terminali',
+    description:
+      'Terminal to‘lovlari smena yopilishida terminalning yakuniy cheki bilan solishtiriladi; bankka tushum va ekvayring foizi — «Pul → O‘tkazmalar»da.',
+    state: 'included',
+  },
+  {
+    key: 'landed_cost',
+    title: 'Import xarajatlari',
+    description: 'Yo‘l, bojxona va boshqa xarajatlar kirim hujjatida tovar tannarxiga taqsimlanadi.',
+    state: 'included',
   },
   {
     key: 'consignment',
     title: 'Konsignatsiya',
     description: 'Tovar sotilgandan keyin to‘lanadi, sotilmagani qaytariladi.',
-    ready: false,
-    requires: ['partners'],
+    state: 'planned',
   },
   {
     key: 'cards',
     title: 'Kartalar nazorati',
     description: 'Bank xabarlari Telegram’dan o‘qiladi: kartaga pul tushgani sotuvga bog‘lanadi.',
-    ready: false,
-  },
-  {
-    key: 'terminal',
-    title: 'Bank terminali',
-    description: 'Terminal to‘lovlari bank tushumi bilan solishtiriladi, komissiya hisobga olinadi.',
-    ready: false,
-  },
-  {
-    key: 'landed_cost',
-    title: 'Import xarajatlari',
-    description: 'Yo‘l, bojxona va boshqa xarajatlar tovar tannarxiga taqsimlanadi.',
-    ready: false,
+    state: 'planned',
   },
   {
     key: 'loyalty',
     title: 'Keshbek',
-    description: 'Mijoz telefon raqami bo‘yicha taniladi, xariddan ball oladi, chek Telegram’ga keladi.',
-    ready: false,
-  },
-  {
-    key: 'retail_credit',
-    title: 'Chakana mijozga qarz',
-    description: 'Tanish mijozga qarzga berish, limit bilan.',
-    ready: false,
+    description:
+      'Xariddan ball yig‘iladi, chek Telegram’ga keladi. Xaridlar summasiga qarab chegirma hozir ham bor: «Sodiqlik dasturi».',
+    state: 'planned',
   },
   {
     key: 'payroll',
     title: 'Xodimlar maoshi',
     description: 'Oylik, sotuvdan foiz, bonus, jarima va oylik vedomost.',
-    ready: false,
+    state: 'planned',
   },
   {
     key: 'shareholders',
     title: 'Sheriklar',
     description: 'Sheriklarning foydadagi ulushi va biznesdan olgan pullari.',
-    ready: false,
+    state: 'planned',
   },
   {
     key: 'fiscal',
     title: 'Onlayn-kassa',
     description: 'Har sotuv soliqqa ulangan kassaga uzatiladi, chekda soliq QR kodi chiqadi.',
-    ready: false,
+    state: 'planned',
   },
 ]
 
