@@ -38,6 +38,7 @@ import {
   type SaleListQuery,
   type SaleVoidInput,
   type TenderMethod,
+  type PriceFrom,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import { In, type EntityManager } from 'typeorm'
@@ -89,6 +90,10 @@ const ACCOUNT_BAR_CODES: Record<AccountBar, string> = {
 }
 
 const mayWorkAt = (actor: Actor, locationId: string) => actor.allLocations || actor.locationIds.includes(locationId)
+
+/** What a receipt keeps of where a line's price came from: only that it was not a price set for it. */
+const fromOf = (priceFrom: PosItemDto['priceFrom']): PriceFrom | null =>
+  priceFrom === 'formula' || priceFrom === 'retail' ? priceFrom : null
 
 /**
  * A debt that goes on with goods taken in exchange: what the goods brought back had put on the customer's
@@ -228,7 +233,6 @@ export class SalesService {
       em,
       { ids: [...new Set(input.lines.map((line) => line.variantId))] },
       register.locationId,
-      await this.currencies.book(em, actor, today),
       priceType?.id ?? null,
       running,
     )
@@ -321,12 +325,15 @@ export class SalesService {
         approver
           ? `${approver.name} minimal narxdan past sotishni tasdiqlay olmaydi`
           : `«${priced[under[0]].name}» minimal narxdan past: rahbar tasdig‘i kerak`,
+        // The floor may be the cost itself: only those who may see cost are told it.
         Object.fromEntries(
           under.map((index) => {
             const line = priced[index]
             return [
               `lines.${index}.discount`,
-              `Minimal narx ${formatMoney(floorOf(line.price, line.minPrice, line.qty) as number, base)}`,
+              can(actor, 'stock.cost')
+                ? `Minimal narx ${formatMoney(floorOf(line.price, line.minPrice, line.qty) as number, base)}`
+                : 'Minimal narxdan past',
             ]
           }),
         ),
@@ -429,15 +436,15 @@ export class SalesService {
     const accountCurrency = input.onAccount?.currency ?? customer?.currency ?? base
     if (input.onAccount) {
       if (!customer || !rules) {
-        throw AppError.validation({ customerId: 'Hisobiga yozish uchun mijozni tanlang' })
+        throw AppError.validation({ customerId: 'Balansga yozish uchun mijozni tanlang' })
       }
       if (carry && accountCurrency !== carry.currency) {
         throw AppError.validation({
-          onAccount: `Qaytgan tovarning qarzi ${carry.currency} hisobida: farq ham shu hisobga yoziladi`,
+          onAccount: `Qaytgan tovarning qarzi ${carry.currency} balansida: farq ham shu balansga yoziladi`,
         })
       }
       if (onAccount > totals.total - used - carried) {
-        throw AppError.validation({ onAccount: 'Hisobiga yoziladigan summa chekdan oshmasligi kerak' })
+        throw AppError.validation({ onAccount: 'Balansga yoziladigan summa chekdan oshmasligi kerak' })
       }
       if (accountCurrency !== base && !actor.currencies.includes(accountCurrency)) {
         throw AppError.validation({ onAccount: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
@@ -565,7 +572,7 @@ export class SalesService {
         account = card
       } else {
         if (!customer) {
-          throw AppError.validation({ customerId: 'Qaytimni hisobiga yozish uchun mijozni tanlang' })
+          throw AppError.validation({ customerId: 'Qaytimni balansda qoldirish uchun mijozni tanlang' })
         }
         // A supplier's account is the business's dealings with them: the till writes there on the word a
         // sale on that account takes.
@@ -574,15 +581,15 @@ export class SalesService {
             throw AppError.badRequest(
               'SUPPLIER_ON_ACCOUNT',
               approver
-                ? `${approver.name} yetkazib beruvchi hisobiga yozishni tasdiqlay olmaydi`
-                : `${customer.name} — yetkazib beruvchi: hisobiga qaytim rahbar tasdig‘i bilan yoziladi`,
+                ? `${approver.name} yetkazib beruvchi balansiga yozishni tasdiqlay olmaydi`
+                : `${customer.name} — yetkazib beruvchi: balansiga qaytim rahbar tasdig‘i bilan yoziladi`,
               { [`change.${index}.way`]: `${customer.name} — yetkazib beruvchi` },
             )
           }
           soldByWord = true
         }
         if (input.onAccount) {
-          fields[`change.${index}.way`] = 'Chekning bir qismi hisobiga yozilgan: o‘sha summani kamaytiring'
+          fields[`change.${index}.way`] = 'Chekning bir qismi balansga yozilgan: o‘sha summani kamaytiring'
           continue
         }
         const currency = line.currency ?? customer.currency ?? base
@@ -740,6 +747,7 @@ export class SalesService {
           promotionId: autos[index].promo?.id ?? null,
           promotionName: autos[index].promo?.name ?? null,
           promoDiscount: Math.min(autos[index].promoOff, totals.lines[index].auto),
+          priceFrom: fromOf(itemOf.get(line.variantId)?.priceFrom),
           total: totals.lines[index].total,
           costUzs: 0,
           unitId: line.epc ? (unitOf.get(line.epc)?.id ?? null) : null,
@@ -918,7 +926,7 @@ export class SalesService {
         .filter((line) => line.way !== 'cash')
         .map(
           (line) =>
-            `, ${line.way === 'account' ? 'qaytim hisobiga yozildi' : 'qaytim kartadan berildi'}: ${formatMoney(line.amount, line.currency)}`,
+            `, ${line.way === 'account' ? 'qaytim balansida qoldi' : 'qaytim kartadan berildi'}: ${formatMoney(line.amount, line.currency)}`,
         )
         .join('')}${vouched && approver ? `, tasdiqladi: ${approver.name}` : ''}`,
     })
@@ -1042,11 +1050,11 @@ export class SalesService {
       if (lent || kept.length) {
         if (!next) {
           throw AppError.validation({
-            customerId: 'Chekning bir qismi mijoz hisobida turibdi: mijozsiz qoldirib bo‘lmaydi',
+            customerId: 'Chekning bir qismi mijoz balansida turibdi: mijozsiz qoldirib bo‘lmaydi',
           })
         }
         if (next.isSupplier) {
-          throw AppError.validation({ customerId: `${next.name} — yetkazib beruvchi: hisobiga chek yozilmaydi` })
+          throw AppError.validation({ customerId: `${next.name} — yetkazib beruvchi: balansiga chek yozilmaydi` })
         }
       }
       // Both are held, always in the same order: nothing else moves either account meanwhile.
@@ -1097,7 +1105,7 @@ export class SalesService {
         entity: 'sale',
         entityId: id,
         summary: `${sale.number}: ${sale.customerName ?? 'mijozsiz'} → ${next?.name ?? 'mijozsiz'}${
-          postings.length ? ', hisobdagi qismi ham ko‘chdi' : ''
+          postings.length ? ', balansdagi qismi ham ko‘chdi' : ''
         }`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['sales', 'customers', 'pos']))
@@ -1178,6 +1186,7 @@ export class SalesService {
       auto_discount: number
       promotion_name: string | null
       promo_discount: number
+      price_from: PriceFrom | null
       total: number
       epc: string | null
       returned_qty: number
@@ -1185,7 +1194,7 @@ export class SalesService {
     }[] = await em.query(
       `SELECT sl.id, sl.variant_id, p.name, v.sku, array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
               sl.qty::float8 AS qty, sl.price::float8 AS price, sl.discount::float8 AS discount, sl.auto_discount::float8 AS auto_discount,
-              sl.promotion_name, sl.promo_discount::float8 AS promo_discount,
+              sl.promotion_name, sl.promo_discount::float8 AS promo_discount, sl.price_from,
               sl.total::float8 AS total, u.epc, sl.returned_qty::float8 AS returned_qty,
               sl.returned_total::float8 AS returned_total
        FROM sale_lines sl
@@ -1260,6 +1269,7 @@ export class SalesService {
         autoDiscount: line.auto_discount,
         promotionName: line.promotion_name,
         promoDiscount: line.promo_discount,
+        priceFrom: line.price_from,
         total: line.total,
         epc: line.epc,
         returnedQty: line.returned_qty,

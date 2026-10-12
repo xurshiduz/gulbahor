@@ -31,12 +31,24 @@ describe('Catalogue', () => {
 
   let color: AttributeRow
   let size: AttributeRow
-  let priceTypes: (Named & { kind: string })[]
+  let priceTypes: (Named & {
+    kind: string
+    currency: string
+    formula: unknown
+    roundStep: number
+    roundEnding: number
+  })[]
   let shirtsId: string
 
   const valueId = (attribute: AttributeRow, name: string) => attribute.values.find((value) => value.name === name)!.id
   const retail = () => priceTypes.find((type) => type.kind === 'retail')!.id
-  const wholesale = () => priceTypes.find((type) => type.kind === 'wholesale')!.id
+  const wholesale = () => priceTypes.find((type) => type.name === 'Ulgurji')!.id
+  const floor = () => priceTypes.find((type) => type.kind === 'min')!.id
+  /** What a price type's form sends back unchanged. */
+  const fieldsOf = (id: string) => {
+    const { name, roundStep, roundEnding } = priceTypes.find((type) => type.id === id)!
+    return { name, roundStep, roundEnding }
+  }
 
   /** A model in colour × letter size with one variant per listed pair. */
   const model = (name: string, pairs: [string, string][], extra: Record<string, unknown> = {}) => ({
@@ -67,26 +79,43 @@ describe('Catalogue', () => {
 
   describe('what a new business starts with', () => {
     it('has price types, colours, size scales and categories', async () => {
-      expect(priceTypes.map((type) => type.kind)).toEqual(['retail', 'wholesale', 'min'])
+      expect(priceTypes.map((type) => [type.name, type.kind])).toEqual([
+        ['Chakana', 'retail'],
+        ['Ulgurji', 'other'],
+        ['Minimal', 'min'],
+      ])
+      // No floor until the business says how it is worked out.
+      expect(priceTypes.find((type) => type.kind === 'min')!.formula).toBeNull()
       expect(color.values.find((value) => value.name === 'Qora')?.hex).toBe('#000000')
       expect(size.values.map((value) => value.name).slice(0, 4)).toEqual(['XXS', 'XS', 'S', 'M'])
       // Running the starter again adds nothing.
       expect((await alpha.post('/api/catalog/starter').expect(201)).body).toEqual({ applied: false })
     })
 
-    it('keeps exactly one retail price type', async () => {
-      await alpha.post('/api/price-types').send({ name: 'Chakana 2', kind: 'retail', currency: 'UZS' }).expect(400)
-      await alpha.post(`/api/price-types/${retail()}/archive`).expect(409)
-      await alpha.delete(`/api/price-types/${retail()}`).expect(409)
+    it('keeps the retail price and the floor, one of each, and asks a new one nothing of its kind or currency', async () => {
+      // Whatever is said of a kind or a currency, a new type is an added one, in the base.
+      const added = (
+        await alpha.post('/api/price-types').send({ name: 'Chakana 2', kind: 'retail', currency: 'USD' }).expect(201)
+      ).body
+      expect(added).toMatchObject({ kind: 'other', currency: 'UZS' })
+      await alpha.delete(`/api/price-types/${added.id}`).expect(204)
+      for (const id of [retail(), floor()]) {
+        const archived = await alpha.post(`/api/price-types/${id}/archive`).expect(409)
+        expect(archived.body.error.code).toBe('SYSTEM_PRICE_TYPE')
+        await alpha.delete(`/api/price-types/${id}`).expect(409)
+      }
+      // The floor is never sold at, and the retail price is the till's own.
       await alpha
-        .put(`/api/price-types/${retail()}`)
-        .send({ name: 'Chakana', kind: 'other', currency: 'UZS' })
+        .put(`/api/price-types/${floor()}`)
+        .send({ ...fieldsOf(floor()), tillAccess: 'all' })
         .expect(400)
-      const vip = await alpha
-        .post('/api/price-types')
-        .send({ name: 'Doimiy hamkor', kind: 'other', currency: 'USD' })
-        .expect(201)
-      await alpha.delete(`/api/price-types/${vip.body.id}`).expect(204)
+      // Renamed, it stays what it was.
+      const renamed = await alpha
+        .put(`/api/price-types/${retail()}`)
+        .send({ ...fieldsOf(retail()), name: 'Sotuv narxi', kind: 'other' })
+        .expect(200)
+      expect(renamed.body).toMatchObject({ name: 'Sotuv narxi', kind: 'retail' })
+      await alpha.put(`/api/price-types/${retail()}`).send(fieldsOf(retail())).expect(200)
     })
   })
 

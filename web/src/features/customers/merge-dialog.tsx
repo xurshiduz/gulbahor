@@ -11,7 +11,8 @@ import { Form } from '@/components/ui/form'
 import { api, ApiError } from '@/lib/api'
 import { toast } from '@/lib/toast'
 
-import { useCustomer, useCustomerChoices, useDebtText } from './choices'
+import { Balances } from './balance'
+import { useCustomer, useCustomerChoices } from './choices'
 
 /**
  * One person written down twice: the card the window was opened for goes into
@@ -22,17 +23,13 @@ import { useCustomer, useCustomerChoices, useDebtText } from './choices'
 export function MergeDialog({ customer, onClose }: { customer: CustomerDto; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const debtText = useDebtText()
   const [intoId, setIntoId] = useState<string | null>(null)
   const [error, setError] = useState<string | undefined>()
   const { choices, search } = useCustomerChoices([intoId])
   const kept = useCustomer(intoId).data
-  const said = (balances: CustomerDto['balances']) =>
-    (balances ?? [])
-      .filter((item) => item.balance)
-      .map((item) => debtText(item.balance, item.currency))
-      .join(', ')
-  const moves = said(customer.balances)
+  const owing = (balances: CustomerDto['balances']) => (balances ?? []).filter((item) => item.balance)
+  const moves = owing(customer.balances)
+  const theirs = kept ? owing(kept.balances) : []
 
   const merge = useMutation({
     mutationFn: () => api.post<CustomerDto>(`/customers/${customer.id}/merge`, { intoId }),
@@ -76,7 +73,7 @@ export function MergeDialog({ customer, onClose }: { customer: CustomerDto; onCl
         <Field
           label={t('customers.mergeInto')}
           error={error}
-          hint={kept ? said(kept.balances) || undefined : undefined}
+          hint={theirs.length ? <Balances items={theirs} /> : undefined}
           required
         >
           {(id) => (
@@ -104,9 +101,9 @@ export function MergeDialog({ customer, onClose }: { customer: CustomerDto; onCl
         </Field>
         <div data-merge-note className="flex flex-col gap-1.5 rounded-md bg-sunken p-3 text-[13px] text-ink-2">
           <p>{t('customers.mergeWhat', { name: customer.name })}</p>
-          {moves ? (
+          {moves.length ? (
             <p className="font-medium text-ink">
-              {t('customers.mergeMoves')}: {moves}
+              {t('customers.mergeMoves')}: <Balances items={moves} />
             </p>
           ) : null}
         </div>

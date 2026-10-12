@@ -469,7 +469,7 @@ describe('the ready lines of an expense', () => {
   it("are counted in so'm, dollars at the day's rate, under words of their own", async () => {
     render(<Expense start={[row('uzs'), row('usd')]} />)
     expect(screen.getByText('So‘mda')).toBeTruthy()
-    expect(screen.queryByText('Mijoz hisobiga')).toBeNull()
+    expect(screen.queryByText('Mijoz balansiga')).toBeNull()
 
     // So'm have one field; dollars have their worth in so'm beside them.
     const [som1, dollars, worth, total] = fields()

@@ -237,14 +237,6 @@ describe('Currencies', () => {
     expect((await beta.get('/api/auth/me').expect(200)).body.org.currencies).toEqual(['USD', 'CNY'])
   })
 
-  it('are not put away while prices are set in them', async () => {
-    const types = (await beta.get('/api/price-types').expect(200)).body as { id: string; kind: string }[]
-    await sql(`UPDATE price_types SET currency = 'USD' WHERE id = $1`, [types[0].id])
-    const priced = await beta.post('/api/currencies/USD/archive').expect(409)
-    expect(priced.body.error.code).toBe('CURRENCY_PRICED')
-    await sql(`UPDATE price_types SET currency = 'UZS' WHERE id = $1`, [types[0].id])
-  })
-
   it('are written into the history: who switched what on, and who set which rate', async () => {
     const rows = await sql<{ action: string; summary: string }[]>(
       `SELECT a.action, a.summary FROM audit_log a JOIN organizations o ON o.id = a.org_id

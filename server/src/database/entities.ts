@@ -21,12 +21,14 @@ import type {
   CustomerPaymentStatus,
   PaymentMethod,
   TillAccess,
+  PriceFormula,
   PriceKind,
   PrinterDpi,
   PromotionKind,
   PrintJobStatus,
   RateWay,
   ReaderKind,
+  ReceiptPricing,
   ReceiptStatus,
   SaleStatus,
   Season,
@@ -917,6 +919,10 @@ export class Receipt {
   @Column('text', { nullable: true })
   note: string | null
 
+  /** How this receipt prices its own goods where the rules are not followed, by price type id. */
+  @Column('jsonb', { default: () => "'{}'" })
+  pricing: Record<string, ReceiptPricing>
+
   @Column('text', { nullable: true })
   sourceFile: string | null
 
@@ -1004,12 +1010,13 @@ export class ReceiptLine {
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   retailPrice: number | null
 
-  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
-  wholesalePrice: number | null
-
   /** Prices for the other price types, by price type id. */
   @Column('jsonb', { default: () => "'{}'" })
   otherPrices: Record<string, number>
+
+  /** Prices typed as formulas, by price type id: worked out when the receipt is posted. */
+  @Column('jsonb', { default: () => "'{}'" })
+  priceFormulas: Record<string, PriceFormula>
 
   @Column('bigint', { nullable: true, transformer: bigintAsNumber })
   costUzs: number | null
@@ -1581,6 +1588,10 @@ export class PriceRuleMarkup {
 
   @Column('numeric', { transformer: numericAsNumber })
   percent: number
+
+  /** A sum beside the percentage, or — for a price named outright — the price: in the price type's currency. */
+  @Column('bigint', { transformer: bigintAsNumber, default: 0 })
+  amount: number
 }
 
 /** One change of many prices at once. */
@@ -2013,6 +2024,13 @@ export class SaleLine {
 
   @Column('text', { nullable: true })
   promotionName: string | null
+
+  /**
+   * Sold at a price type that had no price for it: at what the type's formula made (`formula`), or at the retail
+   * price (`retail`). Null for a line sold at a price that was set.
+   */
+  @Column('text', { nullable: true })
+  priceFrom: 'formula' | 'retail' | null
 
   @Column('bigint', { transformer: bigintAsNumber, default: 0 })
   promoDiscount: number

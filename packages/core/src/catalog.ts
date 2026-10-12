@@ -53,14 +53,17 @@ export const ATTRIBUTE_KIND_LABELS: Record<AttributeKind, string> = {
   other: 'Boshqa',
 }
 
-export const PRICE_KINDS = ['retail', 'wholesale', 'min', 'other'] as const
+/**
+ * The retail price and the floor are the system's own: every business has one of each from the start, and
+ * neither can go. Every price type a business adds — wholesale, family, a friends' price — is `other`.
+ */
+export const PRICE_KINDS = ['retail', 'min', 'other'] as const
 export type PriceKind = (typeof PRICE_KINDS)[number]
 
 export const PRICE_KIND_LABELS: Record<PriceKind, string> = {
   retail: 'Chakana',
-  wholesale: 'Ulgurji',
   min: 'Minimal',
-  other: 'Boshqa',
+  other: 'Qo‘shimcha',
 }
 
 export const MAX_AXES = 3
@@ -255,14 +258,12 @@ export const TILL_ACCESS_LABELS: Record<TillAccess, string> = {
 }
 
 /** The kinds of price a sale can be made at beside the retail one: the floor is never sold at. */
-export const TILL_PRICE_KINDS: readonly PriceKind[] = ['wholesale', 'other']
+export const TILL_PRICE_KINDS: readonly PriceKind[] = ['other']
 
+/** A price type says nothing of its kind or currency: a new one is always `other`, and every price is in the base. */
 export const priceTypeInputSchema = z
   .object({
     name: requiredText(60),
-    kind: z.enum(PRICE_KINDS),
-    /** The base or a currency the business has switched on: the server, which knows them, refuses any other. */
-    currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]),
     /** Prices worked out by rule move in steps of this (minor units); 0 leaves them as worked out. */
     roundStep: z.number().int().min(0).max(1_000_000_000_00).default(0),
     /** What such a price ends with inside a step: 9 000 with a step of 10 000 gives 49 000, 59 000... */
@@ -270,14 +271,21 @@ export const priceTypeInputSchema = z
     tillAccess: z.enum(TILL_ACCESS).default('none'),
     /** A sale at this price may go under the floor: a family price at cost is meant to. */
     skipsFloor: z.boolean().default(false),
+    /**
+     * How its prices are worked out where no narrower rule says: from cost or from the retail price, with a
+     * percentage and a sum. Null: by hand, nothing is worked out. Left out, it stays as it is.
+     */
+    formula: z
+      .object({
+        base: z.enum(['cost', 'retail']),
+        percent: z.number().min(-99).max(10_000).default(0),
+        amount: z.number().int().min(-1_000_000_000_000_00).max(1_000_000_000_000_00).default(0),
+      })
+      .nullish(),
   })
   .refine((type) => type.roundEnding === 0 || type.roundEnding < type.roundStep, {
     path: ['roundEnding'],
     message: 'Oxiri qadamdan kichik bo‘lishi kerak',
-  })
-  .refine((type) => type.tillAccess === 'none' || TILL_PRICE_KINDS.includes(type.kind), {
-    path: ['tillAccess'],
-    message: 'Chakana narx — kassaning o‘z narxi; minimal narxda esa sotilmaydi',
   })
 export type PriceTypeInput = z.infer<typeof priceTypeInputSchema>
 
@@ -285,11 +293,14 @@ export interface PriceTypeDto {
   id: string
   name: string
   kind: PriceKind
+  /** Always the base: prices are kept in nothing else. */
   currency: CurrencyCode
   roundStep: number
   roundEnding: number
   tillAccess: TillAccess
   skipsFloor: boolean
+  /** Its own way of being worked out, where no narrower rule says otherwise; null: by hand. */
+  formula: { base: 'cost' | 'retail'; percent: number; amount: number } | null
   isActive: boolean
 }
 
@@ -301,7 +312,7 @@ const amountSchema = z.number().int().min(0).max(1_000_000_000_000_00)
 export const priceInputSchema = z.object({
   priceTypeId: idSchema,
   amount: amountSchema,
-  /** The base or the dollar, as a price type's. */
+  /** The base: the server refuses any other. */
   currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]),
 })
 export type PriceInput = z.infer<typeof priceInputSchema>

@@ -45,7 +45,8 @@ describe('Prices set by a receipt', () => {
         .expect(201)
     ).body as PriceType
     const list = (await alpha.get('/api/price-types').expect(200)).body as PriceType[]
-    const of = (kind: string) => list.find((type) => type.kind === kind)!.id
+    const of = (kind: string) =>
+      list.find((type) => (kind === 'wholesale' ? type.name === 'Ulgurji' : type.kind === kind))!.id
     types = { retail: of('retail'), wholesale: of('wholesale'), min: of('min'), family: family.id }
     dress = (
       await alpha
@@ -65,8 +66,7 @@ describe('Prices set by a receipt', () => {
       qty: 4,
       price: som(120_000),
       retailPrice: som(200_000),
-      wholesalePrice: som(170_000),
-      otherPrices: { [types.min]: som(150_000), [types.family]: som(120_000) },
+      otherPrices: { [types.wholesale]: som(170_000), [types.min]: som(150_000), [types.family]: som(120_000) },
     }
     const draft = (
       await alpha
@@ -98,7 +98,11 @@ describe('Prices set by a receipt', () => {
 
     // A copy of the receipt carries them along.
     const copy = (await alpha.post(`/api/receipts/${draft.id}/copy`).expect(201)).body
-    expect(copy.lines[0].otherPrices).toEqual({ [types.min]: som(150_000), [types.family]: som(120_000) })
+    expect(copy.lines[0].otherPrices).toEqual({
+      [types.wholesale]: som(170_000),
+      [types.min]: som(150_000),
+      [types.family]: som(120_000),
+    })
   })
 
   it('leave alone what a later receipt does not name', async () => {

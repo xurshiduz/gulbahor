@@ -264,6 +264,12 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                       </p>
                       <p className="tabular text-xs text-ink-3">
                         {formatNumber(line.qty)} × {money(line.price)}
+                        {line.priceFrom ? (
+                          <span className={line.priceFrom === 'retail' ? 'text-warn' : undefined}>
+                            {' · '}
+                            {t(line.priceFrom === 'retail' ? 'pos.priceRetail' : 'pos.priceFormula')}
+                          </span>
+                        ) : null}
                         {line.discount ? ` − ${money(line.discount)}` : ''}
                         {line.returnedQty ? (
                           <span className="text-warn">

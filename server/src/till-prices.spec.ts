@@ -45,8 +45,6 @@ describe('Price types at the till', () => {
   const setType = (type: PriceType, change: Partial<PriceType>) =>
     alpha.put(`/api/price-types/${type.id}`).send({
       name: type.name,
-      kind: type.kind,
-      currency: type.currency,
       roundStep: type.roundStep,
       roundEnding: type.roundEnding,
       tillAccess: type.tillAccess,
@@ -59,7 +57,7 @@ describe('Price types at the till', () => {
     ;({ alpha } = harness)
     const shopId = (await alpha.get('/api/locations')).body.items[0].id
     for (const type of (await alpha.get('/api/price-types').expect(200)).body as PriceType[]) {
-      types[type.kind] = type
+      types[type.name === 'Ulgurji' ? 'wholesale' : type.kind] = type
     }
     const add = async (name: string, tillAccess: string, skipsFloor = false) =>
       (
@@ -230,5 +228,89 @@ describe('Price types at the till', () => {
     expect((await sell(types.vip.id, som(200_000), { approval: { userId: managerId, pin: PIN } })).status).toBe(403)
     const sale = (await sell(types.vip.id, som(200_000), {}, manager).expect(201)).body
     expect(sale).toMatchObject({ total: som(200_000), priceTypeName: 'VIP' })
+    // No VIP price is set for the dress and no formula says how: it went at the retail price, and says so.
+    expect(sale.lines[0]).toMatchObject({ price: som(200_000), priceFrom: 'retail' })
+  })
+
+  it('work a price out by the formula where none is set, and say where each price came from', async () => {
+    const found = async (priceTypeId?: string) =>
+      (await manager.get('/api/pos/search').query({ registerId, q: 'ko‘ylak', priceTypeId }).expect(200)).body[0]
+    expect((await found()).priceFrom).toBeNull()
+    expect((await found(types.wholesale.id)).priceFrom).toBe('type')
+    expect(await found(types.vip.id)).toMatchObject({ price: som(200_000), priceFrom: 'retail' })
+
+    // VIP is a tenth under the retail price from now on.
+    await setType(types.vip, { formula: { base: 'retail', percent: -10 } } as Partial<PriceType>).expect(200)
+    expect(await found(types.vip.id)).toMatchObject({ price: som(180_000), priceFrom: 'formula' })
+    // The sale agrees with what the till was shown, and the receipt keeps the mark.
+    expect((await sell(types.vip.id, som(200_000), {}, manager)).body.error.code).toBe('PRICE_CHANGED')
+    const sale = (await sell(types.vip.id, som(180_000), {}, manager).expect(201)).body
+    expect(sale.lines[0]).toMatchObject({ price: som(180_000), priceFrom: 'formula' })
+    expect((await alpha.get(`/api/sales/${sale.id}`).expect(200)).body.lines[0].priceFrom).toBe('formula')
+
+    // From what the goods cost — 120 000 each — a quarter over: a cashier is shown the price, never the cost.
+    await setType(types.vip, { formula: { base: 'cost', percent: 25 } } as Partial<PriceType>).expect(200)
+    expect(await found(types.vip.id)).toMatchObject({ price: som(150_000), priceFrom: 'formula' })
+    // A line sold at a price that was set carries no mark.
+    expect((await sell(types.wholesale.id, som(170_000)).expect(201)).body.lines[0].priceFrom).toBeNull()
+  })
+
+  it('hold a thing with no minimal price of its own at what the floor’s formula makes of its cost today', async () => {
+    const shopId = (await alpha.get('/api/locations')).body.items[0].id
+    const scarf = (
+      await alpha
+        .post('/api/products')
+        .send({
+          name: 'Sharf',
+          axisIds: [],
+          variants: [{ valueIds: [] }],
+          prices: [{ priceTypeId: types.retail.id, amount: som(45_000), currency: 'UZS' }],
+        })
+        .expect(201)
+    ).body as { id: string; variants: { id: string }[] }
+    const bring = async (price: number) => {
+      const draft = await alpha
+        .post('/api/receipts')
+        .send({
+          locationId: shopId,
+          docDate: '2026-10-01',
+          currency: 'UZS',
+          lines: [{ variantId: scarf.variants[0].id, qty: 10, price }],
+        })
+        .expect(201)
+      await alpha.post(`/api/receipts/${draft.body.id}/post`).expect(201)
+    }
+    const floors = async () =>
+      (
+        (
+          await cashier
+            .post('/api/pos/items')
+            .send({ registerId, variantIds: [scarf.variants[0].id, dress] })
+            .expect(200)
+        ).body as { variantId: string; minPrice: number | null }[]
+      )
+        .sort((a, b) => (a.variantId === dress ? 1 : 0) - (b.variantId === dress ? 1 : 0))
+        .map((item) => item.minPrice)
+
+    await bring(som(40_000))
+    // Out of the box nothing says how a floor is worked out: the scarf has none, the dress keeps its own.
+    expect(await floors()).toEqual([null, som(160_000)])
+
+    // The floor is the cost itself from now on.
+    await setType(types.min, { formula: { base: 'cost', percent: 0 } } as Partial<PriceType>).expect(200)
+    expect(await floors()).toEqual([som(40_000), som(160_000)])
+    // A receipt sets no floor: it follows what is on hand. Ten more at 46 000 bring the average to 43 000.
+    await bring(som(46_000))
+    expect(await floors()).toEqual([som(43_000), som(160_000)])
+    const prices = (await alpha.get(`/api/products/${scarf.id}`).expect(200)).body.prices as { priceTypeId: string }[]
+    expect(prices.some((price) => price.priceTypeId === types.min.id)).toBe(false)
+
+    // Under it a cashier is stopped, and not told what the goods cost.
+    const under = await sell(null, som(42_000), {
+      lines: [{ variantId: scarf.variants[0].id, qty: 1, discount: som(3_000) }],
+    })
+    expect(under.body.error.code).toBe('BELOW_MIN_PRICE')
+    expect(under.body.error.fields['lines.0.discount']).toBe('Minimal narxdan past')
+    await setType(types.min, { formula: null } as Partial<PriceType>).expect(200)
   })
 })

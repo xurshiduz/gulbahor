@@ -31,6 +31,7 @@ import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { toast } from '@/lib/toast'
 
+import { FormulaFields, formulaOf, NO_FORMULA, type FormulaRow } from './formula-fields'
 import { percentText } from './markup-rules-tab'
 
 const FORM_ID = 'reprice-form'
@@ -42,6 +43,8 @@ interface Props {
   scope: string
   priceTypes: PriceTypeDto[]
   seesCost: boolean
+  /** What the window opens at: "fill in what is missing" starts with that price type, by the rules. */
+  start?: { priceTypeId: string; kind: RepriceKind }
   onClose: () => void
 }
 
@@ -52,19 +55,22 @@ type Direction = 'up' | 'down'
  * is worked out first and shown, old price beside new; only then, and only
  * if nothing was altered since, can it be applied.
  */
-export function RepriceDialog({ filter, scope, priceTypes, seesCost, onClose }: Props) {
+export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onClose }: Props) {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const queryClient = useQueryClient()
 
+  const retailType = priceTypes.find((item) => item.kind === 'retail')
   const [priceTypeId, setPriceTypeId] = useState(
-    () => (priceTypes.find((type) => type.kind === 'retail') ?? priceTypes[0]).id,
+    () => (priceTypes.find((item) => item.id === start?.priceTypeId) ?? retailType ?? priceTypes[0]).id,
   )
   const type = priceTypes.find((item) => item.id === priceTypeId) as PriceTypeDto
-  const others = priceTypes.filter((item) => item.id !== priceTypeId && item.currency === type.currency)
+  const others = priceTypes.filter((item) => item.id !== priceTypeId)
 
-  const [kind, setKind] = useState<RepriceKind>('percent')
+  const [kind, setKind] = useState<RepriceKind>(start?.kind ?? 'percent')
   const [direction, setDirection] = useState<Direction>('up')
+  // By the rules until a formula is named.
+  const [formula, setFormula] = useState<FormulaRow>(NO_FORMULA)
   const [percent, setPercent] = useState<number | null>(null)
   const [amount, setAmount] = useState<number | null>(null)
   // From cost at today's rates of the currencies the goods came in: what bringing them in again would cost.
@@ -83,11 +89,19 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, onClose }: 
         ? { kind, percent: percent === null ? undefined : sign * percent }
         : kind === 'amount'
           ? { kind, amount: amount === null ? undefined : sign * amount }
-          : kind === 'markup'
-            ? { kind, percent, today }
+          : kind === 'formula'
+            ? {
+                kind,
+                // A price to be named outright, and none typed yet, is not a request.
+                formula: formula.way === 'fixed' && !formula.amount ? undefined : formulaOf(formula),
+                today: today && formula.way !== 'fixed',
+              }
             : { kind, priceTypeId: source?.id, percent: percent === null ? undefined : sign * percent }
+    if (kind === 'formula' && formula.way === 'fixed' && !formula.amount) {
+      return repriceSchema.safeParse({})
+    }
     return repriceSchema.safeParse({ priceTypeId, filter, operation, round, note })
-  }, [kind, percent, amount, today, sign, source, priceTypeId, filter, round, note])
+  }, [kind, percent, amount, today, formula, sign, source, priceTypeId, filter, round, note])
 
   // A preview belongs to the request it was worked out for; any change to the fields makes it stale.
   const key = request.success ? JSON.stringify({ ...request.data, note: undefined }) : null
@@ -232,7 +246,7 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, onClose }: 
               )}
             </Field>
           ) : null}
-          {kind !== 'markup' ? (
+          {kind !== 'formula' ? (
             <Field label={t('pricing.direction')}>
               {(id) => (
                 <Select
@@ -251,12 +265,8 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, onClose }: 
             <Field label={t('pricing.amount')} required>
               {(id) => <MoneyInput id={id} autoFocus value={amount} onChange={setAmount} currency={type.currency} />}
             </Field>
-          ) : (
-            <Field
-              label={kind === 'markup' ? t('pricing.markup') : t('pricing.percent')}
-              hint={kind === 'markup' ? t('pricing.markupEmpty') : undefined}
-              required={kind !== 'markup'}
-            >
+          ) : kind === 'formula' ? null : (
+            <Field label={t('pricing.percent')} required>
               {(id) => (
                 <NumberInput
                   id={id}
@@ -264,20 +274,36 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, onClose }: 
                   value={percent}
                   onChange={setPercent}
                   decimals={2}
-                  max={direction === 'down' && kind !== 'markup' ? 99 : 10_000}
+                  max={direction === 'down' ? 99 : 10_000}
                   suffix="%"
-                  placeholder={kind === 'markup' ? t('pricing.byRule') : undefined}
                 />
               )}
             </Field>
           )}
-          {kind === 'markup' ? (
-            <div data-enter-skip className="flex flex-col gap-1 pt-6">
-              <Checkbox checked={today} onChange={setToday} label={t('pricing.atToday')} />
-              <span className="text-xs text-ink-3">{t('pricing.costTodayHint')}</span>
-            </div>
-          ) : null}
         </div>
+        {kind === 'formula' ? (
+          <div className="grid items-start gap-4 lg:grid-cols-[1fr_auto]">
+            <Field label={t('pricing.formula')} hint={t('pricing.formulaHint')}>
+              {() => (
+                <FormulaFields
+                  value={formula}
+                  onChange={setFormula}
+                  currency={type.currency}
+                  noneLabel={t('pricing.byRules')}
+                  // The retail price is never worked out from itself.
+                  ways={type.kind === 'retail' ? ['none', 'cost', 'fixed'] : undefined}
+                  autoFocus
+                />
+              )}
+            </Field>
+            {formula.way !== 'fixed' ? (
+              <div data-enter-skip className="flex max-w-xs flex-col gap-1 pt-6">
+                <Checkbox checked={today} onChange={setToday} label={t('pricing.atToday')} />
+                <span className="text-xs text-ink-3">{t('pricing.costTodayHint')}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="grid items-start gap-4 sm:grid-cols-[auto_1fr]">
           <div data-enter-skip className="pt-1">

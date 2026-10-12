@@ -1,7 +1,23 @@
-import type { AttributeDto, ReceiptDto, ReceiptProductDto } from '@erp/core'
+import type { AttributeDto, PriceTypeDto, ReceiptDto, ReceiptProductDto, RuledMarkup } from '@erp/core'
 import { describe, expect, it } from 'vitest'
 
-import { blocksOf, costOf, dayRateOf, linesOf, matrixOf, newBlock, type Block, type Header } from './receipt-state'
+import {
+  bareCost,
+  blockPrices,
+  blocksOf,
+  costOf,
+  dayRateOf,
+  linesOf,
+  matrixOf,
+  modelCosts,
+  newBlock,
+  pricingCounts,
+  typedPrice,
+  underCost,
+  withTypedPrice,
+  type Block,
+  type Header,
+} from './receipt-state'
 
 const value = (id: string, hex: string | null = null) => ({ id, name: id, hex, isActive: true })
 const attributes: AttributeDto[] = [
@@ -47,6 +63,7 @@ const header: Header = {
   rate: 12_800,
   extraCurrency: 'USD',
   note: '',
+  pricing: {},
 }
 
 const book = { base: 'UZS' as const, rates: {} }
@@ -96,8 +113,8 @@ describe('blocks and lines', () => {
       price,
       extra: 0,
       retailPrice: null,
-      wholesalePrice: null,
       otherPrices: {},
+      priceFormulas: {},
       costUzs: null,
     })
     const blocks = blocksOf({
@@ -140,8 +157,8 @@ describe('blocks and lines', () => {
       price: 300,
       extra: 0,
       retailPrice: null,
-      wholesalePrice: null,
       otherPrices,
+      priceFormulas: {},
       costUzs: null,
     })
     const blocks = blocksOf({
@@ -180,6 +197,45 @@ describe('blocks and lines', () => {
     )
   })
 
+  it('keeps a formula typed in place of a sum, and tells blocks apart by it', () => {
+    const half = { base: 'cost' as const, percent: 50, amount: 0 }
+    const block: Block = { ...newBlock('shirt'), price: 300, qty: { 'black-S': 2 } }
+    // A formula takes a sum's place in the field, and a sum a formula's.
+    const typed = { ...block, retailPrice: 90_000_00, ...withTypedPrice(block, 'retail', true, { formula: half }) }
+    expect(typed.retailPrice).toBeNull()
+    expect(typedPrice(typed, 'retail', true)).toEqual({ formula: half })
+    const again = { ...typed, ...withTypedPrice(typed, 'retail', true, { amount: 95_000_00 }) }
+    expect(typedPrice(again, 'retail', true)).toEqual({ amount: 95_000_00 })
+    expect(again.formulas).toEqual({})
+    // The same for another type's field, which leaves the retail one alone.
+    const both = { ...typed, ...withTypedPrice(typed, 'family', false, { amount: 70_000_00 }) }
+    expect(both.formulas).toEqual({ retail: half })
+    expect(both.otherPrices).toEqual({ family: 70_000_00 })
+
+    expect(linesOf([typed], products).lines[0].priceFormulas).toEqual({ retail: half })
+    expect(newBlock('shirt', typed).formulas).toEqual({ retail: half })
+    const saved = (variantId: string, priceFormulas: Record<string, unknown>) => ({
+      id: variantId,
+      variantId,
+      productId: 'shirt',
+      supplierId: null,
+      qty: 1,
+      price: 300,
+      extra: 0,
+      retailPrice: null,
+      otherPrices: {},
+      priceFormulas,
+      costUzs: null,
+    })
+    const blocks = blocksOf({
+      lines: [saved('black-S', { retail: half }), saved('black-M', { retail: half }), saved('white-L', {})],
+    } as unknown as ReceiptDto)
+    expect(blocks.map((item) => [Object.keys(item.qty), item.formulas])).toEqual([
+      [['black-S', 'black-M'], { retail: half }],
+      [['white-L'], {}],
+    ])
+  })
+
   it('offers the day’s rate the way the receipt writes it', () => {
     const day = {
       base: 'UZS' as const,
@@ -193,5 +249,110 @@ describe('blocks and lines', () => {
     expect(dayRateOf('CNY', day)).toBe(1_744.83)
     expect(dayRateOf('TRY', day)).toBeNull()
     expect(dayRateOf('UZS', day)).toBeNull()
+  })
+})
+
+describe('what a receipt makes of a block’s prices', () => {
+  const type = (id: string, kind: PriceTypeDto['kind'], formula: PriceTypeDto['formula'] = null): PriceTypeDto => ({
+    id,
+    name: id,
+    kind,
+    currency: 'UZS',
+    roundStep: 1000_00,
+    roundEnding: 0,
+    tillAccess: 'none',
+    skipsFloor: false,
+    formula,
+    isActive: true,
+  })
+  const types = { retail: type('retail', 'retail'), others: [type('wholesale', 'other'), type('floor', 'min')] }
+  const rule = (priceTypeId: string, base: 'cost' | 'retail', percent: number, of: string | null): RuledMarkup => ({
+    priceTypeId,
+    base,
+    percent,
+    amount: 0,
+    rule: of,
+  })
+  const formulas = [
+    rule('retail', 'cost', 50, 'Ko‘ylaklar'),
+    rule('wholesale', 'retail', -10, null),
+    rule('floor', 'cost', 5, null),
+  ]
+  const block: Block = { ...newBlock('shirt'), price: 300, qty: { 'black-S': 2 } }
+  const cost = 80_500_00
+
+  it('gives new goods the price their rule makes, each field after the one it starts from', () => {
+    const fields = blockPrices(block, types, { formulas, prices: {} }, {}, cost)
+    expect(fields.map((field) => [field.type.id, field.worked.price, field.worked.source, field.worked.rule])).toEqual([
+      // 80 500 + 50%, up to the thousand.
+      ['retail', 121_000_00, 'rule', 'Ko‘ylaklar'],
+      // A tenth under the retail price this receipt leaves.
+      ['wholesale', 109_000_00, 'own', null],
+      // The floor is the till's to work out.
+      ['floor', null, null, null],
+    ])
+    expect(fields[1].basis).toEqual({ cost, retail: 121_000_00 })
+  })
+
+  it('leaves a price that stands, says what the rule would give, and starts the others from what stands', () => {
+    const fields = blockPrices(block, types, { formulas, prices: { retail: 150_000_00 } }, {}, cost)
+    expect(fields[0].worked).toMatchObject({ price: null, offered: 121_000_00 })
+    expect(fields[0].standing).toBe(150_000_00)
+    expect(fields[1].worked.price).toBe(135_000_00)
+  })
+
+  it('follows what is typed, then what the receipt says of the type', () => {
+    const typed = {
+      ...block,
+      ...withTypedPrice(block, 'retail', true, { formula: { base: 'cost', percent: 100, amount: 0 } }),
+    }
+    const known = { formulas, prices: { retail: 150_000_00, wholesale: 99_000_00 } }
+    const pricing = { wholesale: { skip: false, formula: null, all: true } }
+    const fields = blockPrices(typed, types, known, pricing, cost)
+    expect(fields[0].worked).toMatchObject({ price: 161_000_00, source: 'typed' })
+    // The receipt's "for the goods that have a price too": the wholesale price is worked out anew.
+    expect(fields[1].worked).toMatchObject({ price: 145_000_00, source: 'own' })
+    expect(pricingCounts([typed], [fields])).toEqual({
+      retail: { fresh: 0, replaced: 1, kept: 0 },
+      wholesale: { fresh: 0, replaced: 1, kept: 0 },
+      floor: { fresh: 0, replaced: 0, kept: 0 },
+    })
+  })
+
+  it('works out only what is typed until the rules are known, and on a receipt no longer a draft', () => {
+    const typed = {
+      ...block,
+      ...withTypedPrice(block, 'wholesale', false, { formula: { base: 'cost', percent: 20, amount: 0 } }),
+    }
+    const fields = blockPrices(typed, types, undefined, { retail: { skip: false, formula: null, all: true } }, cost)
+    expect(fields.map((field) => field.worked.price)).toEqual([null, 97_000_00, null])
+  })
+
+  it('counts a model on two blocks once, and says which prices are under what the goods cost', () => {
+    const known = { formulas, prices: {} }
+    const second = { ...newBlock('shirt', block), qty: { 'white-L': 1 } }
+    const priced = [block, second].map((item) => blockPrices(item, types, known, {}, cost))
+    expect(pricingCounts([block, second], priced).retail).toEqual({ fresh: 1, replaced: 0, kept: 0 })
+
+    const cheap = { ...block, ...withTypedPrice(block, 'retail', true, { amount: 70_000_00 }) }
+    expect(underCost(blockPrices(cheap, types, known, {}, cost)).map((field) => field.type.id)).toEqual([
+      'retail',
+      // A tenth under a retail price that is itself under cost.
+      'wholesale',
+    ])
+  })
+
+  it('costs a model by its blocks together, and a block with no quantities by its own price', () => {
+    const blocks: Block[] = [
+      { ...newBlock('shirt'), price: 300, qty: { 'black-S': 10 } },
+      { ...newBlock('shirt'), price: 500, qty: { 'white-L': 10 } },
+      { ...newBlock('belt'), price: 100, qty: {} },
+    ]
+    const priced = costOf(header, blocks, [], products, book)
+    // 10 at 3 $ and 10 at 5 $: 4 $ each, at 12 800.
+    expect(modelCosts(blocks, priced?.blocks)).toEqual(new Map([['shirt', 400 * 12_800]]))
+    expect(bareCost(header, blocks[2], book)).toBe(100 * 12_800)
+    expect(bareCost({ ...header, rate: null }, blocks[2], book)).toBeNull()
+    expect(bareCost(header, { ...blocks[2], price: null }, book)).toBeNull()
   })
 })

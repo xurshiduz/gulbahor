@@ -20,7 +20,8 @@ const MODULE_TITLES = new Map(MODULES.map((module) => [module.key, module.title]
 
 /** Fields whose stored value is a code: what each code is called. */
 const CODE_LABELS: Record<string, Record<string, string>> = {
-  kind: { ...LOCATION_KIND_LABELS, ...ATTRIBUTE_KIND_LABELS, ...PRICE_KIND_LABELS },
+  // A price type's kind is no longer changed; older history still names the kinds it had then.
+  kind: { ...PRICE_KIND_LABELS, wholesale: 'Ulgurji', ...LOCATION_KIND_LABELS, ...ATTRIBUTE_KIND_LABELS },
   gender: GENDER_LABELS,
   season: SEASON_LABELS,
   unit: Object.fromEntries(Object.entries(UNIT_INFO).map(([unit, info]) => [unit, info.label])),

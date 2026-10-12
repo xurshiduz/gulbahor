@@ -4,6 +4,7 @@ import { baseWorth, usualRateForm, type RateBook, type RateWay } from './currenc
 import { Fraction } from './fraction'
 import type { ImageThumb } from './images'
 import { ALL_CURRENCY_CODES, allocateExact, assertMinor, type AnyCurrency, type CurrencyCode } from './money'
+import { priceFormulaSchema, receiptPricingSchema, type PriceFormula, type ReceiptPricing } from './pricing'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 import type { Unit } from './catalog'
 
@@ -66,14 +67,15 @@ export const receiptLineInputSchema = z.object({
   price: amountSchema,
   /** Per unit, in the document's extra-cost currency: a cost known for this line alone. */
   extra: amountSchema.default(0),
-  /** Prices to put on the model when the document is posted, each in its price type's currency. */
+  /** The retail price to put on the model when the document is posted, in the base. */
   retailPrice: nullableAmount,
-  wholesalePrice: nullableAmount,
-  /**
-   * The same for every other price type the business keeps (the floor, a family price, a second wholesale
-   * one), by the price type's id. The retail type and the first wholesale one have the fields above.
-   */
+  /** The same for every other price type the business keeps (the floor, wholesale, a family price), by its id. */
   otherPrices: z.record(idSchema, amountSchema).default({}),
+  /**
+   * A price typed as a formula ("30%", "ch −15%"), by price type id — the retail type's among them: worked out
+   * of what these goods cost when the document is posted. A type has a sum or a formula, not both.
+   */
+  priceFormulas: z.record(idSchema, priceFormulaSchema).default({}),
 })
 export type ReceiptLineInput = z.infer<typeof receiptLineInputSchema>
 
@@ -107,6 +109,8 @@ export const receiptInputSchema = z.object({
   /** What the lines' own extra costs are in; left out, the base. */
   extraCurrency: currencySchema.optional(),
   note: optionalText(500),
+  /** How this receipt prices its goods where the rules are not to be followed, by price type id. */
+  pricing: z.record(idSchema, receiptPricingSchema).default({}),
   lines: z.array(receiptLineInputSchema).max(5000),
   expenses: expensesSchema.default([]),
 })
@@ -159,9 +163,10 @@ export interface ReceiptLineDto {
   price: number
   extra: number
   retailPrice: number | null
-  wholesalePrice: number | null
   /** Prices for the other price types, by price type id. */
   otherPrices: Record<string, number>
+  /** Prices typed as formulas, by price type id. */
+  priceFormulas: Record<string, PriceFormula>
   /** Landed cost of the whole line, in the base; null until the receipt is posted. */
   costUzs: number | null
 }
@@ -199,6 +204,8 @@ export interface ReceiptDto {
   rateWay: RateWay
   extraCurrency: AnyCurrency
   note: string | null
+  /** What the receipt says of its own prices, by price type id. */
+  pricing: Record<string, ReceiptPricing>
   sourceFile: string | null
   lines: ReceiptLineDto[]
   expenses: ReceiptExpenseDto[]

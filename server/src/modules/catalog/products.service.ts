@@ -35,7 +35,7 @@ import {
 } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
-import { PRICE_CURRENCY, pricedIn } from '../money/base'
+import { PRICE_CURRENCY } from '../money/base'
 import { RealtimeService } from '../realtime/realtime.service'
 import { nextNumbers } from './counters'
 import { ProductImagesService } from './product-images.service'
@@ -964,7 +964,7 @@ export class ProductsService {
       })
     }
 
-    if (wanted.some((item) => !pricedIn(item.currency, actor))) {
+    if (wanted.some((item) => item.currency !== actor.base)) {
       throw AppError.validation({ prices: PRICE_CURRENCY })
     }
     for (const item of wanted) {

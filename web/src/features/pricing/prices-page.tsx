@@ -1,5 +1,4 @@
 import {
-  exchange,
   formatMoney,
   marginPercent,
   SEASON_LABELS,
@@ -27,7 +26,6 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
-import { useRateBook } from '@/features/money/rates'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
@@ -57,8 +55,6 @@ export function PricesPage() {
   const [repricing, setRepricing] = useState(false)
 
   const { tab, ...listSearch } = search
-  // Today's rates: a price in another currency is set against the cost in it.
-  const book = useRateBook()
 
   const priceTypes = usePriceTypes()
   const types = useMemo(() => (priceTypes.data ?? []).filter((type) => type.isActive), [priceTypes.data])
@@ -82,6 +78,7 @@ export function PricesPage() {
     brandId: search.brandId,
     season: search.season,
     presence: search.presence,
+    missing: search.missing,
   }
   const scopeText =
     [
@@ -90,6 +87,9 @@ export function PricesPage() {
       brands.data?.find((brand) => brand.id === search.brandId)?.name,
       search.season ? SEASON_LABELS[search.season] : null,
       search.presence === 'in' ? t('pricing.onlyInStock') : null,
+      search.missing
+        ? t('pricing.missingOf', { type: types.find((type) => type.id === search.missing)?.name ?? '' })
+        : null,
     ]
       .filter(Boolean)
       .join(' · ') || t('pricing.everything')
@@ -184,10 +184,7 @@ export function PricesPage() {
           if (amount === undefined) {
             return <span className="text-ink-3">—</span>
           }
-          const inBase = row.original.unitCostUzs
-          const cost =
-            inBase === null || type.currency === base() ? inBase : book && exchange(inBase, base(), type.currency, book)
-          const margin = marginPercent(amount, cost)
+          const margin = marginPercent(amount, row.original.unitCostUzs)
           return (
             <span className="inline-flex items-baseline gap-2">
               {margin === null ? null : (
@@ -204,10 +201,11 @@ export function PricesPage() {
         },
       })),
     ],
-    [t, seesCost, types, book],
+    [t, seesCost, types],
   )
 
-  const filtered = !!(search.q || search.categoryId || search.brandId || search.season) || search.presence !== 'all'
+  const filtered =
+    !!(search.q || search.categoryId || search.brandId || search.season || search.missing) || search.presence !== 'all'
 
   return (
     <Page
@@ -278,6 +276,21 @@ export function PricesPage() {
                     { value: 'in', label: t('pricing.onlyInStock') },
                   ]}
                 />
+              ),
+              // Under each price type: everything, or only what has no price of it yet.
+              ...Object.fromEntries(
+                types.map((type) => [
+                  type.id,
+                  <FilterSelect
+                    key={type.id}
+                    value={search.missing === type.id ? 'missing' : 'all'}
+                    onChange={(value) => filter({ missing: value === 'missing' ? type.id : undefined })}
+                    options={[
+                      { value: 'all', label: t('common.all') },
+                      { value: 'missing', label: t('pricing.missing') },
+                    ]}
+                  />,
+                ]),
               ),
             }}
             toolbar={

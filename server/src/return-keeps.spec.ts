@@ -201,14 +201,14 @@ describe('Money for goods brought back', () => {
       const short = await giveBack(await sell({ customerId: nodira }), { keep: { amount: som(50_000) } })
       expect(short.body.error.fields.refunds).toContain('qaytarilishi kerak')
       const over = await giveBack(await sell({ customerId: nodira }), { keep: { amount: som(80_000) } })
-      expect(over.body.error.fields.keep).toContain('Hisobida ko‘pi bilan')
+      expect(over.body.error.fields.keep).toContain('Balansida ko‘pi bilan')
     })
 
     it('goes to whoever the receipt names, or to someone named now when it names nobody', async () => {
       const nobody = await sell()
       const unnamed = await giveBack(nobody, { keep: { amount: som(75_000) } })
       expect(unnamed.status).toBe(400)
-      expect(unnamed.body.error.fields.keep).toBe('Hisobida qoldirish uchun mijozni tanlang')
+      expect(unnamed.body.error.fields.keep).toBe('Balansida qoldirish uchun mijozni tanlang')
       const before = (await owes(nodira)).balance
       const made = (await giveBack(nobody, { keep: { customerId: nodira, amount: som(75_000) } }).expect(201)).body
       expect(made.kept).toMatchObject({ customerName: 'Nodira' })
@@ -218,7 +218,7 @@ describe('Money for goods brought back', () => {
       const theirs = await giveBack(await sell({ customerId: nodira }), {
         keep: { customerId: elaris, amount: som(75_000) },
       })
-      expect(theirs.body.error.fields.keep).toBe('Pul chekdagi mijozning hisobida qoldiriladi')
+      expect(theirs.body.error.fields.keep).toBe('Pul chekdagi mijozning balansida qoldiriladi')
     })
 
     it('goes on a supplier’s account on the word a sale on it takes', async () => {

@@ -4,11 +4,8 @@ import type { Register } from '../../database/entities'
 import type { Actor } from '../auth/actor'
 import { wantingRate } from './agreed'
 
-/** Prices may be in the base or in any currency the business has switched on: the till counts them in the base. */
-export const pricedIn = (currency: AnyCurrency, actor: Pick<Actor, 'base' | 'currencies'>): boolean =>
-  currency === actor.base || actor.currencies.includes(currency)
-
-export const PRICE_CURRENCY = 'Narx asosiy valyuta yoki yoqilgan valyutada bo‘ladi'
+/** Prices are kept in the base alone: what goods cost is there too, and the till sells in it. */
+export const PRICE_CURRENCY = 'Narx asosiy valyutada bo‘ladi'
 
 /** The currencies a till takes cash in: the base first, then those it was given that the business still has. */
 export function tillCurrenciesOf(

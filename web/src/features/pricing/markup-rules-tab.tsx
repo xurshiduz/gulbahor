@@ -1,8 +1,8 @@
 import {
+  formulaText,
   priceRuleInputSchema,
   SEASON_LABELS,
   SEASONS,
-  type Markup,
   type PriceRuleDto,
   type PriceRuleInput,
   type PriceTypeDto,
@@ -22,12 +22,13 @@ import { Dialog, useConfirm } from '@/components/ui/dialog'
 import { EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
-import { NumberInput } from '@/components/ui/number-input'
 import { PageActions } from '@/components/ui/page'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
 import { api, ApiError } from '@/lib/api'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
+
+import { FormulaFields, formulaOf, formulaRowOf, type FormulaRow } from './formula-fields'
 
 export const usePriceRules = () =>
   useQuery({
@@ -39,27 +40,11 @@ export const usePriceRules = () =>
 export const percentText = (percent: number) =>
   `${percent > 0 ? '+' : percent < 0 ? '−' : ''}${String(Math.abs(percent)).replace('.', ',')}%`
 
-/** How a markup is entered: what it is counted from, and which way it goes. */
-type Way = 'cost' | 'retail_less' | 'retail_more'
-
-interface Row {
-  way: Way
-  /** Never negative: the way says the direction. */
-  percent: number | null
-}
-
-const rowOf = (markup: Markup | undefined): Row =>
-  markup
-    ? {
-        way: markup.base === 'cost' ? 'cost' : markup.percent < 0 ? 'retail_less' : 'retail_more',
-        percent: Math.abs(markup.percent),
-      }
-    : { way: 'cost', percent: null }
-
 /**
  * The rules prices are worked out by: goods of this category, this brand or
- * this season sell so far above cost. Of the rules that fit a model the one
- * that names the most about it is used.
+ * this season sell so far above cost, so far from the retail price, or at a
+ * price named outright. Of the rules that fit a model the one that names the
+ * most about it is used; the rule for everything is each price type's own way.
  */
 export function MarkupRulesTab({ canManage }: { canManage: boolean }) {
   const { t } = useTranslation()
@@ -82,11 +67,6 @@ export function MarkupRulesTab({ canManage }: { canManage: boolean }) {
     group: t('shortcuts.groupList'),
     enabled: canManage && !editing,
   })
-
-  const markupText = (markup: Markup) =>
-    markup.base === 'cost'
-      ? `${t('pricing.fromCost')} ${percentText(markup.percent)}`
-      : `${t('pricing.fromRetail')} ${percentText(markup.percent)}`
 
   const columns = useMemo<ColumnDef<PriceRuleDto>[]>(
     () => [
@@ -113,7 +93,7 @@ export function MarkupRulesTab({ canManage }: { canManage: boolean }) {
         meta: { className: 'tabular whitespace-nowrap' },
         cell: ({ row }) => {
           const markup = row.original.markups.find((item) => item.priceTypeId === type.id)
-          return markup ? markupText(markup) : <span className="text-ink-3">—</span>
+          return markup ? formulaText(markup, type.currency) : <span className="text-ink-3">—</span>
         },
       })),
       {
@@ -207,16 +187,16 @@ function RuleDialog({
   const [categoryId, setCategoryId] = useState(rule?.categoryId ?? null)
   const [brandId, setBrandId] = useState(rule?.brandId ?? null)
   const [season, setSeason] = useState<Season | 'any'>(rule?.season ?? 'any')
-  const [rows, setRows] = useState<Record<string, Row>>(() =>
+  const [rows, setRows] = useState<Record<string, FormulaRow>>(() =>
     Object.fromEntries(
-      types.map((type) => [type.id, rowOf(rule?.markups.find((markup) => markup.priceTypeId === type.id))]),
+      types.map((type) => [type.id, formulaRowOf(rule?.markups.find((markup) => markup.priceTypeId === type.id))]),
     ),
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [dirty, setDirty] = useState(false)
 
-  const patchRow = (typeId: string, patch: Partial<Row>) => {
-    setRows((current) => ({ ...current, [typeId]: { ...current[typeId], ...patch } }))
+  const setRow = (typeId: string, row: FormulaRow) => {
+    setRows((current) => ({ ...current, [typeId]: row }))
     setDirty(true)
   }
 
@@ -242,17 +222,13 @@ function RuleDialog({
       categoryId,
       brandId,
       season: season === 'any' ? null : season,
+      // A type left at "no rule" is not in the rule; a price named outright with no sum is caught by the check.
       markups: types.flatMap((type) => {
         const row = rows[type.id]
-        return row.percent === null
+        const formula = formulaOf(row)
+        return row.way === 'none'
           ? []
-          : [
-              {
-                priceTypeId: type.id,
-                base: row.way === 'cost' ? 'cost' : 'retail',
-                percent: row.way === 'retail_less' ? -row.percent : row.percent,
-              },
-            ]
+          : [{ priceTypeId: type.id, ...(formula ?? { base: 'fixed', percent: 0, amount: 0 }) }]
       }),
     })
     if (!parsed.success) {
@@ -334,31 +310,27 @@ function RuleDialog({
 
         <div className="flex flex-col gap-3 rounded-lg border border-line p-3">
           <p className="eyebrow">{t('pricing.markups')}</p>
-          {types.map((type, index) => {
-            const row = rows[type.id]
-            const error = errors[`markups.${index}.base`] ?? errors[`markups.${index}.priceTypeId`]
+          {types.map((type) => {
+            // The server names a markup by its place among those sent: the types left at "no rule" are not sent.
+            const sent = types.filter((item) => rows[item.id].way !== 'none')
+            const index = sent.indexOf(type)
+            const error =
+              index === -1
+                ? undefined
+                : (errors[`markups.${index}.base`] ??
+                  errors[`markups.${index}.amount`] ??
+                  errors[`markups.${index}.priceTypeId`])
             return (
-              <div key={type.id} className="grid items-start gap-3 sm:grid-cols-[10rem_1fr_8rem]">
+              <div key={type.id} data-rule-type={type.id} className="grid items-start gap-3 sm:grid-cols-[9rem_1fr]">
                 <p className="pt-2 text-[13px] font-medium">{type.name}</p>
-                <Select
-                  value={row.way}
-                  onChange={(way) => patchRow(type.id, { way: way as Way })}
-                  // The retail price is the one the others are counted from; it only ever comes from cost.
-                  disabled={type.kind === 'retail'}
-                  options={[
-                    { value: 'cost', label: t('pricing.wayCost') },
-                    { value: 'retail_less', label: t('pricing.wayRetailLess') },
-                    { value: 'retail_more', label: t('pricing.wayRetailMore') },
-                  ]}
-                />
                 <div>
-                  <NumberInput
-                    value={row.percent}
-                    onChange={(percent) => patchRow(type.id, { percent })}
-                    decimals={2}
-                    max={row.way === 'retail_less' ? 99 : 10_000}
-                    suffix="%"
-                    placeholder="—"
+                  <FormulaFields
+                    value={rows[type.id]}
+                    onChange={(row) => setRow(type.id, row)}
+                    currency={type.currency}
+                    noneLabel={t('pricing.wayNone')}
+                    // The retail price is the one the others are counted from: it is never worked out from itself.
+                    ways={type.kind === 'retail' ? ['none', 'cost', 'fixed'] : undefined}
                     invalid={!!error}
                   />
                   {error ? <p className="mt-1 text-xs text-bad">{error}</p> : null}

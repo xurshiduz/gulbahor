@@ -1,7 +1,6 @@
-import { formatMoney, type AnyCurrency, type CustomerBriefDto, type CustomerDto } from '@erp/core'
+import type { CustomerBriefDto, CustomerDto } from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { api } from '@/lib/api'
 
@@ -34,15 +33,3 @@ export const useCustomer = (id: string | null) =>
     queryFn: ({ signal }) => api.get<CustomerDto>(`/customers/${id}`, undefined, signal),
     enabled: !!id,
   })
-
-/** What stands between the business and a customer, in words: "qarzi 570,95 $" when they owe, "haqi …" when they are owed. */
-export function useDebtText() {
-  const { t } = useTranslation()
-  const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
-  return (balance: number, currency: AnyCurrency) =>
-    balance > 0
-      ? t('payments.owes', { amount: money(balance, currency) })
-      : balance < 0
-        ? t('payments.owed', { amount: money(-balance, currency) })
-        : t('payments.even')
-}

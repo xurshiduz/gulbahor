@@ -288,6 +288,8 @@ const pricesSearch = z.object({
   brandId: z.string().optional().catch(undefined),
   season: z.enum(SEASONS).optional().catch(undefined),
   presence: z.enum(['all', 'in']).default('all').catch('all'),
+  /** Only the models with no price of this type. */
+  missing: z.string().optional().catch(undefined),
   tab: z.enum(['list', 'rules', 'history']).default('list').catch('list'),
 })
 const pricesRoute = createRoute({

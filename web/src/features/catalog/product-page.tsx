@@ -10,7 +10,6 @@ import {
   type AttributeDto,
   type BrandDto,
   type CategoryDto,
-  type CurrencyCode,
   type Gender,
   type PriceTypeDto,
   type ProductDto,
@@ -169,7 +168,7 @@ interface FormProps {
 
 function ProductForm({ product, carry, categories, brands, attributes, priceTypes, onRestart }: FormProps) {
   const { t } = useTranslation()
-  const { can, me } = useSession()
+  const { can } = useSession()
   const router = useRouter()
   const queryClient = useQueryClient()
   const confirm = useConfirm()
@@ -177,8 +176,6 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
   const canManage = can('products.manage')
   const canPrice = can('products.prices')
   const canReference = can('products.references')
-  // A price may be in the base or any currency the business has.
-  const priceCurrencies: CurrencyCode[] = [base(), ...me.org.currencies]
 
   // A draft is only good while the lists it was built from are still there.
   const draft = useMemo(() => {
@@ -596,9 +593,9 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
               <Card title={t('products.sectionPrices')}>
                 <div className="flex flex-col gap-3">
                   {activePriceTypes.map((type) => {
-                    const price = prices[type.id] ?? { amount: null, currency: type.currency }
-                    const setPrice = (next: typeof price) => {
-                      setPrices((current) => ({ ...current, [type.id]: next }))
+                    const amount = prices[type.id]?.amount ?? null
+                    const setPrice = (next: number | null) => {
+                      setPrices((current) => ({ ...current, [type.id]: { amount: next, currency: base() } }))
                       setTouched(true)
                     }
                     return (
@@ -606,13 +603,9 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                         {(id) => (
                           <MoneyInput
                             id={id}
-                            value={price.amount}
-                            onChange={(amount) => setPrice({ ...price, amount })}
-                            currency={price.currency}
-                            currencies={priceCurrencies}
-                            onCurrencyChange={
-                              priceCurrencies.length > 1 ? (currency) => setPrice({ ...price, currency }) : undefined
-                            }
+                            value={amount}
+                            onChange={setPrice}
+                            currency={base()}
                             disabled={!canPrice}
                           />
                         )}
@@ -666,7 +659,6 @@ function ProductForm({ product, carry, categories, brands, attributes, priceType
                   priceTypes={activePriceTypes}
                   modelPrices={prices}
                   canPrice={canPrice}
-                  priceCurrencies={priceCurrencies}
                   errors={variantErrors}
                 />
               </Disclosure>

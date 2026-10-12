@@ -13,6 +13,7 @@ import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MoneyInput } from '@/components/ui/money-input'
+import { Balance } from '@/features/customers/balance'
 import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
@@ -23,28 +24,44 @@ const money = (minor: number, currency: AnyCurrency = base()) => formatMoney(min
 const plain = (minor: number, currency: AnyCurrency = base()) =>
   formatMoney(minor, currency, { symbol: false, group: ' ' })
 
+/** A customer's balance now, and what it will be once this is written. */
+export function BalanceMove({ before, after, currency }: { before: number; after: number; currency: AnyCurrency }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      {t('pos.balanceOf')}: <Balance balance={before} currency={currency} />
+      {' → '}
+      <Balance balance={after} currency={currency} />
+    </>
+  )
+}
+
 /** The change, where the cashier says how it goes back: what there is to give, and a row for each way beside cash in the base. */
 export interface ChangePanel {
   /** The ways it can go back beside cash in the base, each with what was typed into it. */
   rows: ChangeRow[]
   onPatch: (key: string, patch: Partial<ChangeRow>) => void
-  /** The rows are out. */
+  /**
+   * What is done with what was paid over the sum: handed back — in cash, or as the rows say — or left on the
+   * customer's balance, theirs to spend next time.
+   */
+  mode: ChangeMode
+  onMode: (mode: ChangeMode) => void
+  /** Handing back: the rows for other ways than cash in the base are out. */
   open: boolean
   onOpen: (open: boolean) => void
   /** What was paid over the sum, in the base. */
   over: number
   /**
-   * Whose account a part may be kept on, and what stands there now in its currency. `asks`: they supply goods,
-   * and writing on their account will ask for a manager's PIN.
+   * Whose balance it may be left on, and what stands there now in its currency. `asks`: they supply goods,
+   * and writing on their balance will ask for a manager's PIN.
    */
   keeper: { name: string; balance: number | null; asks?: boolean } | null
   /** Sending it from a card will ask for a manager's PIN. */
   cardAsks: boolean
-  /** Keeps all of it on the customer's account: one press, for what is asked for most. */
-  onKeepAll?: () => void
-  /** Why it cannot be kept on an account, where it cannot: nobody is named at the till yet. */
-  keepHint?: string | null
 }
+
+export type ChangeMode = 'give' | 'keep'
 
 interface ChangeRowsProps {
   context: PosContextDto
@@ -64,8 +81,10 @@ interface ChangeRowsProps {
 export function ChangeRows({ context, change, settlement, onKeyDown }: ChangeRowsProps) {
   const { t } = useTranslation()
   const { book } = context
-  const { rows, onPatch, over } = change
-  const written = changeLines(rows, over, book)
+  const { onPatch, over } = change
+  const written = changeLines(change.rows, over, book)
+  // Handing back, the ways money leaves the shop; leaving it with the customer, their balance alone.
+  const rows = change.rows.filter((row) => (row.way === 'account') === (change.mode === 'keep'))
   const worthOf = (line: (typeof written)[number]) => line.value ?? tillWorth(line.amount, line.currency, book) ?? 0
   /** What is left to give once the other rows have taken theirs. */
   const restFor = (row: ChangeRow) =>
@@ -94,25 +113,26 @@ export function ChangeRows({ context, change, settlement, onKeyDown }: ChangeRow
           <div key={row.key} data-change-row={row.key} className="flex flex-col gap-1.5">
             <div className={ROW}>
               <span className="min-w-0 text-[13px] text-ink-2">
-                <span className="block truncate">
-                  {row.way === 'cash' ? (
-                    t('pos.payCash', currencyWords(t, row.currency))
-                  ) : row.way === 'account' ? (
-                    t('pos.changeToAccount', { name: keeper?.name ?? '' })
-                  ) : (
-                    <>
-                      {t('pos.changeFromCard', { name: card?.name ?? '' })}
-                      {card?.last4 ? <span className="font-code text-ink-3"> *{card.last4}</span> : null}
-                    </>
-                  )}
-                </span>
-                {keeper?.balance ? (
-                  <span className={cn('block text-xs', keeper.balance > 0 ? 'text-ink-3' : 'text-ok')}>
-                    {keeper.balance > 0
-                      ? t('pos.debtOwed', { amount: money(keeper.balance, row.currency) })
-                      : t('pos.creditHeld', { amount: money(-keeper.balance, row.currency) })}
+                {row.way === 'account' ? (
+                  // Whose balance, on a line of its own: the cell is narrow, and the name is what must be read.
+                  <>
+                    <span className="block truncate">{t('pos.changeKeepRow')}</span>
+                    <span className="block truncate text-xs text-ink-3" title={keeper?.name}>
+                      {keeper?.name}
+                    </span>
+                  </>
+                ) : (
+                  <span className="block truncate">
+                    {row.way === 'cash' ? (
+                      t('pos.payCash', currencyWords(t, row.currency))
+                    ) : (
+                      <>
+                        {t('pos.changeFromCard', { name: card?.name ?? '' })}
+                        {card?.last4 ? <span className="font-code text-ink-3"> *{card.last4}</span> : null}
+                      </>
+                    )}
                   </span>
-                ) : null}
+                )}
               </span>
               {row.way === 'account' ? (
                 // Kept on the account in the sale's money: that is the anchor, the account's own sum follows.
@@ -195,6 +215,16 @@ export function ChangeRows({ context, change, settlement, onKeyDown }: ChangeRow
                 })}
               </p>
             ) : null}
+            {/* What stands on their balance now, and what will once this is written. */}
+            {keeper && keeper.balance !== null ? (
+              <p data-balance-move className="tabular text-right text-xs text-ink-3">
+                <BalanceMove
+                  before={keeper.balance}
+                  after={keeper.balance - (line?.amount ?? 0)}
+                  currency={row.currency}
+                />
+              </p>
+            ) : null}
             {row.way === 'card' && line && change.cardAsks ? (
               <p className="text-right text-xs text-warn">{t('pos.cardChangeAsk')}</p>
             ) : null}
@@ -202,13 +232,10 @@ export function ChangeRows({ context, change, settlement, onKeyDown }: ChangeRow
           </div>
         )
       })}
-      {!change.keeper && change.keepHint ? <p className="text-xs text-ink-3">{change.keepHint}</p> : null}
       {/* What nobody named is cash in the base: counted for the cashier, not typed. */}
-      <div className={ROW}>
-        <span className="truncate text-[13px] text-ink-2">{t('pos.changeRest', baseWords(t))}</span>
-        <span className="tabular pr-2.5 text-right text-[13px] font-medium">
-          {settlement.problem ? '—' : money(settlement.changeUzs)}
-        </span>
+      <div className="flex items-baseline justify-end gap-2 text-[13px]">
+        <span className="text-ink-2">{t('pos.changeRest', baseWords(t))}:</span>
+        <span className="tabular font-medium">{settlement.problem ? '—' : money(settlement.changeUzs)}</span>
       </div>
     </div>
   )

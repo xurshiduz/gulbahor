@@ -433,13 +433,13 @@ export class ReturnsService {
       const keeping = input.keep?.amount ?? 0
       if (input.keep) {
         if (input.keep.customerId && sale.customerId && input.keep.customerId !== sale.customerId) {
-          throw AppError.validation({ keep: 'Pul chekdagi mijozning hisobida qoldiriladi' })
+          throw AppError.validation({ keep: 'Pul chekdagi mijozning balansida qoldiriladi' })
         }
         const keeper =
           buyer ?? (input.keep.customerId ? await em.findOneBy(Customer, { id: input.keep.customerId }) : null)
         if (!keeper || !keeper.isActive) {
           throw AppError.validation({
-            keep: keeper ? `${keeper.name} arxivda` : 'Hisobida qoldirish uchun mijozni tanlang',
+            keep: keeper ? `${keeper.name} arxivda` : 'Balansida qoldirish uchun mijozni tanlang',
           })
         }
         // A supplier's account is the business's dealings with them: the till writes there on the word a
@@ -449,8 +449,8 @@ export class ReturnsService {
             throw AppError.badRequest(
               'SUPPLIER_ON_ACCOUNT',
               approver
-                ? `${approver.name} yetkazib beruvchi hisobiga yozishni tasdiqlay olmaydi`
-                : `${keeper.name} — yetkazib beruvchi: hisobida rahbar tasdig‘i bilan qoldiriladi`,
+                ? `${approver.name} yetkazib beruvchi balansiga yozishni tasdiqlay olmaydi`
+                : `${keeper.name} — yetkazib beruvchi: balansida rahbar tasdig‘i bilan qoldiriladi`,
               { keep: `${keeper.name} — yetkazib beruvchi` },
             )
           }
@@ -458,7 +458,7 @@ export class ReturnsService {
         }
         if (keeping > due) {
           throw AppError.validation({
-            keep: due ? `Hisobida ko‘pi bilan ${formatMoney(due, base)} qoldiriladi` : 'Qaytariladigan pul yo‘q',
+            keep: due ? `Balansida ko‘pi bilan ${formatMoney(due, base)} qoldiriladi` : 'Qaytariladigan pul yo‘q',
           })
         }
         const currency = input.keep.currency ?? keeper.currency ?? base
@@ -709,7 +709,7 @@ export class ReturnsService {
         entityId: made.id,
         summary: `${number}: ${sale.number} dan ${made.qty} dona, ${formatMoney(total, base)}${
           exchange ? `, almashtirildi (${exchange.number})` : ''
-        }${kept ? `, ${kept.name} hisobida qoldirildi: ${formatMoney(kept.settled, kept.currency)}` : ''}${
+        }${kept ? `, ${kept.name} balansida qoldirildi: ${formatMoney(kept.settled, kept.currency)}` : ''}${
           late ? ', muddati o‘tgan' : ''
         }${vouched ? `, tasdiqladi: ${vouched.name}` : ''}${input.reason ? `. ${input.reason}` : ''}`,
       })

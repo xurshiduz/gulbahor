@@ -505,11 +505,17 @@ export function PaymentLines({
               >
                 {placeName(account, t)}
               </span>
-              <span className="tabular ml-auto shrink-0 text-xs text-ink-3">
+              {/* What the place holds now and, once a sum is typed, what it will hold: for whoever may see balances. */}
+              <span data-held={row.accountId} className="tabular ml-auto shrink-0 text-xs text-ink-3">
                 {!account.open
                   ? t('payments.shiftClosed')
                   : account.balance !== null
-                    ? money(account.balance, account.currency)
+                    ? row.amount
+                      ? `${money(account.balance, account.currency)} → ${money(
+                          account.balance + (kind === 'in' ? row.amount : -row.amount),
+                          account.currency,
+                        )}`
+                      : money(account.balance, account.currency)
                     : ''}
               </span>
             </div>

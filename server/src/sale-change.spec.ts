@@ -161,7 +161,12 @@ describe('Change at the till', () => {
     expect(await drawer('UZS')).toBe(som(75_000))
     const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
     expect(context.mayReturnAny).toBe(false)
-    expect((await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body.mayReturnAny).toBe(true)
+    // What the drawer holds is for those who may see balances: a cashier counts it blind.
+    expect(context.held).toBeNull()
+    const owners = (await alpha.get(`/api/pos/context/${registerId}`).expect(200)).body
+    expect(owners.mayReturnAny).toBe(true)
+    expect(owners.held[owners.drawers.UZS]).toBe(som(75_000))
+    expect(owners.held[cardId]).toBe(0)
   })
 
   describe('in another currency', () => {

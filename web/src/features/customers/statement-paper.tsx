@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { dayCell, moneyCell, type ExportColumn } from '@/lib/excel'
 import { formatDay, formatNumber } from '@/lib/format'
 
+import { balanceText } from './balance'
+
 const money = (minor: number, currency: AnyCurrency) => formatMoney(minor, currency, { minor: 'auto' })
 
 /** What a line of the account is, in words: "Tovar kirimi", "Kassadan sotuv", "Bekor qilindi". */
@@ -48,14 +50,6 @@ export function periodText(data: Pick<CustomerStatementDto, 'from' | 'to'>, t: T
         ? t('payments.aktUntil', { day: formatDay(data.to) })
         : t('payments.aktWhole')
 }
-
-/** What they owe, or are owed, as a sum that says which: for a paper both sides read. */
-const standing = (balance: number, currency: AnyCurrency, t: TFunction) =>
-  balance > 0
-    ? t('payments.owes', { amount: money(balance, currency) })
-    : balance < 0
-      ? t('payments.owed', { amount: money(-balance, currency) })
-      : t('payments.even')
 
 /** A row of the reconciliation as a sheet holds it: what stood before the days, each document, what stands after. */
 export interface StatementRow {
@@ -109,7 +103,8 @@ export function statementColumns(currency: AnyCurrency, t: TFunction): ExportCol
     { title: t('payments.aktQty'), value: (row) => row.qty },
     { title: t('payments.aktUp'), value: (row) => moneyCell(row.up, currency) },
     { title: t('payments.aktDown'), value: (row) => moneyCell(row.down, currency) },
-    { title: t('payments.balance'), value: (row) => moneyCell(row.balance, currency) },
+    // Read as on the screen: what they owe is below nought.
+    { title: t('payments.balance'), value: (row) => moneyCell(row.balance ? -row.balance : 0, currency) },
     { title: t('pos.debtDue'), value: (row) => dayCell(row.due) },
     { title: t('receipts.note'), value: (row) => row.note },
   ]
@@ -173,7 +168,7 @@ export const StatementPaper = forwardRef<HTMLDivElement, StatementPaperProps>(fu
                 <td className={`${cell} text-right`}>{row.qty ? formatNumber(row.qty) : ''}</td>
                 <td className={`${cell} text-right whitespace-nowrap`}>{row.up ? money(row.up, currency) : ''}</td>
                 <td className={`${cell} text-right whitespace-nowrap`}>{row.down ? money(row.down, currency) : ''}</td>
-                <td className={`${cell} text-right whitespace-nowrap`}>{money(row.balance, currency)}</td>
+                <td className={`${cell} text-right whitespace-nowrap`}>{balanceText(row.balance, currency)}</td>
               </tr>
             )
           })}
@@ -188,13 +183,13 @@ export const StatementPaper = forwardRef<HTMLDivElement, StatementPaperProps>(fu
         </tbody>
       </table>
       <p data-akt-result className="mt-3 font-semibold">
-        {t('payments.aktResult', { name: data.customer.name })}: {standing(data.closing, currency, t)}
+        {t('payments.aktResult', { name: data.customer.name })}: {balanceText(data.closing, currency)}
       </p>
       {/* Their other accounts are not part of these lines, and are never added in: said beside them, as of today. */}
       {others.length ? (
         <p data-akt-others className="mt-1">
-          {t('payments.aktOthers')}: {others.map((item) => standing(item.balance, item.currency, t)).join('; ')}
-          {totalBase !== null ? ` · ${t('payments.aktTotal')}: ${standing(totalBase, base, t)}` : ''}
+          {t('payments.aktOthers')}: {others.map((item) => balanceText(item.balance, item.currency)).join('; ')}
+          {totalBase !== null ? ` · ${t('payments.aktTotal')}: ${balanceText(totalBase, base)}` : ''}
         </p>
       ) : null}
       <div className="mt-10 grid grid-cols-2 gap-10">

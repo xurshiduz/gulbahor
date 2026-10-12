@@ -85,12 +85,12 @@ function Money({ due, onComplete }: { due: number; onComplete: (rows: TenderRow[
 describe('a sale on a customer’s account', () => {
   it('puts the rest on the account with "=", and shows it in the account’s currency beside', async () => {
     render(<Money due={som(1_265_000)} onComplete={() => undefined} />)
-    const into = screen.getByLabelText(/Hisobidan · Elaris/) as HTMLInputElement
+    const into = screen.getByLabelText(/Balansidan · Elaris/) as HTMLInputElement
     into.focus()
     await userEvent.keyboard('={Tab}')
     expect(plain(into.value)).toBe('1 265 000')
     // 1 265 000 so'm are 100 $ on a dollar account: both sums are in sight before the sale.
-    expect((screen.getByLabelText('Hisobiga (USD)') as HTMLInputElement).value).toBe('100,00')
+    expect((screen.getByLabelText('Balansda (USD)') as HTMLInputElement).value).toBe('100,00')
     // Nothing is left for the money to cover.
     expect(screen.queryByText('Yana kerak')).toBeNull()
     expect(screen.getByText('Mijoz hisobiga sotishda rahbar tasdig‘i so‘raladi')).toBeTruthy()
@@ -99,9 +99,9 @@ describe('a sale on a customer’s account', () => {
   it('keeps the sale’s sum when the account’s is typed over, and says what the agreement costs', async () => {
     const done = vi.fn()
     render(<Money due={som(1_265_000)} onComplete={done} />)
-    const into = screen.getByLabelText(/Hisobidan · Elaris/) as HTMLInputElement
+    const into = screen.getByLabelText(/Balansidan · Elaris/) as HTMLInputElement
     await userEvent.type(into, '1265000{Tab}')
-    const theirs = screen.getByLabelText('Hisobiga (USD)') as HTMLInputElement
+    const theirs = screen.getByLabelText('Balansda (USD)') as HTMLInputElement
     await userEvent.clear(theirs)
     await userEvent.type(theirs, '99{Tab}')
     expect(plain(into.value)).toBe('1 265 000')

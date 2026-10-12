@@ -6,7 +6,6 @@ import {
   variantLabel,
   type AttributeDto,
   type AttributeValueDto,
-  type CurrencyCode,
   type PriceTypeDto,
 } from '@erp/core'
 import { Check, Plus, X } from 'lucide-react'
@@ -19,6 +18,7 @@ import { Menu, Select, Switch } from '@/components/ui/controls'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { TagInput } from '@/components/ui/tag-input'
+import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 import {
@@ -348,8 +348,6 @@ interface DetailsProps {
   /** The model's own prices, shown where a variant has none of its own. */
   modelPrices: PriceDrafts
   canPrice: boolean
-  /** What a price may be in: the base and the currencies the business has. */
-  priceCurrencies: CurrencyCode[]
   errors: VariantErrors
 }
 
@@ -366,7 +364,6 @@ export function VariantDetails({
   priceTypes,
   modelPrices,
   canPrice,
-  priceCurrencies,
   errors,
 }: DetailsProps) {
   const { t } = useTranslation()
@@ -408,7 +405,6 @@ export function VariantDetails({
               priceTypes={priceTypes}
               modelPrices={modelPrices}
               canPrice={canPrice}
-              priceCurrencies={priceCurrencies}
               error={errors[key]}
             />
           ))}
@@ -418,10 +414,7 @@ export function VariantDetails({
   )
 }
 
-interface RowProps extends Pick<
-  DetailsProps,
-  'onPatch' | 'priceTypes' | 'modelPrices' | 'canPrice' | 'priceCurrencies'
-> {
+interface RowProps extends Pick<DetailsProps, 'onPatch' | 'priceTypes' | 'modelPrices' | 'canPrice'> {
   variantKey: string
   draft: VariantDraft
   values: Map<string, AttributeValueDto>
@@ -437,7 +430,6 @@ const VariantRow = memo(function VariantRow({
   priceTypes,
   modelPrices,
   canPrice,
-  priceCurrencies,
   error,
 }: RowProps) {
   const { t } = useTranslation()
@@ -484,19 +476,14 @@ const VariantRow = memo(function VariantRow({
         ? priceTypes.map((type) => {
             const own = draft.prices[type.id]
             const inherited = modelPrices[type.id]
-            const currency: CurrencyCode = own?.currency ?? inherited?.currency ?? type.currency
-            const setPrice = (amount: number | null, nextCurrency: CurrencyCode) =>
-              onPatch(variantKey, { prices: { ...draft.prices, [type.id]: { amount, currency: nextCurrency } } })
             return (
               <td key={type.id} className="w-36 p-1">
                 <MoneyInput
                   value={own?.amount ?? null}
-                  onChange={(amount) => setPrice(amount, currency)}
-                  currency={currency}
-                  currencies={priceCurrencies}
-                  onCurrencyChange={
-                    priceCurrencies.length > 1 ? (next) => setPrice(own?.amount ?? null, next) : undefined
+                  onChange={(amount) =>
+                    onPatch(variantKey, { prices: { ...draft.prices, [type.id]: { amount, currency: base() } } })
                   }
+                  currency={base()}
                   placeholder={inherited?.amount != null ? t('products.asModel') : '0'}
                 />
               </td>

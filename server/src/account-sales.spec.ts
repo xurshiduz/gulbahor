@@ -303,7 +303,7 @@ describe('Sales on account', () => {
         kind: string
         name: string
       }[]
-      const wholesale = types.find((type) => type.kind === 'wholesale')!
+      const wholesale = types.find((type) => type.name === 'Ulgurji')!
       const floor = types.find((type) => type.kind === 'min')!
       // The floor is no price to buy at.
       const refused = await alpha

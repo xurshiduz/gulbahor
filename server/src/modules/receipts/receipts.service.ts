@@ -2,12 +2,15 @@ import {
   allocateExact,
   costReceipt,
   formatMoney,
+  pricingSays,
+  receiptPrice,
   receiptRateWay,
   RECEIPT_STATUS_LABELS,
   searchKey,
   type AnyCurrency,
   type Costing,
   type Page,
+  type PriceFormula,
   type ReceiptDto,
   type ReceiptExpenseInput,
   type ReceiptExpensesInput,
@@ -44,6 +47,7 @@ import { settleReceiptUnits, voidReceiptUnits } from '../labels/units'
 import { wantingRate } from '../money/agreed'
 import { CurrenciesService } from '../money/currencies.service'
 import { LedgerService, type Posting } from '../money/ledger.service'
+import { PricingService, type PriceChange } from '../pricing/pricing.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, TRANSIT, type Movement } from '../stock/stock.service'
 
@@ -76,6 +80,7 @@ export class ReceiptsService {
     private readonly stock: StockService,
     private readonly ledger: LedgerService,
     private readonly currencies: CurrenciesService,
+    private readonly pricing: PricingService,
   ) {}
 
   async list(actor: Actor, query: ReceiptListQuery): Promise<Page<ReceiptListItemDto>> {
@@ -213,15 +218,15 @@ export class ReceiptsService {
       const expenses = await em.find(ReceiptExpense, { where: { receiptId: id }, order: { position: 'ASC' } })
       const receipt = await this.createIn(em, actor, {
         ...header(source, actor),
-        lines: lines.map(({ variantId, supplierId, qty, price, extra, retailPrice, wholesalePrice, otherPrices }) => ({
+        lines: lines.map(({ variantId, supplierId, qty, price, extra, retailPrice, otherPrices, priceFormulas }) => ({
           variantId,
           supplierId,
           qty,
           price,
           extra,
           retailPrice,
-          wholesalePrice,
           otherPrices,
+          priceFormulas,
         })),
         expenses: expenses.map(({ name, amount, currency, basis, isEstimate }) => ({
           name,
@@ -289,7 +294,7 @@ export class ReceiptsService {
       await settleReceiptUnits(em, id, receipt.locationId)
       await this.owe(em, actor, receipt, lines, costing)
 
-      const priced = can(actor, 'products.prices') ? await this.applyPrices(em, actor, lines) : 0
+      const priced = await this.setPrices(em, actor, receipt, lines, costing)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'receipt.post',
         entity: 'receipt',
@@ -611,6 +616,7 @@ export class ReceiptsService {
       rateWay: receipt.rateWay,
       extraCurrency: receipt.extraCurrency,
       note: receipt.note,
+      pricing: receipt.pricing,
       sourceFile: receipt.sourceFile,
       lines: lines.map((line) => ({
         id: line.id,
@@ -621,8 +627,8 @@ export class ReceiptsService {
         price: line.price,
         extra: line.extra,
         retailPrice: line.retailPrice,
-        wholesalePrice: line.wholesalePrice,
         otherPrices: line.otherPrices,
+        priceFormulas: line.priceFormulas,
         costUzs: line.costUzs,
       })),
       expenses: expenses.map((expense) => ({
@@ -726,14 +732,34 @@ export class ReceiptsService {
     const variants = variantIds.length ? await em.findBy(ProductVariant, { id: In(variantIds) }) : []
     const found = new Set(variants.map((variant) => variant.id))
     // A price can be set only for a price type the business keeps, and only in the field that is its own.
-    const { others } = await priceFields(em)
+    const { retail, others } = await priceFields(em)
     const priced = new Set(others.map((type) => type.id))
+    /** What is wrong with formulas given by price type: one for a type not kept, or the retail price out of itself. */
+    const amiss = (formulas: [string, PriceFormula | null][]): string | null => {
+      for (const [id, formula] of formulas) {
+        if (id !== retail?.id && !priced.has(id)) {
+          return 'Narx turi topilmadi'
+        }
+        if (id === retail?.id && formula?.base === 'retail') {
+          return 'Chakana narxning o‘zi chakana narxdan hisoblanmaydi'
+        }
+      }
+      return null
+    }
+    const pricing = amiss(Object.entries(input.pricing).map(([id, said]) => [id, said.formula]))
+    if (pricing) {
+      fields.pricing = pricing
+    }
     input.lines.forEach((line, index) => {
       if (!found.has(line.variantId)) {
         fields[`lines.${index}.variantId`] = 'Tovar topilmadi'
       }
       if (Object.keys(line.otherPrices).some((id) => !priced.has(id))) {
         fields[`lines.${index}.otherPrices`] = 'Narx turi topilmadi'
+      }
+      const formulas = amiss(Object.entries(line.priceFormulas))
+      if (formulas) {
+        fields[`lines.${index}.priceFormulas`] = formulas
       }
       if (line.supplierId && !known.has(line.supplierId)) {
         fields[`lines.${index}.supplierId`] = 'Yetkazib beruvchi topilmadi'
@@ -879,85 +905,159 @@ export class ReceiptsService {
   }
 
   /**
-   * Puts the selling prices written on the lines onto their models. The price
-   * most lines of a model agree on becomes the model's; a variant whose line
-   * says otherwise keeps its own. Returns how many models were touched.
+   * The prices a receipt sets as it is posted — one revision of the price history, which can be put back:
+   *
+   * - those written on its lines, by someone who may set prices. The price most lines of a model agree on becomes
+   *   the model's; a variant whose line says otherwise keeps its own. A formula typed in place of a sum
+   *   ("30%", "ch −15%") is worked out of what the model costs on this receipt;
+   * - what the receipt says of a price type for all its goods — a formula of its own, none at all, or "for the
+   *   goods that have a price too" — again where whoever posts may set prices;
+   * - and, whoever posts, for a model that still has no price of a type: what that type's formula — the
+   *   narrowest rule that fits, or the type's own way — makes of what these goods cost, or of their retail
+   *   price. New goods are not left without a price; a price that stands is not touched. The floor is left
+   *   to the till, which works it out of what the goods cost on the day.
+   *
+   * Which of them wins is one rule, the screen's too: `receiptPrice`. Returns how many models were touched.
    */
-  private async applyPrices(em: EntityManager, actor: Actor, lines: ReceiptLine[]): Promise<number> {
-    const { retail, wholesale, others } = await priceFields(em)
+  private async setPrices(
+    em: EntityManager,
+    actor: Actor,
+    receipt: Receipt,
+    lines: ReceiptLine[],
+    costing: Costing,
+  ): Promise<number> {
+    const { retail, others } = await priceFields(em)
+    const types = [retail, ...others].filter((type): type is PriceType => !!type)
     const variants = await em.findBy(ProductVariant, { id: In([...new Set(lines.map((line) => line.variantId))]) })
     const productOf = new Map(variants.map((variant) => [variant.id, variant.productId]))
-    const touched = new Set<string>()
-
-    for (const type of [retail, wholesale, ...others]) {
-      if (!type) {
-        continue
+    const productIds = [...new Set(productOf.values())]
+    const standing = await this.pricing.pricesIn(em, productIds)
+    const now = new Map(
+      standing
+        .filter((row) => !row.location_id)
+        .map((row) => [`${row.price_type_id}:${row.product_id}:${row.variant_id ?? ''}`, row.amount]),
+    )
+    const changes: PriceChange[] = []
+    /** Sets one price — a model's, or a size's of its own (`next` null takes that one away) — if it is not so already. */
+    const put = (type: PriceType, productId: string, variantId: string | null, next: number | null) => {
+      const key = `${type.id}:${productId}:${variantId ?? ''}`
+      const old = now.get(key) ?? null
+      if (old === next) {
+        return
       }
-      const pick = (line: ReceiptLine): number | null =>
-        type === retail
-          ? line.retailPrice
-          : type === wholesale
-            ? line.wholesalePrice
-            : (line.otherPrices[type.id] ?? null)
-      const byProduct = new Map<string, Map<string, number>>()
-      for (const line of lines) {
-        const amount = pick(line)
-        if (amount === null) {
-          continue
-        }
-        const productId = productOf.get(line.variantId) as string
-        const prices = byProduct.get(productId) ?? new Map<string, number>()
-        byProduct.set(productId, prices)
-        prices.set(line.variantId, amount)
-      }
-
-      for (const [productId, prices] of byProduct) {
-        const counts = new Map<number, number>()
-        prices.forEach((amount) => counts.set(amount, (counts.get(amount) ?? 0) + 1))
-        const [model] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
-        const upsert = (variantId: string | null, amount: number) =>
-          em.query(
-            `INSERT INTO prices (org_id, price_type_id, product_id, variant_id, location_id, amount, currency, updated_by)
-             VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)
-             ON CONFLICT ON CONSTRAINT prices_scope
-             DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-            [actor.orgId, type.id, productId, variantId, amount, type.currency, actor.userId],
-          )
-
-        await upsert(null, model)
-        for (const [variantId, amount] of prices) {
-          if (amount === model) {
-            await em.query(`DELETE FROM prices WHERE price_type_id = $1 AND variant_id = $2 AND location_id IS NULL`, [
-              type.id,
-              variantId,
-            ])
-          } else {
-            await upsert(variantId, amount)
-          }
-        }
-        touched.add(productId)
+      changes.push({ priceTypeId: type.id, productId, variantId, locationId: null, old, next })
+      if (next === null) {
+        now.delete(key)
+      } else {
+        now.set(key, next)
       }
     }
-    return touched.size
+
+    const mayPrice = can(actor, 'products.prices')
+    /** The models whose price of a type was typed as a sum: nothing is worked out for them. */
+    const typedSum = new Set<string>()
+    if (mayPrice) {
+      for (const type of types) {
+        const pick = (line: ReceiptLine): number | null =>
+          type === retail ? line.retailPrice : (line.otherPrices[type.id] ?? null)
+        const byProduct = new Map<string, Map<string, number>>()
+        for (const line of lines) {
+          const amount = pick(line)
+          if (amount === null) {
+            continue
+          }
+          const productId = productOf.get(line.variantId) as string
+          const prices = byProduct.get(productId) ?? new Map<string, number>()
+          byProduct.set(productId, prices)
+          prices.set(line.variantId, amount)
+        }
+        for (const [productId, prices] of byProduct) {
+          const counts = new Map<number, number>()
+          prices.forEach((amount) => counts.set(amount, (counts.get(amount) ?? 0) + 1))
+          const [model] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+          typedSum.add(`${type.id}:${productId}`)
+          put(type, productId, null, model)
+          for (const [variantId, amount] of prices) {
+            put(type, productId, variantId, amount === model ? null : amount)
+          }
+        }
+      }
+    }
+
+    // What a model costs here: its lines together, each with its share of the expenses.
+    const cost = new Map<string, { qty: number; uzs: number }>()
+    lines.forEach((line, index) => {
+      const productId = productOf.get(line.variantId) as string
+      const sum = cost.get(productId) ?? { qty: 0, uzs: 0 }
+      cost.set(productId, { qty: sum.qty + line.qty, uzs: sum.uzs + costing.lines[index].costUzs })
+    })
+    /** The formula most of a model's lines carry for a type, where one was typed into their field. */
+    const typedFormula = (type: PriceType, productId: string): PriceFormula | null => {
+      const counts = new Map<string, { formula: PriceFormula; lines: number }>()
+      for (const line of lines) {
+        const formula = line.priceFormulas[type.id]
+        if (formula && productOf.get(line.variantId) === productId) {
+          const key = `${formula.base}:${formula.percent}:${formula.amount}`
+          counts.set(key, { formula, lines: (counts.get(key)?.lines ?? 0) + 1 })
+        }
+      }
+      return [...counts.values()].sort((a, b) => b.lines - a.lines)[0]?.formula ?? null
+    }
+    const formulas = await this.pricing.formulasIn(em, productIds)
+    for (const productId of productIds) {
+      // Retail first: another type's formula may start from the price it has just been given.
+      for (const type of types) {
+        if (typedSum.has(`${type.id}:${productId}`)) {
+          continue
+        }
+        const typed = mayPrice ? typedFormula(type, productId) : null
+        const held = cost.get(productId)
+        const { price } = receiptPrice({
+          typed: typed ? { formula: typed } : null,
+          receipt: mayPrice ? receipt.pricing[type.id] : null,
+          rule: formulas[productId]?.find((item) => item.priceTypeId === type.id),
+          standing: now.get(`${type.id}:${productId}:`) ?? null,
+          cost: held && held.qty > 0 ? Math.round(held.uzs / held.qty) : null,
+          retail: retail && retail.id !== type.id ? (now.get(`${retail.id}:${productId}:`) ?? null) : null,
+          rounding: { step: type.roundStep, ending: type.roundEnding },
+          floor: type.kind === 'min',
+        })
+        if (price !== null) {
+          put(type, productId, null, price)
+        }
+      }
+    }
+
+    if (!changes.length) {
+      return 0
+    }
+    const touched = new Set(changes.map((change) => change.productId)).size
+    await this.pricing.recordIn(em, actor, changes, {
+      summary: `${receipt.number} kirimidan`,
+      note: null,
+      changed: touched,
+      revertsId: null,
+    })
+    return touched
   }
 }
 
 /**
- * Which price type each price field of a line is for. The retail type and the
- * first wholesale one have fields of their own; every other active price type
- * is set through `otherPrices`. The screen picks them the same way.
+ * Which price type each price field of a line is for: the retail type has a
+ * field of its own, every other active price type is set through
+ * `otherPrices`. The screen picks them the same way.
  */
-async function priceFields(
-  em: EntityManager,
-): Promise<{ retail: PriceType | undefined; wholesale: PriceType | undefined; others: PriceType[] }> {
+async function priceFields(em: EntityManager): Promise<{ retail: PriceType | undefined; others: PriceType[] }> {
   const types = await em.find(PriceType, { where: { isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } })
   const retail = types.find((type) => type.kind === 'retail')
-  const wholesale = types.find((type) => type.kind === 'wholesale')
-  return { retail, wholesale, others: types.filter((type) => type !== retail && type !== wholesale) }
+  return { retail, others: types.filter((type) => type !== retail) }
 }
 
 function header(
-  input: Pick<ReceiptInput, 'locationId' | 'supplierId' | 'docDate' | 'currency' | 'rate' | 'extraCurrency' | 'note'>,
+  input: Pick<
+    ReceiptInput,
+    'locationId' | 'supplierId' | 'docDate' | 'currency' | 'rate' | 'extraCurrency' | 'note' | 'pricing'
+  >,
   actor: Pick<Actor, 'base'>,
 ) {
   const inBase = input.currency === actor.base
@@ -971,6 +1071,8 @@ function header(
     rateWay: receiptRateWay(input.currency, actor.base),
     extraCurrency: input.extraCurrency ?? actor.base,
     note: input.note,
+    // What says nothing is not kept: the rules are followed where the receipt is silent.
+    pricing: Object.fromEntries(Object.entries(input.pricing).filter(([, said]) => pricingSays(said))),
   }
 }
 

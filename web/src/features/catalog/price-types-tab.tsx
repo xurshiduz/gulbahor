@@ -1,15 +1,10 @@
 import {
+  formulaText,
   cashSteps,
-  CURRENCIES,
   formatMoney,
-  PRICE_KIND_LABELS,
-  PRICE_KINDS,
   priceTypeInputSchema,
   TILL_ACCESS,
   TILL_ACCESS_LABELS,
-  TILL_PRICE_KINDS,
-  type CurrencyCode,
-  type PriceKind,
   type PriceTypeDto,
   type PriceTypeInput,
   type TillAccess,
@@ -31,7 +26,7 @@ import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { PageActions } from '@/components/ui/page'
-import { useSession } from '@/features/auth/session'
+import { FormulaFields, formulaOf, formulaRowOf, NO_FORMULA, type FormulaRow } from '@/features/pricing/formula-fields'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { useHotkey } from '@/lib/hotkeys'
@@ -73,22 +68,24 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         id: 'name',
         header: t('references.name'),
         meta: { fixed: true },
-        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-      },
-      {
-        id: 'kind',
-        header: t('references.priceKind'),
         cell: ({ row }) => (
-          <Badge tone={row.original.kind === 'retail' ? 'accent' : row.original.kind === 'min' ? 'warn' : 'neutral'}>
-            {PRICE_KIND_LABELS[row.original.kind]}
-          </Badge>
+          <span className="flex items-center gap-2">
+            <span className="font-medium">{row.original.name}</span>
+            {row.original.kind === 'retail' ? <Badge tone="accent">{t('references.systemRetail')}</Badge> : null}
+            {row.original.kind === 'min' ? <Badge tone="warn">{t('references.systemFloor')}</Badge> : null}
+          </span>
         ),
       },
       {
-        id: 'currency',
-        header: t('references.currency'),
-        meta: { className: 'text-ink-2' },
-        cell: ({ row }) => CURRENCIES[row.original.currency].symbol,
+        id: 'formula',
+        header: t('references.priceFormula'),
+        meta: { className: 'text-ink-2 whitespace-nowrap' },
+        cell: ({ row }) =>
+          row.original.formula ? (
+            formulaText(row.original.formula, base())
+          ) : (
+            <span className="text-ink-3">{t('references.priceByHand')}</span>
+          ),
       },
       {
         id: 'till',
@@ -97,6 +94,8 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         cell: ({ row }) =>
           row.original.kind === 'retail' ? (
             t('references.tillRetail')
+          ) : row.original.kind === 'min' ? (
+            <span className="text-ink-3">—</span>
           ) : row.original.tillAccess === 'none' ? (
             <span className="text-ink-3">{TILL_ACCESS_LABELS.none}</span>
           ) : (
@@ -108,13 +107,13 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         header: t('references.rounding'),
         meta: { className: 'tabular text-ink-2 whitespace-nowrap' },
         cell: ({ row }) => {
-          const { roundStep, roundEnding, currency } = row.original
+          const { roundStep, roundEnding } = row.original
           if (!roundStep) {
             return <span className="text-ink-3">{t('references.roundNone')}</span>
           }
           return roundEnding
-            ? `…${formatMoney(roundEnding, currency, { symbol: false })}`
-            : formatMoney(roundStep, currency, { minor: 'auto' })
+            ? `…${formatMoney(roundEnding, base(), { symbol: false })}`
+            : formatMoney(roundStep, base(), { minor: 'auto' })
         },
       },
       {
@@ -139,8 +138,8 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
                 }
                 items={[
                   { label: t('common.edit'), icon: <Pencil />, onSelect: () => setEditing(row.original) },
-                  // The till always needs a retail price to start from.
-                  ...(row.original.kind === 'retail'
+                  // The till always needs a retail price to start from, and a floor to stop at.
+                  ...(row.original.kind !== 'other'
                     ? []
                     : [
                         row.original.isActive
@@ -203,12 +202,7 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
         empty={<EmptyState icon={Banknote} title={t('common.empty')} />}
       />
       {editing ? (
-        <PriceTypeDialog
-          type={editing === 'new' ? null : editing}
-          taken={new Set((priceTypes.data ?? []).map((type) => type.kind))}
-          onClose={() => setEditing(null)}
-          onSaved={refresh}
-        />
+        <PriceTypeDialog type={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={refresh} />
       ) : null}
     </>
   )
@@ -216,50 +210,42 @@ export function PriceTypesTab({ canManage }: { canManage: boolean }) {
 
 interface Values {
   name: string
-  kind: PriceKind
-  currency: CurrencyCode
   roundStep: number | null
   roundEnding: number | null
   tillAccess: TillAccess
   skipsFloor: boolean
+  /** How its prices are worked out where no narrower rule says: by hand unless said. */
+  formula: FormulaRow
 }
 
 function PriceTypeDialog({
   type,
-  taken,
   onClose,
   onSaved,
 }: {
   type: PriceTypeDto | null
-  taken: Set<PriceKind>
   onClose: () => void
   onSaved: () => void
 }) {
   const { t } = useTranslation()
-  const { me } = useSession()
   const formId = 'price-type-form'
   const form = useForm<Values>({
     defaultValues: {
       name: type?.name ?? '',
-      kind: type?.kind ?? (taken.has('wholesale') ? 'other' : 'wholesale'),
-      currency: type?.currency ?? base(),
       // A new price type rounds as the ready-made ones do: so'm to the thousand, tenge to the hundred.
       roundStep: type ? type.roundStep : cashSteps(base()).price,
       roundEnding: type?.roundEnding ?? 0,
       tillAccess: type?.tillAccess ?? 'none',
       skipsFloor: type?.skipsFloor ?? false,
+      formula: formulaRowOf(type?.formula),
     },
   })
   const errors = form.formState.errors
-  const currency = form.watch('currency')
+  const currency = base()
   // The retail price is the till's own and the floor is never sold at: only the others are offered there.
-  const sellable = TILL_PRICE_KINDS.includes(form.watch('kind'))
+  const kind = type?.kind ?? 'other'
+  const sellable = kind === 'other'
   const tillAccess = form.watch('tillAccess')
-
-  // There is one retail and one minimum type; they are offered only to the type that already is one.
-  const kinds = PRICE_KINDS.filter(
-    (kind) => kind === type?.kind || !((kind === 'retail' || kind === 'min') && taken.has(kind)),
-  )
 
   const mutation = useMutation({
     mutationFn: (input: PriceTypeInput) =>
@@ -276,7 +262,6 @@ function PriceTypeDialog({
     <Dialog
       open
       onClose={onClose}
-      size="sm"
       title={type ? t('references.editPriceType') : t('references.addPriceType')}
       dirty={form.formState.isDirty && !mutation.isSuccess}
       footer={
@@ -294,6 +279,8 @@ function PriceTypeDialog({
           void form.handleSubmit((values) => {
             const input = zodCheck(form, priceTypeInputSchema, {
               ...values,
+              // By hand is said outright: left out, the server would keep what stood before.
+              formula: formulaOf(values.formula),
               roundStep: values.roundStep ?? 0,
               roundEnding: values.roundEnding ?? 0,
               tillAccess: sellable ? values.tillAccess : 'none',
@@ -308,19 +295,31 @@ function PriceTypeDialog({
         <Field label={t('references.name')} error={errors.name?.message} required>
           {(id) => <Input id={id} autoFocus invalid={!!errors.name} {...form.register('name')} />}
         </Field>
-        <Field label={t('references.priceKind')} hint={t('references.priceKindHint')} error={errors.kind?.message}>
-          {(id) => (
+        {kind === 'other' ? null : (
+          <p className="text-sm text-ink-2">
+            {t(kind === 'retail' ? 'references.retailNote' : 'references.floorNote')}
+          </p>
+        )}
+        <Field
+          label={t('references.priceFormula')}
+          hint={t('references.priceFormulaHint')}
+          error={errors.formula?.message}
+        >
+          {() => (
             <Controller
               control={form.control}
-              name="kind"
+              name="formula"
               render={({ field }) => (
-                <Select
-                  id={id}
-                  value={field.value}
+                <FormulaFields
+                  value={
+                    // The retail price is never worked out from itself.
+                    kind === 'retail' && field.value.way.startsWith('retail') ? NO_FORMULA : field.value
+                  }
                   onChange={field.onChange}
-                  options={kinds.map((kind) => ({ value: kind, label: PRICE_KIND_LABELS[kind] }))}
-                  disabled={type?.kind === 'retail'}
-                  invalid={!!errors.kind}
+                  currency={currency}
+                  noneLabel={t('references.priceByHand')}
+                  ways={kind === 'retail' ? ['none', 'cost'] : ['none', 'cost', 'retail_less', 'retail_more']}
+                  invalid={!!errors.formula}
                 />
               )}
             />
@@ -363,29 +362,6 @@ function PriceTypeDialog({
               />
             ) : null}
           </>
-        ) : null}
-        {me.org.currencies.length || (type && type.currency !== base()) ? (
-          <Field label={t('references.currency')} hint={t('references.currencyHint')} error={errors.currency?.message}>
-            {(id) => (
-              <Controller
-                control={form.control}
-                name="currency"
-                render={({ field }) => (
-                  <Select
-                    id={id}
-                    value={field.value}
-                    onChange={field.onChange}
-                    options={[...new Set([base(), ...me.org.currencies, ...(type ? [type.currency] : [])])].map(
-                      (code) => ({
-                        value: code,
-                        label: `${CURRENCIES[code].symbol} · ${code}`,
-                      }),
-                    )}
-                  />
-                )}
-              />
-            )}
-          </Field>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field

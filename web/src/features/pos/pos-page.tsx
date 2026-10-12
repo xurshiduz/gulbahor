@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Select } from '@/components/ui/controls'
 import { EmptyState, Shortcut, Spinner } from '@/components/ui/feedback'
-import { controlClass, Input } from '@/components/ui/input'
+import { controlClass } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Page } from '@/components/ui/page'
@@ -91,6 +91,8 @@ import { PromoCode } from './promo-code'
 import { ReceiptPreview } from './receipt-preview'
 import { SaleDialog } from './sale-dialog'
 import { kindOf, TenderPanel, type TenderKind } from './tender-panel'
+import type { ChangeMode } from './change-rows'
+import { DiscountInput } from './discount-input'
 import { CustomerPicker, type CustomerPickerHandle } from './customer-picker'
 import { CloseShiftDialog, OpenShift } from './shift-parts'
 
@@ -285,6 +287,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** How the change goes back when not all of it is cash in the base: what was typed, and whether the rows are out. */
   const [giving, setGiving] = useState<Record<string, Partial<ChangeRow>>>({})
   const [splitting, setSplitting] = useState(false)
+  /** What is done with money paid over the sum: handed back, unless the customer leaves it on their balance. */
+  const [changeMode, setChangeMode] = useState<ChangeMode>('give')
   /** Handing back: what of it stays on the customer's account instead, and — agreed — what that is in its currency. */
   const [keeping, setKeeping] = useState<{ amount: number | null; settled: number | null }>({
     amount: null,
@@ -721,8 +725,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
     () => changeRows(context, keeps ? accountCurrency : null).map((row) => ({ ...row, ...giving[row.key] })),
     [context, keeps, accountCurrency, giving],
   )
-  // What was written for one sum over means nothing for another.
-  useEffect(() => setGiving({}), [over])
+  // What was written for one sum over means nothing for another: handed back, it is cash again; left with the
+  // customer, all of the new sum is.
+  useEffect(() => {
+    setGiving(changeMode === 'keep' && keeps ? { account: { value: over, amount: null } } : {})
+  }, [over, changeMode, keeps])
   const handed = over > 0 && !refunding ? changeLines(changing, over, book) : []
   const settlement = handed.length
     ? settle(owed, typed, { book, change: handed, roundStep: context.changeRoundStep })
@@ -804,6 +811,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   }
   /** F10: the change goes back in parts — the rows come out and the cursor goes to the first. */
   const splitChange = () => {
+    setChangeMode('give')
     setSplitting(true)
     window.setTimeout(() => {
       const field = document.querySelector<HTMLInputElement>('[data-change] input:not(:disabled)')
@@ -811,15 +819,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
       field?.select()
     })
   }
-  /** All of the change onto the customer's account: written in its row, the cursor on it, Enter sells. */
-  const keepChange = () => {
-    setSplitting(true)
-    setGiving({ account: { value: over, amount: null } })
-    window.setTimeout(() => {
-      const field = document.querySelector<HTMLInputElement>('[data-change-row="account"] input:not(:disabled)')
-      field?.focus()
-      field?.select()
-    })
+  /** Handed back, or left on the customer's balance: there, all of it is written, the cursor on it, Enter sells. */
+  const turnChange = (mode: ChangeMode) => {
+    setChangeMode(mode)
+    if (mode === 'keep') {
+      window.setTimeout(() => {
+        const field = document.querySelector<HTMLInputElement>('[data-change-row="account"] input:not(:disabled)')
+        field?.focus()
+        field?.select()
+      })
+    }
   }
   /** Back to the cart; what was typed for the money stays. */
   const backToCart = (to: 'agreed' | null = null) => {
@@ -864,6 +873,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setPaid({})
     setGiving({})
     setSplitting(false)
+    setChangeMode('give')
     setKeeping({ amount: null, settled: null })
     setAccount({ amount: null, received: null })
     setAccountDue(undefined)
@@ -1046,7 +1056,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
             : null,
           ...(underAsk
             ? under.map(({ index, floor }) =>
-                t('pos.approvalFloor', {
+                // The floor may be the cost itself: only those who may see cost are told it.
+                t(can('stock.cost') ? 'pos.approvalFloor' : 'pos.approvalFloorBare', {
                   name: cart.lines[index].item.name,
                   sum: money(totals.lines[index].total),
                   floor: money(floor),
@@ -1211,7 +1222,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   useHotkey('f10', splitChange, {
     label: t('pos.splitChange'),
     group,
-    enabled: idle && paying && over > 0 && changing.length > 0,
+    enabled: idle && paying && over > 0 && changing.some((row) => row.way !== 'account'),
   })
   // Cash, exactly, without looking at the money at all.
   useHotkey('mod+enter', () => complete(), { label: t('pos.quickSale', baseWords(t)), group, enabled: idle })
@@ -1368,7 +1379,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       <th className="px-3 py-2">{t('products.name')}</th>
                       <th className="w-24 px-2 py-2 text-right">{t('receipts.totalQty')}</th>
                       <th className="w-28 px-2 py-2 text-right">{t('pos.price')}</th>
-                      <th className="w-28 px-2 py-2">{t('pos.discount')}</th>
+                      <th className="w-40 px-2 py-2">{t('pos.discount')}</th>
                       <th className="w-36 px-3 py-2 text-right">{t('pos.total')}</th>
                       <th className="w-px" />
                     </tr>
@@ -1410,8 +1421,22 @@ function Till({ context, registers, onSwitch }: TillProps) {
                                     {t('pos.onHand', { qty: formatNumber(line.item.onHand) })}
                                   </span>
                                 ) : null}
+                                {/* Sold at a price type that has no price for it: by the formula, or at retail. */}
+                                {line.item.priceFrom === 'retail' ? (
+                                  <span
+                                    data-price-from="retail"
+                                    className="text-warn"
+                                    title={t('pos.priceRetailHint', { type: priceType?.name ?? '' })}
+                                  >
+                                    {t('pos.priceRetail')}
+                                  </span>
+                                ) : line.item.priceFrom === 'formula' ? (
+                                  <span data-price-from="formula">{t('pos.priceFormula')}</span>
+                                ) : null}
                                 {floor !== undefined ? (
-                                  <span className="text-bad">{t('pos.floor', { amount: money(floor) })}</span>
+                                  <span className="text-bad">
+                                    {can('stock.cost') ? t('pos.floor', { amount: money(floor) }) : t('pos.floorBare')}
+                                  </span>
                                 ) : null}
                                 {totals.autos[index]?.promoOff ? (
                                   <span className="text-accent-ink">
@@ -1443,11 +1468,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
                           </td>
                           <td className="tabular px-2 py-2.5 text-right">{money(line.item.price ?? 0)}</td>
                           <td className="px-2 py-1.5">
-                            <Input
-                              value={line.discountText}
-                              placeholder="10% / 5000"
+                            <DiscountInput
+                              text={line.discountText}
+                              unit={CURRENCIES[base()].symbol}
                               invalid={badDiscount(line.discountText, whole)}
-                              onChange={(event) => patch({ discountText: event.target.value })}
+                              onChange={(discountText) => patch({ discountText })}
                             />
                           </td>
                           <td className="px-2 py-1.5">
@@ -1532,6 +1557,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       rows: changing,
                       onPatch: (key, patch) =>
                         setGiving((current) => ({ ...current, [key]: { ...current[key], ...patch } })),
+                      mode: changeMode,
+                      onMode: turnChange,
                       open: splitting,
                       // Folded away, all of it is cash again.
                       onOpen: (open) => {
@@ -1550,10 +1577,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
                             }
                           : null,
                       cardAsks: !context.mayReturnAny,
-                      onKeepAll: keepChange,
-                      keepHint: buyer ? null : t('pos.keepChangePick'),
                     }
               }
+              balances={buyer && buyer.accounts ? { name: buyer.name, accounts: buyer.accounts } : null}
               action={
                 returning ? (cart.lines.length ? t('pos.exchangeAction') : t('pos.returnAction')) : t('pos.complete')
               }
@@ -1653,13 +1679,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 text-[13px] text-ink-3">
                   <span>{t('pos.saleDiscount')}</span>
-                  <Input
-                    value={cart.discountText}
-                    placeholder="10% / 5000"
-                    invalid={badDiscount(cart.discountText, afterLines) || overLimit}
-                    onChange={(event) => setCart({ ...cart, discountText: event.target.value })}
-                    className="w-36 text-right"
-                  />
+                  <span className="w-44 shrink-0">
+                    <DiscountInput
+                      text={cart.discountText}
+                      unit={CURRENCIES[base()].symbol}
+                      invalid={badDiscount(cart.discountText, afterLines) || overLimit}
+                      onChange={(discountText) => setCart({ ...cart, discountText })}
+                    />
+                  </span>
                 </div>
                 {cart.lines.length ? (
                   <AgreedSum

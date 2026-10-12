@@ -69,10 +69,9 @@ import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
-import { useCustomer, useCustomerChoices, useDebtText } from './choices'
+import { Balance, balanceText } from './balance'
+import { useCustomer, useCustomerChoices } from './choices'
 import { statementColumns, statementLineLabel, statementRows, StatementPaper } from './statement-paper'
-
-export { useDebtText }
 
 import {
   addRow,
@@ -165,7 +164,6 @@ export function PaymentDialog({
   const { t } = useTranslation()
   const { can, me } = useSession()
   const queryClient = useQueryClient()
-  const debtText = useDebtText()
   const kept = useKept()
   const [kind, setKind] = useState<'in' | 'out'>(startKind)
   const [customerId, setCustomerId] = useState<string | null>(fixedCustomer ?? null)
@@ -504,9 +502,9 @@ export function PaymentDialog({
           {/* What stands between them now, and what will once this is saved. */}
           {balance !== null && currency && after !== null ? (
             <div className="flex flex-col justify-end gap-0.5 pb-1 text-[13px] leading-tight">
-              <span className="tabular font-medium">{debtText(balance, currency)}</span>
+              <Balance balance={balance} currency={currency} className="font-medium" />
               <span className="tabular text-xs text-ink-3">
-                {t('payments.after')}: {debtText(after, currency)}
+                {t('payments.after')}: <Balance balance={after} currency={currency} />
               </span>
             </div>
           ) : null}
@@ -660,7 +658,6 @@ export function AdjustDialog({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const debtText = useDebtText()
   const kept = useKept()
   const [currency, setCurrency] = useState<AnyCurrency>(asked ?? customer.currency)
   const [categoryId, setCategoryId] = useState<string | null>(null)
@@ -769,8 +766,13 @@ export function AdjustDialog({
         </div>
         {balance !== null ? (
           <p className="tabular text-[13px] text-ink-2">
-            {debtText(balance, currency)}
-            {after !== null ? <span className="text-ink-3"> → {debtText(after, currency)}</span> : null}
+            <Balance balance={balance} currency={currency} />
+            {after !== null ? (
+              <span className="text-ink-3">
+                {' → '}
+                <Balance balance={after} currency={currency} />
+              </span>
+            ) : null}
           </p>
         ) : null}
         <Field label={t('payments.adjustWhy')} required>
@@ -798,7 +800,6 @@ export function ExchangeDialog({
   const { t } = useTranslation()
   const { can, me } = useSession()
   const queryClient = useQueryClient()
-  const debtText = useDebtText()
   const kept = useKept()
   const book = useRateBook()
   // It leaves the account that has something to its good, when one does.
@@ -877,7 +878,10 @@ export function ExchangeDialog({
       ) : (
         <Form id="account-exchange-form" onSubmit={submit}>
           <div className="grid items-start gap-x-3 gap-y-4 sm:grid-cols-2">
-            <Field label={t('payments.exchangeFrom')} hint={left !== null ? debtText(left, from) : undefined}>
+            <Field
+              label={t('payments.exchangeFrom')}
+              hint={left !== null ? <Balance balance={left} currency={from} /> : undefined}
+            >
               {(id) => (
                 <div data-enter-skip>
                   <Select
@@ -889,7 +893,10 @@ export function ExchangeDialog({
                 </div>
               )}
             </Field>
-            <Field label={t('payments.exchangeTo')} hint={entered !== null ? debtText(entered, to) : undefined}>
+            <Field
+              label={t('payments.exchangeTo')}
+              hint={entered !== null ? <Balance balance={entered} currency={to} /> : undefined}
+            >
               {(id) => (
                 <div data-enter-skip>
                   <Select id={id} value={to} onChange={(value) => pick('to', value as AnyCurrency)} options={options} />
@@ -948,7 +955,6 @@ export function CustomerTransferDialog({
   const { t } = useTranslation()
   const { can, me } = useSession()
   const queryClient = useQueryClient()
-  const debtText = useDebtText()
   const kept = useKept()
   const book = useRateBook()
   // It leaves the account that has something to its good, when one does.
@@ -1030,7 +1036,10 @@ export function CustomerTransferDialog({
       <Form id="customer-transfer-form" onSubmit={submit}>
         <div className="grid items-start gap-x-3 gap-y-4 sm:grid-cols-2">
           {/* Whose it leaves is whoever the window was opened for; only which of their accounts is picked. */}
-          <Field label={t('payments.transferFrom')} hint={left !== null ? debtText(left, from) : undefined}>
+          <Field
+            label={t('payments.transferFrom')}
+            hint={left !== null ? <Balance balance={left} currency={from} /> : undefined}
+          >
             {(id) =>
               kept.length > 1 ? (
                 <div data-enter-skip>
@@ -1052,7 +1061,7 @@ export function CustomerTransferDialog({
           <Field
             label={t('payments.transferTo')}
             error={errors.toCustomerId}
-            hint={entered !== null ? debtText(entered, to) : undefined}
+            hint={entered !== null ? <Balance balance={entered} currency={to} /> : undefined}
             required
           >
             {(id) => (
@@ -1324,7 +1333,6 @@ interface StatementDialogProps {
 export function StatementDialog({ customerId, currency: asked, onClose, onPay, onMend }: StatementDialogProps) {
   const { t } = useTranslation()
   const { can } = useSession()
-  const debtText = useDebtText()
   const { me } = useSession()
   const book = useRateBook()
   const [currency, setCurrency] = useState<AnyCurrency | undefined>(asked)
@@ -1381,7 +1389,7 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
       onClose={onClose}
       size="xl"
       title={data ? `${t('payments.statement')} · ${data.customer.name}` : t('payments.statement')}
-      description={data ? debtText(data.balance, data.currency) : undefined}
+      description={data ? balanceText(data.balance, data.currency) : undefined}
       footer={
         <>
           {onPay && data ? (
@@ -1496,8 +1504,8 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
                 <td className="px-2 py-1.5" colSpan={3}>
                   {t('payments.aktOpening')}
                 </td>
-                <td className="tabular px-2 py-1.5 text-right whitespace-nowrap">
-                  {money(data.opening, data.currency)}
+                <td className="px-2 py-1.5 text-right">
+                  <Balance balance={data.opening} currency={data.currency} />
                 </td>
                 <td colSpan={2} />
               </tr>
@@ -1527,11 +1535,12 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
                     line.change > 0 ? 'text-bad' : 'text-ok',
                   )}
                 >
-                  {line.change > 0 ? '+' : '−'}
+                  {/* Read as the balance is: what adds to the debt takes away from it. */}
+                  {line.change > 0 ? '−' : '+'}
                   {money(Math.abs(line.change), data.currency)}
                 </td>
-                <td className="tabular px-2 py-1.5 text-right font-medium whitespace-nowrap">
-                  {money(line.balance, data.currency)}
+                <td className="px-2 py-1.5 text-right font-medium">
+                  <Balance balance={line.balance} currency={data.currency} />
                 </td>
                 {/* The day a debt falls due, beside the sale or the opening balance that made it. */}
                 <td className="px-2 py-1 whitespace-nowrap">

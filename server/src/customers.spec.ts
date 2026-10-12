@@ -694,7 +694,7 @@ describe('Customers', () => {
 
     it('does not come off a price that is already their own', async () => {
       const types = (await alpha.get('/api/price-types').expect(200)).body as Record<string, unknown>[]
-      const wholesale = types.find((type) => type.kind === 'wholesale') as { id: string }
+      const wholesale = types.find((type) => type.name === 'Ulgurji') as { id: string }
       await alpha
         .put(`/api/price-types/${wholesale.id}`)
         .send({ ...wholesale, tillAccess: 'all' })

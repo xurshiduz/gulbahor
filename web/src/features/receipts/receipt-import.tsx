@@ -2,13 +2,15 @@ import {
   CURRENCIES,
   currencyOfHeader,
   guessMapping,
-  IMPORT_FIELDS,
+  importFields,
   MAX_IMPORT_ROWS,
+  priceTypeOfColumn,
   readImportRow,
+  templateMapping,
   todayIn,
   toIsoDate,
   type AnyCurrency,
-  type ImportFieldKey,
+  type ImportColumnKey,
   type ImportMapping,
   type ImportResult,
   type ImportRow,
@@ -26,6 +28,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
 import { useSession } from '@/features/auth/session'
+import { usePriceTypes } from '@/features/catalog/catalog'
 import { useCustomerChoices } from '@/features/customers/choices'
 import { api, ApiError } from '@/lib/api'
 import { base } from '@/lib/base'
@@ -39,6 +42,7 @@ import { useBookOn } from '@/features/money/rates'
 
 import { ReceiptRateField } from './receipt-rate'
 import { dayRateOf, DEFAULTS_KEY, NO_DEFAULTS, type ReceiptDefaults } from './receipt-state'
+import { downloadTemplate } from './receipt-template'
 
 type Cell = string | number | boolean | Date | null
 
@@ -48,6 +52,8 @@ interface Sheet {
   headers: Cell[]
   /** Rows under the header, with the row number each has in the file. */
   rows: { number: number; cells: Cell[] }[]
+  /** The business's own template says which column is which, in a hidden row; null for anybody else's sheet. */
+  keyed: ImportMapping | null
 }
 
 interface LocationOption {
@@ -58,11 +64,13 @@ interface LocationOption {
 
 const SKIP = 'skip'
 
-/** The first row that looks like a header: at least three cells of text. */
-const headerRowOf = (data: Cell[][]) =>
+/** The first row at or after `from` that looks like a header: at least three cells of text. */
+const headerRowOf = (data: Cell[][], from = 0) =>
   Math.max(
-    0,
-    data.findIndex((row) => row.filter((cell) => typeof cell === 'string' && cell.trim()).length >= 3),
+    from,
+    data.findIndex(
+      (row, index) => index >= from && row.filter((cell) => typeof cell === 'string' && cell.trim()).length >= 3,
+    ),
   )
 
 async function readSheet(file: File): Promise<Sheet> {
@@ -70,22 +78,16 @@ async function readSheet(file: File): Promise<Sheet> {
   const buffer = await file.arrayBuffer()
   const [first] = await readXlsxFile(buffer)
   const data = (first?.data ?? []) as Cell[][]
-  const at = headerRowOf(data)
+  // The business's template: its hidden row of keys, the headers under it, then the goods.
+  const keysAt = data.findIndex((row) => templateMapping(row) !== null)
+  const at = headerRowOf(data, keysAt + 1)
   return {
     fileName: file.name,
     fileHash: await sha256Hex(buffer),
     headers: data[at] ?? [],
     rows: data.slice(at + 1).map((cells, index) => ({ number: at + index + 2, cells })),
+    keyed: keysAt === -1 ? null : templateMapping(data[keysAt]),
   }
-}
-
-/** An empty sheet with the columns the import understands, to be filled in and sent back. */
-export async function downloadTemplate() {
-  const { default: writeXlsxFile } = await import('write-excel-file/browser')
-  await writeXlsxFile([IMPORT_FIELDS.map((field) => ({ value: field.title, fontWeight: 'bold' as const }))], {
-    columns: IMPORT_FIELDS.map((field) => ({ width: Math.max(14, field.title.length + 4) })),
-    sheet: 'Kirim',
-  }).toFile('kirim-shabloni.xlsx')
 }
 
 interface Props {
@@ -103,12 +105,24 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
   const { t } = useTranslation()
   const { me } = useSession()
   const fileRef = useRef<HTMLInputElement>(null)
+  // Each price type the business keeps has a column of its own.
+  const priceTypesQuery = usePriceTypes()
+  const priceTypes = useMemo(() => (priceTypesQuery.data ?? []).filter((type) => type.isActive), [priceTypesQuery.data])
+  const fields = useMemo(() => importFields(priceTypes), [priceTypes])
+  const priceNames = useMemo(() => Object.fromEntries(priceTypes.map((type) => [type.id, type.name])), [priceTypes])
+  const fieldLabel = (key: ImportColumnKey) => {
+    const priceTypeId = priceTypeOfColumn(key)
+    return priceTypeId
+      ? t('import.priceColumn', { name: priceNames[priceTypeId], currency: CURRENCIES[base()].symbol })
+      : t(`import.fields.${key}`)
+  }
   const [defaults] = usePreference<ReceiptDefaults>(DEFAULTS_KEY, NO_DEFAULTS)
   // What each template's columns were mapped to last time, by its header row.
   const [remembered, setRemembered] = usePreference<Record<string, ImportMapping>>('receipt.import.mappings', {})
 
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [mapping, setMapping] = useState<ImportMapping>({})
+  const [showColumns, setShowColumns] = useState(false)
   const [reading, setReading] = useState(false)
   const [preview, setPreview] = useState<ImportResult | null>(null)
 
@@ -159,9 +173,20 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
             .toLowerCase(),
         )
         .join('|')
-      const guessed = remembered[key] ?? guessMapping(read.headers)
+      // A mapping remembered before each price type had its column of its own is guessed again.
+      const before = remembered[key]
+      const usable = before && !('retailPrice' in before) && !('wholesalePrice' in before) ? before : undefined
+      const guessed: ImportMapping = { ...(read.keyed ?? usable ?? guessMapping(read.headers, priceTypes)) }
+      // A price column of a price type put away since is not read.
+      for (const column of Object.keys(guessed) as ImportColumnKey[]) {
+        const priceTypeId = priceTypeOfColumn(column)
+        if (priceTypeId && !priceNames[priceTypeId]) {
+          delete guessed[column]
+        }
+      }
       setSheet(read)
       setMapping(guessed)
+      setShowColumns(false)
       // "цена закупки YUAN" says what the supplier is paid in.
       const hinted = guessed.price === undefined ? null : currencyOfHeader(read.headers[guessed.price])
       if (hinted && kept.includes(hinted)) {
@@ -179,7 +204,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
     const rows: ImportRow[] = []
     const problems: ImportRowResult[] = []
     for (const row of sheet?.rows ?? []) {
-      const result = readImportRow(row.cells, mapping, row.number)
+      const result = readImportRow(row.cells, mapping, row.number, priceNames)
       if (result?.value) {
         rows.push(result.value)
       } else if (result) {
@@ -187,7 +212,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
       }
     }
     return { rows, problems }
-  }, [sheet, mapping])
+  }, [sheet, mapping, priceNames])
 
   const send = useMutation({
     mutationFn: (dryRun: boolean) =>
@@ -246,7 +271,12 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
       description={t('import.subtitle')}
       footer={
         <>
-          <Button variant="ghost" onClick={() => void downloadTemplate()} className="mr-auto">
+          <Button
+            variant="ghost"
+            onClick={() => void downloadTemplate(t, priceTypes, base())}
+            disabled={!priceTypesQuery.data}
+            className="mr-auto"
+          >
             <Download />
             {t('import.template')}
           </Button>
@@ -279,6 +309,7 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
         />
         <button
           type="button"
+          disabled={!priceTypesQuery.data}
           onClick={() => fileRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
@@ -332,7 +363,16 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
                     options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
                     onQuery={findSupplier}
                     value={supplierId}
-                    onChange={(value) => (setSupplierId(value), setPreview(null))}
+                    onChange={(value) => {
+                      setSupplierId(value)
+                      setPreview(null)
+                      // Goods are paid for in what the supplier is paid in.
+                      const theirs = suppliers.find((supplier) => supplier.id === value)?.currency
+                      if (theirs && theirs !== currency && kept.includes(theirs)) {
+                        setCurrency(theirs)
+                        setTypedRate(null)
+                      }
+                    }}
                   />
                 )}
               </Field>
@@ -368,48 +408,60 @@ export function ReceiptImportDialog({ locations, onClose, onDone }: Props) {
               ) : null}
             </div>
 
-            <div>
-              <p className="eyebrow mb-2">{t('import.columns')}</p>
-              <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-                {IMPORT_FIELDS.map((field) => {
-                  const column = mapping[field.key as ImportFieldKey]
-                  const shown = column === undefined ? null : sample[column]
-                  const needed = field.key === 'name' || field.key === 'qty'
-                  return (
-                    <div key={field.key} className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-xs font-medium text-ink-2">
-                        {field.title}
-                        {needed ? <span className="ml-0.5 text-bad">*</span> : null}
-                      </span>
-                      <Select
-                        value={column === undefined ? SKIP : String(column)}
-                        invalid={needed && column === undefined}
-                        onChange={(value) => {
-                          const next = { ...mapping }
-                          if (value === SKIP) {
-                            delete next[field.key as ImportFieldKey]
-                          } else {
-                            // A column feeds one field: taking it here frees it from wherever it was.
-                            for (const key of Object.keys(next) as ImportFieldKey[]) {
-                              if (next[key] === Number(value)) {
-                                delete next[key]
+            {sheet.keyed && !showColumns ? (
+              <Notice tone="ok" title={t('import.templateKnown')}>
+                <button
+                  type="button"
+                  className="mt-1 text-accent-ink hover:underline"
+                  onClick={() => setShowColumns(true)}
+                >
+                  {t('import.showColumns')}
+                </button>
+              </Notice>
+            ) : (
+              <div>
+                <p className="eyebrow mb-2">{t('import.columns')}</p>
+                <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {fields.map((field) => {
+                    const column = mapping[field.key]
+                    const shown = column === undefined ? null : sample[column]
+                    const needed = field.key === 'name' || field.key === 'qty'
+                    return (
+                      <div key={field.key} className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-xs font-medium text-ink-2">
+                          {fieldLabel(field.key)}
+                          {needed ? <span className="ml-0.5 text-bad">*</span> : null}
+                        </span>
+                        <Select
+                          value={column === undefined ? SKIP : String(column)}
+                          invalid={needed && column === undefined}
+                          onChange={(value) => {
+                            const next = { ...mapping }
+                            if (value === SKIP) {
+                              delete next[field.key]
+                            } else {
+                              // A column feeds one field: taking it here frees it from wherever it was.
+                              for (const key of Object.keys(next) as ImportColumnKey[]) {
+                                if (next[key] === Number(value)) {
+                                  delete next[key]
+                                }
                               }
+                              next[field.key] = Number(value)
                             }
-                            next[field.key as ImportFieldKey] = Number(value)
-                          }
-                          setMapping(next)
-                          setPreview(null)
-                        }}
-                        options={columnOptions}
-                      />
-                      <span className="h-4 truncate text-xs text-ink-3">
-                        {shown === null || shown === undefined || shown === '' ? '' : String(shown)}
-                      </span>
-                    </div>
-                  )
-                })}
+                            setMapping(next)
+                            setPreview(null)
+                          }}
+                          options={columnOptions}
+                        />
+                        <span className="h-4 truncate text-xs text-ink-3">
+                          {shown === null || shown === undefined || shown === '' ? '' : String(shown)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {read.rows.length > MAX_IMPORT_ROWS ? (
               <Notice tone="bad">{t('import.tooMany', { max: formatNumber(MAX_IMPORT_ROWS) })}</Notice>

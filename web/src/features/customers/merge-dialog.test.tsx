@@ -67,7 +67,8 @@ describe('making two cards of one person one', () => {
     shown()
     const note = () => plain(document.querySelector('[data-merge-note]')?.textContent)
     expect(note()).toContain('«Nodira opa» kartasi yopiladi va qaytarib ochilmaydi')
-    expect(note()).toContain('O‘tadigan qoldiq: qarzi 75 000 so‘m, haqi 10,00 $')
+    // What they owe has a minus; what is theirs stands as it is.
+    expect(note()).toContain('O‘tadigan qoldiq: −75 000 so‘m, 10,00 $')
     expect(screen.getByRole('button', { name: 'Birlashtirish' })).toBeTruthy()
   })
 
@@ -82,7 +83,7 @@ describe('making two cards of one person one', () => {
     expect(screen.queryByRole('option', { name: /Nodira opa/ })).toBeNull()
     await userEvent.click(screen.getByText('Nodira'))
     // What stands on the account it goes to is said under the field.
-    await waitFor(() => expect(plain(document.body.textContent)).toContain('qarzi 50 000 so‘m'))
+    await waitFor(() => expect(plain(document.body.textContent)).toContain('−50 000 so‘m'))
     await userEvent.click(screen.getByRole('button', { name: 'Birlashtirish' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith('/customers/twin/merge', { intoId: 'first' }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())

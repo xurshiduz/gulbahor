@@ -85,17 +85,18 @@ describe('a reconciliation on paper', () => {
       [...row.querySelectorAll('td')].map((cell) => plain(cell.textContent)),
     )
     expect(rows).toEqual([
-      ['01.09.2026', 'Davr boshidagi qoldiq', '', '', '', '50 000 so‘m'],
-      ['05.09.2026', 'Kassadan sotuv SR-000012', '2', '150 000 so‘m', '', '200 000 so‘m'],
-      ['07.09.2026', 'Tovar qaytarildi QT-000003', '1', '', '75 000 so‘m', '125 000 so‘m'],
-      ['20.09.2026', expect.stringContaining('TL-000040'), '', '', '100 000 so‘m', '25 000 so‘m'],
-      ['30.09.2026', 'Davr oxiridagi qoldiq', '', '', '', '25 000 so‘m'],
+      // What she owes is a balance under nought.
+      ['01.09.2026', 'Davr boshidagi qoldiq', '', '', '', '−50 000 so‘m'],
+      ['05.09.2026', 'Kassadan sotuv SR-000012', '2', '150 000 so‘m', '', '−200 000 so‘m'],
+      ['07.09.2026', 'Tovar qaytarildi QT-000003', '1', '', '75 000 so‘m', '−125 000 so‘m'],
+      ['20.09.2026', expect.stringContaining('TL-000040'), '', '', '100 000 so‘m', '−25 000 so‘m'],
+      ['30.09.2026', 'Davr oxiridagi qoldiq', '', '', '', '−25 000 so‘m'],
       ['Davr aylanmasi', '150 000 so‘m', '175 000 so‘m', ''],
     ])
-    expect(plain(paper.querySelector('[data-akt-result]')?.textContent)).toBe('Davr oxirida Nodira: qarzi 25 000 so‘m')
+    expect(plain(paper.querySelector('[data-akt-result]')?.textContent)).toBe('Davr oxirida Nodira: −25 000 so‘m')
     // Her dollars are not part of these lines: said beside them, never added in.
     expect(plain(paper.querySelector('[data-akt-others]')?.textContent)).toBe(
-      'Boshqa valyutadagi hisoblari (bugun): haqi 10,00 $ · hammasi bugungi kursda: haqi 101 500 so‘m',
+      'Boshqa valyutadagi hisoblari (bugun): 10,00 $ · hammasi bugungi kursda: 101 500 so‘m',
     )
     // A line for each side to sign.
     expect([...paper.querySelectorAll('[data-signature]')].map((line) => plain(line.textContent))).toEqual([
@@ -132,7 +133,7 @@ describe('a reconciliation on paper', () => {
       undefined,
       undefined,
       undefined,
-      50_000,
+      -50_000,
       undefined,
       undefined,
     ])
@@ -143,11 +144,11 @@ describe('a reconciliation on paper', () => {
       2,
       150_000,
       undefined,
-      200_000,
+      -200_000,
       'day',
       undefined,
     ])
-    expect(values(data[4]).slice(3)).toEqual([undefined, undefined, 100_000, 25_000, undefined, 'Naqd'])
+    expect(values(data[4]).slice(3)).toEqual([undefined, undefined, 100_000, -25_000, undefined, 'Naqd'])
     expect(values(data[5])).toEqual([
       'day',
       'Davr oxiridagi qoldiq',
@@ -155,7 +156,7 @@ describe('a reconciliation on paper', () => {
       undefined,
       undefined,
       undefined,
-      25_000,
+      -25_000,
       undefined,
       undefined,
     ])

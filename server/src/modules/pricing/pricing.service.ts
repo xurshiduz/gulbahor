@@ -1,9 +1,10 @@
 import {
   baseWorth,
-  exchange,
   formatMoney,
+  formulaText,
   NO_ROUNDING,
   pickMarkup,
+  priceBy,
   roundPrice,
   REPRICE_PREVIEW_LINES,
   SEASON_LABELS,
@@ -12,9 +13,12 @@ import {
   type Markup,
   type MarkupLookupResult,
   type Page,
+  type PriceFormula,
   type PriceListFilter,
+  type PriceRounding,
   type PriceListItemDto,
   type PriceListQuery,
+  type PriceLookupResult,
   type PriceRevisionDto,
   type PriceRevisionListQuery,
   type PriceRuleDto,
@@ -40,6 +44,7 @@ import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { bookToday } from '../money/rate-book'
 import { RealtimeService } from '../realtime/realtime.service'
+import { categoryParents, chain, ruleScopes } from './rules'
 
 const SORTABLE = { name: 'p.name', sku: 'p.sku' }
 
@@ -78,7 +83,7 @@ interface UnitCost {
 }
 
 /** One price as a revision records it. */
-interface Change {
+export interface PriceChange {
   priceTypeId: string
   productId: string
   variantId: string | null
@@ -167,9 +172,6 @@ export class PricingService {
       if (source && source.id === type.id) {
         throw AppError.validation({ 'operation.priceTypeId': 'Boshqa narx turini tanlang' })
       }
-      if (source && source.currency !== type.currency) {
-        throw AppError.validation({ 'operation.priceTypeId': 'Narx turlarining valyutasi bir xil bo‘lishi kerak' })
-      }
 
       const subjects = await this.subjects(em, input.filter)
       if (subjects.length > MAX_MODELS) {
@@ -180,15 +182,20 @@ export class PricingService {
       }
       const ids = subjects.map((subject) => subject.id)
 
-      const byRule = operation.kind === 'markup' && operation.percent === null
+      const byRule = operation.kind === 'formula' && operation.formula === null
       const rules = byRule ? await this.ruleScopes(em) : []
       const parents = byRule ? await this.categoryParents(em) : new Map<string, string | null>()
-      const [retail] = byRule ? await em.findBy(PriceType, { kind: 'retail' }) : []
+      const [retail] = operation.kind === 'formula' ? await em.findBy(PriceType, { kind: 'retail' }) : []
+      if (operation.kind === 'formula' && operation.formula?.base === 'retail') {
+        if (!retail || retail.id === type.id) {
+          throw AppError.validation({ 'operation.formula': 'Chakana narxning o‘zi chakana narxdan hisoblanmaydi' })
+        }
+      }
 
       const book = await bookToday(em)
       const costs = await this.unitCosts(em, ids, book)
       // At today's rates of the currencies the goods came in, when asked: what bringing them in again would cost.
-      const today = operation.kind === 'markup' && operation.today
+      const today = operation.kind === 'formula' && operation.today
       const rows = await this.prices(em, ids)
       const priceOf = (productId: string, priceTypeId: string | undefined) =>
         rows.find(
@@ -199,7 +206,7 @@ export class PricingService {
       const seesCost = can(actor, 'stock.cost')
 
       const lines: RepriceLineDto[] = []
-      const changes: Change[] = []
+      const changes: PriceChange[] = []
       let changed = 0
       let unchanged = 0
       let skipped = 0
@@ -208,19 +215,20 @@ export class PricingService {
       for (const subject of subjects) {
         const old = priceOf(subject.id, type.id)
         const cost = costs.get(subject.id)
-        const inBase = (today ? (cost?.today ?? cost?.uzs) : cost?.uzs) ?? null
-        // A price in another currency is marked up on the cost in it, at today's rates.
-        const unitCost =
-          inBase === null || type.currency === actor.base ? inBase : exchange(inBase, actor.base, type.currency, book)
-        const worked = this.work(operation, {
-          old,
-          unitCost,
-          source: source ? priceOf(subject.id, source.id) : null,
-          retail: retail && retail.id !== type.id ? priceOf(subject.id, retail.id) : null,
-          markup: byRule
-            ? pickMarkup(rules, { ...subject, categoryIds: chain(parents, subject.categoryId) }, type.id)
-            : null,
-        })
+        const unitCost = (today ? (cost?.today ?? cost?.uzs) : cost?.uzs) ?? null
+        const next = this.work(
+          operation,
+          {
+            old,
+            unitCost,
+            source: source ? priceOf(subject.id, source.id) : null,
+            retail: retail && retail.id !== type.id ? priceOf(subject.id, retail.id) : null,
+            markup: byRule
+              ? pickMarkup(rules, { ...subject, categoryIds: chain(parents, subject.categoryId) }, type.id)
+              : null,
+          },
+          rounding,
+        )
         const line = {
           productId: subject.id,
           sku: subject.sku,
@@ -228,12 +236,11 @@ export class PricingService {
           old,
           unitCost: seesCost ? unitCost : null,
         }
-        if (typeof worked === 'string') {
+        if (typeof next === 'string') {
           skipped++
-          lines.push({ ...line, next: null, skip: worked })
+          lines.push({ ...line, next: null, skip: next })
           continue
         }
-        const next = roundPrice(worked, rounding)
         if (next === old) {
           unchanged++
           continue
@@ -288,7 +295,7 @@ export class PricingService {
         throw AppError.conflict('NOTHING_TO_CHANGE', 'O‘zgaradigan narx yo‘q')
       }
 
-      const revision = await this.record(em, actor, type, changes, {
+      const revision = await this.recordIn(em, actor, changes, {
         summary: describe(operation, type.currency, source?.name),
         note: input.note ?? null,
         changed,
@@ -299,7 +306,10 @@ export class PricingService {
     })
   }
 
-  /** The new price of one model, or why it has none. */
+  /**
+   * The new price of one model, or why it has none. A price moved from what it was goes to the nearest the
+   * rounding allows; one worked out by a formula, up — and one named outright stands as it was named.
+   */
   private work(
     operation: RepriceOperation,
     known: {
@@ -309,44 +319,54 @@ export class PricingService {
       retail: number | null
       markup: Markup | null
     },
+    rounding: PriceRounding,
   ): number | RepriceSkip {
     switch (operation.kind) {
       case 'percent':
-        return known.old === null ? 'no_price' : withPercent(known.old, operation.percent)
+        return known.old === null ? 'no_price' : roundPrice(withPercent(known.old, operation.percent), rounding)
       case 'amount':
-        return known.old === null ? 'no_price' : Math.max(0, known.old + operation.amount)
+        return known.old === null ? 'no_price' : roundPrice(Math.max(0, known.old + operation.amount), rounding)
       case 'from_type':
-        return known.source === null ? 'no_source' : withPercent(known.source, operation.percent)
-      case 'markup': {
-        if (operation.percent !== null) {
-          return known.unitCost === null ? 'no_cost' : withPercent(known.unitCost, operation.percent)
-        }
-        if (!known.markup) {
+        return known.source === null ? 'no_source' : roundPrice(withPercent(known.source, operation.percent), rounding)
+      case 'formula': {
+        const formula: PriceFormula | null = operation.formula ?? known.markup
+        if (!formula) {
           return 'no_rule'
         }
-        if (known.markup.base === 'retail') {
-          return known.retail === null ? 'no_source' : withPercent(known.retail, known.markup.percent)
+        if (formula.base === 'retail' && known.retail === null) {
+          return 'no_source'
         }
-        return known.unitCost === null ? 'no_cost' : withPercent(known.unitCost, known.markup.percent)
+        if (formula.base === 'cost' && known.unitCost === null) {
+          return 'no_cost'
+        }
+        return priceBy(formula, { cost: known.unitCost, retail: known.retail }, rounding) ?? 'no_price'
       }
     }
   }
 
-  /** Writes the new prices and keeps what they were. */
-  private async record(
+  /**
+   * Writes the new prices and keeps what they were: one revision, whatever number of price types it touches —
+   * a bulk change is of one, a receipt sets several at once.
+   */
+  async recordIn(
     em: EntityManager,
     actor: Actor,
-    type: PriceType,
-    changes: Change[],
+    changes: PriceChange[],
     about: Pick<PriceRevision, 'summary' | 'note' | 'changed' | 'revertsId'>,
   ): Promise<PriceRevision> {
+    const types = await em.find(PriceType, {
+      where: { id: In([...new Set(changes.map((change) => change.priceTypeId))]) },
+      order: { sortOrder: 'ASC', name: 'ASC' },
+    })
+    const currencyOf = new Map(types.map((type) => [type.id, type.currency]))
+    const names = types.map((type) => type.name).join(', ')
     const number = `NO-${String(await nextNumbers(em, actor.orgId, 'price_revision')).padStart(6, '0')}`
     const revision = await em.save(
       em.create(PriceRevision, {
         orgId: actor.orgId,
         number,
-        priceTypeId: type.id,
-        priceTypeName: type.name,
+        priceTypeId: types.length === 1 ? types[0].id : null,
+        priceTypeName: names,
         ...about,
         createdBy: actor.userId,
         createdByName: actor.name,
@@ -357,19 +377,20 @@ export class PricingService {
     if (set.length) {
       await em.query(
         `INSERT INTO prices (org_id, price_type_id, product_id, variant_id, location_id, amount, currency, updated_by)
-         SELECT $1, $2, x.product_id, x.variant_id, x.location_id, x.amount, $3, $4
-         FROM unnest($5::uuid[], $6::uuid[], $7::uuid[], $8::bigint[]) AS x(product_id, variant_id, location_id, amount)
+         SELECT $1, x.price_type_id, x.product_id, x.variant_id, x.location_id, x.amount, x.currency, $2
+         FROM unnest($3::uuid[], $4::uuid[], $5::uuid[], $6::uuid[], $7::bigint[], $8::text[])
+           AS x(price_type_id, product_id, variant_id, location_id, amount, currency)
          ON CONFLICT ON CONSTRAINT prices_scope
          DO UPDATE SET amount = EXCLUDED.amount, currency = EXCLUDED.currency, updated_by = EXCLUDED.updated_by, updated_at = now()`,
         [
           actor.orgId,
-          type.id,
-          type.currency,
           actor.userId,
+          set.map((change) => change.priceTypeId),
           set.map((change) => change.productId),
           set.map((change) => change.variantId),
           set.map((change) => change.locationId),
           set.map((change) => change.next),
+          set.map((change) => currencyOf.get(change.priceTypeId)),
         ],
       )
     }
@@ -378,11 +399,12 @@ export class PricingService {
     if (gone.length) {
       await em.query(
         `DELETE FROM prices pr
-         USING unnest($2::uuid[], $3::uuid[], $4::uuid[]) AS x(product_id, variant_id, location_id)
-         WHERE pr.price_type_id = $1 AND pr.product_id = x.product_id
+         USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::uuid[])
+           AS x(price_type_id, product_id, variant_id, location_id)
+         WHERE pr.price_type_id = x.price_type_id AND pr.product_id = x.product_id
            AND pr.variant_id IS NOT DISTINCT FROM x.variant_id AND pr.location_id IS NOT DISTINCT FROM x.location_id`,
         [
-          type.id,
+          gone.map((change) => change.priceTypeId),
           gone.map((change) => change.productId),
           gone.map((change) => change.variantId),
           gone.map((change) => change.locationId),
@@ -392,19 +414,19 @@ export class PricingService {
     await em.query(
       `INSERT INTO price_revision_lines
          (org_id, revision_id, price_type_id, product_id, variant_id, location_id, old_amount, new_amount, currency)
-       SELECT $1, $2, $3, x.product_id, x.variant_id, x.location_id, x.old_amount, x.new_amount, $4
-       FROM unnest($5::uuid[], $6::uuid[], $7::uuid[], $8::bigint[], $9::bigint[])
-         AS x(product_id, variant_id, location_id, old_amount, new_amount)`,
+       SELECT $1, $2, x.price_type_id, x.product_id, x.variant_id, x.location_id, x.old_amount, x.new_amount, x.currency
+       FROM unnest($3::uuid[], $4::uuid[], $5::uuid[], $6::uuid[], $7::bigint[], $8::bigint[], $9::text[])
+         AS x(price_type_id, product_id, variant_id, location_id, old_amount, new_amount, currency)`,
       [
         actor.orgId,
         revision.id,
-        type.id,
-        type.currency,
+        changes.map((change) => change.priceTypeId),
         changes.map((change) => change.productId),
         changes.map((change) => change.variantId),
         changes.map((change) => change.locationId),
         changes.map((change) => change.old),
         changes.map((change) => change.next),
+        changes.map((change) => currencyOf.get(change.priceTypeId)),
       ],
     )
 
@@ -412,9 +434,44 @@ export class PricingService {
       action: about.revertsId ? 'prices.revert' : 'prices.reprice',
       entity: 'price_revision',
       entityId: revision.id,
-      summary: `${number}: ${type.name}, ${about.changed} ta model, ${about.summary}`,
+      summary: `${number}: ${names}, ${about.changed} ta model, ${about.summary}`,
     })
     return revision
+  }
+
+  /** What every model sells for now, of every type: its own price and those set apart for a size or a shop. */
+  pricesIn(em: EntityManager, productIds: string[]) {
+    return this.prices(em, productIds)
+  }
+
+  /**
+   * For each product, the formula every active price type's rule gives it: the narrowest that fits, the type's
+   * own way last — each with the goods its rule is for, so that whoever is shown the price can be told why.
+   */
+  async formulasIn(em: EntityManager, productIds: string[]): Promise<MarkupLookupResult> {
+    const products = productIds.length ? await em.findBy(Product, { id: In(productIds) }) : []
+    const rules = (await this.ruleRows(em)).map((rule) => {
+      const named = rule.categoryId || rule.brandId || rule.season ? scopeText(rule) : null
+      return { ...rule, markups: rule.markups.map((markup) => ({ ...markup, rule: named })) }
+    })
+    const parents = await this.categoryParents(em)
+    const types = await em.findBy(PriceType, { isActive: true })
+    return Object.fromEntries(
+      products.map((product) => {
+        const subject = {
+          categoryIds: chain(parents, product.categoryId),
+          brandId: product.brandId,
+          season: product.season,
+        }
+        return [
+          product.id,
+          types.flatMap((type) => {
+            const markup = pickMarkup(rules, subject, type.id)
+            return markup ? [markup] : []
+          }),
+        ]
+      }),
+    )
   }
 
   // ───────────────────────────── History ─────────────────────────────
@@ -473,12 +530,8 @@ export class PricingService {
       if (await em.findOneBy(PriceRevision, { revertsId: id })) {
         throw AppError.conflict('ALREADY_REVERTED', 'Bu o‘zgarish allaqachon qaytarilgan')
       }
-      const type = revision.priceTypeId ? await em.findOneBy(PriceType, { id: revision.priceTypeId }) : null
-      if (!type) {
-        throw AppError.conflict('TYPE_GONE', 'Bu narx turi o‘chirilgan')
-      }
-
       const rows: {
+        price_type_id: string
         product_id: string
         variant_id: string | null
         location_id: string | null
@@ -486,26 +539,31 @@ export class PricingService {
         new_amount: number | null
         current: number | null
       }[] = await em.query(
-        `SELECT l.product_id, l.variant_id, l.location_id, l.old_amount::float8 AS old_amount,
+        // A price type deleted since took its prices along: there is nothing of it to put back.
+        `SELECT l.price_type_id, l.product_id, l.variant_id, l.location_id, l.old_amount::float8 AS old_amount,
                 l.new_amount::float8 AS new_amount, pr.amount::float8 AS current
          FROM price_revision_lines l
+         JOIN price_types t ON t.id = l.price_type_id
          LEFT JOIN prices pr ON pr.price_type_id = l.price_type_id AND pr.product_id = l.product_id
            AND pr.variant_id IS NOT DISTINCT FROM l.variant_id AND pr.location_id IS NOT DISTINCT FROM l.location_id
          WHERE l.revision_id = $1`,
         [id],
       )
+      if (!rows.length) {
+        throw AppError.conflict('TYPE_GONE', 'Bu narx turi o‘chirilgan')
+      }
       const standing = rows.filter((row) => row.current === row.new_amount)
-      const models = standing.filter((row) => !row.variant_id && !row.location_id).length
+      const models = new Set(standing.filter((row) => !row.variant_id && !row.location_id).map((row) => row.product_id))
+        .size
       if (!standing.length) {
         throw AppError.conflict('NOTHING_TO_CHANGE', 'Bu narxlar keyin yana o‘zgargan: qaytariladigan narx yo‘q')
       }
 
-      const undo = await this.record(
+      const undo = await this.recordIn(
         em,
         actor,
-        type,
         standing.map((row) => ({
-          priceTypeId: type.id,
+          priceTypeId: row.price_type_id,
           productId: row.product_id,
           variantId: row.variant_id,
           locationId: row.location_id,
@@ -517,7 +575,7 @@ export class PricingService {
       afterCommit(() => this.realtime.changed(actor.orgId, ['pricing', 'products', 'stock']))
       return {
         revision: { id: undo.id, number: undo.number },
-        total: rows.filter((row) => !row.variant_id && !row.location_id).length,
+        total: new Set(rows.filter((row) => !row.variant_id && !row.location_id).map((row) => row.product_id)).size,
         changed: models,
         unchanged: 0,
         skipped: rows.length - standing.length,
@@ -584,9 +642,10 @@ export class PricingService {
         entity: 'price_rule',
         entityId: ruleId,
         summary: `${scopeText(rule)}: ${rule.markups
-          .map(
-            (markup) => `${types.find((type) => type.id === markup.priceTypeId)?.name} ${percentText(markup.percent)}`,
-          )
+          .map((markup) => {
+            const type = types.find((item) => item.id === markup.priceTypeId)
+            return `${type?.name} — ${formulaText(markup, type?.currency ?? actor.base)}`
+          })
           .join(', ')}`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['pricing']))
@@ -613,26 +672,26 @@ export class PricingService {
 
   /** For each product, the markup every price type's rule gives it: what a receipt suggests prices from. */
   async markups(actor: Actor, productIds: string[]): Promise<MarkupLookupResult> {
+    return this.db.tenant(actor.orgId, ({ em }) => this.formulasIn(em, productIds))
+  }
+
+  /** The same, beside what each model sells for now: what a receipt needs to say which prices posting will set. */
+  async lookup(actor: Actor, productIds: string[]): Promise<PriceLookupResult> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const products = await em.findBy(Product, { id: In(productIds) })
-      const rules = await this.ruleScopes(em)
-      const parents = await this.categoryParents(em)
-      const types = await em.findBy(PriceType, { isActive: true })
+      const formulas = await this.formulasIn(em, productIds)
+      const prices = await this.prices(em, productIds)
       return Object.fromEntries(
-        products.map((product) => {
-          const subject = {
-            categoryIds: chain(parents, product.categoryId),
-            brandId: product.brandId,
-            season: product.season,
-          }
-          return [
-            product.id,
-            types.flatMap((type) => {
-              const markup = pickMarkup(rules, subject, type.id)
-              return markup ? [markup] : []
-            }),
-          ]
-        }),
+        productIds.map((id) => [
+          id,
+          {
+            formulas: formulas[id] ?? [],
+            prices: Object.fromEntries(
+              prices
+                .filter((row) => row.product_id === id && !row.variant_id && !row.location_id)
+                .map((row) => [row.price_type_id, row.amount]),
+            ),
+          },
+        ]),
       )
     })
   }
@@ -643,6 +702,15 @@ export class PricingService {
   private scope(em: EntityManager, filter: PriceListFilter): SelectQueryBuilder<Product> {
     const qb = em.createQueryBuilder(Product, 'p').where('p.isActive')
     if (filter.presence === 'in') qb.andWhere(ON_HAND)
+    if (filter.missing) {
+      qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1 FROM prices pr
+          WHERE pr.product_id = p.id AND pr.price_type_id = :missing AND pr.variant_id IS NULL AND pr.location_id IS NULL
+        )`,
+        { missing: filter.missing },
+      )
+    }
     if (filter.brandId) qb.andWhere('p.brandId = :brandId', { brandId: filter.brandId })
     if (filter.season) qb.andWhere('p.season = :season', { season: filter.season })
     if (filter.categoryId) {
@@ -751,19 +819,8 @@ export class PricingService {
     return type
   }
 
-  private async ruleScopes(
-    em: EntityManager,
-  ): Promise<Pick<PriceRuleDto, 'categoryId' | 'brandId' | 'season' | 'markups'>[]> {
-    const rules = await em.find(PriceRule)
-    const markups = await em.find(PriceRuleMarkup)
-    return rules.map((rule) => ({
-      categoryId: rule.categoryId,
-      brandId: rule.brandId,
-      season: rule.season,
-      markups: markups
-        .filter((markup) => markup.ruleId === rule.id)
-        .map(({ priceTypeId, base, percent }) => ({ priceTypeId, base, percent })),
-    }))
+  private ruleScopes(em: EntityManager) {
+    return ruleScopes(em)
   }
 
   private async ruleRows(em: EntityManager): Promise<PriceRuleDto[]> {
@@ -793,23 +850,13 @@ export class PricingService {
       season: rule.season,
       markups: markups
         .filter((markup) => markup.ruleId === rule.id)
-        .map(({ priceTypeId, base, percent }) => ({ priceTypeId, base, percent })),
+        .map(({ priceTypeId, base, percent, amount }) => ({ priceTypeId, base, percent, amount })),
     }))
   }
 
-  private async categoryParents(em: EntityManager): Promise<Map<string, string | null>> {
-    const categories = await em.find(Category, { select: { id: true, parentId: true } })
-    return new Map(categories.map((category) => [category.id, category.parentId]))
+  private categoryParents(em: EntityManager) {
+    return categoryParents(em)
   }
-}
-
-/** A category and each of its parents up to the top. */
-function chain(parents: Map<string, string | null>, categoryId: string | null): string[] {
-  const ids: string[] = []
-  for (let id = categoryId; id && !ids.includes(id); id = parents.get(id) ?? null) {
-    ids.push(id)
-  }
-  return ids
 }
 
 /** `amount * next / old`, exactly, rounded half up. */
@@ -830,9 +877,9 @@ function describe(operation: RepriceOperation, currency: CurrencyCode, sourceNam
       return `${operation.amount < 0 ? '−' : '+'}${formatMoney(Math.abs(operation.amount), currency)}`
     case 'from_type':
       return `${sourceName} ${percentText(operation.percent)}`
-    case 'markup': {
-      const how = operation.percent === null ? 'qoida bo‘yicha' : percentText(operation.percent)
-      return `Tannarxdan ${how}${operation.today ? ', bugungi kurslarda' : ''}`
+    case 'formula': {
+      const how = operation.formula ? formulaText(operation.formula, currency) : 'Qoidalar bo‘yicha'
+      return `${how[0].toUpperCase()}${how.slice(1)}${operation.today ? ', bugungi kurslarda' : ''}`
     }
   }
 }

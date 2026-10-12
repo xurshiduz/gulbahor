@@ -1,22 +1,18 @@
 import {
   CURRENCIES,
   EXPENSE_BASES,
-  exchange,
   EXPENSE_BASIS_LABELS,
   formatMoney,
   RECEIPT_STATUS_LABELS,
   receiptInputSchema,
-  roundPrice,
   todayIn,
   toIsoDate,
   UNIT_INFO,
   unitCost,
-  withPercent,
   type AnyCurrency,
   type AttributeDto,
   type ExpenseBasis,
-  type Markup,
-  type MarkupLookupResult,
+  type PriceLookupResult,
   type CustomerBriefDto,
   type PriceTypeDto,
   type ProductDto,
@@ -74,7 +70,11 @@ import { usePreference } from '@/lib/preferences'
 import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
 
+import { PriceField } from './price-field'
+import { PricingBar } from './receipt-pricing'
 import {
+  bareCost,
+  blockPrices,
   blocksOf,
   costOf,
   DEFAULTS_KEY,
@@ -82,14 +82,19 @@ import {
   expensesOf,
   linesOf,
   matrixOf,
+  modelCosts,
   newBlock,
   nextKey,
   NO_DEFAULTS,
   dayRateOf,
+  pricingCounts,
   toReceiptProduct,
+  underCost,
+  withTypedPrice,
   type Block,
   type BlockCost,
   type ExpenseDraft,
+  type FieldPrice,
   type Header,
   type ReceiptDefaults,
 } from './receipt-state'
@@ -200,6 +205,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
     rate: receipt?.rate ?? null,
     extraCurrency: receipt?.extraCurrency ?? base(),
     note: receipt?.note ?? '',
+    pricing: receipt?.pricing ?? {},
   }))
   // A receipt's rate is the day's until someone types another; a saved one keeps its own.
   const [rateTyped, setRateTyped] = useState(!!receipt)
@@ -223,11 +229,12 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
   /** The supplier is being paid for these goods. */
   const [paying, setPaying] = useState(false)
 
-  // The markup each model's rule gives it: what a selling price is suggested from as the cost takes shape.
+  // The formula each model's rule gives it and what it sells for now: what its prices are worked out from as
+  // the cost takes shape.
   const productIds = useMemo(() => [...new Set(blocks.map((block) => block.productId))].sort(), [blocks])
   const markups = useQuery({
-    queryKey: ['pricing', 'markups', productIds],
-    queryFn: () => api.post<MarkupLookupResult>('/pricing/markups', { productIds }),
+    queryKey: ['pricing', 'formulas', productIds],
+    queryFn: () => api.post<PriceLookupResult>('/pricing/formulas', { productIds }),
     enabled: status === 'draft' && can('products.prices') && productIds.length > 0,
     placeholderData: keepPreviousData,
     meta: { silent: true },
@@ -259,14 +266,27 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
   )
   const foreign = header.currency !== base()
   const retailType = priceTypes.find((type) => type.kind === 'retail' && type.isActive)
-  const wholesaleType = priceTypes.find((type) => type.kind === 'wholesale' && type.isActive)
-  // Every other price the business keeps has its field too: the floor, a family price, a second wholesale one.
-  const otherTypes = priceTypes.filter((type) => type.isActive && type !== retailType && type !== wholesaleType)
+  // Every other price the business keeps has its field too: wholesale, a family price, the floor.
+  const otherTypes = priceTypes.filter((type) => type.isActive && type !== retailType)
   // A cost known for one model alone: asked for in the settings, or already written on this receipt.
   const lineExtra = me.org.settings.receiptLineExtra || blocks.some((block) => block.extra)
   // A supplier of its own for one model: the same way — asked for, or already chosen on this receipt.
   const lineSupplier = me.org.settings.receiptLineSupplier || blocks.some((block) => block.supplierId)
   const canPrice = can('products.prices')
+  const fieldTypes = { retail: canPrice ? retailType : undefined, others: canPrice ? otherTypes : [] }
+  // What a model costs here is its blocks together, as posting has it; a block with no quantities yet goes by
+  // its own price, so that a selling price can be offered as soon as that is typed.
+  const unitCosts = modelCosts(blocks, cost?.blocks)
+  const priced = blocks.map((block) =>
+    blockPrices(
+      block,
+      fieldTypes,
+      editable ? markups.data?.[block.productId] : undefined,
+      header.pricing,
+      unitCosts.get(block.productId) ?? bareCost(header, block, book),
+    ),
+  )
+  const pricedTypes = [fieldTypes.retail, ...fieldTypes.others].filter((type): type is PriceTypeDto => !!type)
 
   // ── Adding goods ──
   const addProduct = async (productId: string, variantId?: string) => {
@@ -416,11 +436,13 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
       return
     }
     const unpriced = blocks.filter((block) => !block.price && Object.values(block.qty).some(Boolean)).length
+    const cheap = priced.reduce((sum, fields) => sum + underCost(fields).length, 0)
     const ok = await confirm({
       title: t('receipts.postConfirm'),
       description: [
         t('receipts.postHint'),
         unpriced ? t('receipts.unpricedWarning', { count: unpriced }) : '',
+        cheap ? t('receipts.underCostWarning', { count: cheap }) : '',
         cost?.costing.weightless.length ? t('receipts.weightlessWarning') : '',
       ]
         .filter(Boolean)
@@ -769,6 +791,17 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
                 </div>
               ) : null}
 
+              {pricedTypes.length && blocks.length && (editable || Object.keys(header.pricing).length) ? (
+                <PricingBar
+                  types={pricedTypes}
+                  retailId={fieldTypes.retail?.id}
+                  pricing={header.pricing}
+                  onChange={(pricing) => patchHeader({ pricing })}
+                  editable={editable}
+                  counts={pricingCounts(blocks, priced)}
+                />
+              ) : null}
+
               {blocks.map((block, index) => {
                 const product = products.get(block.productId)
                 return product ? (
@@ -778,12 +811,9 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
                     product={product}
                     attributes={attributes}
                     cost={cost?.blocks[index]}
-                    markups={markups.data?.[block.productId]}
+                    prices={priced[index]}
+                    retailId={fieldTypes.retail?.id}
                     header={header}
-                    book={book}
-                    retailType={canPrice ? retailType : undefined}
-                    wholesaleType={canPrice ? wholesaleType : undefined}
-                    otherTypes={canPrice ? otherTypes : []}
                     lineExtra={lineExtra}
                     supplierOptions={lineSupplier ? supplierOptions : []}
                     editable={editable}
@@ -911,15 +941,10 @@ interface BlockCardProps {
   product: ReceiptProductDto
   attributes: AttributeDto[]
   cost: BlockCost | undefined
-  /** What the model's markup rule says for each price type. */
-  markups: Markup[] | undefined
+  /** Its price fields, the retail type's first, each with what the receipt makes of it. */
+  prices: FieldPrice[]
+  retailId: string | undefined
   header: Header
-  /** The rates of the receipt's day: a price in another currency is suggested at them. */
-  book: RateBook
-  retailType: PriceTypeDto | undefined
-  wholesaleType: PriceTypeDto | undefined
-  /** The price types beyond those two: each has its field. */
-  otherTypes: PriceTypeDto[]
   /** The field for a cost known for this model alone is shown. */
   lineExtra: boolean
   supplierOptions: { value: string; label: string }[]
@@ -934,12 +959,9 @@ function BlockCard({
   product,
   attributes,
   cost,
-  markups,
+  prices,
+  retailId,
   header,
-  book,
-  retailType,
-  wholesaleType,
-  otherTypes,
   lineExtra,
   supplierOptions,
   editable,
@@ -951,38 +973,29 @@ function BlockCard({
   const unit = UNIT_INFO[product.unit]
 
   const each = cost && cost.qty ? unitCost(cost.costUzs, cost.qty) : null
-  const markup =
-    each && block.retailPrice && retailType?.currency === base()
-      ? Math.round(((block.retailPrice - each) / each) * 100)
-      : null
+  // How far above cost the retail price this receipt leaves stands.
+  const retailField = prices.find((field) => field.type.id === retailId)
+  const retailLeft = retailField ? (retailField.worked.price ?? retailField.standing) : null
+  const markup = each && retailLeft ? Math.round(((retailLeft - each) / each) * 100) : null
 
-  // The price the model's rule gives: cost plus its markup, or so far from the retail price, rounded as the
-  // price type rounds. It shows faintly in the empty field and "=" takes it.
-  const suggest = (type: PriceTypeDto | undefined, retail: number | null): number | undefined => {
-    const rule = type && markups?.find((item) => item.priceTypeId === type.id)
-    if (!editable || !type || !rule) {
-      return undefined
-    }
-    // A price in another currency is marked up on the cost in it, at the receipt's day's rates.
-    const from =
-      rule.base === 'retail'
-        ? retail
-        : each !== null && type.currency !== base()
-          ? exchange(each, base(), type.currency, book)
-          : each
-    return from
-      ? roundPrice(withPercent(Math.round(from), rule.percent), { step: type.roundStep, ending: type.roundEnding })
-      : undefined
-  }
-  const retailSuggested = suggest(retailType, null)
-  const wholesaleSuggested = suggest(
-    wholesaleType,
-    retailType && retailType.currency === wholesaleType?.currency
-      ? (block.retailPrice ?? retailSuggested ?? null)
-      : null,
+  // What posting will do with the fields nothing is typed into, said under them: a model with no price of a type
+  // is given the one its formula makes; one with a price keeps it — and where the formula would give another,
+  // that is said, with "=" to take it — unless the receipt says its formula is for every one of its goods.
+  const unset = editable ? prices.filter((field) => field.typed === null) : []
+  const fresh = unset.filter((field) => field.worked.price !== null && field.standing === null)
+  const replaced = unset.filter(
+    (field) => field.worked.price !== null && field.standing !== null && field.worked.price !== field.standing,
   )
-  const offer = (amount: number | undefined, type: PriceTypeDto) =>
-    amount === undefined ? undefined : formatMoney(amount, type.currency, { symbol: false })
+  const differs = unset.filter((field) => field.worked.offered !== null)
+  const cheap = editable ? underCost(prices) : []
+  const money = (amount: number | null, field: FieldPrice) => formatMoney(amount ?? 0, field.type.currency)
+  const said = (list: FieldPrice[], amount: (field: FieldPrice) => number | null) =>
+    list
+      .map(
+        (field) =>
+          `${field.type.name} ${money(amount(field), field)}${field.worked.rule ? ` (${t('receipts.byRuleOf', { rule: field.worked.rule })})` : ''}`,
+      )
+      .join(', ')
 
   return (
     <section data-block={block.key} className="rounded-lg border border-line bg-surface p-4 shadow-card">
@@ -1018,64 +1031,60 @@ function BlockCard({
             )}
           </Field>
         ) : null}
-        {retailType ? (
-          <Field label={retailType.name} className="w-36">
+        {prices.map((field) => (
+          <Field key={field.type.id} label={field.type.name} className="w-42">
             {(id) => (
-              <MoneyInput
+              <PriceField
                 id={id}
-                value={block.retailPrice}
-                onChange={(retailPrice) => onChange({ retailPrice })}
-                currency={retailType.currency}
+                value={field.typed}
+                onChange={(value) => onChange(withTypedPrice(block, field.type.id, field.type.id === retailId, value))}
+                currency={field.type.currency}
+                worked={field.worked}
+                standing={field.standing}
+                basis={field.basis}
+                rounding={{ step: field.type.roundStep, ending: field.type.roundEnding }}
+                ownRetail={field.type.id === retailId}
                 disabled={!editable}
-                fillValue={retailSuggested}
-                placeholder={offer(retailSuggested, retailType)}
               />
             )}
           </Field>
-        ) : null}
-        {wholesaleType ? (
-          <Field label={wholesaleType.name} className="w-36">
-            {(id) => (
-              <MoneyInput
-                id={id}
-                value={block.wholesalePrice}
-                onChange={(wholesalePrice) => onChange({ wholesalePrice })}
-                currency={wholesaleType.currency}
-                disabled={!editable}
-                fillValue={wholesaleSuggested}
-                placeholder={offer(wholesaleSuggested, wholesaleType)}
-              />
-            )}
-          </Field>
-        ) : null}
-        {otherTypes.map((type) => {
-          // A price worked out from the retail one follows what is typed there, or what is offered there.
-          const suggested = suggest(
-            type,
-            retailType && retailType.currency === type.currency ? (block.retailPrice ?? retailSuggested ?? null) : null,
-          )
-          return (
-            <Field key={type.id} label={type.name} className="w-36">
-              {(id) => (
-                <MoneyInput
-                  id={id}
-                  value={block.otherPrices[type.id] ?? null}
-                  onChange={(amount) => onChange({ otherPrices: { ...block.otherPrices, [type.id]: amount } })}
-                  currency={type.currency}
-                  disabled={!editable}
-                  fillValue={suggested}
-                  placeholder={offer(suggested, type)}
-                />
-              )}
-            </Field>
-          )
-        })}
+        ))}
         {editable ? (
           <Button variant="ghost" size="icon" tabIndex={-1} onClick={onRemove} aria-label={t('common.delete')}>
             <X />
           </Button>
         ) : null}
       </div>
+
+      {fresh.length || replaced.length || differs.length || cheap.length ? (
+        <div data-price-notes className="mt-2 flex flex-col gap-0.5 text-xs">
+          {fresh.length ? (
+            <p className="text-ok">{t('receipts.pricesNew', { list: said(fresh, (field) => field.worked.price) })}</p>
+          ) : null}
+          {replaced.length ? (
+            <p className="text-ok">
+              {t('receipts.pricesReplaced', {
+                list: replaced
+                  .map(
+                    (field) =>
+                      `${field.type.name} ${money(field.standing, field)} → ${money(field.worked.price, field)}`,
+                  )
+                  .join(', '),
+              })}
+            </p>
+          ) : null}
+          {differs.length ? (
+            <p className="text-ink-3">
+              {t('receipts.pricesByRule', { list: said(differs, (field) => field.worked.offered) })}
+            </p>
+          ) : null}
+          {cheap.length ? (
+            <p className="text-warn">
+              {t('receipts.pricesUnderCost', { list: cheap.map((field) => field.type.name).join(', ') })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-start gap-x-8 gap-y-3">
         <QtyMatrix

@@ -11,6 +11,7 @@ import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { controlClass, Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
+import { Balance } from '@/features/customers/balance'
 import { api, ApiError } from '@/lib/api'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
@@ -150,11 +151,8 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
             <span className="flex flex-col">
               {standing.map((account) => (
                 <span key={account.currency}>
-                  <span className="font-medium">
-                    {account.balance > 0
-                      ? t('pos.customerDebt', { amount: money(account.balance, account.currency) })
-                      : t('pos.customerCredit', { amount: money(-account.balance, account.currency) })}
-                  </span>
+                  {t('pos.balanceOf')}:{' '}
+                  <Balance balance={account.balance} currency={account.currency} className="font-medium" />
                   {account.overdue ? (
                     <span> · {t('pos.customerOverdue', { amount: money(account.overdue, account.currency) })}</span>
                   ) : null}

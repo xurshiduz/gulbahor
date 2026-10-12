@@ -125,7 +125,7 @@ describe('who is at the counter', () => {
       </QueryClientProvider>
     )
     const { rerender } = render(owing([account(45_000_000)]))
-    expect(plain(screen.getByRole('note').textContent)).toContain('Qarzi: 450 000 so‘m')
+    expect(plain(screen.getByRole('note').textContent)).toContain('Balansi: −450 000 so‘m')
     expect(screen.getByRole('note').textContent).not.toContain('muddati o‘tgani')
     await userEvent.click(screen.getByRole('button', { name: 'To‘lov olish' }))
     expect(takes).toHaveBeenCalledTimes(1)
@@ -136,7 +136,7 @@ describe('who is at the counter', () => {
 
     // What is theirs to spend is said too, with nothing to take.
     rerender(owing([account(-10_000_000)]))
-    expect(plain(screen.getByRole('note').textContent)).toContain('Haqi: 100 000 so‘m')
+    expect(plain(screen.getByRole('note').textContent)).toContain('Balansi: 100 000 so‘m')
     expect(screen.queryByRole('button', { name: 'To‘lov olish' })).toBeNull()
 
     // Nothing owed, nothing said; a supplier's accounts are not shown at all.

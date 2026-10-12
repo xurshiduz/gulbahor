@@ -1,16 +1,18 @@
 import { z } from 'zod'
 
 import { parseAmount, parseQuantity } from './amount'
-import { GENDERS, normalizeBarcode, SEASONS, type Gender, type Season } from './catalog'
+import { GENDERS, normalizeBarcode, SEASONS, type Gender, type PriceKind, type Season } from './catalog'
 import { ALL_CURRENCY_CODES, type AnyCurrency } from './money'
 import { idSchema, optionalText } from './schemas'
 
 /**
  * Reading a supplier's or the business's own spreadsheet into a receipt.
  * One row is one variant: a model's name and article, a colour and a size,
- * how many came and at what price. The columns can be in any order and
- * called anything; `guessMapping` recognises the usual names and a person
- * corrects the rest once.
+ * how many came and at what price, and — if the sheet says — what it is to
+ * sell for, a column for each price type. The columns can be in any order
+ * and called anything; `guessMapping` recognises the usual names and a person
+ * corrects the rest once. The business's own template says outright which
+ * column is which, in a hidden row of keys (`templateMapping`).
  */
 
 export interface ImportField {
@@ -41,12 +43,6 @@ export const IMPORT_FIELDS = [
     headers: ['доп расход', 'доп. расход', 'дополнительный расход', "qo'shimcha xarajat", 'extra'],
   },
   {
-    key: 'retailPrice',
-    title: 'Chakana narx',
-    headers: ['розничная цена', 'цена продажи', 'chakana narx', 'sotuv narxi', 'retail price'],
-  },
-  { key: 'wholesalePrice', title: 'Ulgurji narx', headers: ['оптовая цена', 'ulgurji narx', 'wholesale price'] },
-  {
     key: 'barcode',
     title: 'Shtrix-kod',
     headers: ['баркод', 'штрих-код', 'штрихкод', 'штрих код', 'shtrix-kod', 'barcode', 'ean'],
@@ -71,8 +67,71 @@ export const IMPORT_FIELDS = [
 
 export type ImportFieldKey = (typeof IMPORT_FIELDS)[number]['key']
 
+/** A field, or the price of one price type (`price:<id>`). */
+export type ImportColumnKey = ImportFieldKey | `price:${string}`
+
 /** Which column (by position) each field is read from. A field left out is not read. */
-export type ImportMapping = Partial<Record<ImportFieldKey, number>>
+export type ImportMapping = Partial<Record<ImportColumnKey, number>>
+
+/** What the import needs to know of a price type to give it a column. */
+export interface ImportPriceType {
+  id: string
+  name: string
+  kind: PriceKind
+}
+
+export const priceColumn = (priceTypeId: string): `price:${string}` => `price:${priceTypeId}`
+
+/** The price type a price column is for; null for any other column. */
+export const priceTypeOfColumn = (key: string): string | null => (key.startsWith('price:') ? key.slice(6) : null)
+
+/** What sheets usually call the retail and the wholesale price, whatever the business named its types. */
+const RETAIL_HEADERS = ['розничная цена', 'цена продажи', 'chakana narx', 'sotuv narxi', 'retail price']
+const WHOLESALE_HEADERS = ['оптовая цена', 'ulgurji narx', 'wholesale price']
+const WHOLESALE_NAME = /^(ulgurji|optom|опт|wholesale)/
+
+/**
+ * The columns a sheet can fill: the fixed ones, and a price for each of the business's price types — called by
+ * its name ("Ulgurji narxi", "цена Ulgurji"), the retail one and the wholesale one also by what sheets usually
+ * call them. The wholesale one is the type named so, or else the first one the business added.
+ */
+export function importFields(priceTypes: readonly ImportPriceType[] = []): (ImportField & { key: ImportColumnKey })[] {
+  const named = (type: ImportPriceType) => tidy(type.name)
+  const wholesale =
+    priceTypes.find((type) => type.kind === 'other' && WHOLESALE_NAME.test(named(type))) ??
+    priceTypes.find((type) => type.kind === 'other')
+  return [
+    ...IMPORT_FIELDS,
+    ...priceTypes.map((type) => ({
+      key: priceColumn(type.id),
+      title: `${type.name} narxi`,
+      headers: [
+        `${named(type)} narxi`,
+        `${named(type)} narx`,
+        `цена ${named(type)}`,
+        `цена «${named(type)}»`,
+        named(type),
+        ...(type.kind === 'retail' ? RETAIL_HEADERS : type === wholesale ? WHOLESALE_HEADERS : []),
+      ],
+    })),
+  ]
+}
+
+/** A cell of the template's hidden row, saying which field the column under it is. */
+export const TEMPLATE_KEY = 'erp:'
+
+/** The business's own template, recognised by its hidden row of keys: the mapping it says outright. */
+export function templateMapping(cells: readonly unknown[]): ImportMapping | null {
+  const known = new Set<string>(IMPORT_FIELDS.map((field) => field.key))
+  const mapping: ImportMapping = {}
+  cells.forEach((cell, index) => {
+    const key = typeof cell === 'string' && cell.startsWith(TEMPLATE_KEY) ? cell.slice(TEMPLATE_KEY.length) : null
+    if (key && (known.has(key) || priceTypeOfColumn(key))) {
+      mapping[key as ImportColumnKey] = index
+    }
+  })
+  return mapping.name !== undefined && mapping.qty !== undefined ? mapping : null
+}
 
 const tidy = (header: unknown) =>
   String(header ?? '')
@@ -91,8 +150,8 @@ const MIN_PREFIX = 5
  * follows it. A column is given to one field only, and a column that is
  * exactly another field's name is left for that field.
  */
-export function guessMapping(headers: readonly unknown[]): ImportMapping {
-  return guessColumns(IMPORT_FIELDS, headers)
+export function guessMapping(headers: readonly unknown[], priceTypes: readonly ImportPriceType[] = []): ImportMapping {
+  return guessColumns(importFields(priceTypes), headers)
 }
 
 /** The same matching for any sheet: its fields, each with the names its column usually goes by. */
@@ -173,8 +232,8 @@ export interface ImportRow {
   qty: number
   price: number
   extra: number
-  retailPrice: number | null
-  wholesalePrice: number | null
+  /** What it is to sell for, by price type id: only the prices the sheet gives. */
+  prices: Record<string, number>
   barcode: string | null
   brand: string | null
   category: string | null
@@ -219,9 +278,15 @@ function money(cell: unknown): { minor: number | null; bad: boolean } {
 
 /**
  * Turns one sheet row into an import row. A row with no name and no quantity
- * is an empty line and is skipped (null with no problems).
+ * is an empty line and is skipped (null with no problems). `priceNames` names
+ * the price types in what is said of a price that cannot be read.
  */
-export function readImportRow(cells: readonly unknown[], mapping: ImportMapping, rowNumber: number): ReadRow | null {
+export function readImportRow(
+  cells: readonly unknown[],
+  mapping: ImportMapping,
+  rowNumber: number,
+  priceNames: Readonly<Record<string, string>> = {},
+): ReadRow | null {
   const cell = (key: ImportFieldKey) => (mapping[key] === undefined ? null : cells[mapping[key] as number])
   const name = text(cell('name'))
   const rawQty = cell('qty')
@@ -248,18 +313,27 @@ export function readImportRow(cells: readonly unknown[], mapping: ImportMapping,
   const amounts = {
     price: money(cell('price')),
     extra: money(cell('extra')),
-    retailPrice: money(cell('retailPrice')),
-    wholesalePrice: money(cell('wholesalePrice')),
   }
   const titles = {
     price: 'Xarid narxi',
     extra: 'Qo‘shimcha xarajat',
-    retailPrice: 'Chakana narx',
-    wholesalePrice: 'Ulgurji narx',
   }
   for (const key of Object.keys(amounts) as (keyof typeof amounts)[]) {
     if (amounts[key].bad) {
       problems.push(`${titles[key]} noto‘g‘ri yozilgan`)
+    }
+  }
+  const prices: Record<string, number> = {}
+  for (const [key, column] of Object.entries(mapping)) {
+    const priceTypeId = priceTypeOfColumn(key)
+    if (!priceTypeId || column === undefined) {
+      continue
+    }
+    const read = money(cells[column])
+    if (read.bad) {
+      problems.push(`${priceNames[priceTypeId] ?? 'Sotuv'} narxi noto‘g‘ri yozilgan`)
+    } else if (read.minor !== null) {
+      prices[priceTypeId] = read.minor
     }
   }
 
@@ -282,8 +356,7 @@ export function readImportRow(cells: readonly unknown[], mapping: ImportMapping,
       qty,
       price: amounts.price.minor ?? 0,
       extra: amounts.extra.minor ?? 0,
-      retailPrice: amounts.retailPrice.minor,
-      wholesalePrice: amounts.wholesalePrice.minor,
+      prices,
       barcode: barcode ? normalizeBarcode(barcode).slice(0, 48) : null,
       brand: text(cell('brand'))?.slice(0, 80) ?? null,
       category: text(cell('category'))?.slice(0, 80) ?? null,
@@ -318,8 +391,7 @@ export const importRowSchema = z.object({
   qty: z.number().positive().max(1_000_000),
   price: amount,
   extra: amount.default(0),
-  retailPrice: amount.nullish().transform((value) => value ?? null),
-  wholesalePrice: amount.nullish().transform((value) => value ?? null),
+  prices: z.record(idSchema, amount).default({}),
   barcode: cellText(48),
   brand: cellText(80),
   category: cellText(80),

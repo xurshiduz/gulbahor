@@ -5,13 +5,13 @@ import { Attribute, AttributeValue, Category, PriceType } from '../../database/e
 
 /**
  * What a clothing business starts with, so the first model can be entered
- * without building every list by hand. All of it can be renamed, archived
- * or removed afterwards.
+ * without building every list by hand. All of it can be renamed afterwards,
+ * and all but the retail price and the floor archived or removed.
  */
 
 const PRICE_TYPES: { name: string; kind: PriceKind }[] = [
   { name: 'Chakana', kind: 'retail' },
-  { name: 'Ulgurji', kind: 'wholesale' },
+  { name: 'Ulgurji', kind: 'other' },
   { name: 'Minimal', kind: 'min' },
 ]
 

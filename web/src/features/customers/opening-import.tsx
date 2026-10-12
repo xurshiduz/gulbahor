@@ -23,7 +23,7 @@ import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
-import { useDebtText } from './choices'
+import { Balance, balanceText } from './balance'
 
 type Cell = string | number | boolean | Date | null
 
@@ -79,7 +79,6 @@ interface Props {
 export function OpeningImportDialog({ timeZone, onClose }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const debtText = useDebtText()
   const fileRef = useRef<HTMLInputElement>(null)
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [reading, setReading] = useState(false)
@@ -285,10 +284,12 @@ export function OpeningImportDialog({ timeZone, onClose }: Props) {
                           row.change > 0 ? 'text-bad' : 'text-ok',
                         )}
                       >
-                        {row.currency ? debtText(row.change, row.currency) : ''}
+                        {row.currency ? balanceText(row.change, row.currency) : ''}
                       </td>
-                      <td className="tabular px-2 py-1.5 text-right whitespace-nowrap text-ink-2">
-                        {row.currency && row.balance !== null ? debtText(row.balance, row.currency) : ''}
+                      <td className="px-2 py-1.5 text-right">
+                        {row.currency && row.balance !== null ? (
+                          <Balance balance={row.balance} currency={row.currency} />
+                        ) : null}
                       </td>
                     </tr>
                   ))}

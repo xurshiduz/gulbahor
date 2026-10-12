@@ -121,6 +121,12 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
                   {template.showLineDiscount && line.discount ? ` − ${money(line.discount)}` : ''}
                 </p>
                 {template.showLineDiscount && line.promotionName ? <p>{line.promotionName}</p> : null}
+                {/* The price type had no price for it: said on every copy, as it was at the till. */}
+                {line.priceFrom ? (
+                  <p data-price-from={line.priceFrom}>
+                    {t(line.priceFrom === 'retail' ? 'pos.priceRetail' : 'pos.priceFormula')}
+                  </p>
+                ) : null}
               </td>
               <td className="tabular py-1 text-right font-medium whitespace-nowrap">{money(line.total)}</td>
             </tr>

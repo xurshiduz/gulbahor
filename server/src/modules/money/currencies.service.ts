@@ -126,8 +126,7 @@ export class CurrenciesService {
   /**
    * Puts a currency away: it is offered nowhere any more, and everything
    * written in it stays readable. Not while money is still kept in it, nor
-   * while prices are set in it, nor while another currency's rate is written
-   * against it.
+   * while another currency's rate is written against it.
    */
   async disable(actor: Actor, code: AnyCurrency): Promise<CurrenciesDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
@@ -148,16 +147,6 @@ export class CurrenciesService {
         throw AppError.conflict(
           'CURRENCY_HELD',
           `${CURRENCIES[code].name} hali ishlatilmoqda: ${held.map((account) => account.name).join(', ')}. Avval shu hisoblarni bo‘shating`,
-        )
-      }
-      const priced: { name: string }[] = await em.query(
-        `SELECT name FROM price_types WHERE currency = $1 AND is_active ORDER BY sort_order, name LIMIT 5`,
-        [code],
-      )
-      if (priced.length) {
-        throw AppError.conflict(
-          'CURRENCY_PRICED',
-          `Narxlar ${CURRENCIES[code].name}da: ${priced.map((type) => type.name).join(', ')}. Avval narx turining valyutasini o‘zgartiring`,
         )
       }
       await em.update(OrgCurrency, mine.id, { isActive: false })

@@ -60,7 +60,7 @@ describe('Pricing', () => {
 
     const types = (await alpha.get('/api/price-types').expect(200)).body as (Named & { kind: string })[]
     retail = types.find((type) => type.kind === 'retail')!.id
-    wholesale = types.find((type) => type.kind === 'wholesale')!.id
+    wholesale = types.find((type) => type.name === 'Ulgurji')!.id
     floor = types.find((type) => type.kind === 'min')!.id
 
     const categories = (await alpha.get('/api/categories').expect(200)).body as (Named & { parentId: string | null })[]
@@ -195,20 +195,22 @@ describe('Pricing', () => {
     })
 
     it('works a price out from cost, at today’s rates when asked', async () => {
-      const atCost = (await reprice({ kind: 'markup', percent: 80 }).expect(200)).body
-      // 48 000 + 80% = 86 400; the scarf 20 000 + 80% = 36 000; the cap has no cost.
-      expect(lineOf(atCost, 'Polo')?.next).toBe(som(86_000))
+      const plus80 = { kind: 'formula', formula: { base: 'cost', percent: 80 } }
+      const atCost = (await reprice(plus80).expect(200)).body
+      // 48 000 + 80% = 86 400, up to the thousand: a markup is not lost to rounding. The scarf 20 000 + 80% =
+      // 36 000; the cap has no cost.
+      expect(lineOf(atCost, 'Polo')?.next).toBe(som(87_000))
       expect(lineOf(atCost, 'Sharf')?.next).toBe(som(36_000))
       expect(lineOf(atCost, 'Kepka')?.skip).toBe('no_cost')
 
-      const today = (await reprice({ kind: 'markup', percent: 80, today: true }).expect(200)).body
+      const today = (await reprice({ ...plus80, today: true }).expect(200)).body
       // The dollar went up: 52 000 + 80% = 93 600. The scarf was bought for so'm and stays.
       expect(lineOf(today, 'Polo')).toMatchObject({ next: som(94_000), unitCost: som(52_000) })
       expect(lineOf(today, 'Sharf')?.next).toBe(som(36_000))
     })
 
     it('counts the prices that would fall under cost', async () => {
-      const preview = (await reprice({ kind: 'markup', percent: -10 }).expect(200)).body
+      const preview = (await reprice({ kind: 'formula', formula: { base: 'cost', percent: -10 } }).expect(200)).body
       expect(preview.belowCost).toBe(2)
     })
   })
@@ -262,7 +264,7 @@ describe('Pricing', () => {
           })
           .expect(200)
       ).body
-      expect(updated.markups).toEqual([{ priceTypeId: retail, base: 'cost', percent: 100 }])
+      expect(updated.markups).toEqual([{ priceTypeId: retail, base: 'cost', percent: 100, amount: 0 }])
       const rules = (await alpha.get('/api/pricing/rules').expect(200)).body as { id: string }[]
       expect(rules.map((rule) => rule.id)).toEqual([general.id, expect.any(String), narrow.id])
     })
@@ -274,29 +276,30 @@ describe('Pricing', () => {
           .send({ productIds: [poloId] })
           .expect(200)
       ).body
+      // Each says whose rule it is: the narrowest one's goods in words, or nothing for the rule for everything.
       expect(lookup[poloId]).toEqual([
-        { priceTypeId: retail, base: 'cost', percent: 100 },
-        { priceTypeId: wholesale, base: 'retail', percent: -15 },
+        { priceTypeId: retail, base: 'cost', percent: 100, amount: 0, rule: 'Futbolkalar, Zara' },
+        { priceTypeId: wholesale, base: 'retail', percent: -15, amount: 0, rule: null },
       ])
 
-      const preview = (await reprice({ kind: 'markup' }).expect(200)).body
+      const preview = (await reprice({ kind: 'formula' }).expect(200)).body
       // The polo by its own rule: 48 000 + 100%. The scarf by the general one: 20 000 + 50%.
       expect(lineOf(preview, 'Polo')?.next).toBe(som(96_000))
       expect(lineOf(preview, 'Sharf')?.next).toBe(som(30_000))
       expect(lineOf(preview, 'Kepka')?.skip).toBe('no_cost')
 
-      const done = (await reprice({ kind: 'markup' }, { dryRun: false }).expect(200)).body
+      const done = (await reprice({ kind: 'formula' }, { dryRun: false }).expect(200)).body
       expect(done.revision.number).toBe('NO-000002')
     })
 
     it('work one price type out from another', async () => {
       // Wholesale by rule: the retail price less 15%. 96 000 less 15% is 81 600.
-      const byRule = (await reprice({ kind: 'markup' }, { priceTypeId: wholesale, dryRun: false }).expect(200)).body
+      const byRule = (await reprice({ kind: 'formula' }, { priceTypeId: wholesale, dryRun: false }).expect(200)).body
       expect(lineOf(byRule, 'Polo')).toMatchObject({ old: null, next: som(82_000) })
       expect(lineOf(byRule, 'Kepka')?.skip).toBe('no_source')
 
       // The floor: no rule names it, so it is set straight from retail.
-      const none = (await reprice({ kind: 'markup' }, { priceTypeId: floor }).expect(200)).body
+      const none = (await reprice({ kind: 'formula' }, { priceTypeId: floor }).expect(200)).body
       expect(lineOf(none, 'Polo')?.skip).toBe('no_rule')
       const fromRetail = { kind: 'from_type', priceTypeId: retail, percent: -30 }
       await reprice(fromRetail, { priceTypeId: floor, dryRun: false }).expect(200)
@@ -352,7 +355,7 @@ describe('Pricing', () => {
         createdByName: 'Alpha Owner',
         revertedByNumber: null,
       })
-      expect(page.items[2].summary).toBe('Tannarxdan qoida bo‘yicha')
+      expect(page.items[2].summary).toBe('Qoidalar bo‘yicha')
       expect(page.items[0].summary).toBe('Chakana −30%')
     })
 
@@ -402,6 +405,120 @@ describe('Pricing', () => {
       const wholesaleChange = page.items.find((item: { number: string }) => item.number === 'NO-000003')
       await alpha.post(`/api/pricing/revisions/${wholesaleChange.id}/revert`).expect(200)
       expect((await list()).Polo.prices[wholesale]).toBeUndefined()
+    })
+  })
+
+  describe('formulas', () => {
+    const byFormula = (formula: Record<string, unknown> | null, extra: Record<string, unknown> = {}) =>
+      reprice({ kind: 'formula', formula }, extra)
+
+    it('add a sum to the percentage, round up, and may name the price outright', async () => {
+      const summed = { base: 'cost', percent: 50, amount: som(5000) }
+      const preview = (await byFormula(summed).expect(200)).body
+      // The scarf: 20 000 + 50% + 5 000 = 35 000, up to the next price ending in 9 000. The polo: 77 000 → 79 000.
+      expect(lineOf(preview, 'Sharf')?.next).toBe(som(39_000))
+      expect(lineOf(preview, 'Polo')?.next).toBe(som(79_000))
+      const exact = (await byFormula(summed, { round: false }).expect(200)).body
+      expect(lineOf(exact, 'Sharf')?.next).toBe(som(35_000))
+      // A price named outright is not rounded and needs no cost: the cap, never bought, takes it too.
+      const fixed = (await byFormula({ base: 'fixed', amount: som(185_500) }).expect(200)).body
+      expect(lineOf(fixed, 'Kepka')).toMatchObject({ old: null, next: som(185_500), skip: null })
+      expect(lineOf(fixed, 'Polo')?.next).toBe(som(185_500))
+      expect((await byFormula({ base: 'fixed', amount: 0 })).status).toBe(400)
+    })
+
+    it('work a price out from the retail one, which is not worked out from itself', async () => {
+      const lower = { base: 'retail', percent: -15 }
+      const preview = (await byFormula(lower, { priceTypeId: wholesale, round: false }).expect(200)).body
+      // The polo retails at 90 000: 76 500. The cap has no retail price to start from.
+      expect(lineOf(preview, 'Polo')?.next).toBe(som(76_500))
+      expect(lineOf(preview, 'Kepka')?.skip).toBe('no_source')
+      const self = await byFormula(lower)
+      expect(self.status).toBe(400)
+      expect(self.body.error.fields['operation.formula']).toBeDefined()
+    })
+
+    it('are kept in a rule with a sum, and as a price named outright', async () => {
+      const rule = (
+        await alpha
+          .post('/api/pricing/rules')
+          .send({
+            season: 'ss',
+            markups: [
+              { priceTypeId: retail, base: 'cost', percent: 20, amount: som(5000) },
+              { priceTypeId: floor, base: 'fixed', amount: som(60_000) },
+            ],
+          })
+          .expect(201)
+      ).body
+      expect(rule.markups).toEqual(
+        expect.arrayContaining([
+          { priceTypeId: retail, base: 'cost', percent: 20, amount: som(5000) },
+          { priceTypeId: floor, base: 'fixed', percent: 0, amount: som(60_000) },
+        ]),
+      )
+      // The polo is a summer shirt: nothing narrower names its floor, so this rule does.
+      const byRule = (await byFormula(null, { priceTypeId: floor }).expect(200)).body
+      expect(lineOf(byRule, 'Polo')).toMatchObject({ old: som(67_000), next: som(60_000) })
+      await alpha
+        .post('/api/pricing/rules')
+        .send({ season: 'aw', markups: [{ priceTypeId: floor, base: 'fixed', amount: 0 }] })
+        .expect(400)
+      await alpha.delete(`/api/pricing/rules/${rule.id}`).expect(204)
+    })
+
+    it('are a price type’s own way, where every product finds it last', async () => {
+      const types = (await alpha.get('/api/price-types').expect(200)).body as Record<string, unknown>[]
+      const fields = (id: string) => {
+        const { id: _id, isActive: _active, formula: _formula, ...rest } = types.find((type) => type.id === id)!
+        return rest
+      }
+      expect(types.every((type) => type.formula === null)).toBe(true)
+      const own = { base: 'retail', percent: -10 }
+      const saved = (
+        await alpha
+          .put(`/api/price-types/${wholesale}`)
+          .send({ ...fields(wholesale), formula: own })
+          .expect(200)
+      ).body
+      expect(saved.formula).toEqual({ ...own, amount: 0 })
+      // It is the rule for everything, and is seen among the rules as such.
+      const rules = (await alpha.get('/api/pricing/rules').expect(200)).body
+      expect(rules[0]).toMatchObject({
+        categoryId: null,
+        brandId: null,
+        season: null,
+        markups: [{ priceTypeId: wholesale, base: 'retail', percent: -10, amount: 0 }],
+      })
+      // By the rules, the scarf — 54 000 at retail — is 48 600 wholesale.
+      const preview = (await byFormula(null, { priceTypeId: wholesale, round: false }).expect(200)).body
+      expect(lineOf(preview, 'Sharf')?.next).toBe(som(48_600))
+      // Left out of a later save it stays; null takes it away, and the rule left empty with it.
+      const kept = (await alpha.put(`/api/price-types/${wholesale}`).send(fields(wholesale)).expect(200)).body
+      expect(kept.formula).toEqual({ ...own, amount: 0 })
+      const cleared = (
+        await alpha
+          .put(`/api/price-types/${wholesale}`)
+          .send({ ...fields(wholesale), formula: null })
+          .expect(200)
+      ).body
+      expect(cleared.formula).toBeNull()
+      expect((await alpha.get('/api/pricing/rules').expect(200)).body).toHaveLength(2)
+      // The retail price is not worked out from itself.
+      await alpha
+        .put(`/api/price-types/${retail}`)
+        .send({ ...fields(retail), formula: own })
+        .expect(400)
+    })
+
+    it('fill in only what is missing, when asked', async () => {
+      // Only the cap has no retail price.
+      expect(Object.keys(await list({ missing: retail }))).toEqual(['Kepka'])
+      const preview = (
+        await byFormula({ base: 'fixed', amount: som(50_000) }, { filter: { missing: retail } }).expect(200)
+      ).body
+      expect(preview).toMatchObject({ total: 1, changed: 1 })
+      expect(lineOf(preview, 'Kepka')?.next).toBe(som(50_000))
     })
   })
 

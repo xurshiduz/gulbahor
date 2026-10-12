@@ -17,19 +17,29 @@ import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 're
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/controls'
+import { Segments, Select } from '@/components/ui/controls'
 import { DateInput } from '@/components/ui/date-input'
 import { Shortcut } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
+import { Balance, Balances } from '@/features/customers/balance'
 import { ReceivedInput, ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
 import { pairSentence, rateText, type ValuedLine } from '@/features/money/payment-lines'
 import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
-import { ChangeRows, type ChangePanel } from './change-rows'
+import { BalanceMove, ChangeRows, type ChangePanel } from './change-rows'
 import { GivenInput, GivenNote } from './given-for'
-import { changeOf, changeWords, enteredRows, refundsOf, tendersOf, type Returning, type TenderRow } from './pos-state'
+import {
+  changeLines,
+  changeOf,
+  changeWords,
+  enteredRows,
+  refundsOf,
+  tendersOf,
+  type Returning,
+  type TenderRow,
+} from './pos-state'
 import { TakenInput, TakenNote } from './taken-for'
 import { RATE, ROW, UNDER } from './tender-grid'
 
@@ -88,6 +98,8 @@ interface TenderPanelProps {
    * it too, in full sight, and — nothing typed — it is what is meant.
    */
   prefer?: AnyCurrency | null
+  /** Who is buying, and what stands on their balance in each currency: in sight beside the money. */
+  balances?: { name: string; accounts: { currency: AnyCurrency; balance: number }[] } | null
 }
 
 /** What of the money owed for goods brought back stays on the customer's account. */
@@ -166,6 +178,7 @@ export function TenderPanel({
   hiding = null,
   keep = null,
   prefer = null,
+  balances = null,
 }: TenderPanelProps) {
   const { t } = useTranslation()
   const accountId = useId()
@@ -234,6 +247,34 @@ export function TenderPanel({
   const fillOf = (row: TenderRow): number => {
     const rest = restFor(row)
     return foreign(row) ? (dueIn(rest, row.currency, book) ?? rest) : rest
+  }
+
+  // ── What each place holds now, and would after this: for whoever may see balances (`context.held`) ──
+  const placeOf = (row: Pick<TenderRow, 'method' | 'currency' | 'accountId'>) =>
+    row.method === 'cash' ? (context.drawers[row.currency] ?? `drawer:${row.currency}`) : row.accountId
+  const moves = new Map<string, number>()
+  if (context.held) {
+    const move = (place: string | null, amount: number) => {
+      if (place && amount) {
+        moves.set(place, (moves.get(place) ?? 0) + amount)
+      }
+    }
+    // Nothing typed: what is meant is what shows faintly in the rows.
+    const meant = entered.length
+      ? entered
+      : rows.flatMap((row) => (suggested[row.key] ? [{ ...row, amount: suggested[row.key] }] : []))
+    for (const row of meant) {
+      move(placeOf(row), refunding ? -(row.amount ?? 0) : (row.amount ?? 0))
+    }
+    if (!refunding && !settlement.problem) {
+      // The change leaves the places it is handed from: the base drawer, another drawer's notes, a card.
+      move(placeOf({ method: 'cash', currency: base(), accountId: null }), -settlement.changeUzs)
+      for (const line of change ? changeLines(change.rows, change.over, book) : []) {
+        if (line.way !== 'account') {
+          move(placeOf({ method: line.way, currency: line.currency, accountId: line.accountId }), -line.amount)
+        }
+      }
+    }
   }
 
   // A field gives up what was typed into it on the same Enter that asks what to do next. What the rows
@@ -346,6 +387,16 @@ export function TenderPanel({
               .filter((code) => code !== prefer)
               .map((code) => `≈ ${money(dueIn(due, code, book) as number, code)}`)
               .join(' · ')}
+          </p>
+        ) : null}
+        {balances ? (
+          <p data-balances className="tabular mt-1 text-right text-xs text-ink-3">
+            {t('pos.customerBalances', { name: balances.name })}:{' '}
+            {balances.accounts.some((item) => item.balance) ? (
+              <Balances items={balances.accounts.filter((item) => item.balance)} />
+            ) : (
+              <Balance balance={0} currency={base()} />
+            )}
           </p>
         ) : null}
       </div>
@@ -489,6 +540,17 @@ export function TenderPanel({
                   <TakenNote {...takenFor(row)} />
                 )
               ) : null}
+              {context.held && moves.get(placeOf(row) as string) ? (
+                <p data-held={row.key} className="tabular text-right text-xs text-ink-3">
+                  {t('pos.heldMove', {
+                    before: money(context.held[placeOf(row) as string] ?? 0, row.currency),
+                    after: money(
+                      (context.held[placeOf(row) as string] ?? 0) + (moves.get(placeOf(row) as string) ?? 0),
+                      row.currency,
+                    ),
+                  })}
+                </p>
+              ) : null}
             </div>
           )
         })}
@@ -542,10 +604,34 @@ export function TenderPanel({
         ) : (
           <>
             <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2 text-ink-3">
-                {t('pos.change')}
-                {/* Seldom wanted: the rows stay folded until asked for. */}
-                {change && change.rows.length && change.over > 0 ? (
+              <span className="text-ink-3">{t('pos.change')}</span>
+              <span
+                className={cn(
+                  'tabular text-right text-lg font-semibold',
+                  settlement.problem === 'change_over' ? 'text-bad' : 'text-ok',
+                )}
+              >
+                {/* What goes back into the customer's hand, or to their card: what stays with the shop is not change. */}
+                {changeWords(
+                  changeOf(settlement).filter((part) => part.way !== 'account'),
+                  t,
+                ) || money(0)}
+              </span>
+            </div>
+            {/* What was paid over the sum is handed back, or left with the customer for next time: said, not guessed. */}
+            {change && change.over > 0 ? (
+              <div data-enter-skip data-change-mode className="flex flex-wrap items-center gap-2">
+                <Segments
+                  value={change.mode}
+                  onChange={change.onMode}
+                  options={[
+                    { value: 'give', label: t('pos.changeGive') },
+                    { value: 'keep', label: t('pos.changeKeep') },
+                  ]}
+                  className="h-8 w-auto min-w-64 flex-1"
+                />
+                {/* Seldom wanted: notes of another currency, or a card, stay folded until asked for. */}
+                {change.mode === 'give' && change.rows.some((row) => row.way !== 'account') ? (
                   <button
                     type="button"
                     tabIndex={-1}
@@ -556,35 +642,17 @@ export function TenderPanel({
                     {change.open ? null : <Shortcut combo="f10" />}
                   </button>
                 ) : null}
-                {/* A customer is at the till: leaving the change with them is one press, not a search. */}
-                {change?.keeper &&
-                change.onKeepAll &&
-                change.over > 0 &&
-                !change.rows.some((row) => row.way === 'account' && row.value) ? (
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    data-keep-change
-                    onClick={change.onKeepAll}
-                    className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent/15"
-                  >
-                    {t('pos.keepChange')}
-                  </button>
-                ) : null}
-              </span>
-              <span
-                className={cn(
-                  'tabular text-right text-lg font-semibold',
-                  settlement.problem === 'change_over' ? 'text-bad' : 'text-ok',
-                )}
-              >
-                {changeWords(changeOf(settlement), t) || money(0)}
-              </span>
-            </div>
+              </div>
+            ) : null}
+            {change && change.over > 0 && change.mode === 'keep' && !change.keeper ? (
+              <p data-keep-hint className="text-xs text-warn">
+                {t('pos.keepChangePick')}
+              </p>
+            ) : null}
             {settlement.problem === 'change_over' ? (
               <p className="text-bad">{t('pos.changeOver', { amount: money(change?.over ?? 0) })}</p>
             ) : null}
-            {change?.open && change.over > 0 ? (
+            {change && change.over > 0 && (change.mode === 'keep' ? !!change.keeper : change.open) ? (
               <ChangeRows context={context} change={change} settlement={settlement} onKeyDown={walk} />
             ) : null}
           </>
@@ -618,14 +686,6 @@ export function TenderPanel({
                   />
                 ) : null}
               </span>
-              {/* What stands there already: what they owe, or what is theirs to spend first. */}
-              {onAccount.balance ? (
-                <span className={cn('block text-xs', onAccount.balance > 0 ? 'text-ink-3' : 'text-ok')}>
-                  {onAccount.balance > 0
-                    ? t('pos.debtOwed', { amount: money(onAccount.balance, onAccount.currency) })
-                    : t('pos.creditHeld', { amount: money(-onAccount.balance, onAccount.currency) })}
-                </span>
-              ) : null}
             </label>
             {/* "=" puts on the account whatever the money typed above has not covered. */}
             <MoneyInput
@@ -671,6 +731,16 @@ export function TenderPanel({
               className="text-right"
             />
           ) : null}
+          {/* What stands on their balance now — owed, or theirs to spend first — and after this sale. */}
+          {onAccount.balance !== null ? (
+            <p data-balance-move className="tabular text-right text-xs text-ink-3">
+              <BalanceMove
+                before={onAccount.balance}
+                after={onAccount.balance + (onAccount.sums.amount ? onAccount.prepaid + onAccount.lent : 0)}
+                currency={onAccount.currency}
+              />
+            </p>
+          ) : null}
           {/* What their haqi covers and what is lent, and by when the lent part is to be paid. */}
           {onAccount.sums.amount && (onAccount.prepaid || onAccount.lent) ? (
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-ink-3">
@@ -712,13 +782,6 @@ export function TenderPanel({
           <div className={ROW}>
             <label htmlFor={keepId} className="min-w-0 text-[13px] text-ink-2">
               <span className="block truncate">{t('pos.keepOnAccount', { name: keep.name })}</span>
-              {keep.balance ? (
-                <span className={cn('block text-xs', keep.balance > 0 ? 'text-ink-3' : 'text-ok')}>
-                  {keep.balance > 0
-                    ? t('pos.debtOwed', { amount: money(keep.balance, keep.currency) })
-                    : t('pos.creditHeld', { amount: money(-keep.balance, keep.currency) })}
-                </span>
-              ) : null}
             </label>
             {/* "=" keeps there whatever the money typed above has not handed back. */}
             <MoneyInput
@@ -753,6 +816,22 @@ export function TenderPanel({
               </>
             ) : null}
           </div>
+          {/* What stands on their balance now, and what will once this much stays there. */}
+          {keep.balance !== null ? (
+            <p data-balance-move className="tabular text-right text-xs text-ink-3">
+              <BalanceMove
+                before={keep.balance}
+                after={
+                  keep.balance -
+                  (keeping
+                    ? (keep.settled ??
+                      (keep.currency === base() ? keeping : (exchange(keeping, base(), keep.currency, book) ?? 0)))
+                    : 0)
+                }
+                currency={keep.currency}
+              />
+            </p>
+          ) : null}
           {keep.asks && keep.amount ? <p className="text-right text-xs text-warn">{t('pos.supplierKeepAsk')}</p> : null}
           {keep.strays ? (
             <p className="text-right text-xs text-bad">

@@ -1,4 +1,4 @@
-import { guessMapping, readImportRow, type ImportRow } from '@erp/core'
+import { guessMapping, readImportRow, type ImportMapping, type ImportPriceType, type ImportRow } from '@erp/core'
 
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 
@@ -59,7 +59,8 @@ const sheetRow = (
   rest.barcode ?? null,
 ]
 
-const mapping = guessMapping(HEADERS)
+/** How the screen reads the sheet: its columns, the business's price types among them. */
+let mapping: ImportMapping = guessMapping(HEADERS)
 const read = (sheet: Cells[]): ImportRow[] =>
   sheet.map((cells, index) => readImportRow(cells, mapping, index + 2)!.value as ImportRow)
 
@@ -95,6 +96,7 @@ describe('Import', () => {
     ;({ alpha } = harness)
     shopId = (await alpha.get('/api/locations')).body.items[0].id
     await alpha.post('/api/currencies').send({ code: 'CNY' }).expect(200)
+    mapping = guessMapping(HEADERS, (await alpha.get('/api/price-types').expect(200)).body as ImportPriceType[])
   })
 
   afterAll(async () => {
@@ -262,5 +264,27 @@ describe('Import', () => {
       .post('/api/receipts/import')
       .send(request(read(sheet)))
       .expect(403)
+  })
+
+  it('puts each price column on its price type, and says when one names a type put away', async () => {
+    const types = (await alpha.get('/api/price-types').expect(200)).body as { id: string; name: string }[]
+    const wholesale = types.find((type) => type.name === 'Ulgurji')!.id
+    const [row] = read([sheetRow('Kepka', 'KP-1', null, null, 4, 9, { retail: 60_000, category: 'Aksessuarlar' })])
+    const done = await alpha
+      .post('/api/receipts/import')
+      .send(request([{ ...row, prices: { ...row.prices, [wholesale]: 50_000_00 } }], { fileHash: 'e'.repeat(64) }))
+      .expect(200)
+    const receipt = (await alpha.get(`/api/receipts/${done.body.receiptId}`).expect(200)).body
+    expect(receipt.lines[0]).toMatchObject({ retailPrice: 60_000_00, otherPrices: { [wholesale]: 50_000_00 } })
+
+    await alpha.post(`/api/price-types/${wholesale}/archive`).expect(201)
+    const stale = await alpha
+      .post('/api/receipts/import')
+      .send(request([{ ...row, prices: { [wholesale]: 50_000_00 } }], { dryRun: true, fileHash: 'f'.repeat(64) }))
+      .expect(200)
+    expect(stale.body.problems).toEqual([
+      { row: row.row, problems: ['Narx ustuni yo‘q narx turiga moslangan: ustunlarni qayta moslang'] },
+    ])
+    await alpha.post(`/api/price-types/${wholesale}/restore`).expect(201)
   })
 })

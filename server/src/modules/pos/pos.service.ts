@@ -1,10 +1,4 @@
-import {
-  DEFAULT_ORG_SETTINGS,
-  normalizeEpc,
-  type PosContextDto,
-  type PosItemDto,
-  type RateBook,
-} from '@erp/core'
+import { DEFAULT_ORG_SETTINGS, normalizeEpc, type PosContextDto, type PosItemDto } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
@@ -16,7 +10,7 @@ import { tillCurrenciesOf } from '../money/base'
 import { LedgerService } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { servesShop } from '../money/places'
-import { bookFrom, bookToday, ratesInForce } from '../money/rate-book'
+import { bookFrom, ratesInForce } from '../money/rate-book'
 import { ShiftsService } from '../money/shifts.service'
 import { MoneyTransfersService } from '../money/transfers.service'
 import { runningAt } from '../promotions/promotions.service'
@@ -50,6 +44,19 @@ export class PosService {
         (account) => account.isActive && servesShop(account, register.locationId),
       )
       const drawers = (await this.money.accountRows(em, false)).filter((account) => account.registerId === registerId)
+      // What the till's places hold is for those who may see balances anywhere; a cashier counts the drawer blind.
+      const places = new Set(
+        [...drawers, ...accounts.filter((account) => account.kind === 'card' || account.kind === 'terminal')].map(
+          (account) => account.id,
+        ),
+      )
+      const held = can(actor, 'money.view')
+        ? Object.fromEntries(
+            (await this.money.accountRows(em, true))
+              .filter((account) => places.has(account.id))
+              .map((account) => [account.id, account.balance ?? 0]),
+          )
+        : null
       const sellers: { id: string; name: string }[] = await em.query(
         `SELECT u.id, u.full_name AS name FROM users u
          WHERE u.is_active
@@ -87,6 +94,7 @@ export class PosService {
         debtDays: settings.debtDays,
         debtLimit: settings.debtLimit,
         mayLend: can(actor, 'pos.debt'),
+        held,
       }
     })
   }
@@ -149,7 +157,6 @@ export class PosService {
         em,
         { search: q, limit: 20 },
         register.locationId,
-        await this.rateNow(em),
         priceTypeId,
         await this.running(em, actor, register, promoCode),
       )
@@ -170,7 +177,6 @@ export class PosService {
         em,
         { ids: [...new Set(variantIds)] },
         register.locationId,
-        await this.rateNow(em),
         priceTypeId,
         await this.running(em, actor, register, promoCode),
       )
@@ -225,7 +231,6 @@ export class PosService {
             em,
             { ids: [variantId] },
             register.locationId,
-            await this.rateNow(em),
             priceTypeId,
             await this.running(em, actor, register, promoCode),
           )
@@ -235,11 +240,6 @@ export class PosService {
       }
       return { ...item, epc: tag }
     })
-  }
-
-  /** Today's rates: what the till's prices in other currencies are shown by. */
-  private async rateNow(em: EntityManager): Promise<RateBook> {
-    return bookToday(em)
   }
 
   /** The till a person is working at, when they may work there. */

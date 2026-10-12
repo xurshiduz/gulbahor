@@ -38,6 +38,24 @@ describe('a receipt on paper', () => {
     expect(text).not.toContain('1042-03')
   })
 
+  it('says of a line sold at a price type with no price for it where its price came from', () => {
+    const marked = (priceFrom: 'retail' | 'formula' | null) => {
+      const { container, unmount } = render(
+        <ReceiptPaper
+          sale={{ ...sale, lines: sale.lines.map((line, index) => (index ? line : { ...line, priceFrom })) }}
+          template={DEFAULT_RECEIPT_TEMPLATE}
+          orgName="Gulbahor"
+        />,
+      )
+      const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? '')
+      unmount()
+      return text
+    }
+    expect(marked('retail')).toContain('Chakana narxida')
+    expect(marked('formula')).toContain('qoida bo‘yicha')
+    expect(marked(null)).not.toContain('Chakana narxida')
+  })
+
   it('is laid out by the template: what is switched off is not printed', () => {
     const bare = printed({
       width: 58,
@@ -87,7 +105,7 @@ describe('a receipt on paper', () => {
     const { container } = render(<ReceiptPaper sale={lent} template={DEFAULT_RECEIPT_TEMPLATE} orgName="Gulbahor" />)
     const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? null)
     // The account is the customer's, not a place: its name in the books stays off the paper.
-    expect(text).toContain('Hisobiga483 000 so‘m')
+    expect(text).toContain('Mijoz balansi483 000 so‘m')
     expect(text).not.toContain('Nodira Yusupova483')
     expect(text).toContain('To‘lash muddati04.11.2026')
     // What they owe in all after it, and a line to put their name to.

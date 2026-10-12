@@ -29,7 +29,7 @@ describe('Page', () => {
     expect(screen.getByRole('heading', { name: 'Kirim' })).toBeTruthy()
     expect(screen.getByText('Chilonzor')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Yaratish' })).toBeTruthy()
-    expect(document.title).toBe('Kirim · Sanoq')
+    expect(document.title).toBe('Kirim · Savdo')
   })
 
   it("puts its name into the frame's top bar and keeps the buttons with the content", () => {

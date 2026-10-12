@@ -68,6 +68,7 @@ import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
 
+import { Balance, balanceText } from './balance'
 import { DebtorsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
@@ -80,7 +81,6 @@ import {
   OpeningDialog,
   PaymentDialog,
   StatementDialog,
-  useDebtText,
 } from './payments'
 
 const route = getRouteApi('/customers')
@@ -118,7 +118,6 @@ export function CustomersPage() {
   const canTake = can('customers.receive')
   const canPayOut = can('customers.pay_out')
   const canAdjust = can('customers.adjust')
-  const debtText = useDebtText()
   const [groupForm, setGroupForm] = useState<CustomerGroupDto | null | undefined>()
   const [over, setOver] = useState<Over | null>(null)
   const groups = useCustomerGroups(seesBase)
@@ -240,7 +239,7 @@ export function CustomersPage() {
               meta: {
                 export: (row) =>
                   owing(row)
-                    .map((item) => debtText(item.balance, item.currency))
+                    .map((item) => balanceText(item.balance, item.currency))
                     .join(', ') || null,
                 className: 'tabular text-right whitespace-nowrap',
                 headerClassName: 'text-right',
@@ -249,9 +248,7 @@ export function CustomersPage() {
                 <span className="flex flex-col items-end">
                   {owing(row.original).map((item) => (
                     <span key={item.currency} className="flex flex-col items-end leading-tight">
-                      <span className={cn('font-medium', item.balance > 0 && 'text-bad')}>
-                        {debtText(item.balance, item.currency)}
-                      </span>
+                      <Balance balance={item.balance} currency={item.currency} className="font-medium" />
                       {/* What of it is past its day is the part somebody has to ring about. */}
                       {item.overdue ? (
                         <span className="text-xs text-bad">

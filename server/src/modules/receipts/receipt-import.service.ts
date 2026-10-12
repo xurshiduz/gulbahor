@@ -14,7 +14,7 @@ import type { EntityManager } from 'typeorm'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
-import { Attribute, AttributeValue, Brand, Category, Customer, Product } from '../../database/entities'
+import { Attribute, AttributeValue, Brand, Category, Customer, PriceType, Product } from '../../database/entities'
 import type { Actor } from '../auth/actor'
 import { ProductsService } from '../catalog/products.service'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -291,6 +291,15 @@ export class ReceiptImportService {
     const everyRowNamed = input.rows.every((row) => supplierOf.get(row.row))
     const receiptSupplier = input.supplierId ?? (named.length === 1 && everyRowNamed ? named[0] : null)
 
+    // A price is for a price type the business keeps: a column of one put away since is said, not dropped.
+    const types = await em.findBy(PriceType, { isActive: true })
+    const retail = types.find((type) => type.kind === 'retail')
+    const kept = new Set(types.map((type) => type.id))
+    problem(
+      input.rows.filter((row) => Object.keys(row.prices).some((id) => !kept.has(id))),
+      'Narx ustuni yo‘q narx turiga moslangan: ustunlarni qayta moslang',
+    )
+
     result.problems = [...problems.entries()].sort(([a], [b]) => a - b).map(([row, list]) => ({ row, problems: list }))
     if (result.problems.length) {
       return result
@@ -298,16 +307,16 @@ export class ReceiptImportService {
 
     const lines: ReceiptLineInput[] = input.rows.map((row) => {
       const supplierId = supplierOf.get(row.row) ?? null
+      const { [retail?.id ?? '']: retailPrice, ...otherPrices } = row.prices
       return {
         variantId: variantOf.get(row.row) as string,
         supplierId: supplierId === receiptSupplier ? null : supplierId,
         qty: row.qty,
         price: row.price,
         extra: row.extra,
-        retailPrice: row.retailPrice,
-        wholesalePrice: row.wholesalePrice,
-        // A sheet has columns for the two; the others are set on the receipt's own screen.
-        otherPrices: {},
+        retailPrice: retailPrice ?? null,
+        otherPrices,
+        priceFormulas: {},
       }
     })
     const receipt = await this.receipts.createIn(

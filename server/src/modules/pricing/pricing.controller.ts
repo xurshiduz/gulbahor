@@ -10,6 +10,7 @@ import {
   type Page,
   type PriceListItemDto,
   type PriceListQuery,
+  type PriceLookupResult,
   type PriceRevisionDto,
   type PriceRevisionListQuery,
   type PriceRuleDto,
@@ -92,6 +93,17 @@ export class PricingController {
   @Can('products.prices')
   removeRule(@CurrentActor() actor: Actor, @id() ruleId: string): Promise<void> {
     return this.pricing.removeRule(actor, ruleId)
+  }
+
+  /** The formula each product's rule gives it per price type, and what it sells for now. */
+  @Post('formulas')
+  @HttpCode(200)
+  @Can('products.view')
+  formulas(
+    @CurrentActor() actor: Actor,
+    @Body(zod(markupLookupSchema)) input: MarkupLookupInput,
+  ): Promise<PriceLookupResult> {
+    return this.pricing.lookup(actor, input.productIds)
   }
 
   /** The markup each product's rule gives it, per price type. */

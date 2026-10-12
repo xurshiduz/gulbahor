@@ -265,7 +265,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card: 'Kartaga',
   terminal: 'Terminal',
   exchange: 'Almashtirish',
-  account: 'Hisobiga',
+  account: 'Mijoz balansi',
 }
 
 /**
@@ -432,7 +432,7 @@ export type ChangeWay = (typeof CHANGE_WAYS)[number]
 
 export const CHANGE_WAY_LABELS: Record<ChangeWay, string> = {
   cash: 'Qaytim',
-  account: 'Hisobiga yozildi',
+  account: 'Balansida qoldi',
   card: 'Kartadan qaytarildi',
 }
 
@@ -714,14 +714,14 @@ export const saleInputSchema = z
       context.addIssue({ code: 'custom', path: ['payments'], message: 'To‘lovni kiriting' })
     }
     if (sale.onAccount && !sale.customerId) {
-      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Hisobiga yozish uchun mijozni tanlang' })
+      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Balansga yozish uchun mijozni tanlang' })
     }
     const kept = sale.change.some((line) => line.way === 'account')
     if (kept && !sale.customerId) {
       context.addIssue({
         code: 'custom',
         path: ['customerId'],
-        message: 'Qaytimni hisobiga yozish uchun mijozni tanlang',
+        message: 'Qaytimni balansda qoldirish uchun mijozni tanlang',
       })
     }
     // Lending part of a sale and keeping change from it at once is one sum written twice.
@@ -729,7 +729,7 @@ export const saleInputSchema = z
       context.addIssue({
         code: 'custom',
         path: ['change'],
-        message: 'Chekning bir qismi hisobiga yozilgan: qaytimni hisobiga yozish o‘rniga o‘sha summani kamaytiring',
+        message: 'Chekning bir qismi balansga yozilgan: qaytimni balansda qoldirish o‘rniga o‘sha summani kamaytiring',
       })
     }
   })
@@ -805,6 +805,8 @@ export interface SaleLineDto {
   /** The promotion that took part in it, and how much of it was the promotion's. */
   promotionName: string | null
   promoDiscount: number
+  /** Sold at a price type with no price for it: by its formula, or at the retail price. Null otherwise. */
+  priceFrom: PriceFrom | null
   total: number
   epc: string | null
   /** How many of them have been brought back, and what those were worth. */
@@ -993,7 +995,7 @@ export const exchangeInputSchema = z
   .superRefine(taggedOnce)
   .superRefine((goods, context) => {
     if (goods.onAccount && !goods.customerId) {
-      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Hisobiga yozish uchun mijozni tanlang' })
+      context.addIssue({ code: 'custom', path: ['customerId'], message: 'Balansga yozish uchun mijozni tanlang' })
     }
   })
 export type ExchangeInput = z.infer<typeof exchangeInputSchema>
@@ -1135,7 +1137,10 @@ export interface PosItemDto {
   sku: string
   /** One unit in so'm tiyin; null when the model has no retail price and so cannot be sold. */
   price: number | null
-  /** What one unit is not sold under without a manager's word, in so'm tiyin; null when no floor is set. */
+  /**
+   * What one unit is not sold under without a manager's word, in so'm tiyin: its own minimal price, or what
+   * the minimal type's formula makes of its cost today; null when neither gives one.
+   */
   minPrice: number | null
   /**
    * The promotions in force for it at this till today, for a cart sold at the retail price. One that takes
@@ -1150,7 +1155,16 @@ export interface PosItemDto {
   epc: string | null
   /** A photograph of it: of its own colour when there is one. Absent in a cart kept from before. */
   image?: ImageThumb | null
+  /**
+   * In a cart sold at a price type: where its price came from — the type's own price for it (`type`), what the
+   * type's formula makes of it where none is set (`formula`), or the retail price where there is no formula
+   * either (`retail`). Null, or absent, in a cart sold at the retail price.
+   */
+  priceFrom?: PriceFrom | 'type' | null
 }
+
+/** A line sold at a price type that had no price for it: by the type's formula, or at the retail price. */
+export type PriceFrom = 'formula' | 'retail'
 
 /** The price type the cart is being sold at, when it is not the retail one. */
 const cartPriceType = idSchema.nullish().transform((value) => value ?? null)
@@ -1234,6 +1248,11 @@ export interface PosContextDto {
   mayOverDiscount: boolean
   /** This person may hand money back otherwise than it was paid: change sent from a card needs no second word. */
   mayReturnAny: boolean
+  /**
+   * What each place this till's money goes to holds now, by account — its drawers, the shop's cards and
+   * terminals — for a person who may see balances; null for one who may not: a cashier counts the drawer blind.
+   */
+  held: Record<string, number> | null
 }
 
 // ───────────────────────────── Shifts ─────────────────────────────

@@ -103,9 +103,10 @@ describe('opening balances from a sheet', () => {
     const rows = [...preview.querySelectorAll('tbody tr')].map((row) => plain(row.textContent))
     expect(rows[0]).toContain('Nodira')
     expect(rows[0]).toContain('Bu hisobga boshlang‘ich qoldiq avval kiritilgan')
-    expect(rows[0]).toContain('qarzi 1 250 000 so‘m')
+    expect(rows[0]).toContain('−1 250 000 so‘m')
     expect(rows[1]).toContain('Aziz yangi')
-    expect(rows[1]).toContain('haqi 300 000 so‘m')
+    expect(rows[1]).toContain('300 000 so‘m')
+    expect(rows[1]).not.toContain('−')
 
     await userEvent.click(screen.getByRole('button', { name: 'Yozish (2 ta qator)' }))
     await waitFor(() => expect(post).toHaveBeenCalledTimes(2))

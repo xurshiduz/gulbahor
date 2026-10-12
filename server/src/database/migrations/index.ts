@@ -51,6 +51,10 @@ import { TransferFees1790000050000 } from './1790000050000-transfer-fees'
 import { TerminalFees1790000051000 } from './1790000051000-terminal-fees'
 import { CustomerTransfers1790000052000 } from './1790000052000-customer-transfers'
 import { CustomerMerges1790000053000 } from './1790000053000-customer-merges'
+import { PriceFormulas1790000054000 } from './1790000054000-price-formulas'
+import { SaleLinePriceFrom1790000055000 } from './1790000055000-sale-line-price-from'
+import { PlainPriceTypes1790000056000 } from './1790000056000-plain-price-types'
+import { ReceiptPriceFormulas1790000057000 } from './1790000057000-receipt-price-formulas'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -107,4 +111,8 @@ export const MIGRATIONS = [
   TerminalFees1790000051000,
   CustomerTransfers1790000052000,
   CustomerMerges1790000053000,
+  PriceFormulas1790000054000,
+  SaleLinePriceFrom1790000055000,
+  PlainPriceTypes1790000056000,
+  ReceiptPriceFormulas1790000057000,
 ]

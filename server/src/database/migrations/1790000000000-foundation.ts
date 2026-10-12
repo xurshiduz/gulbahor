@@ -7,7 +7,16 @@ import { MigrationInterface, QueryRunner } from 'typeorm'
  * than everything. `app.bypass_rls` exists for the few system paths that have
  * no organization yet, such as finding a user at login.
  */
-const TENANT_TABLES = ['locations', 'roles', 'users', 'user_roles', 'user_locations', 'sessions', 'audit_log', 'user_preferences']
+const TENANT_TABLES = [
+  'locations',
+  'roles',
+  'users',
+  'user_roles',
+  'user_locations',
+  'sessions',
+  'audit_log',
+  'user_preferences',
+]
 
 const policy = (table: string, column: string) => `
   ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;

@@ -258,7 +258,8 @@ describe('Till controls', () => {
       expect(under.status).toBe(400)
       expect(under.body.error.code).toBe('BELOW_MIN_PRICE')
       expect(under.body.error.message).toContain('Ko‘ylak')
-      expect(under.body.error.fields['lines.0.discount']).toContain('380')
+      // The floor may be the cost itself: a cashier, who does not see cost, is not told it.
+      expect(under.body.error.fields['lines.0.discount']).toBe('Minimal narxdan past')
       const powerless = await two(som(20_001), { approval: { userId: otherId, pin: PIN } })
       expect(powerless.body.error.code).toBe('BELOW_MIN_PRICE')
       expect(powerless.body.error.message).toContain('Zarina Kassir')

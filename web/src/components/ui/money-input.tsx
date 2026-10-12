@@ -46,7 +46,7 @@ const ERROR_KEYS: Record<AmountError, string> = {
 }
 
 /** A plain number being typed: digits, grouping spaces, at most one decimal mark with two digits. */
-const PLAIN = /^[\d ]*(?:[.,]\d{0,2})?$/
+export const PLAIN = /^[\d ]*(?:[.,]\d{0,2})?$/
 
 const display = (minor: number | null, currency: AnyCurrency) =>
   minor === null ? '' : formatMoney(minor, currency, { symbol: false, group: ' ' })
@@ -261,7 +261,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
 })
 
 /** Re-groups the whole part into thousands and keeps the caret after the same digit. */
-function regroup(raw: string, caret: number): { text: string; caret: number } {
+export function regroup(raw: string, caret: number): { text: string; caret: number } {
   const significantBefore = raw.slice(0, caret).replace(/ /g, '').length
   const [whole, ...rest] = raw.replace(/ /g, '').split(/([.,])/)
   const trimmed = whole.replace(/^0+(?=\d)/, '')

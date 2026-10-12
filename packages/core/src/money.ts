@@ -195,13 +195,17 @@ export interface PriceRounding {
 
 export const NO_ROUNDING: PriceRounding = { step: 0, ending: 0 }
 
-/** The nearest price the rounding allows. Nothing stays nothing; something never rounds down to nothing. */
-export function roundPrice(amount: number, rounding: PriceRounding): number {
+/**
+ * The nearest price the rounding allows — or, with `up`, the smallest one that is not below `amount`: a price worked
+ * out from what goods cost must not fall under it by being rounded. Nothing stays nothing; something never rounds
+ * down to nothing.
+ */
+export function roundPrice(amount: number, rounding: PriceRounding, mode: 'nearest' | 'up' = 'nearest'): number {
   if (rounding.step <= 0 || amount <= 0) {
     return Math.max(0, amount)
   }
   const ending = rounding.ending % rounding.step
-  const rounded = roundToStep(Math.max(0, amount - ending), rounding.step) + ending
+  const rounded = roundToStep(Math.max(0, amount - ending), rounding.step, mode) + ending
   return rounded > 0 ? rounded : rounding.step
 }
 

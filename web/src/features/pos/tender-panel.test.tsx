@@ -27,6 +27,7 @@ import {
   type TenderRow,
   type WrittenChange,
 } from './pos-state'
+import type { ChangeMode } from './change-rows'
 import { ReceiptPreview } from './receipt-preview'
 import { TenderPanel } from './tender-panel'
 
@@ -128,15 +129,19 @@ function Change({
   onComplete,
   keeper,
   mayReturnAny = false,
+  held,
 }: {
   due: number
   onComplete: (change: WrittenChange[]) => void
   keeper?: { name: string; balance: number; currency: 'UZS' | 'USD' }
   mayReturnAny?: boolean
+  /** What the till's places hold, for a person who may see balances. */
+  held?: Record<string, number>
 }) {
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
   const [giving, setGiving] = useState<Record<string, Partial<ChangeRow>>>({})
   const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<ChangeMode>('give')
   const rows = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
   const typed = tendersOf(enteredRows(rows), false)
   const allCash = settle(due, typed, { book, roundStep: som(1000) })
@@ -146,7 +151,12 @@ function Change({
   const settlement = handed.length ? settle(due, typed, { book, change: handed, roundStep: som(1000) }) : allCash
   return (
     <TenderPanel
-      context={{ ...context, mayReturnAny }}
+      context={{
+        ...context,
+        mayReturnAny,
+        held: held ?? null,
+        drawers: { UZS: 'till-uzs', USD: 'till-usd' },
+      }}
       rows={rows}
       onPatch={(key, patch) => setPaid((current) => ({ ...current, [key]: { ...current[key], ...patch } }))}
       returning={null}
@@ -158,6 +168,15 @@ function Change({
       change={{
         rows: changing,
         onPatch: (key, patch) => setGiving((current) => ({ ...current, [key]: { ...current[key], ...patch } })),
+        mode,
+        // Left with the customer, all of it is written on their balance; handed back, it is cash again.
+        onMode: (next) => {
+          setMode(next)
+          setGiving(next === 'keep' && keeper ? { account: { value: over, amount: null } } : {})
+          if (next === 'keep') {
+            window.setTimeout(() => changeField('account')?.focus())
+          }
+        },
         open,
         onOpen: (next) => {
           setOpen(next)
@@ -168,12 +187,6 @@ function Change({
         over,
         keeper: keeper ? { name: keeper.name, balance: keeper.balance } : null,
         cardAsks: !mayReturnAny,
-        onKeepAll: () => {
-          setOpen(true)
-          setGiving({ account: { value: over, amount: null } })
-          window.setTimeout(() => changeField('account')?.focus())
-        },
-        keepHint: keeper ? null : 'Avval mijozni tanlang',
       }}
       action="Sotish"
       busy={false}
@@ -301,17 +314,25 @@ describe('the change', () => {
     expect(sold).not.toHaveBeenCalled()
   })
 
-  it('is kept on the customer’s account, in the sale’s money, whatever the account is kept in', async () => {
+  it('is left on the customer’s balance, in the sale’s money, whatever the balance is kept in', async () => {
     const sold = vi.fn()
     render(<Change due={som(75_000)} onComplete={sold} keeper={{ name: 'Elaris', balance: 5000, currency: 'USD' }} />)
     await userEvent.type(field('cash'), '100000{Enter}')
-    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    await userEvent.click(await screen.findByRole('radio', { name: 'Balansida qoldirish' }))
     const row = () => plain(document.querySelector('[data-change-row="account"]')?.textContent)
-    expect(row()).toContain('Hisobiga · Elaris')
-    expect(row()).toContain('qarzi 50,00 $')
-    // 12 100 of the change is a dollar on their account at the day's rate.
+    expect(row()).toContain('Balansida qoladiElaris')
+    // All of it at first, and what the balance comes to is said beside it.
+    expect(row()).toContain('Balansi: −50,00 $ → −47,93 $')
+    // Only the way of leaving it with them is out: nothing here hands money back.
+    expect(
+      [...document.querySelectorAll('[data-change-row]')].map((item) => item.getAttribute('data-change-row')),
+    ).toEqual(['account'])
+    // 12 100 of the change is a dollar on their balance at the day's rate; the rest goes back in cash.
+    await userEvent.clear(changeField('account'))
     await userEvent.type(changeField('account'), '12100{Enter}')
-    await waitFor(() => expect(changeSaid()).toContain('hisobiga 1,00 $'))
+    await waitFor(() => expect(row()).toContain('Balansi: −50,00 $ → −49,00 $'))
+    // Beside "Qaytim" stands only what is handed back.
+    expect(changeSaid()).not.toContain('balansida')
     expect(changeSaid()).toContain('13 000 so‘m')
     expect(plain(changeField('account', 1).placeholder)).toBe('1,00')
     await userEvent.keyboard('{Enter}')
@@ -322,19 +343,59 @@ describe('the change', () => {
   })
 })
 
-describe('change left with the customer', () => {
-  it('goes onto their account whole with one press, and can still be changed', async () => {
+describe('what each place holds', () => {
+  const heldAt = (key: string) => plain(document.querySelector(`[data-held="${key}"]`)?.textContent)
+
+  it('is said now and after, to whoever may see balances', async () => {
+    render(
+      <Change
+        due={som(75_000)}
+        onComplete={() => undefined}
+        held={{ 'till-uzs': som(1_000_000), 'till-usd': 5000, humo: som(300_000) }}
+      />,
+    )
+    // Nothing typed: cash for the lot is what is meant.
+    expect(heldAt('cash')).toBe('Bu yerdagi pul: 1 000 000 so‘m → 1 075 000 so‘m')
+    expect(document.querySelector('[data-held="cash:USD"]')).toBeNull()
+    // A hundred thousand in, twenty-five back out of the same drawer.
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await waitFor(() => expect(changeSaid()).toContain('25 000 so‘m'))
+    expect(heldAt('cash')).toBe('Bu yerdagi pul: 1 000 000 so‘m → 1 075 000 so‘m')
+    // Two dollars of the change leave the dollar drawer.
+    await userEvent.click(screen.getByText('Qaytimni bo‘lish'))
+    await userEvent.type(changeField('cash:USD'), '2{Enter}')
+    await waitFor(() => expect(heldAt('cash:USD')).toBe('Bu yerdagi pul: 50,00 $ → 48,00 $'))
+    // Paid by card as well: the card's own money grows.
+    await userEvent.type(field('account:humo'), '10000{Enter}')
+    await waitFor(() => expect(heldAt('account:humo')).toBe('Bu yerdagi pul: 300 000 so‘m → 310 000 so‘m'))
+  })
+
+  it('is not said to a cashier, who counts the drawer blind', async () => {
+    render(<Change due={som(75_000)} onComplete={() => undefined} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await waitFor(() => expect(changeSaid()).toContain('25 000 so‘m'))
+    expect(document.querySelector('[data-held]')).toBeNull()
+  })
+})
+
+describe('money paid over the sum', () => {
+  it('is handed back unless the cashier says it stays on the customer’s balance', async () => {
     const sold = vi.fn()
     render(<Change due={som(75_300)} onComplete={sold} keeper={{ name: 'Nodira', balance: 0, currency: 'UZS' }} />)
-    // Nothing over yet: nothing to keep.
-    expect(screen.queryByText('Hisobida qoldirish')).toBeNull()
+    // Nothing over yet: nothing to choose between.
+    expect(screen.queryByText('Balansida qoldirish')).toBeNull()
     await userEvent.type(field('cash'), '100000{Enter}')
-    await userEvent.click(await screen.findByText('Hisobida qoldirish'))
+    // Handing it back is what is meant until something else is said.
+    expect((await screen.findByRole('radio', { name: 'Qaytim berish' })).getAttribute('aria-checked')).toBe('true')
+    expect(changeSaid()).not.toContain('balansida')
+    await userEvent.click(screen.getByRole('radio', { name: 'Balansida qoldirish' }))
     // All of it, to the tiyin: nothing is handed back, so nothing is rounded.
-    await waitFor(() => expect(changeSaid()).toContain('hisobiga 24 700 so‘m'))
-    expect(plain(changeField('account').value)).toBe('24 700')
-    // Once it is written the offer has nothing more to say.
-    expect(screen.queryByText('Hisobida qoldirish')).toBeNull()
+    await waitFor(() => expect(plain(changeField('account').value)).toBe('24 700'))
+    // Nothing is left to hand back.
+    expect(changeSaid()).toBe('Qaytim0 so‘m')
+    const row = plain(document.querySelector('[data-change-row="account"]')?.textContent)
+    expect(row).toContain('Balansida qoladiNodira')
+    expect(row).toContain('Balansi: 0 so‘m → 24 700 so‘m')
     await waitFor(() => expect(document.activeElement).toBe(changeField('account')))
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
@@ -343,12 +404,30 @@ describe('change left with the customer', () => {
     ])
   })
 
+  it('is cash again when the cashier turns back to handing it over', async () => {
+    render(
+      <Change
+        due={som(75_000)}
+        onComplete={() => undefined}
+        keeper={{ name: 'Nodira', balance: 0, currency: 'UZS' }}
+      />,
+    )
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByRole('radio', { name: 'Balansida qoldirish' }))
+    await waitFor(() => expect(changeSaid()).toBe('Qaytim0 so‘m'))
+    await userEvent.click(screen.getByRole('radio', { name: 'Qaytim berish' }))
+    await waitFor(() => expect(changeSaid()).toBe('Qaytim25 000 so‘m'))
+    expect(document.querySelector('[data-change-row="account"]')).toBeNull()
+  })
+
   it('says a customer must be named first where nobody is', async () => {
     render(<Change due={som(75_000)} onComplete={() => undefined} />)
     await userEvent.type(field('cash'), '100000{Enter}')
-    expect(screen.queryByText('Hisobida qoldirish')).toBeNull()
-    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
-    expect(screen.getByText('Avval mijozni tanlang')).toBeTruthy()
+    await userEvent.click(await screen.findByRole('radio', { name: 'Balansida qoldirish' }))
+    expect(plain(document.querySelector('[data-keep-hint]')?.textContent)).toContain('mijoz kerak')
+    // Nothing is written anywhere: it is still cash to hand back.
+    expect(document.querySelector('[data-change-row]')).toBeNull()
+    expect(changeSaid()).toContain('25 000 so‘m')
   })
 })
 
@@ -472,8 +551,8 @@ describe('money handed back', () => {
     const done = vi.fn()
     render(<Refund onComplete={done} keeper={{ name: 'Nodira', balance: som(20_000), currency: 'UZS' }} />)
     const block = () => plain(document.querySelector('[data-keep]')?.textContent)
-    expect(block()).toContain('Hisobida qoldirish · Nodira')
-    expect(block()).toContain('qarzi 20 000 so‘m')
+    expect(block()).toContain('Balansida qoldirish · Nodira')
+    expect(block()).toContain('−20 000 so‘m')
     const keep = document.querySelector<HTMLInputElement>('[data-keep] input') as HTMLInputElement
     // "=" keeps there all that is owed; then nothing is left for the drawer.
     await userEvent.type(keep, '=')
@@ -563,9 +642,7 @@ describe('putting part of it on the customer’s account', () => {
     unmount()
     render(<Money due={som(200_000)} onComplete={() => undefined} borrower={{ balance: som(150_000) }} />)
     // What they owe already stands beside the field, before more is lent.
-    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-on-account]')?.textContent)).toContain(
-      'qarzi 150 000 so‘m',
-    )
+    expect(plain(screen.getByLabelText(/Qarzga/).closest('[data-on-account]')?.textContent)).toContain('−150 000 so‘m')
     // No day is asked for until something is lent.
     expect(screen.queryByLabelText('To‘lash muddati')).toBeNull()
   })
@@ -573,7 +650,7 @@ describe('putting part of it on the customer’s account', () => {
   it('spends what is theirs first, and asks a day only for what is lent', async () => {
     render(<Money due={som(800_000)} onComplete={() => undefined} borrower={{ balance: -som(500_000) }} />)
     const into = screen.getByLabelText(/Qarzga/)
-    expect(plain(into.closest('[data-on-account]')?.textContent)).toContain('haqi 500 000 so‘m')
+    expect(plain(into.closest('[data-on-account]')?.textContent)).toContain('Balansi: 500 000 so‘m')
     await userEvent.type(into, '400000{Tab}')
     const block = () => plain(into.closest('[data-on-account]')?.textContent)
     expect(block()).toContain('Haqidan: 400 000 so‘m')
