@@ -1321,6 +1321,107 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 6-bo'lim.
 - **Boshlang'ich qoldiqlar Excel'dan**. Core: `openings.ts` (`OPENING_FIELDS`, `guessOpeningMapping`, `readOpeningRow` — "Mijoz qarzi" / "Bizning qarzimiz" ustunlari yoki bitta "Qoldiq" ustuni: manfiy son, "−" yoki qavs — bizning qarzimiz; valyuta, telefon, muddat, yetkazib beruvchi belgisi, izoh; qoldig'i yo'q qator o'tkazib yuboriladi). Server: `POST /customer-payments/opening/import { clientKey, rows, dryRun }` (`customers.adjust`, `OpeningImportService`): mijoz telefoni bo'yicha, bo'lmasa nomi bo'yicha topiladi (shu nomda bir nechta bo'lsa — rad, boshqa telefonli o'sha nom — boshqa odam); ro'yxatda yo'g'i yoziladi (`customers.manage` kerak; `CustomersService.createIn`); har qator — o'zining boshlang'ich qoldiq hujjati (`openingIn`, kalit fayl kalitidan yasaladi: fayl ikki marta yuborilsa bir marta yoziladi). Sinov — hammasini bajarib qaytarish; bitta qator xato bo'lsa hech narsa yozilmaydi; hisobda avval boshlang'ich qoldiq bo'lsa ogohlantiradi (`again`). Veb: "Mijozlar" sahifasida "Qoldiqlar Excel'dan" (`opening-import.tsx`): fayl → "Tekshirish" → kim topildi, kim yangi, keyingi qoldiq, valyuta bo'yicha jami → "Yozish"; namuna fayl yuklab olinadi.
 - **M5** (ko'chirishni haqiqiy baza nusxasida sinash) qilinmadi: buning uchun haqiqiy bazaning nusxasi kerak — egasi bilan.
 
+### 16.17. Kassadagi aniqliklar va narx formulalari — birinchi qism (2026-10-12)
+
+**Kassa (egasining tekshiruvidan).**
+- **Chegirma maydonida almashtirgich**: "% | so'm" (`features/pos/discount-input.tsx`, `DiscountInput`). Standart — foiz; yozilgan son almashtirgich turgan birlikda o'qiladi ("10" → 10%). "%" bosilsa o'zi foizga o'tadi, "=" — kelishilgan summa (avvalgidek). Saqlanadigan ko'rinish o'zgarmadi ("10%", "5000", "=1 600 000").
+- **Ortiqcha to'langan pul — ikki yo'l, ochiq tanlov**: qaytim yonida "Qaytim berish | Balansida qoldirish" (`ChangePanel.mode`). "Qaytim berish" — standart; boshqa valyutada yoki kartadan berish "Qaytimni bo'lish" (F10) ostida. "Balansida qoldirish" — butun summa mijoz balansiga yoziladi (o'zgartirsa bo'ladi, qolgani naqd qaytadi); mijoz tanlanmagan bo'lsa shu aytiladi. "Qaytim" yonida faqat qo'lga beriladigan summa turadi.
+- **Bitta so'z — "balans"**: mijozning tizimdagi qarzi yoki haqi hamma joyda "balans" ("Balansida qoladi", "Qarzga / Balansidan", "Mijoz balansi", "Mijoz balansidan / balansiga"). "Hisob" — pul turadigan joylar (kassa, karta, bank) uchun qoldi. Sabab: egasi "hisobiga" ni mijozning o'z kartasi deb ham, tizimdagi balans deb ham o'qidi.
+- **Hozir → keyin**: mijoz balansi yoziladigan har joyda "Balansi: qarzi 50 000 so'm → qarzi 6 000 so'm" (qaytim, qarzga sotuv, qaytarishda qoldirish); to'lov bosqichida mijozning hamma valyutadagi balansi bir qatorda. Pul joylari: to'lov oynalarida "1 200 000 → 1 356 000", kassada "Bu yerdagi pul: … → …" — **faqat qoldiqni ko'rishga ruxsati borlarga** (`money.view`; `PosContextDto.held`), kassir tortmani ko'r-ko'rona sanaydi.
+
+**Narx formulalari (M1) — qurilgani.**
+- **Formula**: `PriceFormula { base: 'cost' | 'retail' | 'fixed', percent, amount }` (`core/pricing.ts`) — "tannarx + 30% + 5 000", "chakana − 15%", "180 000". `priceBy(formula, { cost, retail }, yaxlitlash)` — tannarx yoki chakanadan chiqqani narx turining qadami va oxiri bilan **yuqoriga** yaxlitlanadi (`roundPrice(…, 'up')`), belgilangan narx yaxlitlanmaydi. `formulaText`, `parsePriceEntry` ("30%", "+50k", "30% + 5 000", "ch −15%", summa; "−5%" rad etiladi).
+- **Qoidalar**: `price_rule_markups.amount` va `base = 'fixed'` (migratsiya `1790000054000-price-formulas`). "Narxlar → Narx qoidalari" da har narx turiga usul + foiz + summa (`features/pricing/formula-fields.tsx`).
+- **Narx turining o'z usuli** — "Qanday hisoblanadi" (Qo'lda / Tannarxdan / Chakanadan arzon / qimmat): hech narsa tanlanmagan qoidada ("Hamma tovar") saqlanadi, shuning uchun bitta qidiruv (`pickMarkup`) hammasiga javob beradi — eng aniq qoida birinchi, narx turining o'zi oxirida. `PriceTypeDto.formula`; yuborilmasa o'zgarmaydi, `null` — qo'lda.
+- **Ommaviy o'zgartirish**: amal "Qoida yoki formula bo'yicha" (`kind: 'formula'`, `formula: null` — qoidalar bo'yicha); ro'yxatda har narx turi ostida "Qo'yilmagan" filtri (`missing`).
+- **Kirim**: o'tkazilganda narxlar bitta tarix yozuvi bo'lib qo'yiladi ("K-000123 kirimidan", qaytariladi; `PricingService.recordIn` — bir nechta narx turi bitta yozuvda): qatorda yozilgan narxlar (narx qo'yish ruxsati borlarniki) va — **kim o'tkazsa ham** — shu turdagi narxi yo'q modelga formula bo'yicha narx (shu kirimning tannarxidan, xarajat ulushi bilan; chakanadan hisoblanadigani hozirgina qo'yilgan chakanadan). Narxi bor tovarga tegilmaydi. Ekranda blok ostida: "Yangi narx — kirim o'tkazilganda o'zi qo'yiladi: …" va "Narxi bor, o'zgarmaydi. Qoida bo'yicha boshqacha chiqadi: … («=»)" (`POST /pricing/formulas` — formula va hozirgi narx).
+- **Kassa**: narx turida sotilayotgan savatda shu turdagi narxi yo'q tovar — turning formulasi bo'yicha (chakanadan yoki qoldiqdagi o'rtacha tannarxdan; kassir tannarxni ko'rmaydi), formula ham bo'lmasa chakana narxda. `PosItemDto.priceFrom` (`type` | `formula` | `retail`), chekda `sale_lines.price_from` (migratsiya `1790000055000`); savatda va chekda "qoida bo'yicha" / sariq "Chakana narxida". Qidiruv, savat va sotuv bitta funksiyadan (`sellables`) so'raydi — `PRICE_CHANGED` yolg'on chiqmaydi.
+
+**M1 dan qolgani** (keyingi bo'lak):
+- kirim tepasidagi "Narxlar" qatori ("shu kirim uchun" formula) va narx maydoniga formulani to'g'ridan-to'g'ri yozish ("30%", "ch −15%") — tahlilchisi (`parsePriceEntry`) tayyor, maydonning o'zi yo'q; hozir taklif "=" bilan olinadi;
+- kirim xarajati keyin o'zgarsa "Narxlarni yangilash";
+- "Kirimda narx qo'yish" alohida ruxsati (`receipts.prices`); hozir `products.prices`;
+- 2026-10-08 qarorlari: fiks / kursga bog'langan narx, narx turi formasidan "Turi" va "Valyuta" ni olib tashlash, aksiya va minimal narx, "Qayta chop etish" ro'yxati.
+
+### 16.18. Narx turlari: "Turi" va "Valyuta" (egasi, 2026-10-12; qurildi)
+
+Egasining savoli: narx turi yaratishda "Turi" (chakana, ulgurji, minimal) va "Valyuta" nima uchun kerak; narx asosiy valyutadan boshqa valyutada bo'ladimi, bo'lsa kirimda va ommaviy o'zgartirishda qanday hisoblanadi; "Optom", "Oila", "Qarindosh" kabi turlarni yaratsa bo'ladimi; minimal narx tannarxning o'zi emasmi.
+
+**Hozir kodda "Turi" nimani hal qiladi.**
+- `retail`: kassaning o'z narxi (savat shundan boshlanadi), etiketka, aksiya va mijoz chegirmasi shu narxdan, qoldiq chakana qiymatda, boshqa turlar "chakanadan ±%" hisoblanadi. Bitta bo'ladi, o'chirilmaydi, arxivlanmaydi.
+- `min`: kassadagi chegara (`sellables` dagi `FLOOR`). Shu narxda sotilmaydi, mijozga biriktirilmaydi. Bitta bo'ladi.
+- `wholesale` va `other`: kassada, mijozda va formulada bir xil. Farqi faqat kirim qatoridagi alohida "Ulgurji" maydoni (`priceFields` birinchi `wholesale` ni oladi) va Excel importidagi "ulgurji" ustuni.
+
+**Valyuta hozir qanday ishlaydi va nimasi buzuq.**
+- Narx turining valyutasi faqat standart qiymat. Tovar kartasida har narxning valyutasi alohida almashtiriladi (`MoneyInput`), server faqat valyuta yoqilganini tekshiradi.
+- Kassa asosiy valyutadan boshqa valyutadagi narxni kun kursida aniq o'giradi, lekin yaxlitlamaydi (asosiy valyuta so'm bo'lsa: 25 $ × 12 653 = 316 325 so'm). Etiketkada esa narx o'z valyutasida ("25 $") chiqadi, ya'ni javondagi narx kassadagidan farq qiladi.
+- **Xato**: ommaviy o'zgartirish (`PricingService.reprice`, `prices()`) narxning o'z valyutasini o'qimaydi va natijani narx turining valyutasida yozadi. Asosiy valyutadagi "Chakana" turida kartada boshqa valyutada qo'yilgan narx (25 $) "+10%" dan keyin asosiy valyutada 27,50 bo'lib qoladi.
+- Ikki turning valyutasi har xil bo'lsa, chakanadan hisoblash, "boshqa turdan" amali va kassadagi formula ishlamaydi.
+
+**Qaror** (egasi: "rejadagidek qil").
+1. **Formada "Turi" bo'lmaydi** (8-oktabr qarorining 6-bandi). Chakana va Minimal tizim narxlari bo'ladi: biznes ochilganda o'zi yaratiladi, nomi va sozlamalari o'zgartiriladi, o'chirilmaydi, ikkinchisi yaratilmaydi; ro'yxatda tepada "tizim" belgisi bilan turadi. "Yangi narx turi" doim qo'shimcha tur bo'ladi (Ulgurji, Optom, Oila, Qarindosh va hokazo, soni cheklanmaydi). Ichkarida: migratsiya `wholesale` ni `other` ga o'tkazadi, sxemadan `kind` olib tashlanadi (yaratishda `other`, tahrirda o'zgarmaydi). Kirimda hamma qo'shimcha tur bir xil ko'rinadi (`otherPrices`), qoralamalardagi `receipt_lines.wholesale_price` `other_prices` ga ko'chadi. Excel'dagi "ulgurji" ustuni nomi "Ulgurji" bo'lgan turga yoziladi, bunday tur bo'lmasa birinchi qo'shimcha turga. Boshlang'ich turlar o'zgarmaydi: Chakana, Ulgurji (oddiy tur, o'chirsa bo'ladi), Minimal.
+2. **Formada "Valyuta" bo'lmaydi, hamma narx asosiy valyutada.** 8-oktabrdagi "fiks yoki kursga bog'langan narx" (2–4-bandlar) kechiktiriladi: kerak bo'lsa keyin tovar darajasida qilinadi, narx turida emas. Sabablari:
+   - mijoz boshqa valyutada to'lashi uchun narx o'sha valyutada bo'lishi shart emas, kassa istalgan yoqilgan valyutani kun kursida oladi;
+   - tannarx doim asosiy valyutada (9c′): boshqa valyutada kelgan tovar kirim kursida o'giriladi, formula tannarxdan asosiy valyutadagi narx chiqaradi — narx ham shu valyutada bo'lsa, hech qayerda o'girish kerak bo'lmaydi;
+   - asosiy valyuta xarid valyutasiga nisbatan qadrsizlansa, ommaviy o'zgartirishdagi "Bugungi kursda tannarx" (bor) bilan narxlar qayta hisoblanadi.
+
+   Tovar kartasidagi valyuta tugmasi olib tashlanadi, server asosiy valyutadan boshqasini qabul qilmaydi. Mavjud boshqa valyutadagi narxlarni migratsiya bugungi kursda asosiy valyutaga o'tkazadi va asosiy valyutaning odatiy qadami bilan yaxlitlaydi; kursi yo'q valyutadagi narx (kassa uni baribir narxsiz deb bilardi) o'chiriladi. Narx tarixiga yozilmaydi: eski yozuvni "qaytarish" summani asosiy valyutada o'qib, noto'g'ri narx qo'yardi. `CURRENCY_PRICED` va valyuta tekshiruvlari (`retail.currency !== type.currency`) olib tashlanadi. Asosiy valyuta almashtirilganda narxlar hozirgidek kun kursida o'tadi. Yuqoridagi ommaviy o'zgartirish xatosi ham shu bilan yopiladi.
+3. **Minimal tannarx emas.** Tannarx — tovar bizga necha pulga tushgani: har partiyada boshqacha bo'ladi, kassir uni ko'rmaydi. Minimal esa egasi ruxsatsiz sotishga qo'ygan eng past narx (masalan tannarx + 5%, ijara va maoshni yopishi uchun). Chegirma chegarasi (10%) va aksiya tannarxni bilmaydi, ularni faqat minimal ushlab turadi. Egasi minimal tannarxga teng bo'lishini istasa, formulaga "tannarx + 0%" yoziladi. O'zgarishlar:
+   - (a) minimal narxi qo'yilmagan tovarda kassa chegarani Minimal turining formulasidan hisoblaydi (qo'shimcha turlardagi kabi, o'rtacha tannarxdan); formula ham bo'lmasa chegara yo'q;
+   - (b) chegaradan o'tgan qatorda kassirga raqam ko'rsatilmaydi, faqat "Minimal narxdan past" yoziladi. Aks holda "tannarx + 0%" bo'lganda kassir tannarxni ko'rib qoladi. Raqamni `stock.cost` egasi ko'radi.
+
+**Egasining javoblari**: kursga bog'langan narx kechiktiriladi; Minimal standart holatda **0** — formula yo'q ("Qo'lda"), chegara yo'q (taklifim "tannarx + 0%" edi: tannarxdan arzon sotishda PIN so'raladi). Yoqish — "Narx turlari → Minimal → Qanday hisoblanadi → Tannarxdan, 0%"; shundan keyin kassa chegarani har tovarning hozirgi tannarxidan o'zi hisoblaydi.
+
+**Qanday qurildi.**
+- Core: `PRICE_KINDS` = `retail`, `min`, `other`; `priceTypeInputSchema` da `kind` va `currency` yo'q; `TILL_PRICE_KINDS` = `other`; kirim qatorida `wholesalePrice` yo'q (hammasi `otherPrices`).
+- Migratsiya `1790000056000-plain-price-types`: qatorlardagi `wholesale_price` birinchi ulgurji turi nomi bilan `other_prices` ga, ustun olib tashlanadi; `wholesale` → `other`; har biznesda Minimal bor va faol; boshqa valyutadagi narxlar va shunday turdagi qoidalarning summasi asosiy valyutaga (`intoBase`); CHECK'lar yangi turlarga.
+- Server: `PriceTypesService` — yangi tur doim `other` va asosiy valyutada, tizim turlari arxivlanmaydi va o'chirilmaydi (`SYSTEM_PRICE_TYPE`), ularda `tillAccess` faqat `none`; `CURRENCY_PRICED` va `pricedIn` olib tashlandi (`PRICE_CURRENCY` — "Narx asosiy valyutada bo'ladi"); kassa, kirim va ommaviy o'zgartirishda valyuta o'girish yo'q. Kassada chegara: `items.ts` dagi `workedOut` — narx turi va Minimal formulasi bitta yo'l bilan (eng aniq qoida, o'rtacha tannarx yoki chakana). Kirim Minimal'ni formula bo'yicha yozmaydi. `BELOW_MIN_PRICE` maydon xabarida raqam faqat `stock.cost` egasiga. Excel'dagi ulgurji ustuni — `receipt-import.service` dagi `wholesaleType`.
+- Veb: narx turi formasi (tizim turlarida izoh: `references.retailNote`, `floorNote`; ro'yxatda "kassa narxi" va "chegara" belgilari), kirimda ulgurji alohida emas va Minimal taklif qilinmaydi, tovar kartasida narx valyutasi yo'q, narxlar sahifasi va ommaviy o'zgartirishda valyuta shartlari yo'q, kassada "Minimal narx …" raqami faqat `stock.cost` egasiga.
+- Testlar: `price-currencies.spec.ts` (endi "Prices in the base alone"), `till-prices.spec.ts` (Minimal formulasi bo'yicha jonli chegara, kirim uni yozmaydi), `import.spec.ts` (ulgurji ustuni), `catalog.spec.ts` (tizim turlari).
+
+**Balans — bitta son** (egasi, shu kuni): "qarzi / haqi" so'zlari o'rniga qarz minus bilan va qizil ("−50 000 so'm"), haqi shunchaki son va yashil. Bitta joyda: `features/customers/balance.tsx` (`Balance`, `Balances`, `balanceText`); kassada "Balansi: X → Y" (`BalanceMove`), mijoz kartochkasi, to'lov oynalari, mijozlar ro'yxati, birlashtirish, Excel'dan qoldiq, hisob-kitob va akt-sverka ("Qoldiq" ustuni va Excel ham shu belgida; "Qarz ko'paydi / kamaydi" ustunlari o'zgarmadi). Chekdagi "Jami qarzi" va "Qarzdorlar" ro'yxati o'z sarlavhasi bilan qoldi.
+
+### 16.19. Navbatdagi uch ish (egasi, 2026-10-12)
+
+Egasi "shu tartibda boshla" dedi:
+
+1. **Kirim uchun Excel shablon va import.** Xarid narxi majburiy; sotuv narxlari — har narx turiga ixtiyoriy ustun (to'ldirilsa qo'yiladi va qoidadan ustun, bo'sh — qoida bo'yicha). Valyuta Excel'da yo'q: kirim bitta valyutada, import oynasida tanlanadi (yetkazib beruvchi tanlansa — uning valyutasi; sarlavhadagi "YUAN" kabi so'zdan ham). O'zimizning shablon: sarlavhasi qulflangan, qotirilgan, majburiy ustunlar ajratilgan, narx ustunlarida valyuta nomi, ikkinchi varaqda yo'riqnoma va namuna, ustun kalitlari ichida (sarlavha o'zgartirilsa ham taniladi); import uni moslashsiz taniydi. Yetkazib beruvchining o'z fayli hozirgidek qabul qilinadi (ustunlar nomidan, bir marta moslab, eslab qolinadi).
+2. **Kirimdagi narxlar (M1-d).** Yangi tovarda qoida narxi maydonda haqiqiy qiymat bo'lib ("qoida" belgisi bilan, tannarx o'zgarsa o'zi qayta hisoblanadi), xarid narxi yozilishi bilan; tovar kartasida chakanadan hisoblanadigan narxlar taklif bo'lib; kirim tepasidagi "Shu kirim uchun" qoidasi va maydonga formula yozish; narx turi formasida ustun turgan qoidalar ro'yxati, qoidalar to'qnashsa ogohlantirish, narx qaysi qoidadan ekani yozilishi (16.18 dan keyingi savol).
+3. **Tovarlarni tezkor tanlash.** Bitta umumiy oyna: filtr (kategoriya, brend, sezon, rang, o'lcham, yetkazib beruvchi, kirim hujjati, qoldiq, narx oralig'i), skaner (shtrix-kod, artikul), RFID stol o'quvchisi, ro'yxatni nusxalab qo'yish; aksiya, ommaviy narx o'zgartirish va etiketkada. **Aksiya model bo'yicha ham, aniq rang va o'lcham (variant) bo'yicha ham** — kerak bo'lsa bitta aniq tovarga (egasi). Narx qoidalari kategoriya, brend va sezon darajasida qoladi.
+
+### 16.20. Kirimdagi narxlar — M1-d, birinchi qism (2026-10-12)
+
+16.19 ning 1-ishi (Excel shablon va import) boshqa sessiyada tugadi; 2-ishning asosiy qismi shu yerda qurildi.
+
+**Bitta qoida — `receiptPrice` (`core/pricing.ts`).** Server (kirim o'tkazilganda) ham, ekran ham shuni chaqiradi, shuning uchun ekranda ko'ringan narx qo'yiladi. Qaysi biri ustun (yaqinrog'i yutadi):
+1. tovar maydoniga yozilgani — summa (o'z holicha) yoki formula ("30%", "+5 000", "30% + 5 000", "ch −15%"; shu kirimdagi tannarxdan hisoblanadi, narxi bor tovarda ham qo'yiladi);
+2. "shu kirim uchun" — kirim tepasidagi "Narxlar" qatori: narx turiga shu kirimning o'z formulasi, yoki "bu kirimda qo'yilmaydi";
+3. kategoriya, brend yoki sezon qoidasi (eng aniq mos kelgani);
+4. narx turining o'z usuli ("Qanday hisoblanadi").
+
+2–4 narxi yo'q tovarga qo'yiladi; "Narxi bor tovarlarga ham qo'llash" belgilansa — narxi borga ham (bu belgi qoidalarning o'zi bilan ham ishlaydi: "yangi partiya qimmat keldi, hammasini qoida bo'yicha yangila"). Minimal narx qoida bo'yicha yozilmaydi (kassa jonli hisoblaydi), faqat aniq aytilsa: maydonga yozilsa yoki shu kirimga formula berilsa.
+
+**Ma'lumot.** `receipt_lines.price_formulas` (jsonb: narx turi → formula) va `receipts.pricing` (jsonb: narx turi → `{ skip, formula, all }`), migratsiya `1790000057000-receipt-price-formulas`. So'rovda `lines[].priceFormulas` va `pricing`; hech narsa demaydigan yozuv saqlanmaydi (`pricingSays`). Nusxa olinganda ikkalasi ham ko'chadi.
+
+**Server** (`ReceiptsService.setPrices`). Yozilgan summalar avvalgidek (modelning ko'p qatori kelishgan narx — modelniki, boshqacha yozilgan o'lcham — o'ziniki). Formula model darajasida ishlaydi: tannarx — modelning shu kirimdagi hamma qatori birga (xarajat ulushi bilan); model ikki xil formula bilan yozilgan bo'lsa, ko'p qator ko'targani olinadi. Yozilgan narx va "shu kirim uchun" faqat narx qo'yish ruxsati (`products.prices`) bor odam o'tkazganda ishlaydi; qoida bo'yicha narx — kim o'tkazsa ham. Rad etiladi: yuritilmaydigan narx turiga formula (`Narx turi topilmadi`), chakana narxning o'zi chakanadan (`lines.N.priceFormulas` / `pricing`). `PricingService.formulasIn` formulani qaysi qoidadan ekanini ham aytadi (`RuledMarkup.rule`: "Zara", "Ko'ylaklar, Zara"; `null` — narx turining o'zi).
+
+**Ekran.**
+- Narx maydoni — `features/receipts/price-field.tsx` (`PriceField`). Bo'sh qoldirilsa, o'tkazishda nima bo'lishini o'zi ko'rsatadi: yangi tovarda qoida narxi **to'liq rangda** va yonida manbai — "odatiy" (narx turining o'zi), "qoida" (kategoriya, brend, sezon), "kirim" (shu kirim formulasi); narxi bor tovarda hozirgi narx xira. Formula yozilsa natija va yonida formulaning o'zi turadi ("30%", "ch −15%"); yozilayotganda ostida "= 105 000 so'm" ko'rinadi. "=" — taklifni summa qilib oladi; bo'shatilsa taklifga qaytadi. "−5%" rad etiladi ("Chakanadan demoqchimisiz? «ch −15%»"); chakana maydonida "ch" yo'q. Kursor kirganda qisqa yo'riqnoma chiqadi.
+- Narx xarid narxi yozilishi bilan hisoblanadi (`bareCost` — soni hali yo'q blokda xarajat ulushisiz); soni kiritilgach modelning hamma bloki birga (`modelCosts`) — server ham shunday hisoblaydi.
+- "Narxlar" qatori — `features/receipts/receipt-pricing.tsx` (`PricingBar`): har narx turiga chip ("Chakana: tannarx + 50%", "… · shu kirim uchun · narxi borlarga ham", "bu kirimda qo'yilmaydi"). Bosilsa oyna: "Qoidalar bo'yicha | Shu kirim formulasi | Qo'yilmaydi", formula maydonlari (`FormulaFields`), "Narxi bor tovarlarga ham qo'llash" va hisob: "Yangi narx qo'yiladi: 12 ta tovar · narxi yangilanadi: 1 ta · narxi bor, o'zgarmaydi: 3 ta". Tanlangani darhol kuchga kiradi (orqadagi bloklar shu zahoti yangilanadi); qoidalarning o'zi o'zgarmaydi.
+- Blok ostida: "Yangi narx — … (qoida: Zara)", "Narx yangilanadi: Chakana 75 000 → 64 000", "Narxi bor, o'zgarmaydi. Qoida bo'yicha boshqacha chiqadi: … («=»)", sariq "Tannarxdan past: …"; o'tkazish so'rovida "Tannarxdan past narxlar: N ta".
+- Hisob bitta joyda: `receipt-state.ts` dagi `blockPrices` (chakana birinchi — boshqalar shu kirim qoldiradigan chakanadan boshlanadi), `pricingCounts`, `underCost`, `typedPrice`, `withTypedPrice`.
+
+**Tekshiruv.** Core 6 ta, server 5 ta (`receipt-formulas.spec.ts`), veb 17 ta yangi test. Ekran kirishsiz namunaviy sahifada ko'rildi (maydon, formula, taklif, xato, "Narxlar" oynasi); tizimga kirib, haqiqiy kirim sahifasida ko'rilmagan — sinov foydalanuvchisi bilan kirishga avtomatik himoya ruxsat bermadi.
+
+**M1-d dan qolgani.**
+- kirim xarajati keyin o'zgarsa "Narxlarni yangilash" (faqat formula bilan qo'yilgan va o'shandan beri o'zgarmagan narxlar);
+- "Kirimda narx qo'yish" ruxsati (`receipts.prices`). Diqqat: rollardagi `receipts.*` uni o'zi qamrab oladi (sklad mudiri narx qo'ya oladigan bo'lib qoladi) — egasi bilan kelishib qilinadi;
+- tovar kartasida (yangi tovar) chakana yozilishi bilan undan hisoblanadigan narxlar taklifi;
+- narx turi formasida "bu — hamma tovar uchun; alohida qoidasi borlar: …" ro'yxati, qoidalar to'qnashsa ogohlantirish;
+- qoralamadan etiketka — o'tkazishda qo'yiladigan narx bilan;
+- bitta model ikki blokda ikki xil formula bilan yozilsa, ekran har blokni o'zicha ko'rsatadi, server esa ko'p qator ko'targanini oladi — bitta ko'rinishga keltirish.
+
 ### 16.9. Ochiq savollar
 
 1. **Narx turlarining odatiy formulalari** — bir marta kiritiladi: Chakana = tannarx + ?%, Ulgurji = tannarx + ?% (yoki chakana − ?%), Oila = tannarx + ?%, Minimal = tannarx + 5%? Va K-000001 dagi "cargo" 43 000 $ (tovar 32 472 $) — xatomi? Tuzatilmaguncha shu tovarlarning formula narxlariga ishonib bo'lmaydi.
@@ -1330,7 +1431,7 @@ Texnik tafsilot — `docs/MIJOZLAR-TEXNIK.md`, 6-bo'lim.
 **Egasining javoblari (2026-10-06):**
 - *1-savol.* Odatiy foizlar oldindan qo'yilmaydi: har narx turining formulasini aka o'zi "Narx turlari → Qanday hisoblanadi" da kiritadi; kiritilmaguncha tur "Qo'lda" bo'lib turadi (hech narsa o'zi hisoblanmaydi). K-000001 dagi "cargo" xato kiritilgan; lokal baza tozalangan — bu kirim haqida tashvishlanish shart emas.
 - *2-savol.* Ruxsat **istalgan xodimga rolidan tashqari alohida** berilishi kerak (xohlasa rolga ham qo'shadi). Hozir ruxsat faqat rol orqali beriladi — bu yangi ish: "Xodimga qo'shimcha ruxsat" (`YOL-XARITA.md`, platforma bo'limi). Shu bilan ishonchli kassirga "Qarzga sotish" ruxsati alohida beriladi va u PIN'siz qarzga sota oladi. Biznesning "kassir tasdiqsiz beradigan qarz" chegarasi 0 bo'lib turadi (ruxsatsiz kassir har qarzda PIN so'raydi), aka xohlasa summa kiritadi.
-- *3-savol.* Tushunarsiz bo'lgan — oddiyroq qilib qayta so'raldi (javob kutilmoqda).
+- *3-savol.* Tushunarsiz bo'lgan — oddiyroq qilib qayta so'raldi. **Javob (2026-10-12):** katta ulgurji sotadigan sklad hozircha "Do'kon va sklad" (`locations.kind = 'mixed'`) qilib ochiladi va unda kassa ochiladi — tizimda bu bor (faqat `warehouse` turidagi joyda kassa bo'lmaydi). Alohida "Ulgurji sotuv" hujjati hozircha kerak emas.
 
 Texnik tafsilotlar (jadvallar, migratsiyalar, fayllar, testlar) — `docs/MIJOZLAR-TEXNIK.md`.
 
@@ -1459,7 +1560,7 @@ Jami ~11,5 kun. Keyin: M4 (birlashtirish, akt-sverka, Excel'dan qoldiq), M5, usk
 
 ### 17.8. Tizim nomi: nomzodlar (2026-10-11)
 
-**2026-10-12:** egasi hozircha, vaqtincha **«Sanoq»** deb qo'yishni aytdi — `APP_NAME`, sahifa sarlavhasi va lug'atdagi `app.name` shunga o'tkazildi. Yakuniy nom hali tanlanmagan; quyidagi ro'yxat o'z kuchida.
+**2026-10-12:** egasi avval vaqtincha **«Sanoq»** deb qo'ydi, shu kuni keyinroq nomni **«Savdo»** qildi — `APP_NAME`, sahifa sarlavhasi va lug'atdagi `app.name`. Domen va tovar belgisi tekshirilmagan (umumiy so'z: band bo'lishi mumkin).
 
 Mezon: qisqa, apostrofsiz (domen va login uchun), o'zbek va rus tilida bir xil o'qiladi, savdo va hisob ma'nosi bor, shu nomda savdo dasturi yo'q. Tekshiruv — internet qidiruvi (2026-10-11); `.uz` domeni va tovar belgisi ro'yxati tekshirilmagan.
 

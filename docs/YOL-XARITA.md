@@ -72,7 +72,7 @@ Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz bir
 
 #### P2–P5 — foydalanuvchi bilan (KEYINGI-REJA 13b, 12)
 - P2. Superadmin va ko'p biznes (biznes yaratish, tarif) — ~3 kun (subdomen bilan ~5 kun).
-  - **Egasi (2026-10-12):** tizimni keyin bitta emas, ko'p biznes egasi ishlatadi; har biriga "profil" qanday ochiladi, subdomen kerakmi. Quyidagisi — **taklif, hali tasdiqlanmagan**.
+  - **Egasi (2026-10-12):** tizimni keyin bitta emas, ko'p biznes egasi ishlatadi; har biriga "profil" qanday ochiladi, subdomen kerakmi. Quyidagisi — taklif, **egasi tasdiqladi (2026-10-12: "eng optimali shu bo'lsa, shu bo'laqolsin")**; quriladigan payt — P2 navbati kelganda.
   - **Hozir bor:** ma'lumot allaqachon ajratilgan (`org_id` + RLS, testlar ikki biznes bilan). Yo'q narsa — kirish tomoni: login butun tizimda yagona (`users_login`), biznesning manzildagi nomi yo'q, ro'yxatdan o'tish va tarif yo'q.
   - **Taklif — har biznesga o'z manzili, bitta umumiy eshik bilan:** `gulbahor.<domen>` — biznesning o'z kirish sahifasi (nomi va logotipi bilan); `<domen>` — tanishtiruv, ro'yxatdan o'tish va "kirish" (telefon bo'yicha odamning bizneslarini topib, o'z manziliga yo'naltiradi); `admin.<domen>` — superadmin (bizneslar, tarif, to'xtatish).
   - **Nega subdomen:** xodim loginini biznes ichida yagona qilsa bo'ladi (har do'konda o'z `kassir` i), brauzer sessiyasi va saqlangan parol biznes bo'yicha ajraladi, agent va chek/etiketka manzili aniq, katta mijozni keyin alohida serverga ko'chirish — faqat DNS. B2B tizimlarda odatiy (Bitrix24, amoCRM, Odoo, Slack); bitta domen + umumiy login ham uchraydi (MoySklad), lekin u yerda login butun tizimda yagona bo'lishi shart.

@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-12 — core 239, agent 17, server 496 (45 fayl), veb 246 (34 fayl); typecheck, lint, i18n toza (13 ta ma'lum)
+Oxirgi to'liq tekshiruv: 2026-10-12 — core 257, agent 17, server 514 (46 fayl), veb 288 (41 fayl); typecheck, lint, i18n toza (13 ta ma'lum)
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -228,6 +228,16 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 
 13. **Mijozlar: yagona ro'yxat, narx formulalari, kassa** (KEYINGI-REJA, 16-bo'lim; texnik — `docs/MIJOZLAR-TEXNIK.md`). Taklif 2026-10-06 da yozildi; **kod foydalanuvchi tasdiqlagach va 16.9 dagi savollarga javob bergach boshlanadi**:
    - [ ] M1. Narx formulalari: narx turining "Qanday hisoblanadi", narx qoidalari (foiz, summa, belgilangan narx), kirimda "Narxlar" qatori, ommaviy o'zgartirish, kassada formula; + fiks / kursga bog'langan narx, narx turi formasi (Chakana va Minimal tizim narxlari), aksiya va minimal narx, "Qayta chop etish" ro'yxati (KEYINGI-REJA, V9 bo'limi "Narx, mijoz hisobi…", 16.10) (~13 kun).
+     - [x] M1-a. Formula (tannarx yoki chakana + foiz + summa, belgilangan narx; yuqoriga yaxlitlash), narx qoidalari, narx turining "Qanday hisoblanadi", ommaviy o'zgartirishda formula va "Qo'yilmagan" filtri (2026-10-12).
+     - [x] M1-b. Kirim: o'tkazilganda narxi yo'q tovarga formula narxi, hammasi bitta qaytariladigan tarix yozuvi; ekranda "yangi narx" va "qoida bo'yicha boshqacha" izohlari (2026-10-12).
+     - [x] M1-c. Kassa: narx turida narxi yo'q tovar — formula bo'yicha yoki "Chakana narxida" belgisi bilan; chekda saqlanadi (2026-10-12).
+     - [x] M1-d1. Kirim: maydonga formula yozish ("30%", "ch −15%"), yangi narx maydonda to'liq va manbai bilan, tepada "Narxlar" qatori ("shu kirim uchun" formula, "qo'yilmaydi", "narxi borlarga ham"), qoida nomi, tannarxdan past ogohlantirishi (16.20; 2026-10-12).
+     - [ ] M1-d2. Xarajat o'zgarsa "Narxlarni yangilash"; `receipts.prices` ruxsati (egasi bilan kelishib); tovar kartasida narx taklifi; narx turi formasida ustun qoidalar ro'yxati, qoidalar to'qnashuvi; qoralamadan etiketka narxi (16.20 oxiri).
+     - [x] M1-e. Narx turi formasi Turi va Valyuta'siz, hamma narx asosiy valyutada, Minimal formula bo'yicha jonli chegara; balans bitta son (16.18).
+    - [ ] M1-f. Aksiya va minimal narx, "Qayta chop etish" ro'yxati (2026-10-08 qarorlari). Fiks / kursga bog'langan narx — kechiktirilgan (16.18).
+     - [x] K1. Kirim uchun Excel shablon va import (16.19, 1-ish): shablon sarlavhasi qulflangan va qotirilgan, ichida ustun kalitlari (sarlavha o'zgartirilsa ham taniladi), har narx turiga ixtiyoriy ustun, valyuta Excel'da emas — import oynasida (yetkazib beruvchining valyutasi o'zi qo'yiladi) (2026-10-12).
+     - [x] S1. "Sozlamalar → Modullar" haqiqatni aytadi: yoqib-o'chiriladigan (RFID), doim yoqiq (mijoz hisobi, qarzga sotish, terminal, import xarajatlari — switch yo'q), keyingi bosqichlarda (tanlov eslab qolinadi); kirimda narxi bor tovar maydonida "hozirgi" belgisi (2026-10-12).
+     - [ ] K3. Tovarlarni tezkor tanlash oynasi (filtr, skaner, RFID stol o'quvchisi, ro'yxatni qo'yish) — aksiya, ommaviy narx o'zgartirish va etiketkada; aksiya model bo'yicha ham, aniq variant bo'yicha ham (16.19, 3-ish).
    - [x] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun). Quyidagi bo'laklar bilan tugadi; ochiq qolgani — U1b va N0.
      - [x] M2-1. Mijoz kartasi: telefon ixtiyoriy, asosiy valyuta, o'z narxi (guruhnikidan oldin), "Yetkazib beruvchi" belgisi, qarz sozlamalari (chegara, muddat, qaytarish muddati — faqat `customers.adjust`); mijozlar ruxsatlari kengaydi (`suppliers`, `receive`, `pay_out`, `adjust`).
      - [x] M2-2. Bitta ro'yxat: hamkorlar mijozlarga ko'chadi (bir xil id), hisob har valyutada, TL- to'lovlari, kirim va YQ- o'z valyutasida, ruxsatlar, ekranlar.
@@ -238,7 +248,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] O2. Mijozdan mijozga o'tkazish — o'zaro hisob (17.5).
      - [x] U1a. To'lov oynalari: "Olish | Berish" ikki tugma, Ctrl+Enter katakchada, mijoz valyutasi birinchi (to'lov oynasi va kassa) (17.6).
      - [ ] U1b. To'lov oynalarini kirilgan tizimda yonma-yon solishtirib chiqish; "Boshqa valyutalar (N)" ostiga yig'ish — egasining qaroridan keyin (17.6).
-     - [ ] N0. Tizim nomi — egasi tanlagach (17.8).
+     - [x] N0. Tizim nomi — «Savdo» (egasi, 2026-10-12; 17.8).
      - [x] Q2a. Qaytarishda pul: mijoz hisobida qoldirish, boshqa valyutada kelishilgan qiymat, almashtirishda farq hisobga, mijozning o'z qaytarish muddati (KEYINGI-REJA 17.3).
      - [x] Q2b-1. Qaytarishda do'konning boshqa kartasidan o'tkazish qatori; hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi (haqi va "Haqini qaytarish").
      - [x] Q2b-2. Chekda mijozni almashtirish (16.5, 33-holat): hisobdagi qismi va muddati yangi mijozga ko'chadi.
@@ -254,7 +264,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-M4 tugadi (2026-10-12), commit qilinmagan — egasi aytganda. Qolgani egasi bilan: M5 (ko'chirishni haqiqiy baza nusxasida sinash), tizimning yakuniy nomi (hozircha «Sanoq»), ko'p biznes va subdomen (YOL-XARITA P2 — taklif), U1b (oynalarni kirilgan tizimda ko'rish), sessiya yangilanishidagi uzilish (alohida vazifa). Keyingisi reja bo'yicha: narx formulalari (M1), hisobotlar (10b–10g), to'rt til (T1).
+Kassadagi aniqliklar, narx formulalari (M1-a, b, c, d1, e), balans ko'rinishi va kirim Excel shabloni (K1) tayyor, commit qilinmagan — egasi aytganda. Navbatda: M1-d2 (16.20 oxiri), keyin K3 (tovarlarni tezkor tanlash, aksiya variant bo'yicha), M1-f.
 
 ## Ish daraxti nusxalari
 
@@ -299,3 +309,5 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `3d681a5a330bb6f138721535a008999a2d138550` | Q2b-2: chekda mijozni almashtirish (POST /sales/:id/customer, sale_customer yozuvi, muddat qarz egasiniki) |
 | `340af23077bbd63954f01660a37e3cb3d3664ed3` | Q2b-3: almashtirishda qarz yangi chekka ko'chadi (createIn carry), naqd chegarasi asl chekdan (originRoom); Q2 tugadi |
 | `19026cf6b58acd4e42c5ce9e5f81f2f7d6973278` | M4: mijozlarni birlashtirish (daftar orqali, tarix bitta hisob), akt-sverka (davr, tovar soni, Excel, chop), boshlang'ich qoldiqlar Excel'dan, kirimdan To'lov berish, chekda Jami qarzi va imzo; kassada qaytimni bir bosishda hisobda qoldirish, yetkazib beruvchi hisobiga rahbar so'zi bilan; tizim nomi vaqtincha «Sanoq» |
+| `995f2856c375d80d334418426883d916939dbe51` | M1-e (16.18): Chakana va Minimal tizim narxlari, yangi tur doim qo'shimcha, hamma narx asosiy valyutada (migratsiya 56000), Minimal formula bo'yicha kassada jonli (standart — yo'q), kassirga chegara raqami ko'rsatilmaydi; balans bitta son (qarz minus va qizil, haqi yashil) |
+| `8587af5c0c8787d84b6a8e209ed7da84f5f68a98` | K1 (16.19): kirim Excel shabloni va import (boshqa sessiya); M1-d1 (16.20): kirimda maydonga formula, yangi narx manbai bilan, "Narxlar" qatori (shu kirim uchun formula, qo'yilmaydi, narxi borlarga ham), `receiptPrice`, migratsiya 57000; tizim nomi «Savdo» |
