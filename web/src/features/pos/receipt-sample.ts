@@ -30,6 +30,7 @@ export function sampleSale(shop: { name: string; address: string | null; phone: 
     shiftNumber: 'SM-000041',
     change: [{ way: 'cash', accountName: 'Kassa 1', currency: 'UZS', amount: som(17_000), base: som(17_000), fx: 0 }],
     rounding: 0,
+    owes: null,
     note: null,
     voidedAt: null,
     voidedByName: null,

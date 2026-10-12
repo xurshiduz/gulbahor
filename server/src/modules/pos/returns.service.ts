@@ -427,6 +427,7 @@ export class ReturnsService {
       // what a discount would: past the shop's limit, the same word.
       const mayRate = can(actor, 'pos.discount') || allows(approver, 'pos.discount')
       let overRate = false
+      let keptByWord = false
       let kept: { accountId: string; name: string; currency: AnyCurrency; settled: number; atRate: number } | null =
         null
       const keeping = input.keep?.amount ?? 0
@@ -441,9 +442,19 @@ export class ReturnsService {
             keep: keeper ? `${keeper.name} arxivda` : 'Hisobida qoldirish uchun mijozni tanlang',
           })
         }
-        // A supplier's account is the business's dealings with them, kept out of the till's hands.
-        if (keeper.isSupplier) {
-          throw AppError.validation({ keep: `${keeper.name} — yetkazib beruvchi: hisobida qoldirilmaydi` })
+        // A supplier's account is the business's dealings with them: the till writes there on the word a
+        // sale on that account takes.
+        if (keeper.isSupplier && !can(actor, 'pos.debt')) {
+          if (!allows(approver, 'pos.debt')) {
+            throw AppError.badRequest(
+              'SUPPLIER_ON_ACCOUNT',
+              approver
+                ? `${approver.name} yetkazib beruvchi hisobiga yozishni tasdiqlay olmaydi`
+                : `${keeper.name} — yetkazib beruvchi: hisobida rahbar tasdig‘i bilan qoldiriladi`,
+              { keep: `${keeper.name} — yetkazib beruvchi` },
+            )
+          }
+          keptByWord = true
         }
         if (keeping > due) {
           throw AppError.validation({
@@ -599,7 +610,9 @@ export class ReturnsService {
       }
       // The manager's word is written down only where it was needed.
       const vouched =
-        (!own && (late || otherwise || barred)) || (overRate && !can(actor, 'pos.discount')) ? approver : null
+        (!own && (late || otherwise || barred)) || (overRate && !can(actor, 'pos.discount')) || keptByWord
+          ? approver
+          : null
 
       if (refunds.length) {
         await em.insert(

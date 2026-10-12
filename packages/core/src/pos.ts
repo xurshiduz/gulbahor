@@ -852,6 +852,11 @@ export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
    * when it added no debt.
    */
   due: { id: string; dueDate: string | null } | null
+  /**
+   * What the customer owes in all on the account this sale went on, as it stands now, for whoever may see it;
+   * null where the sale put nothing there, or nothing is owed.
+   */
+  owes: { currency: AnyCurrency; balance: number } | null
   note: string | null
   voidedAt: string | null
   voidedByName: string | null

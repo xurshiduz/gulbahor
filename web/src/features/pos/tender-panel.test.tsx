@@ -168,6 +168,12 @@ function Change({
         over,
         keeper: keeper ? { name: keeper.name, balance: keeper.balance } : null,
         cardAsks: !mayReturnAny,
+        onKeepAll: () => {
+          setOpen(true)
+          setGiving({ account: { value: over, amount: null } })
+          window.setTimeout(() => changeField('account')?.focus())
+        },
+        keepHint: keeper ? null : 'Avval mijozni tanlang',
       }}
       action="Sotish"
       busy={false}
@@ -313,6 +319,36 @@ describe('the change', () => {
     expect(sold.mock.calls[0][0]).toEqual([
       { key: 'account', way: 'account', currency: 'USD', accountId: null, amount: 100, value: som(12_100) },
     ])
+  })
+})
+
+describe('change left with the customer', () => {
+  it('goes onto their account whole with one press, and can still be changed', async () => {
+    const sold = vi.fn()
+    render(<Change due={som(75_300)} onComplete={sold} keeper={{ name: 'Nodira', balance: 0, currency: 'UZS' }} />)
+    // Nothing over yet: nothing to keep.
+    expect(screen.queryByText('Hisobida qoldirish')).toBeNull()
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Hisobida qoldirish'))
+    // All of it, to the tiyin: nothing is handed back, so nothing is rounded.
+    await waitFor(() => expect(changeSaid()).toContain('hisobiga 24 700 so‘m'))
+    expect(plain(changeField('account').value)).toBe('24 700')
+    // Once it is written the offer has nothing more to say.
+    expect(screen.queryByText('Hisobida qoldirish')).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(changeField('account')))
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+    expect(sold.mock.calls[0][0]).toEqual([
+      { key: 'account', way: 'account', currency: 'UZS', accountId: null, amount: som(24_700), value: null },
+    ])
+  })
+
+  it('says a customer must be named first where nobody is', async () => {
+    render(<Change due={som(75_000)} onComplete={() => undefined} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    expect(screen.queryByText('Hisobida qoldirish')).toBeNull()
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    expect(screen.getByText('Avval mijozni tanlang')).toBeTruthy()
   })
 })
 

@@ -676,7 +676,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // ── Handing back: so much may stay on the account of whoever the receipt names — or, when it names nobody,
   // of whoever is at the counter — instead of leaving the drawer ──
   const named = returning?.found.sale.customerId ?? null
-  const keeper = refunding && buyer && !buyer.supplier && (!named || named === buyer.id) ? buyer : null
+  const keeper = refunding && buyer && (!named || named === buyer.id) ? buyer : null
   const keptNow = keeper ? Math.min(keeping.amount ?? 0, toRefund) : 0
   const keepLine =
     keeper && keptNow
@@ -716,7 +716,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** What was paid over the sum: there to be handed back. */
   const over = allCash.problem ? 0 : allCash.changeBase + allCash.rounding
   // Part of it may be kept on the account the sale would go on — unless part of the sale goes there already.
-  const keeps = !!buyer && !buyer.supplier && !onAccountNow
+  const keeps = !!buyer && !onAccountNow
   const changing = useMemo(
     () => changeRows(context, keeps ? accountCurrency : null).map((row) => ({ ...row, ...giving[row.key] })),
     [context, keeps, accountCurrency, giving],
@@ -730,6 +730,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** Change given for less than the rate makes it, past what a cashier may give alone; change sent from a card. */
   const changeRateAsk = overChangeLoss(settlement.given, context.maxRateLossPercent) && !context.mayOverDiscount
   const cardAsk = settlement.given.some((line) => line.way === 'card') && !context.mayReturnAny
+  /** Money left on a supplier's account — change, or what is owed for goods brought back: on the word lending takes. */
+  const supplierAsks = !!buyer?.supplier && !context.mayLend
+  const supplierAsk =
+    supplierAsks && (refunding ? keptNow > 0 : settlement.given.some((line) => line.way === 'account'))
   const refund = settleRefund(toRefund - keptNow, refunding ? typed : [], {
     book,
     roundStep: context.changeRoundStep,
@@ -803,6 +807,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setSplitting(true)
     window.setTimeout(() => {
       const field = document.querySelector<HTMLInputElement>('[data-change] input:not(:disabled)')
+      field?.focus()
+      field?.select()
+    })
+  }
+  /** All of the change onto the customer's account: written in its row, the cursor on it, Enter sells. */
+  const keepChange = () => {
+    setSplitting(true)
+    setGiving({ account: { value: over, amount: null } })
+    window.setTimeout(() => {
+      const field = document.querySelector<HTMLInputElement>('[data-change-row="account"] input:not(:disabled)')
       field?.focus()
       field?.select()
     })
@@ -1005,6 +1019,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
         changeRateAsk ||
         refundRateAsk ||
         keepRateAsk ||
+        supplierAsk ||
         cardAsk)
     ) {
       const who = context.approvers.filter(
@@ -1013,7 +1028,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             approver.discount) &&
           (!priceAsk || approver.prices) &&
           (!(late || beyond || barred || cardAsk) || approver.returns) &&
-          (!accountAsk || approver.debts),
+          (!(accountAsk || supplierAsk) || approver.debts),
       )
       if (!who.length) {
         toast.error(t('pos.noApprover'))
@@ -1055,6 +1070,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           barred ? t('pos.approvalExchange', { name: returning?.found.sale.customerName }) : null,
           beyond ? t('pos.approvalRefund') : null,
           accountAsk ? accountWhy : null,
+          supplierAsk ? t('pos.approvalSupplierKeep', { name: buyer?.name }) : null,
           accountRateAsk && accountLine
             ? t('pos.approvalAccountRate', {
                 name: buyer?.name,
@@ -1530,9 +1546,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
                           ? {
                               name: buyer.name,
                               balance: accounts.find((item) => item.currency === accountCurrency)?.balance ?? null,
+                              asks: supplierAsks,
                             }
                           : null,
                       cardAsks: !context.mayReturnAny,
+                      onKeepAll: keepChange,
+                      keepHint: buyer ? null : t('pos.keepChangePick'),
                     }
               }
               action={
@@ -1554,6 +1573,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       settled: keeping.settled,
                       max: toRefund,
                       strays: keepRateAsk,
+                      asks: supplierAsks,
                       onChange: setKeeping,
                     }
                   : null

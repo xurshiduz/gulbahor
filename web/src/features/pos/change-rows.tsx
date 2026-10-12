@@ -33,10 +33,17 @@ export interface ChangePanel {
   onOpen: (open: boolean) => void
   /** What was paid over the sum, in the base. */
   over: number
-  /** Whose account a part may be kept on, and what stands there now in its currency. */
-  keeper: { name: string; balance: number | null } | null
+  /**
+   * Whose account a part may be kept on, and what stands there now in its currency. `asks`: they supply goods,
+   * and writing on their account will ask for a manager's PIN.
+   */
+  keeper: { name: string; balance: number | null; asks?: boolean } | null
   /** Sending it from a card will ask for a manager's PIN. */
   cardAsks: boolean
+  /** Keeps all of it on the customer's account: one press, for what is asked for most. */
+  onKeepAll?: () => void
+  /** Why it cannot be kept on an account, where it cannot: nobody is named at the till yet. */
+  keepHint?: string | null
 }
 
 interface ChangeRowsProps {
@@ -191,9 +198,11 @@ export function ChangeRows({ context, change, settlement, onKeyDown }: ChangeRow
             {row.way === 'card' && line && change.cardAsks ? (
               <p className="text-right text-xs text-warn">{t('pos.cardChangeAsk')}</p>
             ) : null}
+            {keeper?.asks && line ? <p className="text-right text-xs text-warn">{t('pos.supplierKeepAsk')}</p> : null}
           </div>
         )
       })}
+      {!change.keeper && change.keepHint ? <p className="text-xs text-ink-3">{change.keepHint}</p> : null}
       {/* What nobody named is cash in the base: counted for the cashier, not typed. */}
       <div className={ROW}>
         <span className="truncate text-[13px] text-ink-2">{t('pos.changeRest', baseWords(t))}</span>

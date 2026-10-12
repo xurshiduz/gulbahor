@@ -279,13 +279,26 @@ describe('Change at the till', () => {
       expect(await balanced(sale.id)).toBe(true)
     })
 
-    it('is somebody’s, and not a supplier’s, and not beside a debt made in the same sale', async () => {
+    it('goes on a supplier’s account on the word a sale on it takes', async () => {
+      const kept = { customerId: textile, change: [{ way: 'account', amount: som(5000) }] }
+      const alone = await sell(kept, cashier)
+      expect(alone.status).toBe(400)
+      expect(alone.body.error.code).toBe('SUPPLIER_ON_ACCOUNT')
+      expect(alone.body.error.fields['change.0.way']).toContain('yetkazib beruvchi')
+      const before = (await owes(textile)).balance
+      const vouched = (await sell({ ...kept, approval: { userId: alphaUserId, pin: PIN } }, cashier).expect(201)).body
+      expect(vouched.approvedByName).toBeTruthy()
+      // Whoever may lend needs nobody's word, and none is written down.
+      const own = (await sell(kept).expect(201)).body
+      expect(own.approvedByName).toBeNull()
+      expect((await owes(textile)).balance - before).toBe(-som(10_000))
+      expect(await balanced(vouched.id)).toBe(true)
+    })
+
+    it('is somebody’s, and not beside a debt made in the same sale', async () => {
       const nobody = await sell({ change: [{ way: 'account', amount: som(5000) }] })
       expect(nobody.status).toBe(400)
       expect(nobody.body.error.fields.customerId).toBeDefined()
-      const supplier = await sell({ customerId: textile, change: [{ way: 'account', amount: som(5000) }] })
-      expect(supplier.status).toBe(400)
-      expect(supplier.body.error.fields['change.0.way']).toContain('yetkazib beruvchi')
       const both = await sell({
         customerId: nodira,
         payments: [{ method: 'cash', amount: som(50_000) }],
@@ -352,10 +365,10 @@ describe('Change at the till', () => {
       const moved = Object.fromEntries(
         (shift.totals.cash as { currency: string; change: number }[]).map((row) => [row.currency, row.change]),
       )
-      // Dollars: 2 + 1 + 2 + 2. So'm: 25 000 + 12 000 + 1 000 + 1 000 + 10 000 + 12 000 + 25 000.
-      expect(moved).toMatchObject({ USD: usd(7), UZS: som(86_000) })
+      // Dollars: 2 + 1 + 2 + 2. So'm: 25 000 + 12 000 + 1 000 + 1 000 + 10 000 + 12 000 + 20 000 + 20 000 + 25 000.
+      expect(moved).toMatchObject({ USD: usd(7), UZS: som(126_000) })
       expect(shift.totals.changes).toEqual([
-        { way: 'account', accountName: '', currency: 'UZS', amount: som(40_000) },
+        { way: 'account', accountName: '', currency: 'UZS', amount: som(50_000) },
         { way: 'account', accountName: '', currency: 'USD', amount: usd(1) },
         { way: 'card', accountName: 'Humo', currency: 'UZS', amount: som(50_000) },
       ])

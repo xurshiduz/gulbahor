@@ -567,10 +567,19 @@ export class SalesService {
         if (!customer) {
           throw AppError.validation({ customerId: 'Qaytimni hisobiga yozish uchun mijozni tanlang' })
         }
-        // A supplier's account is the business's dealings with them, kept out of the till's hands.
-        if (customer.isSupplier) {
-          fields[`change.${index}.way`] = `${customer.name} — yetkazib beruvchi: hisobiga qaytim yozilmaydi`
-          continue
+        // A supplier's account is the business's dealings with them: the till writes there on the word a
+        // sale on that account takes.
+        if (customer.isSupplier && !can(actor, 'pos.debt')) {
+          if (!allows(approver, 'pos.debt')) {
+            throw AppError.badRequest(
+              'SUPPLIER_ON_ACCOUNT',
+              approver
+                ? `${approver.name} yetkazib beruvchi hisobiga yozishni tasdiqlay olmaydi`
+                : `${customer.name} — yetkazib beruvchi: hisobiga qaytim rahbar tasdig‘i bilan yoziladi`,
+              { [`change.${index}.way`]: `${customer.name} — yetkazib beruvchi` },
+            )
+          }
+          soldByWord = true
         }
         if (input.onAccount) {
           fields[`change.${index}.way`] = 'Chekning bir qismi hisobiga yozilgan: o‘sha summani kamaytiring'
@@ -1209,6 +1218,14 @@ export class SalesService {
       [sale.id],
     )
 
+    // What they owe in all on the account the sale went on: said on the paper they sign. A supplier's sums are
+    // for those who keep suppliers' accounts.
+    const lentOn =
+      sale.status === 'completed' ? payments.entities.find((payment) => payment.method === 'account') : null
+    const theirs = lentOn ? await em.findOneBy(Account, { id: lentOn.accountId }) : null
+    const buyer = theirs?.customerId ? await em.findOneBy(Customer, { id: theirs.customerId }) : null
+    const seesIt = !!buyer && (!buyer.isSupplier || can(actor, 'customers.suppliers'))
+
     return {
       ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
       locationAddress: location.address,
@@ -1219,6 +1236,7 @@ export class SalesService {
       change,
       rounding: sale.rounding,
       due: due && sale.status === 'completed' ? { id: due.id, dueDate: due.dueDate } : null,
+      owes: theirs && seesIt && theirs.balance > 0 ? { currency: theirs.currency, balance: theirs.balance } : null,
       note: sale.note,
       voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
       voidedByName: sale.voidedByName,

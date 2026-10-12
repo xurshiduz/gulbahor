@@ -105,6 +105,8 @@ export interface KeepPanel {
   max: number
   /** The agreed sum lies further from the rate than a cashier may go alone. */
   strays: boolean
+  /** They supply goods: writing on their account will ask for a manager's PIN. */
+  asks?: boolean
   onChange: (sums: { amount: number | null; settled: number | null }) => void
 }
 
@@ -554,6 +556,21 @@ export function TenderPanel({
                     {change.open ? null : <Shortcut combo="f10" />}
                   </button>
                 ) : null}
+                {/* A customer is at the till: leaving the change with them is one press, not a search. */}
+                {change?.keeper &&
+                change.onKeepAll &&
+                change.over > 0 &&
+                !change.rows.some((row) => row.way === 'account' && row.value) ? (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    data-keep-change
+                    onClick={change.onKeepAll}
+                    className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent/15"
+                  >
+                    {t('pos.keepChange')}
+                  </button>
+                ) : null}
               </span>
               <span
                 className={cn(
@@ -736,6 +753,7 @@ export function TenderPanel({
               </>
             ) : null}
           </div>
+          {keep.asks && keep.amount ? <p className="text-right text-xs text-warn">{t('pos.supplierKeepAsk')}</p> : null}
           {keep.strays ? (
             <p className="text-right text-xs text-bad">
               {t(context.approvers.some((approver) => approver.discount) ? 'pos.rateLossAsk' : 'pos.changeLossStop', {

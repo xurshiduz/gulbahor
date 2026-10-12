@@ -144,11 +144,20 @@ export const ReceiptPaper = forwardRef<HTMLDivElement, ReceiptPaperProps>(functi
         ))}
         {/* The day the customer has agreed to: on the paper they take away. */}
         {sale.due?.dueDate ? <Row label={t('pos.debtDue')} value={formatDay(sale.due.dueDate)} /> : null}
+        {/* What they owe in all after this: what they put their name to below. */}
+        {sale.owes ? <Row label={t('pos.totalDebt')} value={money(sale.owes.balance, sale.owes.currency)} /> : null}
         {sale.change.map((part, index) => (
           <Row key={`change:${index}`} label={t(changeLabel(part))} value={changePartText(part)} />
         ))}
         {template.showSavings && sale.discount ? (
           <p className="mt-1 text-center font-medium">{t('receipt.saved', { amount: money(sale.discount) })}</p>
+        ) : null}
+        {/* Goods taken on credit are signed for: the shop keeps this copy. */}
+        {sale.due ? (
+          <p data-signature className="mt-4 flex items-end gap-1">
+            <span className="shrink-0">{t('pos.buyerSignature')}:</span>
+            <span className="h-4 flex-1 border-b border-current" />
+          </p>
         ) : null}
       </div>
 

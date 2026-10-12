@@ -82,6 +82,7 @@ describe('a receipt on paper', () => {
         },
       ],
       due: { id: 'd1', dueDate: '2026-11-04' },
+      owes: { currency: 'UZS', balance: 180_000_000 },
     } as SaleDto
     const { container } = render(<ReceiptPaper sale={lent} template={DEFAULT_RECEIPT_TEMPLATE} orgName="Gulbahor" />)
     const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? null)
@@ -89,8 +90,13 @@ describe('a receipt on paper', () => {
     expect(text).toContain('Hisobiga483 000 so‘m')
     expect(text).not.toContain('Nodira Yusupova483')
     expect(text).toContain('To‘lash muddati04.11.2026')
-    // Nothing owed, no day.
+    // What they owe in all after it, and a line to put their name to.
+    expect(text).toContain('Jami qarzi1 800 000 so‘m')
+    expect(text).toContain('Xaridor imzosi:')
+    expect(container.querySelector('[data-signature]')).not.toBeNull()
+    // Nothing owed, no day, and nothing to sign.
     expect(printed().text).not.toContain('To‘lash muddati')
+    expect(printed().text).not.toContain('Xaridor imzosi')
   })
 
   it('carries its number as a barcode, and the logo the business gave it', () => {

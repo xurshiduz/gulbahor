@@ -326,6 +326,9 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
                   <Line label={t('pos.rateDiff')} value={`${rateDiff > 0 ? '+' : '−'}${money(Math.abs(rateDiff))}`} />
                 </div>
               ) : null}
+              {sale.owes ? (
+                <Line label={t('pos.totalDebt')} value={money(sale.owes.balance, sale.owes.currency)} />
+              ) : null}
               {sale.change.map((part, index) => (
                 <Line key={`change:${index}`} label={t(changeLabel(part))} value={changePartText(part)} strong />
               ))}

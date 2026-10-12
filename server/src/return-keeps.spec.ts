@@ -219,8 +219,22 @@ describe('Money for goods brought back', () => {
         keep: { customerId: elaris, amount: som(75_000) },
       })
       expect(theirs.body.error.fields.keep).toBe('Pul chekdagi mijozning hisobida qoldiriladi')
-      const supplier = await giveBack(nobody, { keep: { customerId: textile, amount: som(75_000) } })
-      expect(supplier.status).toBe(400)
+    })
+
+    it('goes on a supplier’s account on the word a sale on it takes', async () => {
+      const keep = { keep: { customerId: textile, amount: som(75_000) } }
+      const alone = await giveBack(await sell(), keep)
+      expect(alone.status).toBe(400)
+      expect(alone.body.error.code).toBe('SUPPLIER_ON_ACCOUNT')
+      const before = (await owes(textile)).balance
+      const vouched = (
+        await giveBack(await sell(), { ...keep, approval: { userId: alphaUserId, pin: PIN } }).expect(201)
+      ).body
+      expect(vouched.approvedByName).toBeTruthy()
+      // Whoever may lend needs nobody's word.
+      const own = (await giveBack(await sell(), keep, alpha).expect(201)).body
+      expect(own.approvedByName).toBeNull()
+      expect((await owes(textile)).balance - before).toBe(-som(150_000))
     })
 
     it('goes on an account kept in dollars at the rate, or for a sum agreed within the shop’s limit', async () => {
@@ -382,8 +396,8 @@ describe('Money for goods brought back', () => {
       expect(onAccounts).toEqual([
         // Off the debt a sale on account had made.
         ['UZS', false, som(75_000)],
-        // Kept: 75 000 + 50 000 + 75 000 in so'm, three times 75 000 in dollars.
-        ['UZS', true, som(200_000)],
+        // Kept: 75 000 + 50 000 + 75 000 and twice 75 000 for a supplier in so'm, three times 75 000 in dollars.
+        ['UZS', true, som(350_000)],
         ['USD', true, som(225_000)],
       ])
     })
