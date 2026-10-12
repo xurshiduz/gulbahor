@@ -29,13 +29,13 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 |---|---|---|---|---|---|
 | 1 | P1. Xodimga qo'shimcha ruxsat | Platforma | 1,5 | — | tayyor (2026-10-08) |
 | 2 | M1. Narx formulalari | Mijozlar va narx | 9 | — | boshlanmagan (spetsifikatsiya tayyor) |
-| 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | — (M1 keyinga qoldi) | boshlandi: M2-1 … M2-4 tayyor (2026-10-11), qolgani — M2-5 (`ISH-HOLATI.md`) |
-| 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | boshlandi: ro'yxat, karta, hisob-kitob, to'lovlar (M2-2 bilan) |
-| 5 | M4. Mijoz: qo'shimcha holatlar | Mijozlar va narx | 7 | M3 | boshlanmagan |
-| 6 | M5. Ko'chirishni nusxada sinash | Mijozlar va narx | 1 | M4 | boshlanmagan |
+| 3 | M2. Yagona mijoz: baza va hisob | Mijozlar va narx | 7 | — (M1 keyinga qoldi) | tayyor (2026-10-12) |
+| 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | qurildi; kirilgan tizimda ko'zdan kechirish qoldi |
+| 5 | M4. Mijoz: qo'shimcha holatlar | Mijozlar va narx | 7 | M3 | tayyor (2026-10-12; KEYINGI-REJA 16.16) |
+| 6 | M5. Ko'chirishni nusxada sinash | Mijozlar va narx | 1 | M4 | egasi bilan: haqiqiy bazaning nusxasi kerak |
 | 7 | K1. Otlojka (tovarni olib qo'yish) | Kassa | 3 | M2 | boshlanmagan |
-| 8 | V6. Terminal → bank tushumi | Pul | 2 | — | boshlanmagan |
-| 9 | V8. O'tkazma va ayirboshlashda komissiya | Pul | 1 | — | boshlanmagan |
+| 8 | V6. Terminal → bank tushumi | Pul | 2 | — | tayyor (2026-10-12, O1 bilan) |
+| 9 | V8. O'tkazma va ayirboshlashda komissiya | Pul | 1 | — | tayyor (2026-10-12, O1 bilan) |
 | 10 | S1. Narx o'zgargan tovarga yorliq | Sklad | 1,5 | M1 | boshlanmagan |
 | 11 | S2. Hisobdan chiqarishga rasm | Sklad | 1 | — | boshlanmagan |
 | 12 | S3. Skladdan ulgurji sotuv | Sklad | 3 | M2 | egasining javobi kutilmoqda (11-bo'lim, 1-savol) |
@@ -71,7 +71,13 @@ Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz bir
 - **Tayyor degani:** to'rt tilda har ekran; kirill o'girish testlari; `check_i18n` to'rtta lug'at bilan.
 
 #### P2–P5 — foydalanuvchi bilan (KEYINGI-REJA 13b, 12)
-- P2. Superadmin va ko'p biznes (biznes yaratish, tarif) — ~3 kun.
+- P2. Superadmin va ko'p biznes (biznes yaratish, tarif) — ~3 kun (subdomen bilan ~5 kun).
+  - **Egasi (2026-10-12):** tizimni keyin bitta emas, ko'p biznes egasi ishlatadi; har biriga "profil" qanday ochiladi, subdomen kerakmi. Quyidagisi — **taklif, hali tasdiqlanmagan**.
+  - **Hozir bor:** ma'lumot allaqachon ajratilgan (`org_id` + RLS, testlar ikki biznes bilan). Yo'q narsa — kirish tomoni: login butun tizimda yagona (`users_login`), biznesning manzildagi nomi yo'q, ro'yxatdan o'tish va tarif yo'q.
+  - **Taklif — har biznesga o'z manzili, bitta umumiy eshik bilan:** `gulbahor.<domen>` — biznesning o'z kirish sahifasi (nomi va logotipi bilan); `<domen>` — tanishtiruv, ro'yxatdan o'tish va "kirish" (telefon bo'yicha odamning bizneslarini topib, o'z manziliga yo'naltiradi); `admin.<domen>` — superadmin (bizneslar, tarif, to'xtatish).
+  - **Nega subdomen:** xodim loginini biznes ichida yagona qilsa bo'ladi (har do'konda o'z `kassir` i), brauzer sessiyasi va saqlangan parol biznes bo'yicha ajraladi, agent va chek/etiketka manzili aniq, katta mijozni keyin alohida serverga ko'chirish — faqat DNS. B2B tizimlarda odatiy (Bitrix24, amoCRM, Odoo, Slack); bitta domen + umumiy login ham uchraydi (MoySklad), lekin u yerda login butun tizimda yagona bo'lishi shart.
+  - **Nima quriladi:** `organizations.slug` (yagona, band nomlar ro'yxati: `www`, `admin`, `api`, `app`…), biznes so'rovning `Host` idan aniqlanadi (lokalda va subdomensiz o'rnatishda — sarlavha yoki bitta biznes), `users` da yagonalik `(org_id, lower(login))`, wildcard DNS va sertifikat, ro'yxatdan o'tish (telefon tasdig'i bilan egasi + biznes + sinov muddati), superadmin (`Db.system`, alohida rol), tarif va to'xtatib qo'yish. Bir odam bir nechta biznes egasi bo'lsa — platforma darajasidagi shaxs (telefon) bizneslardagi foydalanuvchilarga bog'lanadi, "biznesni almashtirish" shu orqali.
+  - **Tartib:** `slug` va `Host` bo'yicha aniqlash birinchi qo'yiladi (ma'lumotga tegmaydi) — shunda hozirgi bitta domen ishlayveradi, subdomen keyin yoqiladi.
 - P3. Loglar: "nega bunday bo'ldi" (har hujjat bo'yicha zanjir) — ~2 kun.
 - P4. Telegram bot va bildirishnomalar (rahbar nazorati, 10g bilan birga) — ~2 kun.
 - P5. Serverga chiqarish: zaxira nusxa jadvali, HTTPS, yangilash tartibi — ~1 kun.

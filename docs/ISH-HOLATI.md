@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-12, 17-bo'lim (Q1, Q2, O1, O2, U1a) dan keyin: core 232, web 234, agent 17, server 474 (42 fayl); typecheck, lint, check_i18n toza.
+Oxirgi to'liq tekshiruv: 2026-10-12 — core 239, agent 17, server 496 (45 fayl), veb 246 (34 fayl); typecheck, lint, i18n toza (13 ta ma'lum)
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -243,8 +243,8 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [x] Q2b-1. Qaytarishda do'konning boshqa kartasidan o'tkazish qatori; hisobga tegadigan qaytarishdan keyin mijoz kassada qoladi (haqi va "Haqini qaytarish").
      - [x] Q2b-2. Chekda mijozni almashtirish (16.5, 33-holat): hisobdagi qismi va muddati yangi mijozga ko'chadi.
      - [x] Q2b-3. Almashtirib olingan tovar qaytadi (31-holat): almashtirishda qarz yangi chekka ko'chadi, naqd chegarasi asl chekdan olinadi. Q2 (M2-5) shu bilan tugadi.
-   - [ ] M3. Yagona mijoz: ekranlar. Asosiy ekranlar M2 bo'laklari bilan qurildi ("Mijozlar", karta, hisob-kitob, Qarzdorlar, to'lovlar, kassadagi blok). Tekshirilmagani va qolgani: chekda "Jami qarzi" va imzo qatori (16.5, 9-holat) — kodda yo'q.
-   - [ ] M4. Qo'shimcha holatlar. Qilingani: almashtirish hisobga va almashtirilgan tovar qaytishi, chekning mijozini almashtirish, muddatni o'zgartirish, arxiv qoidasi, kartadagi qaytarish muddati. **Qolgani**: mijozlarni birlashtirish (valyuta bilan), akt-sverka (davr, Excel, chop), boshlang'ich qoldiqlarni Excel'dan olish, kirimdan "To'lov berish".
+   - [ ] M3. Yagona mijoz: ekranlar. Asosiy ekranlar M2 bo'laklari bilan qurildi ("Mijozlar", karta, hisob-kitob, Qarzdorlar, to'lovlar, kassadagi blok); chekda "Jami qarzi" va imzo qatori ham (2026-10-12). Qolgani: oynalarni kirilgan tizimda ko'zdan kechirish (U1b bilan birga).
+   - [x] M4. Qo'shimcha holatlar: almashtirish hisobga va almashtirilgan tovar qaytishi, chekning mijozini almashtirish, muddatni o'zgartirish, arxiv qoidasi, kartadagi qaytarish muddati, mijozlarni birlashtirish, akt-sverka (davr, Excel, chop), boshlang'ich qoldiqlar Excel'dan, kirimdan "To'lov berish", chekda "Jami qarzi" va imzo (KEYINGI-REJA 16.16).
    - [ ] M5. Hujjat va ko'chirishni bazaning nusxasida sinash (~1 kun).
 
 14. **Platforma** (YOL-XARITA, 3-bo'lim):
@@ -254,7 +254,7 @@ Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-17-bo'lim rejasi tugadi, egasidan kutiladiganlardan tashqari: tizim nomi (N0), U1b (oynalarni kirilgan tizimda solishtirish; 'Boshqa valyutalar' ostiga yig'ish — egasining qarori). Commit qilinmagan: M2-4 dan beri hammasi — egasi aytganda. Keyingisi reja bo'yicha: M4 (mijozlarni birlashtirish, akt-sverka, Excel'dan qoldiq).
+M4 tugadi (2026-10-12), commit qilinmagan — egasi aytganda. Qolgani egasi bilan: M5 (ko'chirishni haqiqiy baza nusxasida sinash), tizimning yakuniy nomi (hozircha «Sanoq»), ko'p biznes va subdomen (YOL-XARITA P2 — taklif), U1b (oynalarni kirilgan tizimda ko'rish), sessiya yangilanishidagi uzilish (alohida vazifa). Keyingisi reja bo'yicha: narx formulalari (M1), hisobotlar (10b–10g), to'rt til (T1).
 
 ## Ish daraxti nusxalari
 
@@ -298,3 +298,4 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `554abe7434c9f65382820d522eb6934020398983` | U1a: «Olish / Berish» ikki tugma (Segments), Ctrl+Enter katakchada, mijoz valyutasi birinchi (to'lov oynasi va kassa) |
 | `3d681a5a330bb6f138721535a008999a2d138550` | Q2b-2: chekda mijozni almashtirish (POST /sales/:id/customer, sale_customer yozuvi, muddat qarz egasiniki) |
 | `340af23077bbd63954f01660a37e3cb3d3664ed3` | Q2b-3: almashtirishda qarz yangi chekka ko'chadi (createIn carry), naqd chegarasi asl chekdan (originRoom); Q2 tugadi |
+| `19026cf6b58acd4e42c5ce9e5f81f2f7d6973278` | M4: mijozlarni birlashtirish (daftar orqali, tarix bitta hisob), akt-sverka (davr, tovar soni, Excel, chop), boshlang'ich qoldiqlar Excel'dan, kirimdan To'lov berish, chekda Jami qarzi va imzo; kassada qaytimni bir bosishda hisobda qoldirish, yetkazib beruvchi hisobiga rahbar so'zi bilan; tizim nomi vaqtincha «Sanoq» |
