@@ -27,7 +27,17 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Ban, Banknote, Users, Wrench } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Ban,
+  Banknote,
+  FileSpreadsheet,
+  Printer,
+  Users,
+  Wrench,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,15 +60,19 @@ import { exchangeLine, ReceivedField, receivedOf, type ExchangeSums } from '@/fe
 import { placeKey, useHiddenPlaces } from '@/features/money/hidden-places'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
-import { formatDateTime, formatDay } from '@/lib/format'
+import { fetchAll, moneyCell, saveExcel, timeCell } from '@/lib/excel'
+import { formatDateTime, formatDay, formatNumber } from '@/lib/format'
+import { printElement } from '@/lib/print'
 import { useRateBook } from '@/features/money/rates'
 import { ApprovalDialog } from '@/features/pos/approval'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
 
-import { useCustomerChoices } from './choices'
+import { useCustomer, useCustomerChoices, useDebtText } from './choices'
+import { statementColumns, statementLineLabel, statementRows, StatementPaper } from './statement-paper'
+
+export { useDebtText }
 
 import {
   addRow,
@@ -92,25 +106,6 @@ const refresh = (queryClient: ReturnType<typeof useQueryClient>) => {
   }
 }
 
-/** What stands between the business and a customer, in words: "qarzi 570,95 $" when they owe, "haqi …" when they are owed. */
-export function useDebtText() {
-  const { t } = useTranslation()
-  return (balance: number, currency: AnyCurrency) =>
-    balance > 0
-      ? t('payments.owes', { amount: money(balance, currency) })
-      : balance < 0
-        ? t('payments.owed', { amount: money(-balance, currency) })
-        : t('payments.even')
-}
-
-/** A customer's card, with their accounts for whoever may see them. */
-const useCustomer = (id: string | null) =>
-  useQuery({
-    queryKey: ['customers', 'one', id],
-    queryFn: ({ signal }) => api.get<CustomerDto>(`/customers/${id}`, undefined, signal),
-    enabled: !!id,
-  })
-
 /** What a customer owes in one currency; null for a person who may not see it. */
 const balanceIn = (balances: CustomerBalance[] | null | undefined, currency: AnyCurrency | null) =>
   !balances || !currency ? null : (balances.find((item) => item.currency === currency)?.balance ?? 0)
@@ -138,6 +133,11 @@ interface PaymentDialogProps {
   registerId?: string
   /** Who at this till may let a customer's own money be handed back out of its drawer, with their PIN. */
   approvers?: { id: string; name: string }[]
+  /**
+   * What this payment is for, in the account's currency — the goods of one receipt, say: offered in the lines in
+   * place of the whole of what is owed.
+   */
+  suggest?: number
   onClose: () => void
   /** The money is in: whoever opened this may want to know the customer again. */
   onSaved?: () => void
@@ -158,6 +158,7 @@ export function PaymentDialog({
   buyer,
   registerId,
   approvers = [],
+  suggest,
   onClose,
   onSaved,
 }: PaymentDialogProps) {
@@ -528,7 +529,8 @@ export function PaymentDialog({
             lines={valued}
             spare={sparePlaces(places, shown, tillId, hidden)}
             currency={currency}
-            owed={debt !== null && debt > 0 ? debt : null}
+            // What is owed, or — opened for one receipt's goods — no more than those come to.
+            owed={debt !== null && debt > 0 ? (suggest ? Math.min(suggest, debt) : debt) : (suggest ?? null)}
             onPatch={patch}
             onAdd={(accountId) => {
               setRows(addRow(shown, accountId))
@@ -1323,15 +1325,40 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
   const { t } = useTranslation()
   const { can } = useSession()
   const debtText = useDebtText()
+  const { me } = useSession()
+  const book = useRateBook()
   const [currency, setCurrency] = useState<AnyCurrency | undefined>(asked)
+  // The days it is cut to: none, and it is the whole account.
+  const [days, setDays] = useState<{ from: string; to: string }>({ from: '', to: '' })
   const query = useQuery({
-    queryKey: ['customers', 'statement', customerId, currency],
+    queryKey: ['customers', 'statement', customerId, currency, days.from, days.to],
     queryFn: ({ signal }) =>
-      api.get<CustomerStatementDto>(`/customers/${customerId}/statement`, currency ? { currency } : undefined, signal),
+      api.get<CustomerStatementDto>(
+        `/customers/${customerId}/statement`,
+        { currency, from: days.from || undefined, to: days.to || undefined },
+        signal,
+      ),
     placeholderData: keepPreviousData,
   })
   const data = query.data
   const queryClient = useQueryClient()
+  const paperRef = useRef<HTMLDivElement>(null)
+  const cut = !!data && !!(data.from || data.to)
+  // All their accounts in the base at today's rates: said on the paper beside the one it is about.
+  const held = (data?.customer.balances ?? []).filter((item) => item.balance)
+  const inBase = held.map((item) => (book ? worthInBase(item.balance, item.currency, book) : null))
+  const totalBase =
+    held.length > 1 && inBase.every((worth) => worth !== null)
+      ? inBase.reduce<number>((sum, worth) => sum + (worth ?? 0), 0)
+      : null
+  const toExcel = () =>
+    data
+      ? void saveExcel(
+          `${t('payments.akt')} ${data.customer.name} ${data.currency}`,
+          statementColumns(data.currency, t),
+          statementRows(data, t),
+        )
+      : undefined
   // A debt's day is moved by whoever keeps that account, or may lend at the till.
   const movesDays =
     !!data && (can(data.customer.isSupplier ? 'customers.suppliers' : 'customers.debts') || can('pos.debt'))
@@ -1393,30 +1420,69 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
         </>
       }
     >
-      {currencies.length > 1 && data ? (
-        <div className="mb-3 flex flex-wrap gap-1.5" data-enter-skip>
-          {currencies.map((code) => (
-            <Button
-              key={code}
-              size="sm"
-              variant={code === data.currency ? 'primary' : 'soft'}
-              onClick={() => setCurrency(code)}
-            >
-              {currencyName(code, t)}
+      {data ? (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5" data-enter-skip data-statement-bar>
+          {currencies.length > 1
+            ? currencies.map((code) => (
+                <Button
+                  key={code}
+                  size="sm"
+                  variant={code === data.currency ? 'primary' : 'soft'}
+                  onClick={() => setCurrency(code)}
+                >
+                  {currencyName(code, t)}
+                </Button>
+              ))
+            : null}
+          {/* The days it is cut to, and the two ways it leaves the screen: a sheet, and a paper to sign. */}
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-ink-3">{t('payments.aktDays')}</span>
+            <DateInput
+              value={days.from}
+              onChange={(from) => setDays((current) => ({ ...current, from }))}
+              max={days.to || undefined}
+              className="w-36"
+            />
+            <span className="text-xs text-ink-3">—</span>
+            <DateInput
+              value={days.to}
+              onChange={(to) => setDays((current) => ({ ...current, to }))}
+              min={days.from || undefined}
+              className="w-36"
+            />
+            <Button size="sm" onClick={toExcel}>
+              <FileSpreadsheet />
+              Excel
             </Button>
-          ))}
+            <Button size="sm" onClick={() => (paperRef.current ? printElement(paperRef.current, true) : undefined)}>
+              <Printer />
+              {t('payments.aktPrint')}
+            </Button>
+          </span>
+        </div>
+      ) : null}
+      {data ? (
+        <div className="hidden">
+          <StatementPaper
+            ref={paperRef}
+            business={me.org.name}
+            data={data}
+            totalBase={totalBase}
+            base={book?.base ?? data.currency}
+          />
         </div>
       ) : null}
       {!data ? (
         <div className="flex justify-center py-10">
           <Spinner className="size-5" />
         </div>
-      ) : data.lines.length ? (
+      ) : data.lines.length || cut ? (
         <table className="w-full text-[13px]">
           <thead className="text-left text-[11px] font-semibold tracking-[0.04em] text-ink-3 uppercase">
             <tr>
               <th className="py-1.5 pr-2">{t('payments.paidAt')}</th>
               <th className="px-2 py-1.5">{t('payments.document')}</th>
+              <th className="px-2 py-1.5 text-right">{t('payments.aktQty')}</th>
               <th className="px-2 py-1.5 text-right">{t('payments.change')}</th>
               <th className="px-2 py-1.5 text-right">{t('payments.balance')}</th>
               <th className="px-2 py-1.5">{t('pos.debtDue')}</th>
@@ -1424,29 +1490,23 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
             </tr>
           </thead>
           <tbody>
+            {cut ? (
+              <tr data-statement-opening className="border-t border-line font-medium">
+                <td className="tabular py-1.5 pr-2 whitespace-nowrap">{data.from ? formatDay(data.from) : ''}</td>
+                <td className="px-2 py-1.5" colSpan={3}>
+                  {t('payments.aktOpening')}
+                </td>
+                <td className="tabular px-2 py-1.5 text-right whitespace-nowrap">
+                  {money(data.opening, data.currency)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            ) : null}
             {data.lines.map((line, index) => (
               <tr key={index} className={cn('border-t border-line', line.kind === 'cancel' && 'text-ink-3')}>
                 <td className="tabular py-1.5 pr-2 whitespace-nowrap">{formatDateTime(line.at)}</td>
                 <td className="px-2 py-1.5">
-                  {line.kind === 'cancel'
-                    ? t(
-                        line.source === 'receipt'
-                          ? 'payments.receiptCancelled'
-                          : line.source === 'sale'
-                            ? 'payments.saleVoided'
-                            : line.source === 'supplier_return'
-                              ? 'payments.supplierReturnCancelled'
-                              : 'payments.cancelLine',
-                      )
-                    : line.kind === 'receipt'
-                      ? t('payments.receiptLine')
-                      : line.kind === 'sale'
-                        ? t('payments.saleLine')
-                        : line.kind === 'sale_return'
-                          ? t('payments.saleReturnLine')
-                          : line.kind === 'supplier_return'
-                            ? t('payments.supplierReturnLine')
-                            : CUSTOMER_PAYMENT_KIND_LABELS[line.kind]}{' '}
+                  {statementLineLabel(line, t)}{' '}
                   {line.number && line.source === 'receipt' && line.documentId ? (
                     // The goods behind the debt are a click away.
                     <Link
@@ -1460,6 +1520,7 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
                     <span className="font-code text-xs text-ink-3">{line.number}</span>
                   ) : null}
                 </td>
+                <td className="tabular px-2 py-1.5 text-right text-ink-2">{line.qty ? formatNumber(line.qty) : ''}</td>
                 <td
                   className={cn(
                     'tabular px-2 py-1.5 text-right whitespace-nowrap',
@@ -1489,6 +1550,18 @@ export function StatementDialog({ customerId, currency: asked, onClose, onPay, o
                 <td className="py-1.5 pl-2 text-ink-2">{line.note ?? ''}</td>
               </tr>
             ))}
+            {cut ? (
+              <tr data-statement-closing className="border-t border-line font-medium">
+                <td className="tabular py-1.5 pr-2 whitespace-nowrap">{data.to ? formatDay(data.to) : ''}</td>
+                <td className="px-2 py-1.5" colSpan={3}>
+                  {t('payments.aktClosing')}
+                </td>
+                <td className="tabular px-2 py-1.5 text-right whitespace-nowrap">
+                  {money(data.closing, data.currency)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            ) : null}
           </tbody>
         </table>
       ) : (

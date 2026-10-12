@@ -25,6 +25,8 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Cake,
+  FileSpreadsheet,
+  Merge,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -69,6 +71,8 @@ import { toast } from '@/lib/toast'
 import { DebtorsTab } from './debts-tab'
 import { GroupDialog, GroupsTab, useCustomerGroups } from './groups-tab'
 import { LoyaltyTab } from './loyalty-tab'
+import { MergeDialog } from './merge-dialog'
+import { OpeningImportDialog } from './opening-import'
 import {
   AdjustDialog,
   CustomerTransferDialog,
@@ -92,6 +96,8 @@ type Over =
   | { kind: 'in' | 'out'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
   | { kind: 'opening'; customer: CustomerDto }
   | { kind: 'adjust' | 'exchange' | 'transfer'; customer: CustomerDto; currency?: AnyCurrency; back?: boolean }
+  | { kind: 'merge'; customer: CustomerDto }
+  | { kind: 'openings' }
 
 /**
  * The people who buy in the shops. Over the list stands the whole base at a
@@ -100,7 +106,7 @@ type Over =
  */
 export function CustomersPage() {
   const { t } = useTranslation()
-  const { can } = useSession()
+  const { can, me } = useSession()
   const queryClient = useQueryClient()
   const search = route.useSearch()
   const navigate = route.useNavigate()
@@ -194,9 +200,20 @@ export function CustomersPage() {
                 icon: <Users />,
                 onSelect: () => setOver({ kind: 'transfer', customer }),
               },
+              // A second card of the same person goes into their first, for good.
+              ...(customer.mergedInto
+                ? []
+                : [
+                    {
+                      label: t('customers.merge'),
+                      icon: <Merge />,
+                      onSelect: () => setOver({ kind: 'merge' as const, customer }),
+                    },
+                  ]),
             ]
           : []),
-        ...(canManage
+        // A card merged into another is closed: neither changed nor brought back.
+        ...(canManage && !customer.mergedInto
           ? [
               { label: t('common.edit'), icon: <Pencil />, onSelect: () => open(customer.id) },
               customer.isActive
@@ -386,6 +403,12 @@ export function CustomersPage() {
           cell: ({ row }) =>
             row.original.isActive ? (
               <Badge tone="ok">{t('common.active')}</Badge>
+            ) : row.original.mergedInto ? (
+              <Badge>
+                <span title={t('customers.mergedInto', { name: row.original.mergedInto.name })}>
+                  → {row.original.mergedInto.name}
+                </span>
+              </Badge>
             ) : (
               <Badge>{t('common.archived')}</Badge>
             ),
@@ -437,13 +460,22 @@ export function CustomersPage() {
       // The loyalty tiers are a form to be read down; the other sheets are lists that fill the window.
       flow={tab === 'loyalty'}
       actions={
-        adds ? (
-          <Button variant="primary" onClick={add}>
-            <Plus />
-            {addLabel}
-            <Shortcut combo="n" className="ml-1 opacity-70" />
-          </Button>
-        ) : null
+        <>
+          {/* Balances from before the books, a sheet of them at once: for whoever puts accounts right. */}
+          {canAdjust && tab === 'list' ? (
+            <Button onClick={() => setOver({ kind: 'openings' })}>
+              <FileSpreadsheet />
+              {t('customers.openingsButton')}
+            </Button>
+          ) : null}
+          {adds ? (
+            <Button variant="primary" onClick={add}>
+              <Plus />
+              {addLabel}
+              <Shortcut combo="n" className="ml-1 opacity-70" />
+            </Button>
+          ) : null}
+        </>
       }
     >
       <Tabs
@@ -628,6 +660,10 @@ export function CustomersPage() {
         />
       ) : null}
       {over?.kind === 'opening' ? <OpeningDialog customer={over.customer} onClose={() => setOver(null)} /> : null}
+      {over?.kind === 'merge' ? <MergeDialog customer={over.customer} onClose={() => setOver(null)} /> : null}
+      {over?.kind === 'openings' ? (
+        <OpeningImportDialog timeZone={me.org.timezone} onClose={() => setOver(null)} />
+      ) : null}
       {over?.kind === 'adjust' || over?.kind === 'exchange' || over?.kind === 'transfer'
         ? (() => {
             const Mend =

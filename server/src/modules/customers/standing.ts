@@ -45,6 +45,10 @@ const settled = (row: AccountRow): CustomerBalance => ({
  * How each of these customers' accounts stands today, one to a currency, in the order they were opened. Only an
  * account that owes is aged: one that owes nothing has nothing late. Cancelled documents and voided sales, with
  * their reversals, never were.
+ *
+ * Someone merged into one of these customers left their history on accounts of their own: it is read here as part
+ * of the account it was carried to, and the entries that carried it — in on one side, out on the other — are left
+ * out. A customer who was merged into another has no accounts of their own here.
  */
 export async function standingsOf(
   em: EntityManager,
@@ -56,11 +60,28 @@ export async function standingsOf(
     return result
   }
   const accounts: AccountRow[] = await em.query(
-    `SELECT id, customer_id, currency, balance::float8 AS balance FROM accounts
-     WHERE kind = 'customer' AND customer_id = ANY($1) ORDER BY created_at, id`,
+    `SELECT a.id, coalesce(c.merged_into, c.id) AS customer_id, a.currency, a.balance::float8 AS balance
+     FROM accounts a JOIN customers c ON c.id = a.customer_id
+     WHERE a.kind = 'customer'
+       AND ((c.id = ANY($1) AND c.merged_into IS NULL) OR c.merged_into = ANY($1))
+     ORDER BY a.created_at, a.id`,
     [customerIds],
   )
-  const owing = accounts.filter((account) => account.balance > 0)
+  // One account to a customer and a currency, with whatever was merged into it.
+  const keyOf = (account: AccountRow) => `${account.customer_id}:${account.currency}`
+  const whole = new Map<string, AccountRow>()
+  const partOf = new Map<string, string>()
+  for (const account of accounts) {
+    const key = keyOf(account)
+    const sum = whole.get(key)
+    if (sum) {
+      sum.balance += account.balance
+    } else {
+      whole.set(key, { ...account, id: key })
+    }
+    partOf.set(account.id, key)
+  }
+  const owing = accounts.filter((account) => (whole.get(keyOf(account))?.balance ?? 0) > 0)
   const events = new Map<string, AccountEvent[]>()
   if (owing.length) {
     const rows: EventRow[] = await em.query(
@@ -69,13 +90,16 @@ export async function standingsOf(
        FROM ledger_lines l
        JOIN ledger_entries e ON e.id = l.entry_id
        JOIN accounts a ON a.id = l.account_id
-       -- The day belongs to whoever owes the debt now: a receipt given to another customer took its day along.
+       JOIN customers c ON c.id = a.customer_id
+       -- The day belongs to whoever owes the debt now: a receipt given to another customer took its day along,
+       -- and the days of someone merged into another are that other's.
        LEFT JOIN customer_dues d
          ON ((e.document_type = 'sale' AND d.sale_id = e.document_id)
           OR (e.document_type = 'customer_payment' AND d.payment_id = e.document_id))
-        AND d.customer_id = a.customer_id
+        AND d.customer_id = coalesce(c.merged_into, c.id)
        LEFT JOIN sale_returns sr ON e.document_type = 'sale_return' AND sr.id = e.document_id
        WHERE l.account_id = ANY($1)
+         AND e.kind <> 'customer_merge'
          AND NOT EXISTS (SELECT 1 FROM sales s WHERE e.document_type = 'sale' AND s.id = e.document_id AND s.status = 'voided')
          AND NOT EXISTS (SELECT 1 FROM customer_payments p
                          WHERE e.document_type = 'customer_payment' AND p.id = e.document_id AND p.status = 'cancelled')
@@ -86,7 +110,8 @@ export async function standingsOf(
       [owing.map((account) => account.id)],
     )
     for (const row of rows) {
-      const list = events.get(row.account_id) ?? []
+      const key = partOf.get(row.account_id) as string
+      const list = events.get(key) ?? []
       // A sale on the account, or an opening balance given a day, falls due; anything else they owe never does.
       // A receipt given to them by someone it was first rung up to is a sale on their account all the same.
       const sold = row.entry_kind === 'sale' || row.entry_kind === 'sale_customer'
@@ -103,10 +128,10 @@ export async function standingsOf(
             ? { type: 'charge', id: row.document_id as string, amount: row.amount, due: row.due }
             : { type: 'debit', amount: row.amount },
       )
-      events.set(row.account_id, list)
+      events.set(key, list)
     }
   }
-  for (const account of accounts) {
+  for (const account of whole.values()) {
     const list = result.get(account.customer_id) ?? []
     list.push(
       account.balance > 0

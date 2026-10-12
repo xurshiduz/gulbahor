@@ -15,6 +15,7 @@ import {
   type CustomerPaymentListQuery,
   type CustomerStatementDto,
   type CustomerStatementLine,
+  type StatementQuery,
   type PaymentAccountDto,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
@@ -39,7 +40,7 @@ import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rateLimit, valueLine, wantingRate } from '../money/agreed'
 import { CurrenciesService } from '../money/currencies.service'
-import { LedgerService, type Posting } from '../money/ledger.service'
+import { CUSTOMER_MERGE, LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
 import { otherSide } from '../money/ops.service'
 import { mayUse, servesShop } from '../money/places'
@@ -363,65 +364,66 @@ export class CustomerPaymentsService {
   /** What stood between the business and a customer before the books began, in one of their currencies. */
   async opening(actor: Actor, input: CustomerOpeningInput): Promise<CustomerPaymentDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
-      if (again) {
-        return this.load(em, again)
-      }
-      const customer = await this.customer(em, input.customerId)
-      const currency = this.currencyOf(actor, customer, input.currency)
-      const today = await this.ledger.today(em, actor.orgId)
-      // What stood before is worth in the books what the day's rates make of it, along the chain where it must.
-      const book = await this.currencies.book(em, actor, today)
-      const wanting = wantingRate(book, currency)
-      if (wanting) {
-        throw AppError.validation({ amount: wanting })
-      }
-      if (input.dueDate && input.owes !== 'customer') {
-        throw AppError.validation({ dueDate: 'Muddat mijoz qarziga qo‘yiladi' })
-      }
-      const change = input.owes === 'customer' ? input.amount : -input.amount
-      const base = worthInBase(change, currency, book) as number
-      const payment = await this.save(em, actor, {
-        clientKey: input.clientKey,
-        kind: 'opening',
-        customer,
-        currency,
-        change,
-        today,
-        paidBy: '',
-        note: input.note ?? null,
-      })
-      if (input.dueDate) {
-        // A debt from before the books falls due like any other.
-        await em.insert(CustomerDue, {
-          orgId: actor.orgId,
-          customerId: customer.id,
-          paymentId: payment.id,
-          dueDate: input.dueDate,
-        })
-      }
-      const account = await this.ledger.customerAccount(em, customer, currency)
-      const before = await this.ledger.systemAccount(em, actor.orgId, 'opening')
-      await this.ledger.post(
-        em,
-        actor,
-        { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: payment.id },
-        [
-          { accountId: account.id, amount: change, base },
-          { accountId: before.id, amount: -base, base: -base },
-        ],
-      )
-      await this.audit.record(em, actor.orgId, actor, {
-        action: 'customer_payment.opening',
-        entity: 'customer_payment',
-        entityId: payment.id,
-        summary: `${payment.number}: ${customer.name}, ${
-          input.owes === 'customer' ? 'qarzi' : 'haqi'
-        } ${formatMoney(input.amount, currency)}`,
-      })
+      const payment = await this.openingIn(em, actor, input)
       afterCommit(() => this.realtime.changed(actor.orgId, CHANGED))
       return this.load(em, payment)
     })
+  }
+
+  /** The same inside a transaction the caller already has: a sheet of them is written as one. */
+  async openingIn(em: EntityManager, actor: Actor, input: CustomerOpeningInput): Promise<CustomerPayment> {
+    const again = await em.findOneBy(CustomerPayment, { clientKey: input.clientKey })
+    if (again) {
+      return again
+    }
+    const customer = await this.customer(em, input.customerId)
+    const currency = this.currencyOf(actor, customer, input.currency)
+    const today = await this.ledger.today(em, actor.orgId)
+    // What stood before is worth in the books what the day's rates make of it, along the chain where it must.
+    const book = await this.currencies.book(em, actor, today)
+    const wanting = wantingRate(book, currency)
+    if (wanting) {
+      throw AppError.validation({ amount: wanting })
+    }
+    if (input.dueDate && input.owes !== 'customer') {
+      throw AppError.validation({ dueDate: 'Muddat mijoz qarziga qo‘yiladi' })
+    }
+    const change = input.owes === 'customer' ? input.amount : -input.amount
+    const base = worthInBase(change, currency, book) as number
+    const payment = await this.save(em, actor, {
+      clientKey: input.clientKey,
+      kind: 'opening',
+      customer,
+      currency,
+      change,
+      today,
+      paidBy: '',
+      note: input.note ?? null,
+    })
+    if (input.dueDate) {
+      // A debt from before the books falls due like any other.
+      await em.insert(CustomerDue, {
+        orgId: actor.orgId,
+        customerId: customer.id,
+        paymentId: payment.id,
+        dueDate: input.dueDate,
+      })
+    }
+    const account = await this.ledger.customerAccount(em, customer, currency)
+    const before = await this.ledger.systemAccount(em, actor.orgId, 'opening')
+    await this.ledger.post(em, actor, { date: today, kind: DOCUMENT, documentType: DOCUMENT, documentId: payment.id }, [
+      { accountId: account.id, amount: change, base },
+      { accountId: before.id, amount: -base, base: -base },
+    ])
+    await this.audit.record(em, actor.orgId, actor, {
+      action: 'customer_payment.opening',
+      entity: 'customer_payment',
+      entityId: payment.id,
+      summary: `${payment.number}: ${customer.name}, ${
+        input.owes === 'customer' ? 'qarzi' : 'haqi'
+      } ${formatMoney(input.amount, currency)}`,
+    })
+    return payment
   }
 
   /**
@@ -716,10 +718,14 @@ export class CustomerPaymentsService {
       const qb = em.createQueryBuilder(CustomerPayment, 'p')
       if (query.status !== 'all') qb.andWhere('p.status = :status', { status: query.status })
       if (query.kind) qb.andWhere('p.kind = :kind', { kind: query.kind })
-      // A transfer is both customers': the one it left and the one it entered.
+      // A transfer is both customers': the one it left and the one it entered. With a customer's own go those of
+      // whoever was merged into them.
       if (query.customerId) {
-        qb.andWhere('(p.customerId = :customerId OR p.toCustomerId = :customerId)', {
-          customerId: query.customerId,
+        const same: { id: string }[] = await em.query(`SELECT id FROM customers WHERE id = $1 OR merged_into = $1`, [
+          query.customerId,
+        ])
+        qb.andWhere('(p.customerId IN (:...same) OR p.toCustomerId IN (:...same))', {
+          same: [query.customerId, ...same.map((row) => row.id)],
         })
       }
       if (query.from) qb.andWhere('p.paidOn >= :from', { from: query.from })
@@ -740,18 +746,27 @@ export class CustomerPaymentsService {
 
   /**
    * One of a customer's accounts from its first entry: every change, and what was owed after each. A supplier's
-   * account is for those who may see suppliers' accounts; anyone else's, for those who may see debts.
+   * account is for those who may see suppliers' accounts; anyone else's, for those who may see debts. What
+   * someone merged into them left on an account of their own is read in its place, and the entries that carried
+   * the balance across are left out: one person, one account.
    */
-  async statement(actor: Actor, customerId: string, asked?: AnyCurrency): Promise<CustomerStatementDto> {
+  async statement(actor: Actor, id: string, query: StatementQuery = {}): Promise<CustomerStatementDto> {
+    const asked = query.currency
     return this.db.tenant(actor.orgId, async ({ em }) => {
-      const customer = await this.customer(em, customerId)
+      const customer = await this.customer(em, id)
+      const customerId = customer.id
       if (!can(actor, customer.isSupplier ? 'customers.suppliers' : 'customers.debts')) {
         throw AppError.forbidden()
       }
       const currency = asked ?? customer.currency
-      const account = await em.findOneBy(Account, { customerId, currency })
+      const same: { id: string }[] = await em.query(`SELECT id FROM customers WHERE id = $1 OR merged_into = $1`, [
+        customerId,
+      ])
+      const people = same.map((row) => row.id)
+      const accounts = await em.findBy(Account, { customerId: In(people), currency })
       const rows: {
         at: Date
+        on: string
         entry_kind: string
         document_type: string | null
         change: number
@@ -764,9 +779,10 @@ export class CustomerPaymentsService {
         due_date: string | null
         /** A transfer between two customers: the other of them. */
         other_name: string | null
-      }[] = account
+      }[] = accounts.length
         ? await em.query(
-            `SELECT e.created_at AS at, e.kind AS entry_kind, e.document_type, l.amount::float8 AS change, e.document_id,
+            `SELECT e.created_at AS at, e.entry_date::text AS "on", e.kind AS entry_kind, e.document_type,
+                    l.amount::float8 AS change, e.document_id,
                     coalesce(p.number, r.number, s.number, sr.number, sd.number) AS number, p.kind,
                     coalesce(p.note, r.note, s.note, sd.note) AS note,
                     coalesce(p.cancel_reason, s.void_reason) AS cancel_reason,
@@ -780,14 +796,14 @@ export class CustomerPaymentsService {
              LEFT JOIN customer_payments p ON p.id = e.document_id AND e.document_type = '${DOCUMENT}'
              LEFT JOIN customers oc
                ON p.kind = 'transfer'
-              AND oc.id = CASE WHEN p.customer_id = $2 THEN p.to_customer_id ELSE p.customer_id END
+              AND oc.id = CASE WHEN p.customer_id = ANY($3) THEN p.to_customer_id ELSE p.customer_id END
              LEFT JOIN receipts r ON r.id = e.document_id AND e.document_type = 'receipt'
              LEFT JOIN sales s ON s.id = e.document_id AND e.document_type = 'sale'
              LEFT JOIN sale_returns sr ON sr.id = e.document_id AND e.document_type = 'sale_return'
              LEFT JOIN stock_documents sd ON sd.id = e.document_id AND e.document_type = 'supplier_return'
-             WHERE l.account_id = $1
+             WHERE l.account_id = ANY($1) AND e.kind <> '${CUSTOMER_MERGE}'
              ORDER BY e.created_at, l.position`,
-            [account.id, customerId],
+            [accounts.map((item) => item.id), customerId, people],
           )
         : []
       let balance = 0
@@ -798,7 +814,18 @@ export class CustomerPaymentsService {
             : [],
         ),
       )
-      const lines: CustomerStatementLine[] = rows.map((row) => {
+      // The days asked for cut the account by the day each entry is written to; what came before them is what
+      // it opens with.
+      const before = (row: { on: string }) => !!query.from && row.on < query.from
+      const within = (row: { on: string }) => !before(row) && (!query.to || row.on <= query.to)
+      const opening = rows.reduce((sum, row) => sum + (before(row) ? row.change : 0), 0)
+      balance = opening
+      const goods = await this.goodsOf(
+        em,
+        rows.filter(within).flatMap((row) => (row.document_id ? [row.document_id] : [])),
+        people,
+      )
+      const lines: CustomerStatementLine[] = rows.filter(within).map((row) => {
         balance += row.change
         const cancelled = row.entry_kind.endsWith('_cancel') || row.entry_kind === 'sale_void'
         const source =
@@ -810,6 +837,8 @@ export class CustomerPaymentsService {
             : 'payment'
         return {
           at: row.at.toISOString(),
+          on: row.on,
+          qty: cancelled || source === 'payment' ? null : (goods.get(row.document_id as string) ?? null),
           kind: cancelled ? 'cancel' : source === 'payment' ? (row.kind ?? 'opening') : source,
           source,
           number: row.number,
@@ -834,10 +863,36 @@ export class CustomerPaymentsService {
       return {
         customer: await this.customers.dtoOf(em, actor, customer),
         currency,
+        from: query.from ?? null,
+        to: query.to ?? null,
+        opening,
         lines,
-        balance: account?.balance ?? 0,
+        closing: balance,
+        balance: accounts.reduce((sum, item) => sum + item.balance, 0),
       }
     })
+  }
+
+  /**
+   * How many goods each of these documents moved: a receipt of goods (the lines that are this supplier's), a sale,
+   * goods brought back, goods sent back to the supplier.
+   */
+  private async goodsOf(em: EntityManager, documentIds: string[], people: string[]): Promise<Map<string, number>> {
+    if (!documentIds.length) {
+      return new Map()
+    }
+    const rows: { id: string; qty: number }[] = await em.query(
+      `SELECT l.sale_id AS id, sum(l.qty)::float8 AS qty FROM sale_lines l WHERE l.sale_id = ANY($1) GROUP BY 1
+       UNION ALL
+       SELECT l.return_id, sum(l.qty)::float8 FROM sale_return_lines l WHERE l.return_id = ANY($1) GROUP BY 1
+       UNION ALL
+       SELECT l.receipt_id, sum(l.qty)::float8 FROM receipt_lines l JOIN receipts r ON r.id = l.receipt_id
+       WHERE l.receipt_id = ANY($1) AND coalesce(l.supplier_id, r.supplier_id) = ANY($2) GROUP BY 1
+       UNION ALL
+       SELECT l.document_id, sum(l.qty)::float8 FROM stock_document_lines l WHERE l.document_id = ANY($1) GROUP BY 1`,
+      [[...new Set(documentIds)], people],
+    )
+    return new Map(rows.map((row) => [row.id, row.qty]))
   }
 
   // ───────────────────────────── Inside ─────────────────────────────
@@ -855,13 +910,16 @@ export class CustomerPaymentsService {
     return { locationId: register.locationId, shiftId: shift?.id ?? null }
   }
 
-  /** Whoever the payment is with: one put away pays, and is paid, all the same. */
+  /**
+   * Whoever the payment is with: one put away pays, and is paid, all the same. A second card of someone, merged
+   * into their first, is that first one.
+   */
   private async customer(em: EntityManager, id: string): Promise<Customer> {
     const customer = await em.findOneBy(Customer, { id })
     if (!customer) {
       throw AppError.validation({ customerId: 'Mijoz topilmadi' })
     }
-    return customer
+    return customer.mergedInto ? em.findOneByOrFail(Customer, { id: customer.mergedInto }) : customer
   }
 
   /** Which of the customer's accounts: the one asked for, of a currency the business keeps, or their main one. */

@@ -14,6 +14,9 @@ export interface Posting {
   base: number
 }
 
+/** What a customer merged into another had, carried to that other's account — then, and whenever more reaches it. */
+export const CUSTOMER_MERGE = 'customer_merge'
+
 export interface EntryHead {
   date: string
   kind: string
@@ -81,7 +84,49 @@ export class LedgerService {
        WHERE a.id = d.account_id`,
       [lines.map((line) => line.accountId), lines.map((line) => line.amount)],
     )
+    if (head.kind !== CUSTOMER_MERGE) {
+      await this.carryOn(em, actor, head, lines)
+    }
     return entry.id
+  }
+
+  /**
+   * A customer merged into another keeps no balance. What still reaches one of their accounts — goods brought back
+   * on an old receipt, an old payment undone — is carried, by an entry of its own, to the account of who they are
+   * now, in the same currency and for the same worth.
+   */
+  private async carryOn(
+    em: EntityManager,
+    actor: { orgId: string; userId: string | null },
+    head: EntryHead,
+    lines: Posting[],
+  ): Promise<void> {
+    const merged: { id: string; currency: AnyCurrency; was: string; now: string; org_id: string; name: string }[] =
+      await em.query(
+        `SELECT a.id, a.currency, c.id AS was, s.id AS now, s.org_id, s.name
+         FROM accounts a JOIN customers c ON c.id = a.customer_id JOIN customers s ON s.id = c.merged_into
+         WHERE a.id = ANY($1)`,
+        [[...new Set(lines.map((line) => line.accountId))]],
+      )
+    for (const account of merged) {
+      const reached = lines.filter((line) => line.accountId === account.id)
+      const amount = reached.reduce((sum, line) => sum + line.amount, 0)
+      const base = reached.reduce((sum, line) => sum + line.base, 0)
+      const theirs = await this.customerAccount(
+        em,
+        { id: account.now, orgId: account.org_id, name: account.name },
+        account.currency,
+      )
+      await this.post(
+        em,
+        actor,
+        { date: head.date, kind: CUSTOMER_MERGE, documentType: CUSTOMER_MERGE, documentId: account.was },
+        [
+          { accountId: account.id, amount: -amount, base: -base },
+          { accountId: theirs.id, amount, base },
+        ],
+      )
+    }
   }
 
   /** Undoes what a document posted, line for line with the sign turned: the original stays in the books. */

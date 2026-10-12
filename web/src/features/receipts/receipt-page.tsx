@@ -29,7 +29,19 @@ import {
 } from '@erp/core'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useBlocker, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, Ban, CheckCheck, Copy, MoreHorizontal, Plus, Tags, Trash2, TriangleAlert, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Ban,
+  CheckCheck,
+  Copy,
+  MoreHorizontal,
+  Plus,
+  Tags,
+  Trash2,
+  TriangleAlert,
+  X,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -48,6 +60,7 @@ import { QtyMatrix } from '@/components/ui/qty-matrix'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
 import { useCustomerChoices } from '@/features/customers/choices'
+import { PaymentDialog } from '@/features/customers/payments'
 import { useAttributes, usePriceTypes } from '@/features/catalog/catalog'
 import { ProductPicker } from '@/features/catalog/product-picker'
 import { LabelDialog } from '@/features/labels/label-dialog'
@@ -207,6 +220,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
   const [dirty, setDirty] = useState(false)
   const [expensesDirty, setExpensesDirty] = useState(false)
   const [labelsOpen, setLabelsOpen] = useState(false)
+  /** The supplier is being paid for these goods. */
+  const [paying, setPaying] = useState(false)
 
   // The markup each model's rule gives it: what a selling price is suggested from as the cost takes shape.
   const productIds = useMemo(() => [...new Set(blocks.map((block) => block.productId))].sort(), [blocks])
@@ -555,6 +570,13 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
               {t('receipts.saveExpenses')}
             </Button>
           ) : null}
+          {/* The goods are in and owed for: they may be paid for there and then. */}
+          {status === 'posted' && receipt?.supplierId && can('customers.pay_out') ? (
+            <Button onClick={() => setPaying(true)}>
+              <ArrowUpRight />
+              {t('payments.payOut')}
+            </Button>
+          ) : null}
           {canLabel ? (
             <Button onClick={openLabels}>
               <Tags />
@@ -854,6 +876,20 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
         </Form>
       </div>
       {labelsOpen && receipt ? <LabelDialog receipt={receipt} onClose={() => setLabelsOpen(false)} /> : null}
+      {paying && receipt?.supplierId ? (
+        <PaymentDialog
+          customerId={receipt.supplierId}
+          currency={receipt.currency}
+          kind="out"
+          // What these goods come to — unless some of them are another supplier's, and then what is owed in all.
+          suggest={
+            blocks.some((block) => block.supplierId && block.supplierId !== receipt.supplierId)
+              ? undefined
+              : totals?.goods
+          }
+          onClose={() => setPaying(false)}
+        />
+      ) : null}
     </Page>
   )
 }

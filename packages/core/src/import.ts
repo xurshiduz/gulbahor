@@ -92,15 +92,23 @@ const MIN_PREFIX = 5
  * exactly another field's name is left for that field.
  */
 export function guessMapping(headers: readonly unknown[]): ImportMapping {
+  return guessColumns(IMPORT_FIELDS, headers)
+}
+
+/** The same matching for any sheet: its fields, each with the names its column usually goes by. */
+export function guessColumns<K extends string>(
+  fields: readonly (ImportField & { key: K })[],
+  headers: readonly unknown[],
+): Partial<Record<K, number>> {
   const names = headers.map(tidy)
   const exact = (field: ImportField, name: string) => field.headers.includes(name)
   const begins = (field: ImportField, name: string) =>
     field.headers.some((usual) => usual.length >= MIN_PREFIX && name.startsWith(usual))
-  const owner = names.map((name) => IMPORT_FIELDS.find((field) => name && exact(field, name))?.key)
+  const owner = names.map((name) => fields.find((field) => name && exact(field, name))?.key)
 
-  const mapping: ImportMapping = {}
+  const mapping: Partial<Record<K, number>> = {}
   const taken = new Set<number>()
-  for (const field of IMPORT_FIELDS) {
+  for (const field of fields) {
     const column = names.findIndex(
       (name, index) =>
         !!name && !taken.has(index) && (owner[index] === field.key || (!owner[index] && begins(field, name))),

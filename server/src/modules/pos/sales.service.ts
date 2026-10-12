@@ -1222,8 +1222,14 @@ export class SalesService {
     // for those who keep suppliers' accounts.
     const lentOn =
       sale.status === 'completed' ? payments.entities.find((payment) => payment.method === 'account') : null
-    const theirs = lentOn ? await em.findOneBy(Account, { id: lentOn.accountId }) : null
-    const buyer = theirs?.customerId ? await em.findOneBy(Customer, { id: theirs.customerId }) : null
+    const lent = lentOn ? await em.findOneBy(Account, { id: lentOn.accountId }) : null
+    const debtor = lent?.customerId ? await em.findOneBy(Customer, { id: lent.customerId }) : null
+    // Someone merged into another since: the debt stands on that other's account.
+    const buyer = debtor?.mergedInto ? await em.findOneBy(Customer, { id: debtor.mergedInto }) : debtor
+    const theirs =
+      lent && debtor?.mergedInto
+        ? await em.findOneBy(Account, { customerId: debtor.mergedInto, currency: lent.currency })
+        : lent
     const seesIt = !!buyer && (!buyer.isSupplier || can(actor, 'customers.suppliers'))
 
     return {

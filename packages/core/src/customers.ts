@@ -254,6 +254,10 @@ export type CustomerBriefQuery = z.infer<typeof customerBriefQuerySchema>
 export const customerQuickSchema = z.object({ name: requiredText(120), isSupplier: z.boolean().default(false) })
 export type CustomerQuickInput = z.infer<typeof customerQuickSchema>
 
+/** One person written down twice, made one: this card is put away for good, and what is theirs goes to `intoId`. */
+export const customerMergeSchema = z.object({ intoId: z.uuid() })
+export type CustomerMergeInput = z.infer<typeof customerMergeSchema>
+
 /** A customer as the till needs them: enough to say who is at the counter. */
 export interface CustomerBrief {
   id: string
@@ -315,6 +319,8 @@ export interface CustomerDto extends CustomerBrief {
   locationId: string | null
   locationName: string | null
   isActive: boolean
+  /** Who they are now, where this card was a second one of the same person: it is put away for good. */
+  mergedInto: { id: string; name: string } | null
   createdAt: string
   /** Receipts made out to them that stand, what those came to less what came back, and when the last was. */
   salesCount: number

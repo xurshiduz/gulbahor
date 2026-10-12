@@ -7,6 +7,7 @@ import {
   customerPaymentInputSchema,
   customerPaymentListQuerySchema,
   idSchema,
+  openingImportSchema,
   type CustomerAdjustInput,
   type CustomerExchangeInput,
   type CustomerTransferInput,
@@ -14,6 +15,8 @@ import {
   type CustomerPaymentDto,
   type CustomerPaymentInput,
   type CustomerPaymentListQuery,
+  type OpeningImportInput,
+  type OpeningImportResult,
   type Page,
   type PaymentAccountDto,
 } from '@erp/core'
@@ -22,6 +25,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/com
 import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, can, CurrentActor } from '../auth/actor'
+import { OpeningImportService } from './opening-import.service'
 import { CustomerPaymentsService } from './payments.service'
 
 /** Payments are seen by those who make them and by those who may see what customers owe. */
@@ -34,7 +38,10 @@ function seesPayments(actor: Actor) {
 
 @Controller('customer-payments')
 export class CustomerPaymentsController {
-  constructor(private readonly payments: CustomerPaymentsService) {}
+  constructor(
+    private readonly payments: CustomerPaymentsService,
+    private readonly openings: OpeningImportService,
+  ) {}
 
   @Get()
   list(
@@ -79,6 +86,17 @@ export class CustomerPaymentsController {
     @Body(zod(customerOpeningInputSchema)) input: CustomerOpeningInput,
   ): Promise<CustomerPaymentDto> {
     return this.payments.opening(actor, input)
+  }
+
+  /** A sheet of them: the preview and the import itself are the same request, with `dryRun` off for the second. */
+  @Post('opening/import')
+  @HttpCode(200)
+  @Can('customers.adjust')
+  importOpenings(
+    @CurrentActor() actor: Actor,
+    @Body(zod(openingImportSchema)) input: OpeningImportInput,
+  ): Promise<OpeningImportResult> {
+    return this.openings.run(actor, input)
   }
 
   @Post('adjust')

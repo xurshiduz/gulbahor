@@ -525,6 +525,8 @@ export interface CustomerPaymentDto {
 
 export interface CustomerStatementLine {
   at: string
+  /** The business day it is written to: what a period is cut by. */
+  on: string
   /**
    * What happened: a payment's kind, `receipt` for goods received from them,
    * `sale` for goods sold to them on their account, `sale_return` for such
@@ -543,13 +545,33 @@ export interface CustomerStatementLine {
   note: string | null
   /** A sale or an opening balance that added a debt: the day it falls due (null: never), which may be moved. */
   due: { id: string; dueDate: string | null } | null
+  /** How many goods the document moved — received, sold, brought or sent back; null where it moved none. */
+  qty: number | null
 }
 
-/** One of a customer's accounts from its first entry: every change and what was owed after each. */
+/** The days a statement is asked for: either end may be left open. */
+export const statementQuerySchema = z.object({
+  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+})
+export type StatementQuery = z.infer<typeof statementQuerySchema>
+
+/**
+ * One of a customer's accounts: every change and what was owed after each — from its first entry, or for the days
+ * asked for (the reconciliation both sides sign), with what stood before them and after.
+ */
 export interface CustomerStatementDto {
   customer: CustomerDto
   currency: AnyCurrency
+  /** The days asked for; null where that end was left open. */
+  from: string | null
+  to: string | null
+  /** What was owed before the first of these lines. */
+  opening: number
   lines: CustomerStatementLine[]
+  /** What was owed after the last of them. */
+  closing: number
   /** What the customer owes now in this currency; negative when the business owes them. */
   balance: number
 }

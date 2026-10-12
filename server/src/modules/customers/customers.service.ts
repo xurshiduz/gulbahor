@@ -337,25 +337,37 @@ export class CustomersService {
 
   async create(actor: Actor, input: CustomerInput, locationId: string | null = null): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
-      const fields = await this.fields(em, actor, input, DEFAULT_CUSTOMER_TERMS)
-      const saved = await em.save(
-        em.create(Customer, { orgId: actor.orgId, ...fields, locationId, isActive: true, searchKey: keyOf(input) }),
-      )
-      await this.setGroups(em, actor.orgId, saved.id, input.groupIds)
-      await this.audit.record(em, actor.orgId, actor, {
-        action: 'customer.create',
-        entity: 'customer',
-        entityId: saved.id,
-        summary: saved.phone ? `${saved.name}, ${saved.phone}` : saved.name,
-      })
+      const saved = await this.createIn(em, actor, input, locationId)
       afterCommit(() => this.realtime.changed(actor.orgId, ['customers']))
       return this.dtoOf(em, actor, saved)
     })
   }
 
+  /** The same inside a transaction the caller already has: a sheet of balances writes down whoever it names. */
+  async createIn(
+    em: EntityManager,
+    actor: Actor,
+    input: CustomerInput,
+    locationId: string | null = null,
+  ): Promise<Customer> {
+    const fields = await this.fields(em, actor, input, DEFAULT_CUSTOMER_TERMS)
+    const saved = await em.save(
+      em.create(Customer, { orgId: actor.orgId, ...fields, locationId, isActive: true, searchKey: keyOf(input) }),
+    )
+    await this.setGroups(em, actor.orgId, saved.id, input.groupIds)
+    await this.audit.record(em, actor.orgId, actor, {
+      action: 'customer.create',
+      entity: 'customer',
+      entityId: saved.id,
+      summary: saved.phone ? `${saved.name}, ${saved.phone}` : saved.name,
+    })
+    return saved
+  }
+
   async update(actor: Actor, id: string, input: CustomerInput): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
+      await this.assertOwn(em, before)
       const fields = await this.fields(em, actor, input, termsOf(before), id)
       // The mark decides who sees the account: only who keeps the suppliers' accounts moves a customer across it.
       if (fields.isSupplier !== before.isSupplier && !can(actor, 'customers.suppliers')) {
@@ -385,6 +397,7 @@ export class CustomersService {
   async setActive(actor: Actor, id: string, active: boolean): Promise<CustomerDto> {
     return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
       const before = await this.find(em, id)
+      await this.assertOwn(em, before)
       // Put away, a balance would be forgotten: it is settled, or written off, first.
       if (!active && before.isActive && (await em.count(Account, { where: { customerId: id, balance: Not(0) } }))) {
         throw AppError.conflict(
@@ -629,6 +642,14 @@ export class CustomersService {
     return customer
   }
 
+  /** A second card of someone, merged into their first, is closed for good: it is neither changed nor brought back. */
+  private async assertOwn(em: EntityManager, customer: Customer) {
+    if (customer.mergedInto) {
+      const now = await this.find(em, customer.mergedInto)
+      throw AppError.conflict('CUSTOMER_MERGED', `${customer.name} «${now.name}» bilan birlashtirilgan`)
+    }
+  }
+
   private async assertPhoneFree(em: EntityManager, phone: string, exceptId?: string) {
     const taken = await em
       .createQueryBuilder(Customer, 'c')
@@ -671,6 +692,10 @@ export class CustomersService {
       [customers.flatMap((customer) => customer.priceTypeId ?? [])],
     )
     const priceOf = new Map(prices.map((type) => [type.id, type]))
+    const now: { id: string; name: string }[] = await em.query(`SELECT id, name FROM customers WHERE id = ANY($1)`, [
+      customers.flatMap((customer) => customer.mergedInto ?? []),
+    ])
+    const nowOf = new Map(now.map((row) => [row.id, row]))
     // Their main currency's account first.
     const balancesOf = (customer: Customer): CustomerBalance[] | null =>
       can(actor, customer.isSupplier ? 'customers.suppliers' : 'customers.debts')
@@ -699,6 +724,7 @@ export class CustomersService {
         locationId: customer.locationId,
         locationName: customer.locationId ? (placeOf.get(customer.locationId) ?? null) : null,
         isActive: customer.isActive,
+        mergedInto: customer.mergedInto ? (nowOf.get(customer.mergedInto) ?? null) : null,
         createdAt: customer.createdAt.toISOString(),
         salesCount: row?.sales ?? 0,
         purchases: row?.purchases ?? 0,
@@ -738,7 +764,7 @@ const DAYS_TO_BIRTHDAY = `(
   ) x WHERE x.d >= 0
 )`
 
-function keyOf(customer: { name: string; phone: string | null; note: string | null; tags: string[] }): string {
+export function keyOf(customer: { name: string; phone: string | null; note: string | null; tags: string[] }): string {
   // The number is looked for as it is said: with the country code, or from the operator's two digits on.
   const digits = (customer.phone ?? '').replace(/\D/g, '')
   return searchKey(`${customer.name} ${digits} ${digits.slice(3)} ${customer.note ?? ''} ${customer.tags.join(' ')}`)

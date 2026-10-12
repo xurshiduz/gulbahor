@@ -259,6 +259,12 @@
     font-size: 11px;
     color: #000;
   }
+  /* A document for a whole page (a reconciliation to sign), not a receipt's roll. */
+  #print-root.sheet {
+    width: auto;
+    padding: 8mm 6mm;
+    font-size: 12px;
+  }
   #print-root * {
     color: #000 !important;
     border-color: #000 !important;

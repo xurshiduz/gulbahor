@@ -721,6 +721,13 @@ export class Customer {
   @Column('boolean')
   isActive: boolean
 
+  /** Who they are now, where this card was a second one of the same person; such a card is put away for good. */
+  @Column('uuid', { nullable: true })
+  mergedInto: string | null
+
+  @Column('timestamptz', { nullable: true })
+  mergedAt: Date | null
+
   @Column('text')
   searchKey: string
 

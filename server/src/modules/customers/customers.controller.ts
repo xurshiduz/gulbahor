@@ -1,15 +1,15 @@
 import {
-  ALL_CURRENCY_CODES,
   customerBriefQuerySchema,
   customerGroupInputSchema,
   customerInputSchema,
   customerListQuerySchema,
+  customerMergeSchema,
   customerQuickSchema,
   debtorListQuerySchema,
   dueChangeSchema,
   idSchema,
   loyaltyInputSchema,
-  type AnyCurrency,
+  statementQuerySchema,
   type CustomerBriefDto,
   type CustomerBriefQuery,
   type CustomerDto,
@@ -17,6 +17,7 @@ import {
   type CustomerGroupInput,
   type CustomerInput,
   type CustomerListQuery,
+  type CustomerMergeInput,
   type CustomerSummary,
   type LoyaltyInput,
   type LoyaltyTier,
@@ -27,21 +28,18 @@ import {
   type DebtorSummary,
   type DueChangeInput,
   type Page,
+  type StatementQuery,
 } from '@erp/core'
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
-import { z } from 'zod'
 
 import { AppError } from '../../common/errors'
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, can, CurrentActor } from '../auth/actor'
 import { CustomersService } from './customers.service'
+import { CustomerMergeService } from './merge.service'
 import { CustomerPaymentsService } from './payments.service'
 
 const id = () => Param('id', zod(idSchema))
-
-const statementQuerySchema = z.object({
-  currency: z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]]).optional(),
-})
 
 /** Lets through whoever holds any one of the permissions. */
 function anyOf(actor: Actor, ...permissions: string[]) {
@@ -55,6 +53,7 @@ export class CustomersController {
   constructor(
     private readonly customers: CustomersService,
     private readonly payments: CustomerPaymentsService,
+    private readonly merges: CustomerMergeService,
   ) {}
 
   /**
@@ -110,9 +109,9 @@ export class CustomersController {
   statement(
     @CurrentActor() actor: Actor,
     @id() customerId: string,
-    @Query(zod(statementQuerySchema)) query: { currency?: AnyCurrency },
+    @Query(zod(statementQuerySchema)) query: StatementQuery,
   ): Promise<CustomerStatementDto> {
-    return this.payments.statement(actor, customerId, query.currency)
+    return this.payments.statement(actor, customerId, query)
   }
 
   /** Whoever serves customers may see what the programme gives; whoever keeps the base sets it. */
@@ -212,5 +211,17 @@ export class CustomersController {
   @Can('customers.manage')
   restore(@CurrentActor() actor: Actor, @id() customerId: string): Promise<CustomerDto> {
     return this.customers.setActive(actor, customerId, true)
+  }
+
+  /** One person written down twice: this card goes into another for good. Answers with the one that stays. */
+  @Post(':id/merge')
+  @HttpCode(200)
+  @Can('customers.adjust')
+  merge(
+    @CurrentActor() actor: Actor,
+    @id() customerId: string,
+    @Body(zod(customerMergeSchema)) input: CustomerMergeInput,
+  ): Promise<CustomerDto> {
+    return this.merges.merge(actor, customerId, input)
   }
 }
