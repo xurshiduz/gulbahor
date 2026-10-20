@@ -14,8 +14,10 @@ import { TooltipProvider } from './components/ui/feedback'
 import { SessionGate } from './features/auth/session'
 import { SetupPage } from './features/setup/setup-page'
 import { queryClient } from './lib/query'
+import { installSoftKeyboard } from './lib/soft-keyboard'
 
 configureValidationMessages()
+installSoftKeyboard()
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>

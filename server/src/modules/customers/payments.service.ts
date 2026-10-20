@@ -271,8 +271,9 @@ export class CustomerPaymentsService {
       const account = await this.ledger.customerAccount(em, customer, currency)
 
       // A drawer's money is the day's takings: out of it goes only what the customer is owed — an advance
-      // handed back, a debt of the business paid. Money ahead of that is paid from a safe, a bank or a card.
-      if (input.kind === 'out') {
+      // handed back, a debt of the business paid. Money ahead of that is paid from a safe, a bank or a card,
+      // unless whoever keeps the money (the owner) pays a supplier ahead out of a drawer.
+      if (input.kind === 'out' && !can(actor, 'money.manage')) {
         const theirs = Math.max(0, -account.balance)
         const fromDrawers = lines.reduce((sum, line) => sum + (line.account.kind === 'cash' ? line.settled : 0), 0)
         if (fromDrawers > theirs) {

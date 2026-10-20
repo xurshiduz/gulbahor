@@ -1797,6 +1797,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             <>
               <CustomerPicker
                 ref={customerRef}
+                keepsBook={can('customers.manage')}
                 registerId={registerId}
                 value={cart.customer ?? null}
                 onChange={serve}

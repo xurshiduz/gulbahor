@@ -748,15 +748,18 @@ interface Values {
 
 export function CustomerDialog({
   customer,
+  initial,
   groups,
   onClose,
   onSaved,
 }: {
   customer: CustomerDto | null
+  /** A new customer's name and phone as far as they were typed (at the till). */
+  initial?: { name?: string; phone?: string }
   /** The groups a customer can be put in. */
   groups: CustomerGroupDto[]
   onClose: () => void
-  onSaved: () => void
+  onSaved: (saved: CustomerDto) => void
 }) {
   const { t } = useTranslation()
   const { can, me } = useSession()
@@ -765,8 +768,8 @@ export function CustomerDialog({
   const terms = customer?.terms ?? DEFAULT_CUSTOMER_TERMS
   const form = useForm<Values>({
     defaultValues: {
-      name: customer?.name ?? '',
-      phone: customer?.phone ?? '',
+      name: customer?.name ?? initial?.name ?? '',
+      phone: customer?.phone ?? initial?.phone ?? '',
       birthday: customer?.birthday ?? '',
       gender: customer?.gender ?? '',
       note: customer?.note ?? '',
@@ -794,9 +797,9 @@ export function CustomerDialog({
 
   const mutation = useMutation({
     mutationFn: (input: CustomerInput) =>
-      customer ? api.put(`/customers/${customer.id}`, input) : api.post('/customers', input),
-    onSuccess: () => {
-      onSaved()
+      customer ? api.put<CustomerDto>(`/customers/${customer.id}`, input) : api.post<CustomerDto>('/customers', input),
+    onSuccess: (saved) => {
+      onSaved(saved)
       toast.success(t('common.saved'))
       onClose()
     },

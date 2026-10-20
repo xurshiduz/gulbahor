@@ -1,7 +1,15 @@
-import { customerInputSchema, formatMoney, type AnyCurrency, type PosCustomerDto } from '@erp/core'
+import {
+  CUSTOMER_GENDER_LABELS,
+  CUSTOMER_GENDERS,
+  customerInputSchema,
+  formatMoney,
+  type AnyCurrency,
+  type CustomerGender,
+  type PosCustomerDto,
+} from '@erp/core'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { BellRing, UserRound, UserRoundPlus, X } from 'lucide-react'
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
+import { forwardRef, lazy, Suspense, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -9,6 +17,8 @@ import { Dialog } from '@/components/ui/dialog'
 import { Shortcut } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
+import { Select } from '@/components/ui/controls'
+import { DateInput } from '@/components/ui/date-input'
 import { controlClass, Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Balance } from '@/features/customers/balance'
@@ -26,6 +36,8 @@ interface CustomerPickerProps {
   onPayDebt?: () => void
   /** The customer asks for what is theirs on the account back: offered where someone here may hand it over. */
   onHandBack?: () => void
+  /** Who keeps the customer book writes the whole card here; a cashier, the name and what is safe to give. */
+  keepsBook?: boolean
 }
 
 export interface CustomerPickerHandle {
@@ -43,7 +55,7 @@ const looksLikePhone = (text: string) => /^[\d\s+()-]{3,}$/.test(text.trim())
  * on the spot, with what was typed already in its field.
  */
 export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerProps>(function CustomerPicker(
-  { registerId, value, onChange, onPayDebt, onHandBack },
+  { registerId, value, onChange, onPayDebt, onHandBack, keepsBook = false },
   ref,
 ) {
   const { t } = useTranslation()
@@ -253,7 +265,18 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
           </button>
         </div>
       ) : null}
-      {adding !== null ? (
+      {adding !== null && keepsBook ? (
+        <Suspense fallback={null}>
+          <BookCustomerDialog
+            initial={looksLikePhone(adding) ? { phone: adding } : { name: adding }}
+            onClose={() => setAdding(null)}
+            onAdded={(customer) => {
+              setAdding(null)
+              pick(customer)
+            }}
+          />
+        </Suspense>
+      ) : adding !== null ? (
         <NewCustomerDialog
           registerId={registerId}
           typed={adding}
@@ -268,6 +291,9 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
   )
 })
 
+// The customer book's own form, loaded when someone who keeps the book adds a customer at the till.
+const BookCustomerDialog = lazy(() => import('./book-customer-dialog'))
+
 interface NewCustomerDialogProps {
   registerId: string
   /** What was in the field: a phone, or a name. */
@@ -281,6 +307,9 @@ function NewCustomerDialog({ registerId, typed, onClose, onAdded }: NewCustomerD
   const phoneFirst = looksLikePhone(typed)
   const [phone, setPhone] = useState(phoneFirst ? typed : '')
   const [name, setName] = useState(phoneFirst ? '' : typed)
+  const [birthday, setBirthday] = useState('')
+  const [gender, setGender] = useState<CustomerGender | ''>('')
+  const [note, setNote] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const save = useMutation({
@@ -299,7 +328,13 @@ function NewCustomerDialog({ registerId, typed, onClose, onAdded }: NewCustomerD
     },
   })
   const submit = () => {
-    const parsed = customerInputSchema.safeParse({ name, phone })
+    const parsed = customerInputSchema.safeParse({
+      name,
+      phone,
+      birthday: birthday || null,
+      gender: gender || null,
+      note,
+    })
     if (!parsed.success) {
       setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
       return
@@ -340,6 +375,27 @@ function NewCustomerDialog({ registerId, typed, onClose, onAdded }: NewCustomerD
               onChange={(event) => setName(event.target.value)}
             />
           )}
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('customers.birthday')} error={errors.birthday}>
+            {(id) => <DateInput id={id} value={birthday} onChange={setBirthday} />}
+          </Field>
+          <Field label={t('customers.gender')} error={errors.gender}>
+            {(id) => (
+              <Select
+                id={id}
+                value={gender || 'none'}
+                onChange={(value) => setGender(value === 'none' ? '' : (value as CustomerGender))}
+                options={[
+                  { value: 'none', label: t('customers.genderNone') },
+                  ...CUSTOMER_GENDERS.map((value) => ({ value, label: CUSTOMER_GENDER_LABELS[value] })),
+                ]}
+              />
+            )}
+          </Field>
+        </div>
+        <Field label={t('customers.note')} error={errors.note}>
+          {(id) => <Input id={id} value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} />}
         </Field>
       </Form>
     </Dialog>

@@ -44,6 +44,7 @@ export const uz = {
     clear: 'Tozalash',
   },
   nav: {
+    keyboard: 'Klaviatura',
     home: 'Bosh sahifa',
     products: 'Tovarlar',
     references: 'Ma’lumotnomalar',

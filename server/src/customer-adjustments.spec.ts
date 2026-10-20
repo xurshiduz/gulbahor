@@ -324,23 +324,28 @@ describe('Customer adjustments', () => {
   })
 
   describe('money out of a drawer', () => {
-    it('is no more than the customer is owed; money ahead of that comes from a safe', async () => {
+    it('is no more than the customer is owed, unless whoever keeps the money pays ahead', async () => {
       const buyer = await customer('Avansli Mijoz')
       await pay(alpha, 'in', buyer, drawer, som(200_000)).expect(201)
       expect(await balance(buyer)).toBe(-som(200_000))
 
-      const over = await pay(alpha, 'out', buyer, drawer, som(300_000))
+      // A cashier hands back no more than the customer left, whoever gave the word.
+      const over = await pay(cashier, 'out', buyer, drawer, som(300_000), {
+        registerId,
+        approval: { userId: managerId, pin: PIN },
+      })
       expect(over.status).toBe(409)
       expect(over.body.error.code).toBe('ADVANCE_EXCEEDED')
       await pay(alpha, 'out', buyer, drawer, som(200_000)).expect(201)
       expect(await balance(buyer)).toBe(0)
 
-      // A supplier is paid ahead from the safe, as far as the safe goes.
+      // The owner pays a supplier ahead out of a drawer as out of a safe.
       const supplier = await customer('Oldindan Olgan', { isSupplier: true })
-      const ahead = await pay(alpha, 'out', supplier, drawer, som(100_000))
-      expect(ahead.body.error.code).toBe('ADVANCE_EXCEEDED')
+      await pay(alpha, 'out', supplier, drawer, som(100_000)).expect(201)
       await pay(alpha, 'out', supplier, safe, som(100_000)).expect(201)
-      expect(await balance(supplier)).toBe(som(100_000))
+      expect(await balance(supplier)).toBe(som(200_000))
+      // Given back, the drawer is as the shift's later counts expect it.
+      await pay(alpha, 'in', supplier, drawer, som(100_000)).expect(201)
     })
 
     it('is handed back by whoever takes payments, from a drawer and to a customer only', async () => {
@@ -414,10 +419,10 @@ describe('Customer adjustments', () => {
         { kind: 'in', method: 'terminal', accountName: 'Terminal 1', currency: 'UZS', amount: som(100_000) },
       ])
       // Neither went through the drawer: it holds only what the payments above put into it (500 000, 200 000,
-      // 150 000 and 120 000).
+      // 100 000, 150 000 and 120 000), less what went out of it.
       const drawerMoves = open.totals.cash.find((row: { currency: string }) => row.currency === 'UZS')
-      expect(drawerMoves.customersIn).toBe(som(970_000))
-      expect(drawerMoves.customersOut).toBe(som(370_000))
+      expect(drawerMoves.customersIn).toBe(som(1_070_000))
+      expect(drawerMoves.customersOut).toBe(som(470_000))
 
       const counted = drawerMoves.customersIn - drawerMoves.customersOut + som(5_000_000)
       await alpha

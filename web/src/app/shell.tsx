@@ -16,13 +16,15 @@ import {
   Lock,
   LogOut,
   Moon,
+  Keyboard,
+  Menu as MenuIcon,
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptText,
   Sun,
   UserRound,
 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -37,6 +39,7 @@ import { cn } from '@/lib/cn'
 import { HotkeyScope, useHotkey } from '@/lib/hotkeys'
 import { announce, useFocusBeacon } from '@/lib/notify'
 import { useShopEvent } from '@/lib/realtime'
+import { isTouch, toggleSoftKeyboard, useSoftKeyboard } from '@/lib/soft-keyboard'
 
 import { CommandPalette } from './command-palette'
 import { mayOpen, NAVIGATION, type NavItem } from './navigation'
@@ -66,12 +69,35 @@ function useCollapsed(): [boolean, (value: boolean) => void] {
   return [collapsed, update]
 }
 
+const NARROW = '(max-width: 767px)'
+
+/** A phone's width: the menu gives the screen its room and comes over it when asked for. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(
+    () => typeof window.matchMedia === 'function' && window.matchMedia(NARROW).matches,
+  )
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') {
+      return
+    }
+    const media = window.matchMedia(NARROW)
+    const changed = () => setNarrow(media.matches)
+    media.addEventListener('change', changed)
+    return () => media.removeEventListener('change', changed)
+  }, [])
+  return narrow
+}
+
 /** The frame around every screen: the menu on the left, a slim bar on top, the screen itself in the rest. */
 export function Shell() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { me, can, hasModule, lock, logout, connected } = useSession()
   const [collapsed, setCollapsed] = useCollapsed()
+  const narrow = useNarrow()
+  const [drawer, setDrawer] = useState(false)
+  const touch = useMemo(isTouch, [])
+  const keyboardUp = useSoftKeyboard()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   // Money taken from or paid to a customer, from whatever screen is in view.
@@ -105,6 +131,8 @@ export function Shell() {
   }, [sees])
   // A page that is not this person's is never opened, whatever the address says: home instead.
   const where = useRouterState({ select: (state) => state.location })
+  // Gone to another screen, the menu that came over the last one goes.
+  useEffect(() => setDrawer(false), [where.pathname, where.searchStr])
 
   const pages = useMemo(() => groups.flatMap((group) => group.items), [groups])
 
@@ -243,20 +271,47 @@ export function Shell() {
 
   return (
     <div className="flex h-full bg-canvas">
-      <Sidebar business={me.org.name} groups={groups} collapsed={collapsed} />
+      {touch ? (
+        // Pressed without taking the cursor out of the field it is for.
+        <button
+          type="button"
+          aria-label={t('nav.keyboard')}
+          aria-pressed={keyboardUp}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={toggleSoftKeyboard}
+          className={cn(
+            'fixed right-3 bottom-3 z-30 flex size-11 items-center justify-center rounded-full border border-line shadow-float',
+            keyboardUp ? 'bg-accent text-white' : 'bg-surface text-ink-2',
+          )}
+        >
+          <Keyboard className="size-5" />
+        </button>
+      ) : null}
+      {narrow ? (
+        drawer ? (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setDrawer(false)} />
+            <div className="fixed inset-y-0 left-0 z-50 flex shadow-float">
+              <Sidebar business={me.org.name} groups={groups} collapsed={false} />
+            </div>
+          </>
+        ) : null
+      ) : (
+        <Sidebar business={me.org.name} groups={groups} collapsed={collapsed} />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
           {/* Folds the menu to a rail of icons and back: at the head of the bar, beside what it folds. */}
-          <Tooltip content={collapsed ? t('nav.expand') : t('nav.collapse')}>
+          <Tooltip content={narrow ? t('nav.expand') : collapsed ? t('nav.expand') : t('nav.collapse')}>
             <Button
               variant="ghost"
               size="icon"
               className="-ml-2 shrink-0"
-              onClick={() => setCollapsed(!collapsed)}
-              aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
+              onClick={() => (narrow ? setDrawer(!drawer) : setCollapsed(!collapsed))}
+              aria-label={narrow ? t('nav.expand') : collapsed ? t('nav.expand') : t('nav.collapse')}
             >
-              {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+              {narrow ? <MenuIcon /> : collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
             </Button>
           </Tooltip>
           {/* The name of the screen in view. */}

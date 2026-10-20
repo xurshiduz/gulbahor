@@ -45,6 +45,7 @@ export const ru: Dictionary = {
     clear: 'Очистить',
   },
   nav: {
+    keyboard: 'Клавиатура',
     home: 'Главная',
     products: 'Товары',
     references: 'Справочники',
