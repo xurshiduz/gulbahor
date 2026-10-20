@@ -17,6 +17,8 @@ import { Db } from './db.service'
  */
 async function main() {
   configureValidationMessages()
+  // A command beside a running server is not a second server: it listens to no Telegram account of its own.
+  process.env.ERP_CLI = '1'
   const command = process.argv[2]
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] })
   const logger = new Logger('cli')
@@ -26,7 +28,9 @@ async function main() {
     const dataSource = app.get(DataSource)
     if (command === 'migrate') {
       const applied = await dataSource.runMigrations()
-      logger.log(applied.length ? `Applied: ${applied.map((migration) => migration.name).join(', ')}` : 'Nothing to apply')
+      logger.log(
+        applied.length ? `Applied: ${applied.map((migration) => migration.name).join(', ')}` : 'Nothing to apply',
+      )
     } else if (command === 'revert') {
       await dataSource.undoLastMigration()
       logger.log('Reverted the last migration')

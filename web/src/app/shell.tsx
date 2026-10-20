@@ -1,6 +1,27 @@
-import type { GateAlarmEvent, GoodsSentEvent, MoneyOpKind, MoneySentEvent } from '@erp/core'
-import { Outlet, useNavigate } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, HandCoins, Lock, LogOut, Moon, PanelLeftClose, PanelLeftOpen, ReceiptText, Sun, UserRound } from 'lucide-react'
+import {
+  formatMoney,
+  type AnyCurrency,
+  type CardInEvent,
+  type GateAlarmEvent,
+  type GoodsSentEvent,
+  type MoneyOpKind,
+  type MoneySentEvent,
+} from '@erp/core'
+import { Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  HandCoins,
+  Lock,
+  LogOut,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ReceiptText,
+  Sun,
+  UserRound,
+} from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,7 +39,7 @@ import { announce, useFocusBeacon } from '@/lib/notify'
 import { useShopEvent } from '@/lib/realtime'
 
 import { CommandPalette } from './command-palette'
-import { NAVIGATION } from './navigation'
+import { mayOpen, NAVIGATION, type NavItem } from './navigation'
 import { Sidebar } from './sidebar'
 import { NotificationPrompt } from './notification-prompt'
 import { ShortcutsHelp } from './shortcuts-help'
@@ -66,35 +87,51 @@ export function Shell() {
   const chrome = useMemo(() => ({ title: titleSlot }), [titleSlot])
 
   // What this person may open, numbered in menu order for Alt+1…9.
+  const sees = useCallback(
+    (item: NavItem) =>
+      (!item.permission || [item.permission].flat().some(can)) &&
+      (!item.module || hasModule(item.module)) &&
+      (!item.devOnly || import.meta.env.DEV),
+    [can, hasModule],
+  )
   const groups = useMemo(() => {
     let position = 0
     return NAVIGATION.map((group) => ({
       ...group,
       items: group.items
-        .filter(
-          (item) =>
-            (!item.permission || [item.permission].flat().some(can)) &&
-            (!item.module || hasModule(item.module)) &&
-            (!item.devOnly || import.meta.env.DEV),
-        )
+        .filter(sees)
         .map((item) => ({ ...item, shortcut: ++position <= 9 ? `alt+${position}` : undefined })),
     })).filter((group) => group.items.length > 0)
-  }, [can, hasModule])
+  }, [sees])
+  // A page that is not this person's is never opened, whatever the address says: home instead.
+  const where = useRouterState({ select: (state) => state.location })
 
   const pages = useMemo(() => groups.flatMap((group) => group.items), [groups])
 
   const openHelp = useCallback(() => setHelpOpen(true), [])
 
   // Opened from the keyboard alone: the top bar has no box for it.
-  useHotkey('mod+q', () => setPaletteOpen((open) => !open), { label: t('command.open'), group: t('shortcuts.groupGlobal') })
+  useHotkey('mod+q', () => setPaletteOpen((open) => !open), {
+    label: t('command.open'),
+    group: t('shortcuts.groupGlobal'),
+  })
   useHotkey('f1', openHelp, { label: t('shortcuts.help'), group: t('shortcuts.groupGlobal'), everywhere: true })
   // As Windows locks with Win+L. Ctrl is the key here: the browser's own use of it (the address bar) gives way inside the app.
-  useHotkey('mod+l', lock, { label: t('command.lock'), group: t('shortcuts.groupGlobal'), enabled: me.user.hasPin, everywhere: true })
+  useHotkey('mod+l', lock, {
+    label: t('command.lock'),
+    group: t('shortcuts.groupGlobal'),
+    enabled: me.user.hasPin,
+    everywhere: true,
+  })
   // The key it had before: hands that learnt it still find it.
   useHotkey('alt+l', lock, { enabled: me.user.hasPin, everywhere: true })
   // Not over a window that is already open: one thing is finished before the next is begun.
   const pay = (kind: 'in' | 'out') => (document.querySelector('[role="dialog"]') ? false : setPaying(kind))
-  useHotkey('mod+k', () => pay('in'), { label: t('payments.takeIn'), group: t('shortcuts.groupGlobal'), enabled: canTake })
+  useHotkey('mod+k', () => pay('in'), {
+    label: t('payments.takeIn'),
+    group: t('shortcuts.groupGlobal'),
+    enabled: canTake,
+  })
   // The key it had while Ctrl+K was the search.
   useHotkey('alt+k', () => pay('in'), { enabled: canTake })
   useHotkey('alt+c', () => pay('out'), {
@@ -103,15 +140,21 @@ export function Shell() {
     enabled: canPayOut,
   })
   const spend = (kind: MoneyOpKind) => (document.querySelector('[role="dialog"]') ? false : setSpending(kind))
-  useHotkey('alt+x', () => spend('expense'), { label: t('ops.expense'), group: t('shortcuts.groupGlobal'), enabled: canSpend })
+  useHotkey('alt+x', () => spend('expense'), {
+    label: t('ops.expense'),
+    group: t('shortcuts.groupGlobal'),
+    enabled: canSpend,
+  })
 
   // What needs this person, wherever they are: on the screen while they work in the system, on the desktop when they do not.
   useFocusBeacon()
-  const worksAt = (locationId: string | null) => !locationId || me.user.allLocations || me.user.locationIds.includes(locationId)
+  const worksAt = (locationId: string | null) =>
+    !locationId || me.user.allLocations || me.user.locationIds.includes(locationId)
   const hearsGate = can('devices.alarms') && hasModule('rfid')
   const collects = can('money.collect') || can('money.manage')
   const hearsMoney = collects || can('pos.sell')
   const hearsGoods = can('transfers.manage')
+  const hearsCards = hasModule('cards') && (can('pos.sell') || can('cards.view') || collects)
 
   // A gate went off: those who work in that shop are told at once, whatever screen they are on.
   useShopEvent<GateAlarmEvent>(
@@ -169,10 +212,33 @@ export function Shell() {
         body: t('notify.route', { from: sent.fromName, to: sent.toName }),
         tag: sent.id,
         duration: 30_000,
-        open: { label: t('notify.open'), go: () => void navigate({ to: '/transfers/$docId', params: { docId: sent.id } }) },
+        open: {
+          label: t('notify.open'),
+          go: () => void navigate({ to: '/transfers/$docId', params: { docId: sent.id } }),
+        },
       })
     },
     hearsGoods,
+  )
+
+  // Money has landed on a card: those who work where the card is taken are told how much, so that a customer's
+  // transfer is seen to have come.
+  useShopEvent<CardInEvent>(
+    'card.in',
+    (came) => {
+      if (came.locationIds.length && !came.locationIds.some(worksAt)) {
+        return
+      }
+      announce({
+        tone: 'ok',
+        title: t('notify.cardIn', { card: came.card, sum: formatMoney(came.amount, came.currency as AnyCurrency) }),
+        body: came.at ? came.at.slice(11, 16) : undefined,
+        tag: came.id,
+        duration: 30_000,
+        open: can('cards.view') ? { label: t('notify.open'), go: () => void navigate({ to: '/cards' }) } : undefined,
+      })
+    },
+    hearsCards,
   )
 
   return (
@@ -183,7 +249,13 @@ export function Shell() {
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
           {/* Folds the menu to a rail of icons and back: at the head of the bar, beside what it folds. */}
           <Tooltip content={collapsed ? t('nav.expand') : t('nav.collapse')}>
-            <Button variant="ghost" size="icon" className="-ml-2 shrink-0" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-ml-2 shrink-0"
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
+            >
               {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
             </Button>
           </Tooltip>
@@ -201,14 +273,33 @@ export function Shell() {
                 }
                 items={[
                   ...(canTake
-                    ? [{ label: t('payments.takeIn'), icon: <ArrowDownLeft />, shortcut: 'mod+k', onSelect: () => setPaying('in') }]
+                    ? [
+                        {
+                          label: t('payments.takeIn'),
+                          icon: <ArrowDownLeft />,
+                          shortcut: 'mod+k',
+                          onSelect: () => setPaying('in'),
+                        },
+                      ]
                     : []),
                   ...(canPayOut
-                    ? [{ label: t('payments.payOut'), icon: <ArrowUpRight />, shortcut: 'alt+c', onSelect: () => setPaying('out') }]
+                    ? [
+                        {
+                          label: t('payments.payOut'),
+                          icon: <ArrowUpRight />,
+                          shortcut: 'alt+c',
+                          onSelect: () => setPaying('out'),
+                        },
+                      ]
                     : []),
                   ...(canSpend
                     ? [
-                        { label: t('ops.expense'), icon: <ReceiptText />, shortcut: 'alt+x', onSelect: () => setSpending('expense') },
+                        {
+                          label: t('ops.expense'),
+                          icon: <ReceiptText />,
+                          shortcut: 'alt+x',
+                          onSelect: () => setSpending('expense'),
+                        },
                         { label: t('ops.income'), icon: <HandCoins />, onSelect: () => setSpending('income') },
                       ]
                     : []),
@@ -216,7 +307,11 @@ export function Shell() {
               />
             ) : null}
             <Tooltip content={connected ? t('common.online') : t('common.offline')}>
-              <span className="flex size-8 items-center justify-center" role="status" aria-label={connected ? t('common.online') : t('common.offline')}>
+              <span
+                className="flex size-8 items-center justify-center"
+                role="status"
+                aria-label={connected ? t('common.online') : t('common.offline')}
+              >
                 <span className={cn('size-2 rounded-full', connected ? 'bg-ok' : 'animate-pulse bg-warn')} />
               </span>
             </Tooltip>
@@ -228,7 +323,10 @@ export function Shell() {
             </Tooltip>
             <Menu
               trigger={
-                <button type="button" className="flex h-8.5 items-center gap-2 rounded-md px-2 text-[13px] font-medium hover:bg-sunken">
+                <button
+                  type="button"
+                  className="flex h-8.5 items-center gap-2 rounded-md px-2 text-[13px] font-medium hover:bg-sunken"
+                >
                   <span className="flex size-6 items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-ink">
                     {initials(me.user.fullName)}
                   </span>
@@ -237,7 +335,9 @@ export function Shell() {
               }
               items={[
                 { label: t('nav.profile'), icon: <UserRound />, onSelect: () => void navigate({ to: '/profile' }) },
-                ...(me.user.hasPin ? [{ label: t('command.lock'), icon: <Lock />, shortcut: 'mod+l', onSelect: lock }] : []),
+                ...(me.user.hasPin
+                  ? [{ label: t('command.lock'), icon: <Lock />, shortcut: 'mod+l', onSelect: lock }]
+                  : []),
                 'separator' as const,
                 { label: t('auth.signOut'), icon: <LogOut />, onSelect: () => void logout() },
               ]}
@@ -248,7 +348,11 @@ export function Shell() {
         {/* Positioned, so that what a screen places absolutely is held and scrolled here, never by the window. */}
         <main className="relative min-h-0 flex-1 overflow-y-auto">
           <PageChrome.Provider value={chrome}>
-            <Outlet />
+            {mayOpen(where.pathname, (where.search as { tab?: unknown }).tab, sees) ? (
+              <Outlet />
+            ) : (
+              <Navigate to="/" replace />
+            )}
           </PageChrome.Provider>
         </main>
       </div>

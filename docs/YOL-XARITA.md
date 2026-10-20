@@ -33,7 +33,7 @@ Bu fayl — qolgan ishlarning **tartibi va aniq talabi**. Qarorlar va sabablar �
 | 4 | M3. Yagona mijoz: ekranlar | Mijozlar va narx | 5 | M2 (birga chiqadi) | qurildi; kirilgan tizimda ko'zdan kechirish qoldi |
 | 5 | M4. Mijoz: qo'shimcha holatlar | Mijozlar va narx | 7 | M3 | tayyor (2026-10-12; KEYINGI-REJA 16.16) |
 | 6 | M5. Ko'chirishni nusxada sinash | Mijozlar va narx | 1 | M4 | egasi bilan: haqiqiy bazaning nusxasi kerak |
-| 7 | K1. Otlojka (tovarni olib qo'yish) | Kassa | 3 | M2 | boshlanmagan |
+| 7 | K1. Otlojka (tovarni olib qo'yish) | Kassa | 3 | M2 | tayyor (2026-10-12; «Band qilish», KEYINGI-REJA 20-bo'lim) |
 | 8 | V6. Terminal → bank tushumi | Pul | 2 | — | tayyor (2026-10-12, O1 bilan) |
 | 9 | V8. O'tkazma va ayirboshlashda komissiya | Pul | 1 | — | tayyor (2026-10-12, O1 bilan) |
 | 10 | S1. Narx o'zgargan tovarga yorliq | Sklad | 1,5 | M1 | boshlanmagan |
@@ -80,7 +80,7 @@ Sabab: avval akaga hozir kerakli narsa (ruxsat, kirimdagi narx), keyin mijoz bir
   - **Tartib:** `slug` va `Host` bo'yicha aniqlash birinchi qo'yiladi (ma'lumotga tegmaydi) — shunda hozirgi bitta domen ishlayveradi, subdomen keyin yoqiladi.
 - P3. Loglar: "nega bunday bo'ldi" (har hujjat bo'yicha zanjir) — ~2 kun.
 - P4. Telegram bot va bildirishnomalar (rahbar nazorati, 10g bilan birga) — ~2 kun.
-- P5. Serverga chiqarish: zaxira nusxa jadvali, HTTPS, yangilash tartibi — ~1 kun.
+- P5. Serverga chiqarish: zaxira nusxa jadvali, HTTPS, yangilash tartibi — ~1 kun. **Tayyorlandi (2026-10-12):** `deploy/` (o'rnatish, yangilash, zaxira skriptlari, nginx va systemd namunalari, yo'riqnoma). Qolgani — egasi bilan: server va domen, birinchi o'rnatish (skriptlar haqiqiy serverda hali yurgizilmagan), zaxirani boshqa joyga ko'chirib turish.
 
 ## 4. Mijozlar va narx (KEYINGI-REJA 16; texnik — `MIJOZLAR-TEXNIK.md`)
 
@@ -98,7 +98,7 @@ KEYINGI-REJA 16.8 jadvali va `MIJOZLAR-TEXNIK.md` §2 bo'yicha: M2 baza va bitta
 
 **Hozir bor:** sotuv, qaytarish, almashtirish, smena, inkassatsiya, rahbar tasdig'i, RFID stol va darvoza (soxta o'quvchi bilan), chekni brauzerdan chop etish.
 
-- **K1. Otlojka — ~3 kun.** Tovar mijozga olib qo'yiladi (qoldiqdan "band" joyiga), zaklad mijoz hisobiga avans bo'lib tushadi; muddat; olib ketganda sotuvga aylanadi, qaytsa tovar joyiga. Guruhdagi "olib qo'yilmaydi" taqiqi ishlaydi. M2 dan keyin.
+- **K1. Otlojka — ~3 kun.** Ekranda nomi **«Band qilish»** (egasi, 2026-10-12: "bron emas, band qilish"; menyuda «Band qilinganlar»). Navbat: Telegram (18-bo'lim) tugagach shu, keyin serverga qo'yish. Tovar mijozga olib qo'yiladi, zaklad mijoz hisobiga avans bo'lib tushadi; muddat; olib ketganda sotuvga aylanadi, qaytsa tovar joyiga. Guruhdagi "olib qo'yilmaydi" taqiqi ishlaydi. M2 dan keyin. **Qurildi (2026-10-12)** — tovar boshqa joyga surilmaydi, o'z do'konida "band" bo'lib turadi (va'da, harakat emas); qanday va nega — KEYINGI-REJA, 20-bo'lim.
 - **K2. Chekni agent orqali chop etish — ~2 kun.** Etiketka kabi `print_jobs` orqali termal printerga; brauzer oynasisiz.
 - **K3. R3/UR4 va CP30/C72 — ~2 kun, uskuna kelganda.** `agent/bridge/README.md` ro'yxati bo'yicha.
 

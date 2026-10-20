@@ -12,6 +12,7 @@ import {
   settleLine,
   straysFromRate,
   type AnyCurrency,
+  type CardPickDto,
   type Pair,
   type PaymentAccountDto,
   type PayTill,
@@ -28,6 +29,7 @@ import { Select } from '@/components/ui/controls'
 import { Field } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
 import { NumberInput } from '@/components/ui/number-input'
+import { NoticePicks, type NoticeStart } from '@/features/cards/notice-picks'
 import { placeKey } from '@/features/money/hidden-places'
 import { base } from '@/lib/base'
 import { cn } from '@/lib/cn'
@@ -57,6 +59,8 @@ export interface PaymentRow {
   rate: number | null
   /** What the line settles, typed over what the rate made it; null while it is left to the rate. */
   settled: number | null
+  /** A card's: the bank's notices its sum was picked from. */
+  noticeIds?: string[]
 }
 
 const PICKED_KEY = 'gb.pay.till'
@@ -174,6 +178,16 @@ export const addRow = (rows: PaymentRow[], accountId: string): PaymentRow[] =>
 
 export const removeRow = (rows: PaymentRow[], accountId: string): PaymentRow[] =>
   rows.filter((row) => row.accountId !== accountId)
+
+/** The lines with a bank notice's money already in its card's: opened to say what that money was. */
+export const withNotice = (rows: PaymentRow[], notice?: NoticeStart | null): PaymentRow[] =>
+  notice
+    ? patchRow(addRow(rows, notice.accountId), notice.accountId, {
+        amount: notice.amount,
+        settled: null,
+        noticeIds: [notice.id],
+      })
+    : rows
 
 /** The same lines with nothing typed: for the next payment. */
 export const clearRows = (rows: PaymentRow[]): PaymentRow[] => rows.map((row) => blank(row.accountId))
@@ -399,6 +413,8 @@ interface PaymentLinesProps {
    * expense is not "out of the partner's account" but simply worth so much.
    */
   headings?: { ours: string; theirs: string }
+  /** What the banks wrote of the cards' money going this way: a card's sum is picked from it. */
+  picks?: CardPickDto[]
 }
 
 /**
@@ -462,6 +478,7 @@ export function PaymentLines({
   autoFocus,
   focusId,
   headings,
+  picks = [],
 }: PaymentLinesProps) {
   const { t } = useTranslation()
   // What a difference comes to is said in the currency the books are kept in.
@@ -522,8 +539,14 @@ export function PaymentLines({
             <MoneyInput
               autoFocus={focusId ? focusId === row.accountId : autoFocus && line === first}
               value={row.amount}
-              // The money is the anchor: typed, it has what it settles worked out afresh.
-              onChange={(amount) => onPatch(row.accountId, { amount, settled: null })}
+              // The money is the anchor: typed, it has what it settles worked out afresh; a sum typed over the
+              // bank's lets its notices go.
+              onChange={(amount) =>
+                onPatch(
+                  row.accountId,
+                  amount === row.amount ? { amount, settled: null } : { amount, settled: null, noticeIds: undefined },
+                )
+              }
               currency={account.currency}
               disabled={!account.open}
               invalid={!!problems[row.accountId]}
@@ -608,6 +631,14 @@ export function PaymentLines({
                 })}
                 {line.strays && !setsRates ? ` ${t('payments.agreedTooFar')}` : ''}
               </p>
+            ) : null}
+            {account.kind === 'card' ? (
+              <NoticePicks
+                className="col-span-full -mt-1"
+                picks={picks.filter((pick) => pick.accountId === row.accountId)}
+                chosen={row.noticeIds ?? []}
+                onChange={(noticeIds, sum) => onPatch(row.accountId, { amount: sum || null, settled: null, noticeIds })}
+              />
             ) : null}
             {problems[row.accountId] ? (
               <p className="col-span-full -mt-1 text-xs text-bad">{problems[row.accountId]}</p>

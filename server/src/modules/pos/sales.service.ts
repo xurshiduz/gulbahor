@@ -65,6 +65,7 @@ import {
 } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
+import { checkPicks, tieNotices } from '../cards/card-links'
 import { nextNumbers } from '../catalog/counters'
 import { rulesOf } from '../customers/groups'
 import { wantingRate } from '../money/agreed'
@@ -76,6 +77,7 @@ import { runningAt } from '../promotions/promotions.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { StockService, type Movement } from '../stock/stock.service'
 import { allows, ApprovalsService, type Approver } from './approvals.service'
+import { HoldsService } from './holds.service'
 import { sellables } from './items'
 
 const DOCUMENT = 'sale'
@@ -136,6 +138,7 @@ export class SalesService {
     private readonly ledger: LedgerService,
     private readonly approvals: ApprovalsService,
     private readonly currencies: CurrenciesService,
+    private readonly holds: HoldsService,
   ) {}
 
   async create(actor: Actor, input: SaleInput): Promise<SaleDto> {
@@ -166,7 +169,7 @@ export class SalesService {
     input: SaleInput,
     credit: number,
     approver: Approver | null = null,
-    carry: Carried | null = null,
+    carry: Carried[] = [],
   ): Promise<{ sale: Sale; credit: number }> {
     const register = await em.findOneBy(Register, { id: input.registerId })
     if (!register || !register.isActive || !mayWorkAt(actor, register.locationId)) {
@@ -387,6 +390,22 @@ export class SalesService {
           continue
         }
       }
+      // Money a card took that the bank already wrote of: the notices it was picked from are held for this sale.
+      const picked =
+        payment.method === 'card' && account
+          ? await checkPicks(em, {
+              noticeIds: payment.noticeIds,
+              accountId: account.id,
+              direction: 'in',
+              amount: payment.amount,
+            })
+          : payment.noticeIds?.length
+            ? 'Bank xabari faqat karta to‘lovida tanlanadi'
+            : null
+      if (picked) {
+        fields[`payments.${index}.noticeIds`] = picked
+        continue
+      }
       const tender = { ...payment, currency }
       payments.push({
         method: payment.method,
@@ -417,64 +436,70 @@ export class SalesService {
     }
     // Goods brought back pay first; the customer's money is for what is left.
     const used = Math.min(credit, totals.total)
-    // And what they still owed for those goods goes on with these.
-    const carried = carry?.base ?? 0
+    // And what they still owed for those goods goes on with these, in each currency it stood in.
+    const carried = carry.reduce((sum, part) => sum + part.base, 0)
     if (used < credit && payments.length) {
       throw AppError.validation({ payments: 'Qaytarilgan tovar summasi yetarli: qo‘shimcha to‘lov kerak emas' })
     }
 
-    // ── What goes on the customer's account: in one of its currencies, at the day's rate or a sum agreed. What
-    // is theirs there (haqi) pays first; only the rest is lent, and a cashier lends only as far as the customer's
-    // terms and the business's limit go — further, someone's word. ──
-    const onAccount = input.onAccount?.amount ?? 0
-    let accountWorth: LineWorth | null = null
+    // ── What goes on the customer's account: in one of its currencies or in several at once — a line to each —
+    // at the day's rate or a sum agreed. What is theirs in each (haqi) pays first; only the rest is lent, and a
+    // cashier lends only as far as the customer's terms and the business's limit go — further, someone's word. ──
+    const onAccount = input.onAccount.reduce((sum, line) => sum + line.amount, 0)
+    /** Each line: its currency, its part of the sale, what that is on the account, and of it, haqi spent and lent. */
+    const onLines: { currency: AnyCurrency; amount: number; worth: LineWorth; prepaid: number; lent: number }[] = []
     let soldByWord = false
     let accountOverRate = false
-    let prepaid = 0
-    let lent = 0
     let dueDate: string | null = null
-    const accountCurrency = input.onAccount?.currency ?? customer?.currency ?? base
-    if (input.onAccount) {
+    if (input.onAccount.length) {
       if (!customer || !rules) {
         throw AppError.validation({ customerId: 'Balansga yozish uchun mijozni tanlang' })
       }
-      if (carry && accountCurrency !== carry.currency) {
-        throw AppError.validation({
-          onAccount: `Qaytgan tovarning qarzi ${carry.currency} balansida: farq ham shu balansga yoziladi`,
-        })
+      const currencies = input.onAccount.map((line) => line.currency ?? customer.currency ?? base)
+      if (new Set(currencies).size !== currencies.length) {
+        throw AppError.validation({ onAccount: 'Har valyuta balansga bitta qator bilan yoziladi' })
       }
       if (onAccount > totals.total - used - carried) {
         throw AppError.validation({ onAccount: 'Balansga yoziladigan summa chekdan oshmasligi kerak' })
       }
-      if (accountCurrency !== base && !actor.currencies.includes(accountCurrency)) {
-        throw AppError.validation({ onAccount: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
-      }
-      const wanting = wantingRate(book, book.base, accountCurrency)
-      if (wanting) {
-        throw AppError.validation({ onAccount: wanting })
-      }
-      accountWorth = settleLine(onAccount, book.base, accountCurrency, book, input.onAccount.settled)
-      // An agreed sum far from the day's rate gives as much away as a discount does: the same word lets it.
-      accountOverRate = accountWorth.agreed && straysFromRate(accountWorth, settings.maxRateLossPercent)
-      if (accountOverRate && !allowed) {
-        const gap = String(rateGap(accountWorth)).replace('.', ',')
-        throw AppError.badRequest(
-          'RATE_LOSS_OVER_LIMIT',
-          approver
-            ? `${approver.name} kun kursidan uzoq kelishilgan summani tasdiqlay olmaydi`
-            : `Kelishilgan summa kun kursidan ${gap}% farq qiladi: rahbar tasdig‘i kerak`,
-          { onAccount: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
-        )
+      for (const [index, line] of input.onAccount.entries()) {
+        const currency = currencies[index]
+        if (currency !== base && !actor.currencies.includes(currency)) {
+          throw AppError.validation({ onAccount: 'Bu valyuta yoqilmagan: Pul → Kurslar' })
+        }
+        const wanting = wantingRate(book, book.base, currency)
+        if (wanting) {
+          throw AppError.validation({ onAccount: wanting })
+        }
+        const worth = settleLine(line.amount, book.base, currency, book, line.settled)
+        // An agreed sum far from the day's rate gives as much away as a discount does: the same word lets it.
+        if (worth.agreed && straysFromRate(worth, settings.maxRateLossPercent)) {
+          accountOverRate = true
+          if (!allowed) {
+            const gap = String(rateGap(worth)).replace('.', ',')
+            throw AppError.badRequest(
+              'RATE_LOSS_OVER_LIMIT',
+              approver
+                ? `${approver.name} kun kursidan uzoq kelishilgan summani tasdiqlay olmaydi`
+                : `Kelishilgan summa kun kursidan ${gap}% farq qiladi: rahbar tasdig‘i kerak`,
+              { onAccount: `Kursdan farq ko‘pi bilan ${settings.maxRateLossPercent}%` },
+            )
+          }
+        }
+        onLines.push({ currency, amount: line.amount, worth, prepaid: 0, lent: 0 })
       }
       // Two sales to one customer, or a sale and a payment, wait for each other here: neither lends past the
       // limit unseen. The accounts are read again once held.
       await em.query(`SELECT 1 FROM customers WHERE id = $1 FOR UPDATE`, [customer.id])
       const held = (await rulesOf(em, [customer])).get(customer.id)?.accounts ?? []
-      const balance = held.find((account) => account.currency === accountCurrency)?.balance ?? 0
-      prepaid = Math.min(accountWorth.settled, Math.max(0, -balance))
-      lent = accountWorth.settled - prepaid
+      for (const line of onLines) {
+        const balance = held.find((account) => account.currency === line.currency)?.balance ?? 0
+        line.prepaid = Math.min(line.worth.settled, Math.max(0, -balance))
+        line.lent = line.worth.settled - line.prepaid
+      }
+      const lending = onLines.filter((line) => line.lent)
       // Weighed in the base at today's rates: what they owe across their accounts, and what this adds.
-      const unrated = lent
+      const unrated = lending.length
         ? wantingRate(book, book.base, ...held.filter((a) => a.balance).map((a) => a.currency))
         : null
       if (unrated) {
@@ -484,7 +509,7 @@ export class SalesService {
         (sum, account) => sum + (worthInBase(account.balance, account.currency, book) ?? 0),
         0,
       )
-      const adds = lent ? (worthInBase(lent, accountCurrency, book) ?? 0) : 0
+      const adds = lending.reduce((sum, line) => sum + (worthInBase(line.lent, line.currency, book) ?? 0), 0)
       const late = held.find((account) => account.overdue > 0)
       const bar = accountBar(
         {
@@ -522,9 +547,10 @@ export class SalesService {
         }
         soldByWord = true
       }
-      // The day the debt falls due: the one the cashier set, else the customer's own days or the business's.
-      if (lent) {
-        const asked = input.onAccount.dueDate
+      // The day the debt falls due — one for all it lends: the one the cashier set, else the customer's own days
+      // or the business's.
+      if (lending.length) {
+        const asked = input.onAccount.find((line) => line.dueDate !== undefined)?.dueDate
         if (asked === null && !customer.noDue) {
           throw AppError.validation({ 'onAccount.dueDate': 'Qarz muddatini kiriting' })
         }
@@ -588,7 +614,7 @@ export class SalesService {
           }
           soldByWord = true
         }
-        if (input.onAccount) {
+        if (input.onAccount.length) {
           fields[`change.${index}.way`] = 'Chekning bir qismi balansga yozilgan: o‘sha summani kamaytiring'
           continue
         }
@@ -755,6 +781,11 @@ export class SalesService {
       ),
     )
 
+    // Goods set aside for this customer, come for: the hold is over, and its goods are this sale's to take.
+    if (input.holdId) {
+      await this.holds.takeIn(em, actor, input.holdId, sale)
+    }
+
     // ── Stock: oldest batch first, and remembered piece by piece. ──
     const picked = await this.stock.pick(
       em,
@@ -766,7 +797,9 @@ export class SalesService {
         const item = itemOf.get(lines[index].variantId)
         const have = Math.round((lines[index].qty - result.missing) * 1000) / 1000
         fields[`lines.${index}.qty`] =
-          `«${item?.name}${item?.label ? `, ${item.label}` : ''}»: qoldiq yetarli emas (bor ${have})`
+          `«${item?.name}${item?.label ? `, ${item.label}` : ''}»: qoldiq yetarli emas (bor ${have}${
+            result.promised ? `, band qilingan ${result.promised}` : ''
+          })`
       }
     })
     throwIfAny(fields)
@@ -826,31 +859,49 @@ export class SalesService {
         reference: null,
       })
     }
-    if ((accountWorth && customer) || carry) {
-      // On the customer's account in that currency; its worth there is what the day's rates make of that sum.
-      // A debt carried on from goods brought back is one line with it: the same account, as the first sale wrote it.
-      const account = accountWorth && customer ? await this.ledger.customerAccount(em, customer, accountCurrency) : null
-      paid.push({
+    // On the customer's account, a line to each currency; its worth there is what the day's rates make of that
+    // sum. A debt carried on from goods brought back is one line with what goes on in its currency: the same
+    // account, as the first sale wrote it.
+    const onAccounts = new Map<AnyCurrency, Partial<SalePayment> & { amount: number; base: number; fx: number }>()
+    for (const line of onLines) {
+      const account = await this.ledger.customerAccount(em, customer as Customer, line.currency)
+      onAccounts.set(line.currency, {
         method: 'account',
-        accountId: (account?.id ?? carry?.accountId) as string,
-        currency: accountWorth ? accountCurrency : (carry as Carried).currency,
-        amount: (accountWorth?.settled ?? 0) + (carry?.settled ?? 0),
-        base: onAccount + carried,
-        fx: (accountWorth ? accountWorth.partnerBase - onAccount : 0) + (carry?.fx ?? 0),
-        prepaid,
+        accountId: account.id,
+        currency: line.currency,
+        amount: line.worth.settled,
+        base: line.amount,
+        fx: line.worth.partnerBase - line.amount,
+        prepaid: line.prepaid,
         reference: null,
       })
-      if ((lent || carry?.dated) && customer) {
-        // What it lends falls due on its day, kept apart from the payment so that the day can be moved. A debt
-        // carried on keeps the day it had; with new lending beside it, the earlier of the two.
-        const days = [lent ? dueDate : null, carry?.dated ? carry.dueDate : null].filter((day): day is string => !!day)
-        await em.insert(CustomerDue, {
-          orgId: actor.orgId,
-          customerId: customer.id,
-          saleId: sale.id,
-          dueDate: days.sort()[0] ?? null,
-        })
-      }
+    }
+    for (const part of carry) {
+      const with_ = onAccounts.get(part.currency)
+      onAccounts.set(part.currency, {
+        method: 'account',
+        accountId: with_?.accountId ?? part.accountId,
+        currency: part.currency,
+        amount: (with_?.amount ?? 0) + part.settled,
+        base: (with_?.base ?? 0) + part.base,
+        fx: (with_?.fx ?? 0) + part.fx,
+        prepaid: with_?.prepaid ?? 0,
+        reference: null,
+      })
+    }
+    paid.push(...onAccounts.values())
+    const lends = onLines.some((line) => line.lent)
+    const dated = carry.filter((part) => part.dated)
+    if ((lends || dated.length) && customer) {
+      // What it lends falls due on its day, kept apart from the payment so that the day can be moved. A debt
+      // carried on keeps the day it had; with new lending beside it, the earliest of them.
+      const days = [lends ? dueDate : null, ...dated.map((part) => part.dueDate)].filter((day): day is string => !!day)
+      await em.insert(CustomerDue, {
+        orgId: actor.orgId,
+        customerId: customer.id,
+        saleId: sale.id,
+        dueDate: days.sort()[0] ?? null,
+      })
     }
     await em.insert(
       SalePayment,
@@ -894,8 +945,8 @@ export class SalesService {
     ]
     const gained =
       payments.reduce((sum, payment) => sum + payment.fx, 0) +
-      (accountWorth ? accountWorth.partnerBase - onAccount : 0) +
-      (carry?.fx ?? 0) +
+      onLines.reduce((sum, line) => sum + line.worth.partnerBase - line.amount, 0) +
+      carry.reduce((sum, part) => sum + part.fx, 0) +
       changed.reduce((sum, line) => sum + line.fx, 0)
     if (gained) {
       const fx = await this.ledger.systemAccount(em, actor.orgId, 'fx')
@@ -913,6 +964,9 @@ export class SalesService {
       { date: today, kind: 'sale', documentType: DOCUMENT, documentId: sale.id, shiftId: shift.id },
       postings,
     )
+    for (const payment of input.payments) {
+      await tieNotices(em, actor, payment.noticeIds, { type: DOCUMENT, id: sale.id }, 'picked')
+    }
 
     await this.audit.record(em, actor.orgId, actor, {
       action: 'sale.create',
@@ -1045,9 +1099,9 @@ export class SalesService {
       if (customerId && !next) {
         throw AppError.validation({ customerId: 'Mijoz topilmadi' })
       }
-      const lent = await em.findOneBy(SalePayment, { saleId: id, method: 'account' })
+      const lent = await em.find(SalePayment, { where: { saleId: id, method: 'account' }, order: { position: 'ASC' } })
       const kept = await em.findBy(SaleChange, { saleId: id, way: 'account' })
-      if (lent || kept.length) {
+      if (lent.length || kept.length) {
         if (!next) {
           throw AppError.validation({
             customerId: 'Chekning bir qismi mijoz balansida turibdi: mijozsiz qoldirib bo‘lmaydi',
@@ -1062,16 +1116,18 @@ export class SalesService {
       await em.query(`SELECT 1 FROM customers WHERE id = ANY($1) ORDER BY id FOR UPDATE`, [held])
 
       const postings: Posting[] = []
-      if (lent && next) {
-        const from = await em.findOneByOrFail(Account, { id: lent.accountId })
-        const to = await this.ledger.customerAccount(em, next, from.currency)
+      for (const line of next ? lent : []) {
+        const from = await em.findOneByOrFail(Account, { id: line.accountId })
+        const to = await this.ledger.customerAccount(em, next as Customer, from.currency)
         // At what the sale put it there: its worth on the day of the sale, not today's.
-        const worth = lent.base + lent.fx
+        const worth = line.base + line.fx
         postings.push(
-          { accountId: from.id, amount: -lent.amount, base: -worth },
-          { accountId: to.id, amount: lent.amount, base: worth },
+          { accountId: from.id, amount: -line.amount, base: -worth },
+          { accountId: to.id, amount: line.amount, base: worth },
         )
-        await em.update(SalePayment, lent.id, { accountId: to.id })
+        await em.update(SalePayment, line.id, { accountId: to.id })
+      }
+      if (lent.length && next) {
         await em.update(CustomerDue, { saleId: id }, { customerId: next.id })
       }
       for (const line of kept) {
@@ -1227,19 +1283,25 @@ export class SalesService {
       [sale.id],
     )
 
-    // What they owe in all on the account the sale went on: said on the paper they sign. A supplier's sums are
+    // What they owe in all on each account the sale went on: said on the paper they sign. A supplier's sums are
     // for those who keep suppliers' accounts.
-    const lentOn =
-      sale.status === 'completed' ? payments.entities.find((payment) => payment.method === 'account') : null
-    const lent = lentOn ? await em.findOneBy(Account, { id: lentOn.accountId }) : null
-    const debtor = lent?.customerId ? await em.findOneBy(Customer, { id: lent.customerId }) : null
-    // Someone merged into another since: the debt stands on that other's account.
-    const buyer = debtor?.mergedInto ? await em.findOneBy(Customer, { id: debtor.mergedInto }) : debtor
-    const theirs =
-      lent && debtor?.mergedInto
-        ? await em.findOneBy(Account, { customerId: debtor.mergedInto, currency: lent.currency })
-        : lent
-    const seesIt = !!buyer && (!buyer.isSupplier || can(actor, 'customers.suppliers'))
+    const owes: { currency: AnyCurrency; balance: number }[] = []
+    for (const lentOn of sale.status === 'completed'
+      ? payments.entities.filter((payment) => payment.method === 'account')
+      : []) {
+      const lent = await em.findOneBy(Account, { id: lentOn.accountId })
+      const debtor = lent?.customerId ? await em.findOneBy(Customer, { id: lent.customerId }) : null
+      // Someone merged into another since: the debt stands on that other's account.
+      const buyer = debtor?.mergedInto ? await em.findOneBy(Customer, { id: debtor.mergedInto }) : debtor
+      const theirs =
+        lent && debtor?.mergedInto
+          ? await em.findOneBy(Account, { customerId: debtor.mergedInto, currency: lent.currency })
+          : lent
+      const seesIt = !!buyer && (!buyer.isSupplier || can(actor, 'customers.suppliers'))
+      if (theirs && seesIt && theirs.balance > 0) {
+        owes.push({ currency: theirs.currency, balance: theirs.balance })
+      }
+    }
 
     return {
       ...summary(sale, location.name, register.name, can(actor, 'stock.cost')),
@@ -1251,7 +1313,7 @@ export class SalesService {
       change,
       rounding: sale.rounding,
       due: due && sale.status === 'completed' ? { id: due.id, dueDate: due.dueDate } : null,
-      owes: theirs && seesIt && theirs.balance > 0 ? { currency: theirs.currency, balance: theirs.balance } : null,
+      owes,
       note: sale.note,
       voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
       voidedByName: sale.voidedByName,

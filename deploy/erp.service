@@ -1,0 +1,26 @@
+# /etc/systemd/system/erp.service — install.sh shu namunadan yozadi.
+[Unit]
+Description=Savdo ERP (API)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=__APP_USER__
+Group=__APP_USER__
+# `current` — hozir ishlayotgan nusxaga havola: yangilash uni almashtirib, xizmatni qayta ishga tushiradi.
+WorkingDirectory=__BASE__/current/server
+Environment=NODE_ENV=production
+Environment=HOME=__DATA_DIR__
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=3
+# Chiqishda ochiq so'rovlar tugashini kutadi.
+TimeoutStopSec=20
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

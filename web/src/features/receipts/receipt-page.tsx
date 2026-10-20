@@ -778,6 +778,34 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
                 </div>
               </Card>
 
+              <Card title={t('receipts.expenses')}>
+                <ExpensesEditor
+                  expenses={expenses}
+                  onChange={changeExpenses}
+                  currencies={expenseCurrencies}
+                  editable={expensesEditable}
+                  amounts={cost?.costing.expenses}
+                  weightless={cost?.costing.weightless ?? []}
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink-3">
+                  {lineExtra ? (
+                    <>
+                      <span>{t('receipts.extraCurrency')}</span>
+                      <div data-enter-skip className="w-28">
+                        <Select
+                          value={header.extraCurrency}
+                          onChange={(extraCurrency) => patchHeader({ extraCurrency: extraCurrency as AnyCurrency })}
+                          options={expenseCurrencies.map((code) => ({ value: code, label: code }))}
+                          disabled={!editable}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  <span className="min-w-0 flex-1">{t('receipts.expensesHint')}</span>
+                </div>
+              </Card>
+
               {editable ? (
                 <div className="flex items-center gap-3">
                   <ProductPicker
@@ -830,34 +858,6 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
                   {editable ? t('receipts.emptyLines') : t('receipts.noLines')}
                 </p>
               ) : null}
-
-              <Card title={t('receipts.expenses')}>
-                <ExpensesEditor
-                  expenses={expenses}
-                  onChange={changeExpenses}
-                  currencies={expenseCurrencies}
-                  editable={expensesEditable}
-                  amounts={cost?.costing.expenses}
-                  weightless={cost?.costing.weightless ?? []}
-                />
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink-3">
-                  {lineExtra ? (
-                    <>
-                      <span>{t('receipts.extraCurrency')}</span>
-                      <div data-enter-skip className="w-28">
-                        <Select
-                          value={header.extraCurrency}
-                          onChange={(extraCurrency) => patchHeader({ extraCurrency: extraCurrency as AnyCurrency })}
-                          options={expenseCurrencies.map((code) => ({ value: code, label: code }))}
-                          disabled={!editable}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    </>
-                  ) : null}
-                  <span className="min-w-0 flex-1">{t('receipts.expensesHint')}</span>
-                </div>
-              </Card>
             </div>
 
             <Card title={t('receipts.totals')} className="xl:sticky xl:top-0">
@@ -1210,11 +1210,11 @@ function ExpensesEditor({ expenses, onChange, currencies, editable, amounts, wei
               label={t('receipts.estimate')}
             />
           </div>
-          {/* What it comes to in the base, at the receipt's rate or its day's. */}
+          {/* What it comes to in the base, at the receipt's rate or its day's; a per-piece one, for every piece. */}
           <span className="tabular w-28 text-right text-xs text-ink-3">
-            {expense.amount && expense.currency !== base() && amounts?.[index]
+            {expense.amount && (expense.currency !== base() || expense.basis === 'piece') && amounts?.[index]
               ? amounts[index].amountUzs
-                ? `≈ ${formatMoney(amounts[index].amountUzs, base(), { minor: 'never' })}`
+                ? `${expense.currency === base() ? '=' : '≈'} ${formatMoney(amounts[index].amountUzs, base(), { minor: 'never' })}`
                 : t('pos.noRateShort')
               : ''}
           </span>

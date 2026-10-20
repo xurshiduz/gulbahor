@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { AnyCurrency } from './money'
-import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
+import { idSchema, listQuerySchema, noticeIdsSchema, optionalText, requiredText } from './schemas'
 
 /**
  * Money that leaves the business or comes into it otherwise than by selling
@@ -90,6 +90,7 @@ export const moneyOpLineSchema = z.object({
   amount: positive,
   /** What dollars are counted as in so'm, when that was agreed and not left to the day's rate. */
   settled: positive.nullish().transform((value) => value ?? null),
+  noticeIds: noticeIdsSchema,
 })
 export type MoneyOpLineInput = z.infer<typeof moneyOpLineSchema>
 

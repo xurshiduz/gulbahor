@@ -4,11 +4,13 @@ import {
   BadgePercent,
   BarChart3,
   BookMarked,
+  Bookmark,
   Boxes,
   Building2,
   CalendarClock,
   ClipboardCheck,
   Coins,
+  CreditCard,
   FlaskConical,
   Group,
   HandCoins,
@@ -20,12 +22,12 @@ import {
   Megaphone,
   MonitorSmartphone,
   PackageMinus,
-  PackageX,
   PackagePlus,
+  PackageX,
+  PiggyBank,
   ReceiptText,
   ScanBarcode,
   Settings,
-  PiggyBank,
   Shirt,
   ShoppingBag,
   Siren,
@@ -33,11 +35,11 @@ import {
   Store,
   Tags,
   Truck,
+  type LucideIcon,
   Users,
   UsersRound,
   Wallet,
   Warehouse,
-  type LucideIcon,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -83,6 +85,7 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { to: '/pos', label: 'nav.pos', icon: ScanBarcode, permission: 'pos.sell' },
       { to: '/sales', label: 'nav.sales', icon: ReceiptText, permission: ['pos.sell', 'sales.view'] },
+      { to: '/holds', label: 'nav.holds', icon: Bookmark, permission: ['pos.sell', 'sales.view'] },
       { to: '/shifts', label: 'nav.shifts', icon: CalendarClock, permission: ['pos.sell', 'sales.shifts'] },
     ],
   },
@@ -200,6 +203,7 @@ export const NAVIGATION: NavGroup[] = [
         icon: Coins,
         permission: [...MONEY, 'money.rates'],
       },
+      { to: '/cards', label: 'nav.cardNotices', icon: CreditCard, permission: 'cards.view', module: 'cards' },
     ],
   },
   {
@@ -231,3 +235,17 @@ export const NAVIGATION: NavGroup[] = [
     ],
   },
 ]
+
+/**
+ * Whether the page at an address is this person's to open: the menu's entries for it, and for the pages under
+ * it, say who may — a tab named in the address by its own entry; a page the menu does not name (the profile) is
+ * everyone's. Someone signing in where another signed out, or whose role was just changed, is not left on a page
+ * that refuses them (owner, 2026-10-12).
+ */
+export function mayOpen(pathname: string, tab: unknown, sees: (item: NavItem) => boolean): boolean {
+  const named = NAVIGATION.flatMap((group) => group.items).filter(
+    (item) => pathname === item.to || (item.to !== '/' && pathname.startsWith(`${item.to}/`)),
+  )
+  const tabbed = named.filter((item) => item.search?.tab === tab)
+  return !named.length || (tabbed.length ? tabbed : named).some(sees)
+}

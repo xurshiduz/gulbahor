@@ -55,6 +55,11 @@ import { PriceFormulas1790000054000 } from './1790000054000-price-formulas'
 import { SaleLinePriceFrom1790000055000 } from './1790000055000-sale-line-price-from'
 import { PlainPriceTypes1790000056000 } from './1790000056000-plain-price-types'
 import { ReceiptPriceFormulas1790000057000 } from './1790000057000-receipt-price-formulas'
+import { CardNotices1790000058000 } from './1790000058000-card-notices'
+import { CardLinks1790000059000 } from './1790000059000-card-links'
+import { Holds1790000060000 } from './1790000060000-holds'
+import { StockDocTags1790000061000 } from './1790000061000-stock-doc-tags'
+import { ExpensePerPiece1790000062000 } from './1790000062000-expense-per-piece'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -115,4 +120,9 @@ export const MIGRATIONS = [
   SaleLinePriceFrom1790000055000,
   PlainPriceTypes1790000056000,
   ReceiptPriceFormulas1790000057000,
+  CardNotices1790000058000,
+  CardLinks1790000059000,
+  Holds1790000060000,
+  StockDocTags1790000061000,
+  ExpensePerPiece1790000062000,
 ]

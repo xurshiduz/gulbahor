@@ -1621,3 +1621,87 @@ Egasi (2026-10-11): **inglizcha yoki raqamli** nom ham bo'ladimi? Bo'ladi: nom b
 2. Kartadan qaytim berish — tavsiya bo'yicha qurildi: `pos.return_any` egasi o'zi, kassir rahbar PIN'i bilan. Egasi boshqacha desa — bitta shart.
 3. Kartaga chekdan ortiq to'lov — tavsiya bo'yicha qurildi: karta oladi, terminal yo'q.
 4. Rejaning tartibi (17.7): Q1 → Q2 → O1 → O2, U1 har biri bilan.
+
+---
+
+## 18. Telegram: karta nazorati va botlar (egasi, 2026-10-12 — "hozir Telegram'ni qilamiz")
+
+Kirimdagi narxlarning qolgani (M1-d2), tezkor tanlash (K3) va M1-f keyinga qo'yildi. Telegram bo'yicha reja `REJA.md` ning 6-bo'limida ("Plastik kartalar") va shu faylning 8-bo'limida ("Kartalar", "Telegram akkauntlarni ulash") yozilgan; namuna — `cargo-server/src/card-feed` (GramJS `telegram` kutubxonasi, `StringSession`, jonli tinglash + har 5 daqiqada suhbatni qayta o'qish + har daqiqada aloqani tekshirish). Bu bo'lim — ularning bosqichlarga bo'lingani.
+
+### 18.1. Bosqichlar
+
+**T1. O'qish — pulga tegmaydi.**
+- **T1-a (qurildi).** Bank xabarini o'qish — `core/bank-notices.ts`: `parseBankNotice(matn)` → `BankMove` (yo'nalish, summa minor birlikda va valyutasi, sarlavha, joy, kartaning oxirgi 4 raqami, bankning soati `2026-09-15T17:46` ko'rinishida, qoldiq) yoki `BankBalance` (egasi botdan qoldiqni so'ragandagi javob — pul yurmagan) yoki `null`. Bitta o'quvchi HumoBot va CardXabarBot'ni ham o'qiydi, chunki qatorning o'rniga emas, belgisiga qaraydi (➕/➖, 💳, soat, 💰 yoki 💵); bitta qatorga yopishib kelgan xabarni belgilar bo'yicha qayta bo'ladi. Summa float'siz o'qiladi (`readBankSum`: oxirgi nuqta yoki verguldan keyin 1–2 raqam — tiyin, qolgan hamma belgi guruhlash: "375.000,00", "40 000.00", "33'195'624.29", "125.000"). Yo'nalish: avval ➕/➖, keyin 🟢/🔴, keyin sarlavhadagi so'z; hech biri aytmasa — `null` (taxmin qilinmaydi, xabar "o'qilmadi" ro'yxatiga tushadi). `followsOn(oldingi, keyingi)` — qoldiq zanjiri uzilmaganini aytadi. Testlar cargo'dagi haqiqiy HumoBot namunalaridan va REJA'dagi CardXabarBot bo'laklaridan (14 ta).
+- **T1-b (qurildi). Xabarlar daftari.** Jadval `card_notices`: Telegram akkaunti, suhbat va xabar raqami (yagona — bitta xabar ikki marta yozilmaydi), asl matn (doim), o'qilgan maydonlar, karta (oxirgi 4 raqam bo'yicha `accounts.card_number` dan), holati (o'qildi / o'qilmadi), zanjir uzilgani. "Pul → Karta xabarlari" ro'yxati (karta, yo'nalish, kun bo'yicha filtr), o'qilmaganlar va uzilishlar tepada; tizimda yo'q karta ko'rinsa — "yangi karta ko'rindi, qo'shasizmi?".
+- **T1-c (qurildi). Telegram akkauntlari.** `telegram_accounts` (telefon, ism, sessiya kaliti serverda shifrlangan, holati, oxirgi xabar vaqti). Veb orqali kirish, uch qadam: telefon → Telegram yuborgan kod → (bo'lsa) ikki bosqichli parol — **akkaunt egasining o'zi kiritadi**, parol saqlanmaydi. Faqat bank botlari suhbati o'qiladi, hech narsa yuborilmaydi. Holat sahifasi: ulangan / uzilgan / qayta kirish kerak, "Qayta ulash", "Hozir o'qib chiqish", "Uzish". Server yonganda oxirgi o'qilgan xabardan davom etadi. Sinov — soxta Telegram mijozi bilan (RFID o'quvchidagi kabi), haqiqiy ulanish — egasi kirganda.
+
+**T2. Pulga bog'lash (asosiy qismi qurildi, 18.3).** Kassadagi karta to'lovi "kutilmoqda" → xabar kelganda "tushdi"; bog'lanmagan kirimlar ("aniqlanmagan") va ularni hal qilish (sotuv, mijoz to'lovi, boshqa kirim, o'tkazma); chiqimlar; kartaning tizimdagi qoldig'ini bank qoldig'i bilan solishtirish; ogohlantirishlar (10 daqiqada bog'lanmagan kirim, belgilangan vaqtda tushmagan to'lov, zanjir uzildi, akkaunt chiqarib yuborildi).
+
+**T3. Rahbar boti** (12-bo'lim): bildirishnomalar Telegram'ga, kimga nima borishi sozlamasi. Bot kaliti (BotFather) kerak.
+
+**Keyin:** mijoz boti (chek, sodiqlik, tarqatma), chek skrinshoti bilan to'lov (cargo'da bor).
+
+### 18.2. T2 uchun egasidan kutilayotgan qarorlar
+
+1. **Kassada karta to'lovi.** Taklif: kassir hozirgidek summani yozib darhol sotadi (mijoz kutmaydi, Telegram uzilsa ham savdo to'xtamaydi); to'lov "kutilmoqda" bo'lib turadi va bank xabari kelganda (karta, summa, vaqt mos kelsa) o'zi "tushdi" bo'ladi; N daqiqada tushmasa — kassirga va rahbarga xabar. Muqobili (REJA'dagi "summa qo'lda yozilmaydi": kassir kelgan xabarlar ro'yxatidan tanlaydi) — xabar kelmaguncha chek yopilmaydi.
+2. **Bog'lanmagan kirim.** Taklif: xabarning o'zi daftarga yozmaydi; rahbar "aniqlanmagan"lar ro'yxatidan nimaligini belgilaganda hujjat yaratiladi (mijoz to'lovi, boshqa kirim, o'tkazma). Shu paytgacha kartaning tizimdagi qoldig'i bankdagidan shu summaga kam turadi — solishtiruv buni ko'rsatadi.
+3. **Chiqimlar.** REJA: hamma chiqim bitta "kartadan chiqim" hisobiga o'zi yoziladi (aka xohlasa turini keyin belgilaydi). Tasdiqlansa — xabar daftarga avtomatik yozadigan yagona holat shu bo'ladi.
+4. **Kartalar kimning nomida.** Hammasi akaning akkauntidami (bitta kirish), yoki boshqa odam nomidagi karta ham bormi.
+5. **Telegram ilovasi kalitlari** (`api_id`, `api_hash`, my.telegram.org): cargo'dagi bilan bitta bo'lishi mumkin ("kalitlar dasturni ataydi, odamni emas"); egasi ularni `server/.env` ga o'zi yozadi (`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`).
+6. **Xabar namunalari.** CardXabarBot'dan to'liq matnli 3–5 ta xabar (terminal, kartadan kartaga, naqd yechish, qaytarilgan to'lov) va akaning HumoBot'idan 3–5 ta — parser hozir REJA'dagi bo'laklar va cargo namunalari bilan sinalgan.
+
+**18.2 ga egasining javoblari** (2026-10-12, chatda): (1) to'lov oynasidagi karta maydoni oldida shu kartaga kelgan xabarlar chiqadi va kassir o'shandan tanlaydi ("tolov karta inputlari oldi ozinikini mos karta input oldida chiqishi u yerda tanlashi, cargodagi kabi"); tanlanmagani kassa savdosini to'xtatmaydi — xabar kelganda tizim o'zi bog'laydi; (2) va (3) kirim ham, chiqim ham odam hal qiladi: mijozga yozish, o'tkazma (boshqa hisobga), boshqa kirim yoki xarajat ("chiqimlar mijozlarga yozish yoki perevod qilib qaysidir hisobga yuborish kabi imkoniyatlar ham bo'lsin"); REJA'dagi "hamma chiqim o'zi bitta hisobga yoziladi" qabul qilinmadi — xabar daftarga o'zi hech narsa yozmaydi; (4) bu botlar faqat so'm kartalar haqida yozadi, HUMO va CardXabar kartalari alohida ("humo ga biriktiriladigan karta cardxabarga biriktirilmaydi"); (5) kalitlarni egasi o'zi yozadi; (6) namunalar — egasi kirgandan keyin haqiqiy xabarlardan.
+
+### 18.3. T2 qanday qurildi
+
+Bog'lash pul yurgizmaydi: xabar hujjatga "bank buni ko'rdi" degan belgi bo'lib bog'lanadi, pul faqat hujjatning o'zi bilan yuradi.
+
+- **Holat.** Har pul xabari (`kind = 'move'`) `card_notices.standing` da: `open` (hal qilinmagan) → `linked` (`document_type`, `document_id`, `link_way`: `picked` — to'lov oynasida tanlangan, `auto` — tizim bog'lagan, `matched` — odam "Tizimda bor" bilan) yoki `dismissed` (`reason` bilan — "Hisobga olinmaydi"). Kim va qachon — `handled_by(_name)`, `handled_at`; tizim bog'laganda bo'sh. Migratsiya `1790000059000-card-links`.
+- **Hujjatning kartadagi puli** — shu hujjatning (`ledger_entries.document_type/id`) shu kartadagi daftar qatorlari yig'indisi, hamma yozuvlari bilan (sotuv va uning bekor qilinishi bitta hujjat). Unga bog'langan xabarlar summasi (kirim +, chiqim −) ayiriladi — qolgani "xabarsiz" qism. Hammasi `modules/cards/card-links.ts` da (`ENTRIES` so'rovi).
+- **To'lov oynasida tanlash.** Kassa (`TenderPanel`), mijoz to'lovi, xarajat va boshqa kirim oynasi (`PaymentLines`) har karta qatori ostida shu kartaning ochiq xabarlarini (oxirgi 3 kun, `GET /card-notices/picks?direction=in|out` — summa va vaqt, qoldiqsiz; `pos.sell`, `customers.receive`, `customers.pay_out`, `money.ops`, `money.manage` yoki `cards.settle` egasiga, faqat o'zi ishlatadigan kartalar) tugma qilib ko'rsatadi (`features/cards/notice-picks.tsx`). Bosilsa summa qatorga yoziladi, qo'lda boshqa summa yozilsa tanlov tushib qoladi. So'rovda qatorning `noticeIds` i; server (`checkPicks`) xabarlarni `FOR UPDATE` bilan ushlaydi: ochiq, shu kartaniki, shu yo'nalishda va yig'indisi qator summasiga aynan teng bo'lishi shart (aks holda `payments.N.noticeIds` / `lines.N.noticeIds` xatosi), hujjat yozilgach `tieNotices`. O'tkazmada (`moneyTransferInputSchema.noticeIds`) chiqqan kartaniki va tushgan kartaniki ajratiladi; tushgan kartaning xabari bo'lsa va yozuvchi `money.manage` egasi bo'lsa o'tkazma darhol qabul qilinadi.
+- **Tizim o'zi bog'laydi** (`autoTie`, cargo'dagi kabi): ochiq xabarga shu kartada aynan shu summa xabarsiz qolgan, ±1 kun ichida yozilgan hujjat bitta "egaga" tegishli bo'lsa (mijoz; anonim sotuvlar bir-birining o'rnini bosadi; xarajat — turi bo'yicha) eng eskisiga bog'lanadi; ikki xil mijozniki bo'lsa — tanlanmaydi, odam hal qiladi. Ikki marta ishlaydi: xabar kelganda (`take`) va pul yurgandan 1,5 soniya keyin (`RealtimeService.onChanged` → `money` → `tieWaiting`, oxirgi 2 kunning ochiq xabarlari). Bir hujjatga bir vaqtda ikki bog'lash — `pg_advisory_xact_lock` (`holdDocument`).
+- **Hujjat bekor qilinsa** xabarlari qaytadi: `LedgerService.post` har hujjatli yozuvdan keyin `RELEASE_NOTICES` ni bajaradi — hujjatning shu kartadagi puli nolga tushgan bo'lsa (bekor qilingan chek, to'lov, rad etilgan o'tkazma), unga bog'langan xabarlar yana `open`.
+- **"Karta xabarlari" sahifasi**: "Holati" ustuni (hal qilinmagan / hujjat raqami va kimniki / hisobga olinmagan va sababi), filtr va "Hal qilinmagan: N ta" belgisi; qator menyusi: "Mijozdan to'lov" / "Mijozga to'lov" (`PaymentDialog` — `notice` bilan, karta qatori summasi va xabari tayyor), "Boshqa kirim" / "Xarajat" (`MoneyOpDialog`), "O'tkazma: kartaga / kartadan" (`TransferDialog`), "Tizimda bor…" (`MatchDialog` — `GET /card-notices/:id/candidates`: shu kartada shu yo'nalishda summasi sig'adigan, ±3 kun ichidagi hujjatlar), "Hisobga olinmaydi" (sabab majburiy), "Bog'lanishni olib tashlash" / "Qayta ochish" (`POST /card-notices/:id/match|dismiss|reopen`, `cards.settle`).
+- **"Solishtirish" varag'i** (`GET /card-notices/stand`, `GET /card-entries`, `cards.view`): har nazoratdagi karta — bank oxirgi aytgan qoldiq va vaqti, o'sha daqiqadagi tizim qoldig'i (keyin yozilgani ayiriladi; xabarga bog'langan hujjat xabar vaqtida hisoblanadi), farq, hal qilinmagan xabarlar va bank xabarisiz yozuvlar soni; ostida bank xabarisiz yozuvlar ro'yxati, "Tekshirildi" (`card_checks`, `POST /card-entries/check|uncheck`, `cards.settle`) — bank ilovasida bor, bot yubormagan.
+- **Nazorat qachon boshlangan** (`SINCE`): birinchi o'qilgan xabardan bir kun oldin. Undan oldingi tarix (kirishda o'qilgan suhbat o'tmishi) ro'yxatda, tanlashda va "Tizimda bor"da bor, lekin "hal qilinmagan" deb so'ralmaydi; kartaning bank xabarisiz yozuvlari ham shu kundan.
+- **Ruxsat** `cards.settle` — "Karta xabarini hal qilish". Tayyor rollarga berilmagan (`cards.*` ham): karta xabarlari egasining o'zi beradigan narsa (T1 testidagi qaror).
+- **Qolgani:** belgilangan vaqtda bog'lanmagan kirim va zanjir uzilishi haqida rahbarga ogohlantirish (T3 boti bilan), karta qoldig'ini Telegram'da so'rash, chek skrinshotidan bog'lash (cargo `receipts`), kassada qaytarish (karta pulini qaytarish) uchun chiqim xabarini tanlash.
+
+## 19. Kassada bir nechta valyutadagi balans (egasi tasdiqladi va qurildi, 2026-10-12: "ma'qul, band qilishdan oldin shuni qil")
+
+Savol (egasi): "kassada sotishda bir vaqtning o'zida qarzga bir nechta valyutada yoki hisobidagi bir nechta valyutadagi summani bir vaqtda ishlata olmaydimi?" (mijozning 10 $ haqisi va so'mdagi qarzi bor, chek so'mda). Hozir yo'q: chekda `onAccount` bitta valyutadagi hisobga yoziladi (`sale_payments` da bitta `account` qatori); qaytarish (`returns.service` dagi `accountPart`), almashtirishdagi ko'chgan qarz, chekning mijozini almashtirish (`giveTo`) va chekdagi yozuv shu bittaga tayanadi.
+
+Taklif (pul — avval kelishiladi):
+1. `onAccount` ro'yxat bo'ladi: har valyutaga bitta qator (`currency`, `amount` — chekdan ulushi, `settled?`); muddat chekka bitta.
+2. Kassada "Qarzga / Balansidan" bloki mijozning har haqisi bor valyutasini o'zi taklif qiladi ("Balansidan: 10 $ = 120 000 so'm"), qolgani tanlangan valyutada qarzga; "+ valyuta" bilan yana bir qator.
+3. To'siqlar (`accountBar`) jami yangi qarzga (asosiy valyutada, bugungi kursda) — hozirgidek.
+4. Qaytarishda hisob qismi qatorlar orasida yozilgan ulushlariga mutanosib bo'linadi (avval haqidan olingani emas, aynan yozilgani qaytadi); almashtirishda ko'chgan qarz ham har valyutada.
+
+Qanday qurildi: `onAccount` bitta qator yoki ro'yxat (core `onAccountField` — bittasi ro'yxatga aylanadi); har valyutaga bitta qator (`Har valyuta balansga bitta qator bilan yoziladi`). Sotuv har qatorni o'z hisobiga yozadi, haqi har birida alohida avval ishlatiladi; to'siqlar va kurs chegarasi — jami. Qaytarish (`accountParts`) har qatordan qolganiga mutanosib ayiradi (`allocateExact`), almashtirishdagi ko'chgan qarz ham shu ulushda. Kassa bloki: har valyuta o'z qatori ("Dollar balansi"), "=" — haqisi bo'lsa avval haqi, bo'lmasa qolgan summa; "+ Valyuta" bilan qo'shilgan qator × bilan olib tashlanadi; muddat bitta. Chekdagi "Jami qarzi" har valyutada.
+
+## 20. Band qilish (otlojka; YOL-XARITA K1) — qurildi, 2026-10-12
+
+Egasi: ekranda nomi «Band qilish» ("bron emas"), menyuda «Band qilinganlar»; Telegram'dan keyin shu, keyin serverga qo'yish.
+
+**Asosiy qaror: band qilish — va'da, harakat emas.** Tovar do'konning qoldig'ida va sanog'ida qoladi; faol band qilishlarning qatorlari sotish, ko'chirish va hisobdan chiqarish mumkin bo'lgan miqdordan ayiriladi. YOL-XARITA dagi dastlabki fikr ("qoldiqdan «band» joyiga suriladi") o'rniga shu tanlandi, chunki:
+- inventarizatsiya to'g'ri qoladi: tovar peshtaxta ortida turibdi, sanalganda bor;
+- himoya bitta joyda — `StockService.pick`: hamma chiqim (sotuv, ko'chirish, hisobdan chiqarish, yetkazib beruvchiga qaytarish) shu orqali o'tadi;
+- yangi joy turi, partiya va tannarx harakati yo'q; bo'shatish — shunchaki holat, hech narsa qaytarilmaydi.
+
+Qoidalar:
+1. Faqat mijozga (mijozsiz band qilinmaydi), kassada, shu kassaning do'konida. Muddat — standart 3 kun (`HOLD_DAYS`), kassir o'zgartiradi; o'tgan kun rad etiladi.
+2. Faqat bor tovar band qilinadi: qoldiqdan boshqa bandlar ayirilgani yetmasa — "qoldiq yetarli emas (bor X, band qilingan Y)".
+3. **Pul yurmaydi.** Mijoz qoldirgan pul — oddiy "To'lov olish" (balansiga); oynadagi "Band qilib, to'lov olish" tugmasi band qilgach shu oynani ochadi. Tovarni olib ketganda "Qarzga / Balansidan" qatoridan to'lanadi. Band bo'shatilsa pul balansida qoladi (qaytarish — odatdagi "Berish").
+4. **O'zi bo'shamaydi.** Muddati o'tgani qizil ko'rinadi va sanaladi, odam hal qiladi (muddatni o'zgartirish yoki bo'shatish): taqvim nima desa ham tovar peshtaxta ortida turibdi.
+5. Narx qotmaydi: band qilingan kundagi narx ma'lumot uchun saqlanadi, sotilganda o'sha kunning narxi, aksiyasi va mijoz chegirmasi.
+6. Olib ketish — oddiy sotuv (`holdId` bilan): band yopiladi (`taken`, chek bilan), chekda yo'q qatorlar bo'shaydi; faqat shu mijozga va shu do'kon kassasida.
+7. Guruhdagi "olib qo'yilmaydi" (`no_layaway`) — `NO_HOLD`; `pos.debt` egasi o'tadi. PIN bilan o'tish yo'li hozircha yo'q.
+8. Inventarizatsiya bandni hisobga olmaydi (`pick(..., counting = true)`): kamomad chiqsa band o'z joyida qoladi, odam ko'radi.
+
+Qanday qurildi:
+- Core `holds.ts`: holatlar (`active`, `taken`, `released`), `holdInputSchema`, `holdDueSchema`, `holdListQuerySchema` (`state`: `active` | `overdue` | `taken` | `released` | `all`), `HoldDto`, `HoldSummary`; `saleInputSchema.holdId`, `posItemsSchema.holdId`; `StockListItemDto.held`.
+- Baza (migratsiya `1790000060000-holds`): `holds` (BQ-… raqam, `client_key`, mijoz va uning o'sha paytdagi ismi, joy, muddat, narx turi, jami, `sale_id`, `search_key`) va `hold_lines` (variant, miqdor, o'sha kungi narx); ikkalasida RLS.
+- Server `modules/pos/holds.service.ts` + `holds.controller.ts`: `GET /holds`, `GET /holds/:id`, `POST /holds`, `PUT /holds/:id/due`, `POST /holds/:id/release`; ko'rish — `pos.sell` yoki `sales.view`, yozish — `pos.sell`; xodim faqat o'z do'konlarini ko'radi. `takeIn(em, actor, id, sale)` ni sotuv tovarni olishdan oldin chaqiradi. `StockService.promised` va `pick` (javobida `promised`); kassa qidiruvi va `/pos/items` dagi qoldiq — bo'sh miqdor (`items.ts` dagi `ON_HAND`, sotilayotgan bandning o'zi bundan mustasno). Tarix: `hold.create`, `hold.due`, `hold.release`, `hold.take`; realtime `holds`, `pos`, `stock`.
+- Veb: kassada savat ostida «Band qilish» tugmasi (mijoz tanlanmagan bo'lsa avval mijoz so'raladi) → `features/pos/hold-dialog.tsx`; «Band qilinganlar» sahifasi (`/holds`, `holds-page.tsx`): holat va do'kon filtri, qidiruv (raqam, ism, telefon), muddati o'tganlar soni; qator ochilsa `hold-card.tsx` — tovarlar, muddatni o'zgartirish, «Bo'shatish», «Sotish». «Sotish» kassani `/pos?hold=<id>` bilan ochadi: savat band qilingan tovar va mijoz bilan to'ladi, savat ustida "BQ-… bo'yicha band qilingan tovar sotilmoqda"; savat bo'shatilsa yoki mijoz almashtirilsa band savatdan ajraladi. "Qoldiq" sahifasida jami ostida "band: N".
+
+Keyinga qoldi: taqiqni rahbar PIN'i bilan chetlab o'tish; band qog'ozi (mijozga beriladigan kvitansiya); mijoz kartasida uning bandlari; muddati o'tganlar haqida bildirishnoma (T3 bilan); chekda "BQ-… bo'yicha" yozuvi.

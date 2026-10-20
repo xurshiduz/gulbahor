@@ -129,9 +129,15 @@ export class PosController {
   items(
     @CurrentActor() actor: Actor,
     @Body(zod(posItemsSchema))
-    input: { registerId: string; variantIds: string[]; priceTypeId: string | null; promoCode: string | null },
+    input: {
+      registerId: string
+      variantIds: string[]
+      priceTypeId: string | null
+      promoCode: string | null
+      holdId: string | null
+    },
   ): Promise<PosItemDto[]> {
-    return this.pos.items(actor, input.registerId, input.variantIds, input.priceTypeId, input.promoCode)
+    return this.pos.items(actor, input.registerId, input.variantIds, input.priceTypeId, input.promoCode, input.holdId)
   }
 }
 

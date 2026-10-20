@@ -1,5 +1,6 @@
 import {
   formatMoney,
+  normalizeEpc,
   STOCK_DOC_PERMISSION,
   STOCK_DOC_STATUS_LABELS,
   stockDocInputSchema,
@@ -52,6 +53,7 @@ import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
 
 import { DOC_ROUTES, DOC_STATUS_TONES } from './stockdocs-page'
+import { type TagStray, TagStrays } from './tag-strays'
 
 const transfer = getRouteApi('/transfers/$docId')
 const writeoff = getRouteApi('/writeoffs/$docId')
@@ -212,7 +214,11 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
   const [onHand, setOnHand] = useState<Record<string, number>>(() => doc?.onHand ?? {})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [dirty, setDirty] = useState(false)
-  const seenTags = useRef(new Set<string>())
+  // Pieces counted on this document, kept with it: saved and opened again, a piece is not counted twice.
+  const seenTags = useRef(new Set<string>(doc?.tags ?? []))
+  const [strays, setStrays] = useState<TagStray[]>([])
+  const stray = (next: TagStray) =>
+    setStrays((current) => (current.some((one) => one.epc === next.epc) ? current : [...current, next]))
 
   const touch = () => {
     setDirty(true)
@@ -287,11 +293,22 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
             if (seenTags.current.has(found.epc)) {
               return
             }
+            if (found.unitStatus === 'sold') {
+              stray({ epc: found.epc, kind: 'sold', name: [found.productName, found.label].filter(Boolean).join(', ') })
+              return
+            }
             seenTags.current.add(found.epc)
           }
           return addProduct(found.productId, found.variantId)
         })
-        .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
+        .catch((error: unknown) => {
+          const epc = normalizeEpc(code)
+          if (epc && error instanceof ApiError && error.status === 404) {
+            stray({ epc, kind: 'unknown', name: null })
+            return
+          }
+          toast.error(error instanceof ApiError ? error.message : String(error))
+        })
     },
     { enabled: editable },
   )
@@ -331,7 +348,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
 
   const save = useMutation({
     mutationFn: async (): Promise<StockDocDto | null> => {
-      const parsed = stockDocInputSchema.safeParse({ kind, ...header, lines })
+      const parsed = stockDocInputSchema.safeParse({ kind, ...header, lines, tags: [...seenTags.current] })
       if (!parsed.success) {
         const fields: Record<string, string> = {}
         for (const issue of parsed.error.issues) {
@@ -571,6 +588,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
     >
       <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-6">
         <Form id={FORM_ID} onSubmit={() => void saveDraft()} className="max-w-5xl gap-4">
+          <TagStrays strays={strays} />
           <Card>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field

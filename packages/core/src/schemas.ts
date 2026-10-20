@@ -64,6 +64,12 @@ export interface Page<T> {
 }
 
 export const requiredText = (max: number) => z.string().trim().min(1).max(max)
+
+/**
+ * The banks' notices a card's money was picked from (KEYINGI-REJA, 18): said with the line that wrote the money,
+ * so the books know the bank saw it. Only on a card's line, and their sums make the line's.
+ */
+export const noticeIdsSchema = z.array(z.uuid()).max(20).optional()
 export const optionalText = (max: number) =>
   z
     .string()

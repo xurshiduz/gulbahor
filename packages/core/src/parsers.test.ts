@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { formatDate, parseDateInput, type LocalDate } from './date'
 import { formatPhoneTyping, parsePhone } from './phone'
-import { matchScore, queryKeys, searchKey } from './text'
+import { matchScore, queryKeys, searchKey, soundKey } from './text'
 
 const today: LocalDate = { year: 2026, month: 10, day: 1 }
 const date = (input: string) => {
@@ -80,5 +80,19 @@ describe('search keys', () => {
     const keys = queryKeys('anvar')
     expect(matchScore(keys, 'anvar')).toBeGreaterThan(matchScore(keys, 'anvar aka'))
     expect(matchScore(keys, 'anvar aka')).toBeGreaterThan(matchScore(keys, 'dilshod anvarov'))
+  })
+})
+
+describe('names spelt many ways', () => {
+  it('meet in one key: h and x and kh, q and k, doubled letters, dj and j, iy and i', () => {
+    const muhammadali = soundKey(searchKey('Muhammadali'))
+    for (const spelt of ['Мухаммадали', 'Муҳаммадали', 'Mukhammadali', 'Muxammadali', 'Muhamadali']) {
+      expect(soundKey(searchKey(spelt))).toBe(muhammadali)
+    }
+    expect(soundKey(searchKey('Qodirov'))).toBe(soundKey(searchKey('Кодиров')))
+    expect(soundKey(searchKey('Djamshid'))).toBe(soundKey(searchKey('Джамшид')))
+    expect(soundKey(searchKey('Aliyev'))).toBe(soundKey(searchKey('Алиев')))
+    // Two names stay two.
+    expect(soundKey(searchKey('Muhammad Rizo'))).not.toContain(muhammadali)
   })
 })

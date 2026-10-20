@@ -17,6 +17,7 @@ import { Db } from '../../database/db.service'
 import { Account, MoneyOp, MoneyTransfer, Register, Shift } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
+import { checkPicks, tieNotices } from '../cards/card-links'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
 import { rateLimit, valueLine, wantingRate } from './agreed'
@@ -69,14 +70,32 @@ export class MoneyTransfersService {
       if (again) {
         return (await this.rows(em, actor, [again]))[0]
       }
+      // The banks' notices of it, held before anything moves: of the card it leaves, of the card it reaches.
+      const notices = await this.noticesOf(em, input)
       const sent = await this.sendIn(em, actor, input)
+      const left = await checkPicks(em, {
+        noticeIds: notices.from,
+        accountId: input.fromAccountId,
+        direction: 'out',
+        amount: input.amount,
+      })
+      const reached = await checkPicks(em, {
+        noticeIds: notices.to,
+        accountId: input.toAccountId,
+        direction: 'in',
+        amount: sent.toAmount,
+      })
+      if (left || reached) {
+        throw AppError.validation({ noticeIds: (left ?? reached) as string })
+      }
       // A terminal's money is written down once the bank shows it: whoever runs the money says both that it
-      // left and that it came, in one go.
+      // left and that it came, in one go. So is money a card's own bank says reached it.
       const from = await em.findOneByOrFail(Account, { id: sent.fromAccountId })
-      const arrived = settles(from) && can(actor, 'money.manage')
+      const arrived = (settles(from) || notices.to.length > 0) && can(actor, 'money.manage')
       if (arrived) {
         await this.receiveIn(em, actor, sent)
       }
+      await tieNotices(em, actor, [...notices.from, ...notices.to], { type: DOCUMENT, id: sent.id }, 'picked')
       const notice = await this.sentNotice(em, sent)
       afterCommit(() => {
         this.realtime.changed(actor.orgId, ['money', 'pos', 'shifts', ...(sent.fee ? ['money-ops'] : [])])
@@ -86,6 +105,24 @@ export class MoneyTransfersService {
       })
       return (await this.rows(em, actor, [await em.findOneByOrFail(MoneyTransfer, { id: sent.id })]))[0]
     })
+  }
+
+  /** The notices said with a transfer, by the card each is of: none may be of any other. */
+  private async noticesOf(em: EntityManager, input: MoneyTransferInput): Promise<{ from: string[]; to: string[] }> {
+    const ids = [...new Set(input.noticeIds ?? [])]
+    if (!ids.length) {
+      return { from: [], to: [] }
+    }
+    const rows: { id: string; account_id: string | null }[] = await em.query(
+      `SELECT id, account_id FROM card_notices WHERE id = ANY($1)`,
+      [ids],
+    )
+    const from = rows.filter((row) => row.account_id === input.fromAccountId).map((row) => row.id)
+    const to = rows.filter((row) => row.account_id === input.toAccountId).map((row) => row.id)
+    if (from.length + to.length !== ids.length) {
+      throw AppError.validation({ noticeIds: 'Bank xabari bu o‘tkazmaning kartasiniki emas' })
+    }
+    return { from, to }
   }
 
   /** What the screens are told when money is sent: where from and where to, never how much. */

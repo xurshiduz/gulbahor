@@ -93,6 +93,25 @@ describe('costReceipt', () => {
     )
   })
 
+  it('takes a per-piece expense as that much for every piece', () => {
+    const costing = costReceipt({
+      base: 'UZS',
+      currency: 'UZS',
+      rate: null,
+      rateWay: 'in',
+      book: { base: 'UZS', rates: {} },
+      extraCurrency: 'UZS',
+      lines: [
+        { qty: 3, price: 100_000_00, extra: 0, weightG: null },
+        { qty: 2, price: 50_000_00, extra: 0, weightG: null },
+      ],
+      // A hanger and a bag: 7 000 so'm a piece.
+      expenses: [{ amount: 7_000_00, currency: 'UZS', basis: 'piece' }],
+    })
+    expect(costing.expenses).toEqual([{ amountUzs: 35_000_00 }])
+    expect(costing.lines.map((line) => line.expensesUzs)).toEqual([21_000_00, 14_000_00])
+  })
+
   it('falls back to quantity, and says so, when a weight is missing', () => {
     const costing = costReceipt({
       ...cargo,

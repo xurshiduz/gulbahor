@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import type { ImageThumb, ProductImageDto } from './images'
+import type { UnitStatus } from './labels'
 import { ALL_CURRENCY_CODES, type AnyCurrency, type CurrencyCode } from './money'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
 
@@ -529,4 +530,6 @@ export interface VariantLookupDto {
   label: string
   /** Set when the code was an RFID tag: that one piece, to be counted once however often it is read. */
   epc?: string | null
+  /** The piece's state when the code was an RFID tag: a sold one is reported, not counted. */
+  unitStatus?: UnitStatus | null
 }

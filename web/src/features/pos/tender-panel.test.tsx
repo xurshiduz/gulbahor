@@ -91,20 +91,29 @@ function Money({
         borrower
           ? {
               name: 'Nodira',
-              currency: 'UZS',
-              sums: { amount: lent, received: null },
-              line: null,
+              rows: [
+                {
+                  currency: 'UZS',
+                  sums: { amount: lent, received: null },
+                  line: null,
+                  balance: borrower.balance,
+                  prepaid,
+                  lent: owing - prepaid,
+                  haqi: Math.max(0, -borrower.balance),
+                  removable: false,
+                },
+              ],
+              spare: [],
+              onAdd: () => undefined,
+              onRemove: () => undefined,
               max: due,
               book,
               setsRates: false,
-              balance: borrower.balance,
-              prepaid,
-              lent: owing - prepaid,
               dueDate,
               noDue: false,
               onDueDate: (date) => setDueDate(date ?? ''),
               warning: borrower.warning ?? null,
-              onChange: (sums) => setLent(sums.amount),
+              onChange: (_currency, sums) => setLent(sums.amount),
             }
           : null
       }
@@ -130,18 +139,23 @@ function Change({
   keeper,
   mayReturnAny = false,
   held,
+  lends = false,
 }: {
   due: number
   onComplete: (change: WrittenChange[]) => void
   keeper?: { name: string; balance: number; currency: 'UZS' | 'USD' }
   mayReturnAny?: boolean
+  /** The keeper's account is offered for what is left unpaid as well. */
+  lends?: boolean
   /** What the till's places hold, for a person who may see balances. */
   held?: Record<string, number>
 }) {
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
   const [giving, setGiving] = useState<Record<string, Partial<ChangeRow>>>({})
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<ChangeMode>('give')
+  // As at the till: with someone whose balance it could stay on, nothing is chosen until the cashier chooses.
+  const [chosen, setMode] = useState<ChangeMode | null>(null)
+  const mode = keeper ? chosen : (chosen ?? 'give')
   const rows = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
   const typed = tendersOf(enteredRows(rows), false)
   const allCash = settle(due, typed, { book, roundStep: som(1000) })
@@ -188,6 +202,36 @@ function Change({
         keeper: keeper ? { name: keeper.name, balance: keeper.balance } : null,
         cardAsks: !mayReturnAny,
       }}
+      onAccount={
+        lends && keeper
+          ? {
+              name: keeper.name,
+              rows: [
+                {
+                  currency: keeper.currency,
+                  sums: { amount: null, received: null },
+                  line: null,
+                  balance: keeper.balance,
+                  prepaid: 0,
+                  lent: 0,
+                  haqi: 0,
+                  removable: false,
+                },
+              ],
+              spare: [],
+              onAdd: () => undefined,
+              onRemove: () => undefined,
+              max: due,
+              book,
+              setsRates: false,
+              dueDate: null,
+              noDue: false,
+              onDueDate: () => undefined,
+              warning: null,
+              onChange: () => undefined,
+            }
+          : null
+      }
       action="Sotish"
       busy={false}
       onComplete={() => onComplete(handed)}
@@ -198,7 +242,7 @@ function Change({
 
 const changeField = (key: string, nth = 0) =>
   document.querySelectorAll<HTMLInputElement>(`[data-change-row="${key}"] input`)[nth] as HTMLInputElement
-const changeSaid = () => plain(screen.getByText('Qaytim').parentElement?.textContent)
+const changeSaid = () => plain(document.querySelector('[data-change-said]')?.parentElement?.textContent)
 
 describe('the rows money is paid into', () => {
   it('are one for each way of paying, every card and terminal with its own', () => {
@@ -229,6 +273,25 @@ describe('the rows money is paid into', () => {
 })
 
 describe('the change', () => {
+  it('is kept on the balance or lent there, never both: paid over, nothing is left to lend', async () => {
+    render(
+      <Change
+        due={som(200_000)}
+        onComplete={() => undefined}
+        keeper={{ name: 'Omadillo', balance: som(150_000), currency: 'UZS' }}
+        lends
+      />,
+    )
+    // Not all of it paid: what is left may go on the account.
+    await userEvent.type(field('cash'), '100000{Tab}')
+    expect(document.querySelector('[data-on-account]')).not.toBeNull()
+    // Paid over: what is over may stay there, and there is nothing to lend.
+    await userEvent.clear(field('cash'))
+    await userEvent.type(field('cash'), '300000{Tab}')
+    expect(document.querySelector('[data-on-account]')).toBeNull()
+    expect(screen.getByText('Balansida qoldirish')).toBeTruthy()
+  })
+
   it('is cash in the base, with the other ways folded away until asked for', async () => {
     render(<Change due={som(75_000)} onComplete={() => undefined} />)
     // Nothing over yet: nothing to split.
@@ -241,7 +304,24 @@ describe('the change', () => {
     expect(
       [...document.querySelectorAll('[data-change-row]')].map((row) => row.getAttribute('data-change-row')),
     ).toEqual(['cash:USD', 'card:humo', 'card:uzcard'])
-    expect(plain(document.querySelector('[data-change]')?.textContent)).toContain('Naqd so‘m — qolgani')
+    // Cash in the base has its row too, the first: what the others leave, counted there and not typed.
+    const rest = document.querySelector('[data-change-rest]') as HTMLElement
+    expect(document.querySelector('[data-change]')?.firstElementChild).toBe(rest)
+    expect(plain(rest.textContent)).toContain('Naqd so‘m')
+    expect(plain(rest.querySelector('[data-counted]')?.textContent)).toBe('25 000so‘m')
+    expect(rest.querySelector('input')).toBeNull()
+    await userEvent.type(changeField('card:humo'), '5000')
+    await userEvent.tab()
+    await waitFor(() => expect(plain(rest.querySelector('[data-counted]')?.textContent)).toBe('20 000so‘m'))
+  })
+
+  it('says what the cash was before the till rounded it', async () => {
+    // 24 700 over, and the till hands back whole thousands.
+    render(<Change due={som(75_300)} onComplete={() => undefined} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByText('Qaytimni bo‘lish'))
+    const rest = () => plain(document.querySelector('[data-change-rest]')?.textContent)
+    expect(rest()).toContain('qolgani 24 700 so‘m — yaxlitlandi')
   })
 
   it('is all cash again once the rows are folded away', async () => {
@@ -251,7 +331,7 @@ describe('the change', () => {
     await userEvent.type(changeField('card:humo'), '5000')
     await userEvent.tab()
     await waitFor(() => expect(changeSaid()).toContain('20 000 so‘m, kartadan 5 000 so‘m'))
-    await userEvent.click(screen.getByText('Hammasi naqd'))
+    await userEvent.click(screen.getByText('Hammasi naqd so‘mda'))
     expect(changeSaid()).toContain('25 000 so‘m')
     expect(changeSaid()).not.toContain('kartadan')
   })
@@ -314,32 +394,51 @@ describe('the change', () => {
     expect(sold).not.toHaveBeenCalled()
   })
 
-  it('is left on the customer’s balance, in the sale’s money, whatever the balance is kept in', async () => {
+  it('is left on a balance kept in dollars: the dollars first, what they are of the change beside', async () => {
     const sold = vi.fn()
     render(<Change due={som(75_000)} onComplete={sold} keeper={{ name: 'Elaris', balance: 5000, currency: 'USD' }} />)
     await userEvent.type(field('cash'), '100000{Enter}')
     await userEvent.click(await screen.findByRole('radio', { name: 'Balansida qoldirish' }))
     const row = () => plain(document.querySelector('[data-change-row="account"]')?.textContent)
     expect(row()).toContain('Balansida qoladiElaris')
-    // All of it at first, and what the balance comes to is said beside it.
+    // All of it at first — 25 000 so'm, 2,07 $ at 12 100 — and what the balance comes to is said beside it.
+    expect(changeField('account').value).toBe('2,07')
+    expect(plain(changeField('account', 1).value)).toBe('25 000')
     expect(row()).toContain('Balansi: −50,00 $ → −47,93 $')
     // Only the way of leaving it with them is out: nothing here hands money back.
     expect(
       [...document.querySelectorAll('[data-change-row]')].map((item) => item.getAttribute('data-change-row')),
     ).toEqual(['account'])
-    // 12 100 of the change is a dollar on their balance at the day's rate; the rest goes back in cash.
+    // One dollar of it stays with them: 12 100 at the day's rate; the rest goes back in cash, counted in its row.
     await userEvent.clear(changeField('account'))
-    await userEvent.type(changeField('account'), '12100{Enter}')
+    await userEvent.type(changeField('account'), '1{Enter}')
     await waitFor(() => expect(row()).toContain('Balansi: −50,00 $ → −49,00 $'))
+    expect(plain(changeField('account', 1).value)).toBe('12 100')
     // Beside "Qaytim" stands only what is handed back.
     expect(changeSaid()).not.toContain('balansida')
     expect(changeSaid()).toContain('13 000 so‘m')
-    expect(plain(changeField('account', 1).placeholder)).toBe('1,00')
+    expect(plain(document.querySelector('[data-change-rest] [data-counted]')?.textContent)).toBe('13 000so‘m')
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
     expect(sold.mock.calls[0][0]).toEqual([
       { key: 'account', way: 'account', currency: 'USD', accountId: null, amount: 100, value: som(12_100) },
     ])
+  })
+
+  it('takes the sale’s money typed alone for what the rate makes it on a dollar balance', async () => {
+    render(
+      <Change
+        due={som(75_000)}
+        onComplete={() => undefined}
+        keeper={{ name: 'Elaris', balance: 5000, currency: 'USD' }}
+      />,
+    )
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.click(await screen.findByRole('radio', { name: 'Balansida qoldirish' }))
+    await userEvent.clear(changeField('account', 1))
+    await userEvent.type(changeField('account', 1), '12100{Tab}')
+    await waitFor(() => expect(changeField('account').value).toBe('1,00'))
+    expect(changeSaid()).toContain('13 000 so‘m')
   })
 })
 
@@ -379,16 +478,68 @@ describe('what each place holds', () => {
 })
 
 describe('money paid over the sum', () => {
-  it('is handed back unless the cashier says it stays on the customer’s balance', async () => {
+  it('is handed back without asking when there is nobody whose balance it could stay on', async () => {
+    const sold = vi.fn()
+    render(<Change due={som(75_000)} onComplete={sold} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    expect((await screen.findByRole('radio', { name: 'Qaytim berish' })).getAttribute('aria-checked')).toBe('true')
+    expect(changeSaid()).toBe('Qaytim25 000 so‘m')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+  })
+
+  it('waits to be told where it goes when the customer has a balance: Enter asks, and does not sell', async () => {
+    const sold = vi.fn()
+    render(<Change due={som(75_000)} onComplete={sold} keeper={{ name: 'Nodira', balance: 0, currency: 'UZS' }} />)
+    await userEvent.type(field('cash'), '100000{Enter}')
+    const give = await screen.findByRole('radio', { name: 'Qaytim berish' })
+    const keep = screen.getByRole('radio', { name: 'Balansida qoldirish' })
+    // Neither is chosen for the cashier, and it is not called change yet.
+    expect(give.getAttribute('aria-checked')).toBe('false')
+    expect(keep.getAttribute('aria-checked')).toBe('false')
+    expect(changeSaid()).toBe('Ortiqcha pul25 000 so‘m')
+    expect(screen.getByText('Tanlang: qaytim beriladimi yoki mijoz balansida qoladimi?')).toBeTruthy()
+    expect(document.querySelector('[data-change-mode]')?.hasAttribute('data-undecided')).toBe(true)
+    // Enter in the money goes to the choice instead of selling.
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(give))
+    expect(sold).not.toHaveBeenCalled()
+    // Enter there is the choice; the next one sells.
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(give.getAttribute('aria-checked')).toBe('true'))
+    expect(changeSaid()).toBe('Qaytim25 000 so‘m')
+    expect(screen.queryByText('Tanlang: qaytim beriladimi yoki mijoz balansida qoladimi?')).toBeNull()
+    expect(sold).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(sold).toHaveBeenCalledTimes(1))
+    expect(sold.mock.calls[0][0]).toEqual([])
+  })
+
+  it('is chosen with the arrows too: the one beside is a key away', async () => {
+    render(
+      <Change
+        due={som(75_000)}
+        onComplete={() => undefined}
+        keeper={{ name: 'Nodira', balance: 0, currency: 'UZS' }}
+      />,
+    )
+    await userEvent.type(field('cash'), '100000{Enter}')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Qaytim berish' })))
+    await userEvent.keyboard('{ArrowRight}')
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: 'Balansida qoldirish' }).getAttribute('aria-checked')).toBe('true'),
+    )
+    await waitFor(() => expect(plain(changeField('account').value)).toBe('25 000'))
+  })
+
+  it('stays on the customer’s balance when the cashier says so', async () => {
     const sold = vi.fn()
     render(<Change due={som(75_300)} onComplete={sold} keeper={{ name: 'Nodira', balance: 0, currency: 'UZS' }} />)
     // Nothing over yet: nothing to choose between.
     expect(screen.queryByText('Balansida qoldirish')).toBeNull()
     await userEvent.type(field('cash'), '100000{Enter}')
-    // Handing it back is what is meant until something else is said.
-    expect((await screen.findByRole('radio', { name: 'Qaytim berish' })).getAttribute('aria-checked')).toBe('true')
-    expect(changeSaid()).not.toContain('balansida')
-    await userEvent.click(screen.getByRole('radio', { name: 'Balansida qoldirish' }))
+    await userEvent.click(await screen.findByRole('radio', { name: 'Balansida qoldirish' }))
     // All of it, to the tiyin: nothing is handed back, so nothing is rounded.
     await waitFor(() => expect(plain(changeField('account').value)).toBe('24 700'))
     // Nothing is left to hand back.

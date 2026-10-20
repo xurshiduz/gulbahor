@@ -35,7 +35,9 @@ export class AuthController {
     private readonly auth: AuthService,
     config: ConfigService<Env, true>,
   ) {
-    this.secure = config.get('NODE_ENV') === 'production'
+    // A browser keeps a `Secure` cookie only for an address it reached over HTTPS: the address the system is
+    // opened at says which it is (a server tried by its bare address before its certificate is plain HTTP).
+    this.secure = config.get('WEB_ORIGIN').startsWith('https://')
   }
 
   @Public()

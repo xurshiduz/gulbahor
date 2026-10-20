@@ -54,6 +54,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Page, SearchInput } from '@/components/ui/page'
+import { useCardPicks, type NoticeStart } from '@/features/cards/notice-picks'
 import { useSession } from '@/features/auth/session'
 import { currencyName } from '@/features/money/currencies-view'
 import { exchangeLine, ReceivedField, receivedOf, type ExchangeSums } from '@/features/money/exchange'
@@ -93,6 +94,7 @@ import {
   sparePlaces,
   switchTill,
   TillField,
+  withNotice,
 } from '@/features/money/payment-lines'
 
 const route = getRouteApi('/payments')
@@ -137,6 +139,8 @@ interface PaymentDialogProps {
    * place of the whole of what is owed.
    */
   suggest?: number
+  /** A bank's notice of money on a card, opened to say whose it was: its card's line holds it already. */
+  notice?: NoticeStart | null
   onClose: () => void
   /** The money is in: whoever opened this may want to know the customer again. */
   onSaved?: () => void
@@ -158,14 +162,17 @@ export function PaymentDialog({
   registerId,
   approvers = [],
   suggest,
+  notice = null,
   onClose,
   onSaved,
 }: PaymentDialogProps) {
   const { t } = useTranslation()
-  const { can, me } = useSession()
+  const { can, me, hasModule } = useSession()
   const queryClient = useQueryClient()
   const kept = useKept()
-  const [kind, setKind] = useState<'in' | 'out'>(startKind)
+  const [kind, setKind] = useState<'in' | 'out'>(notice?.direction ?? startKind)
+  // What the banks wrote of the cards' money going this way: a card's sum is picked from it.
+  const picks = useCardPicks(kind, hasModule('cards'))
   const [customerId, setCustomerId] = useState<string | null>(fixedCustomer ?? null)
   const [pickedCurrency, setPickedCurrency] = useState<AnyCurrency | null>(fixedCurrency ?? null)
   // Until a line is touched they are the ones this computer usually pays through.
@@ -208,8 +215,8 @@ export function PaymentDialog({
   const [hidden, setHidden] = useHiddenPlaces()
   // Until something is typed the lines follow whose account it is: the places in its currency come first.
   const shown = useMemo(
-    () => rows ?? startRows(places, tillId, hidden, currency),
-    [rows, places, tillId, hidden, currency],
+    () => rows ?? withNotice(startRows(places, tillId, hidden, currency), notice),
+    [rows, places, tillId, hidden, currency, notice],
   )
   const pickTill = (id: string) => {
     setPickedTill(id)
@@ -333,6 +340,7 @@ export function PaymentDialog({
         accountId: line.row.accountId,
         amount: line.row.amount,
         settled: agreedOf(line),
+        ...(line.row.noticeIds?.length ? { noticeIds: line.row.noticeIds } : {}),
       })),
       settled: total,
       ...(forgiven ? { forgive: forgiven } : {}),
@@ -545,6 +553,7 @@ export function PaymentDialog({
             problems={problems}
             autoFocus={!!fixedCustomer}
             focusId={added}
+            picks={picks}
           />
         )}
 

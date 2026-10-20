@@ -83,7 +83,11 @@ describe('who is at the counter', () => {
     expect(screen.queryByRole('textbox', { name: 'Mijoz' })).toBeNull()
     expect(screen.getByText(/\+998 90 123 45 67/)).toBeTruthy()
     // With them come their groups, and what the groups ask the cashier to remember.
-    expect(screen.getByText(/Oila, Doimiy/)).toBeTruthy()
+    // Each group said whole, however long its name.
+    expect([...document.querySelectorAll('[data-customer-group]')].map((group) => group.textContent)).toEqual([
+      'Oila',
+      'Doimiy',
+    ])
     expect(screen.getByRole('note').textContent).toBe('Chek berish kerak')
 
     // Taken off again, the field is back.

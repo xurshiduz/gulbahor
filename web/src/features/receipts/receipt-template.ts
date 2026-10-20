@@ -103,7 +103,7 @@ const header = (column: TemplateColumn) => ({
   borderColor: '#9CA3AF',
 })
 
-/** The hidden row: which field each column is. Styled, so that it stays locked with the headers. */
+/** The hidden row: which field each column is. */
 const keyCell = (column: TemplateColumn) => ({ value: `${TEMPLATE_KEY}${column.key}`, textColor: '#9CA3AF' })
 
 export function columnLetter(index: number): string {
@@ -117,8 +117,17 @@ export function columnLetter(index: number): string {
 const escape = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** Excel's own checks on what is typed under the headers: a number where a number goes, a choice from a list. */
+/**
+ * Excel's own checks on what is typed. Under the headers: a number where a number goes, a choice from a list.
+ * In the head rows themselves: nothing — whatever is typed there is turned away, which is all the guarding the
+ * headers get. The sheet is not locked: a lock made every cell pasted in from another file locked too, and some
+ * programs took the empty cells for locked ones, so that the template could not be filled in at all.
+ */
 export function validationsXml(columns: readonly TemplateColumn[], t: TFunction): string {
+  const head =
+    `<dataValidation type="custom" allowBlank="0" showErrorMessage="1" errorStyle="stop" ` +
+    `errorTitle="${escape(t('import.checkHeadTitle'))}" error="${escape(t('import.checkHead'))}" ` +
+    `sqref="A1:${columnLetter(columns.length - 1)}${TEMPLATE_HEAD_ROWS}"><formula1>FALSE</formula1></dataValidation>`
   const rules = columns.flatMap((column, index) => {
     if (!column.check) {
       return []
@@ -141,46 +150,29 @@ export function validationsXml(columns: readonly TemplateColumn[], t: TFunction)
         ]
     }
   })
-  return rules.length ? `<dataValidations count="${rules.length}">${rules.join('')}</dataValidations>` : ''
+  return `<dataValidations count="${rules.length + 1}">${head}${rules.join('')}</dataValidations>`
 }
 
-/**
- * Locks the sheet: the header rows cannot be changed, nor columns added or taken away; rows of goods are written,
- * added, removed and sorted as usual. No password — it keeps a header from being changed by mistake, and the
- * hidden keys still say which column is which if someone takes the lock off on purpose.
- */
-export function lockSheet(xml: string, validations: string): string {
-  const protection =
-    '<sheetProtection sheet="1" objects="1" scenarios="1" formatCells="0" formatColumns="0" formatRows="0" ' +
-    'insertRows="0" deleteRows="0" sort="0" autoFilter="0"/>'
-  let out = xml.replace('</sheetData>', `</sheetData>${protection}`)
-  if (validations) {
-    // Excel keeps its elements in one order: the checks come before the page's margins and set-up.
-    const before = ['<pageMargins', '<pageSetup', '<drawing', '</worksheet>']
-      .map((tag) => out.indexOf(tag))
-      .filter((at) => at !== -1)
-    const at = Math.min(...before)
-    out = out.slice(0, at) + validations + out.slice(at)
+/** Puts the checks where Excel looks for them: it keeps a sheet's elements in one order. */
+export function withChecks(xml: string, validations: string): string {
+  if (!validations) {
+    return xml
   }
-  return out
-}
-
-/** Every cell nobody styled — the empty ones under the headers — is left open to write in. */
-export function unlockPlainCells(styles: string): string {
-  return styles.replace(/<cellXfs([^>]*)>\s*<xf([^>]*?)(\/>|>([\s\S]*?)<\/xf>)/, (_, list, attributes, _end, inner) => {
-    const plain = attributes.replace(/\s*applyProtection="[^"]*"/, '').trimEnd()
-    return `<cellXfs${list}><xf${plain} applyProtection="1">${inner ?? ''}<protection locked="0"/></xf>`
-  })
+  // The checks come before the page's margins and set-up.
+  const before = ['<pageMargins', '<pageSetup', '<drawing', '</worksheet>']
+    .map((tag) => xml.indexOf(tag))
+    .filter((at) => at !== -1)
+  const at = Math.min(...before)
+  return xml.slice(0, at) + validations + xml.slice(at)
 }
 
 function templateFeature<Content>(validations: string): Feature<Content> {
   return {
     files: {
       transform: {
-        'xl/styles.xml': { transform: (content) => unlockPlainCells(content) },
         'xl/worksheets/sheet{id}.xml': {
           transform: (content, _options, { sheetIndex }) =>
-            sheetIndex === 0 ? lockSheet(content, validations) : content,
+            sheetIndex === 0 ? withChecks(content, validations) : content,
           transformElementAttributes: (tagName, attributes, index, _options, { sheetIndex }) =>
             sheetIndex === 0 && tagName === 'row' && index === 0 ? { ...attributes, hidden: 1 } : attributes,
         },
@@ -217,7 +209,7 @@ function sampleRows(columns: readonly TemplateColumn[], t: TFunction, retailId: 
 }
 
 /**
- * The business's own receipt template: the goods sheet with its hidden keys and locked headers, a sheet saying
+ * The business's own receipt template: the goods sheet with its hidden keys and guarded headers, a sheet saying
  * how to fill it, and a sheet filled in as an example.
  */
 export function templateWorkbook<Content = File | Blob | ArrayBuffer>(

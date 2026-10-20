@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
 
 import { Account, LedgerEntry, Organization, type Customer, type Register } from '../../database/entities'
+import { RELEASE_NOTICES } from '../cards/card-links'
 import { drawerName } from './drawers'
 
 /** One side of a movement: so much into an account (or, negative, out of it), and its worth in the base. */
@@ -86,6 +87,10 @@ export class LedgerService {
     )
     if (head.kind !== CUSTOMER_MERGE) {
       await this.carryOn(em, actor, head, lines)
+    }
+    // A document whose money is gone from a card again gives back the bank's notices that stood for it.
+    if (head.documentType && head.documentId) {
+      await em.query(RELEASE_NOTICES, [head.documentType, head.documentId])
     }
     return entry.id
   }

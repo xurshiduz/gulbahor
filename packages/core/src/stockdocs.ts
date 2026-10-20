@@ -84,6 +84,12 @@ export const stockDocInputSchema = z
     fullCount: z.boolean().default(false),
     note: optionalText(500),
     lines: z.array(stockDocLineInputSchema).max(5000),
+    /** RFID tags already counted on this document: each piece is counted once, however often it is read or saved. */
+    tags: z
+      .array(z.string().regex(/^[0-9A-F]{24}$/))
+      .max(20_000)
+      .default([])
+      .transform((tags) => [...new Set(tags)]),
   })
   .superRefine((doc, context) => {
     if (doc.kind === 'transfer') {
@@ -188,6 +194,7 @@ export interface StockDocDto {
   credited: { amount: number; currency: AnyCurrency } | null
   fullCount: boolean
   note: string | null
+  tags: string[]
   lines: StockDocLineDto[]
   products: ReceiptProductDto[]
   /** On hand at the document's place right now, by variant, for the models on it. */

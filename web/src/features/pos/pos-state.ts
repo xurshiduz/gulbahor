@@ -51,6 +51,8 @@ export interface TenderRow {
   /** Dollars taken for an agreed worth in so'm: "call the 50 dollars 600 000". Null: what the rate makes them. */
   value: number | null
   reference: string
+  /** A card's: the bank's notices its sum was picked from. */
+  noticeIds?: string[]
 }
 
 export interface Cart {
@@ -64,6 +66,8 @@ export interface Cart {
   customer?: PosCustomerDto | null
   /** The promotion code the customer said, once the till has been told it means something. */
   promoCode?: string | null
+  /** The hold this cart takes: goods that were set aside for the customer, who has come for them. */
+  hold?: { id: string; number: string } | null
 }
 
 export const EMPTY_CART: Cart = { lines: [], discountText: '', sellerId: null }

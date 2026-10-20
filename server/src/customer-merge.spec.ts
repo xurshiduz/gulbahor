@@ -228,7 +228,7 @@ describe('Two cards of one person made one', () => {
       // The receipt is hers now, and says what she owes in all.
       const receipt = (await alpha.get(`/api/sales/${sale.id}`).expect(200)).body
       expect(receipt.customerId).toBe(first)
-      expect(receipt.owes).toEqual({ currency: 'UZS', balance: som(125_000) })
+      expect(receipt.owes).toEqual([{ currency: 'UZS', balance: som(125_000) }])
       const debtors = (await alpha.get('/api/customers/debtors').expect(200)).body.items as {
         customerId: string
         owed: number

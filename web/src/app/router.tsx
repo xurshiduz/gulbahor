@@ -1,5 +1,7 @@
 import {
+  CARD_NOTICE_STATES,
   GENDERS,
+  HOLD_LIST_STATES,
   LOCATION_KINDS,
   MONEY_OP_KINDS,
   MONEY_OP_STATUSES,
@@ -23,6 +25,7 @@ import { ReferencesPage } from '@/features/catalog/references-page'
 import { HomePage } from '@/features/dashboard/home-page'
 import { InputsDemoPage } from '@/features/dev/inputs-demo-page'
 import { DevicesPage } from '@/features/devices/devices-page'
+import { CardsPage } from '@/features/cards/cards-page'
 import { GatePage } from '@/features/devices/readers'
 import { LabelsPage } from '@/features/labels/labels-page'
 import { LocationsPage } from '@/features/locations/locations-page'
@@ -31,6 +34,7 @@ import { CustomersPage } from '@/features/customers/customers-page'
 import { PromotionsPage } from '@/features/promotions/promotions-page'
 import { SalesReportPage } from '@/features/reports/sales-report-page'
 import { PaymentsPage } from '@/features/customers/payments'
+import { HoldsPage } from '@/features/pos/holds-page'
 import { PosPage } from '@/features/pos/pos-page'
 import { SalesPage } from '@/features/pos/sales-page'
 import { ShiftsPage } from '@/features/pos/shifts-page'
@@ -40,6 +44,7 @@ import { ReceiptPage } from '@/features/receipts/receipt-page'
 import { ReceiptsPage } from '@/features/receipts/receipts-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { StockPage } from '@/features/stock/stock-page'
+import { StockProductPage } from '@/features/stock/stock-product-page'
 import { CountPage, SupplierReturnPage, TransferPage, WriteoffPage } from '@/features/stockdocs/stockdoc-page'
 import { CountsPage, SupplierReturnsPage, TransfersPage, WriteoffsPage } from '@/features/stockdocs/stockdocs-page'
 import { RolesPage } from '@/features/users/roles-page'
@@ -134,8 +139,6 @@ const stockSearch = z.object({
   categoryId: z.string().optional().catch(undefined),
   brandId: z.string().optional().catch(undefined),
   presence: z.enum(['in', 'out', 'all']).default('in').catch('in'),
-  /** The model whose colours and sizes are open. */
-  open: z.string().optional().catch(undefined),
 })
 const stockRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -143,6 +146,14 @@ const stockRoute = createRoute({
   component: StockPage,
   validateSearch: stockSearch,
   search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, presence: 'in' })] },
+})
+
+const stockProductRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/stock/$productId',
+  component: StockProductPage,
+  /** The piece just read: shown among the model's pieces. */
+  validateSearch: z.object({ epc: z.string().optional().catch(undefined) }),
 })
 
 const stockDocsSearch = z.object({
@@ -322,7 +333,11 @@ const posRoute = createRoute({
   path: '/pos',
   component: PosPage,
   // The receipt to bring goods back on, when the till is opened from the list of receipts.
-  validateSearch: z.object({ return: z.string().optional().catch(undefined) }),
+  validateSearch: z.object({
+    return: z.string().optional().catch(undefined),
+    // The hold to sell, when the till is opened from the list of goods set aside.
+    hold: z.string().optional().catch(undefined),
+  }),
 })
 
 const tillList = {
@@ -369,6 +384,25 @@ const shiftsRoute = createRoute({
   search: { middlewares: [stripSearchParams(TILL_LIST_DEFAULTS)] },
 })
 
+const holdsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/holds',
+  component: HoldsPage,
+  validateSearch: z.object({
+    page: listSearch.page,
+    size: listSearch.size,
+    q: listSearch.q,
+    // What stands is what is looked at; the rest is asked for.
+    state: z.enum(HOLD_LIST_STATES).default('active').catch('active'),
+    locationId: z.string().optional().catch(undefined),
+    /** The hold open over the list. */
+    open: z.string().optional().catch(undefined),
+  }),
+  search: {
+    middlewares: [stripSearchParams({ page: LIST_DEFAULTS.page, size: LIST_DEFAULTS.size, state: 'active' })],
+  },
+})
+
 const moneyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/money',
@@ -402,6 +436,34 @@ const devicesRoute = createRoute({
     tab: z.enum(['printers', 'readers', 'agents']).default('printers').catch('printers'),
   }),
   search: { middlewares: [stripSearchParams({ tab: 'printers' })] },
+})
+
+const cardsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cards',
+  component: CardsPage,
+  validateSearch: z.object({
+    tab: z.enum(['notices', 'stand', 'accounts']).default('notices').catch('notices'),
+    page: listSearch.page,
+    size: listSearch.size,
+    q: listSearch.q,
+    accountId: z.string().optional().catch(undefined),
+    direction: z.enum(['all', 'in', 'out']).default('all').catch('all'),
+    state: z.enum(CARD_NOTICE_STATES).default('all').catch('all'),
+    from: z.string().optional().catch(undefined),
+    to: z.string().optional().catch(undefined),
+  }),
+  search: {
+    middlewares: [
+      stripSearchParams({
+        tab: 'notices',
+        page: LIST_DEFAULTS.page,
+        size: LIST_DEFAULTS.size,
+        direction: 'all',
+        state: 'all',
+      }),
+    ],
+  },
 })
 
 const gateRoute = createRoute({
@@ -489,11 +551,13 @@ const routeTree = rootRoute.addChildren([
   posRoute,
   salesRoute,
   shiftsRoute,
+  holdsRoute,
   productsRoute,
   productRoute,
   pricesRoute,
   referencesRoute,
   stockRoute,
+  stockProductRoute,
   receiptsRoute,
   receiptRoute,
   transfersRoute,
@@ -514,6 +578,7 @@ const routeTree = rootRoute.addChildren([
   moneyRoute,
   devicesRoute,
   gateRoute,
+  cardsRoute,
   usersRoute,
   rolesRoute,
   auditRoute,

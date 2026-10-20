@@ -2,11 +2,16 @@ import type {
   AccountKind,
   AnyCurrency,
   AttributeKind,
+  CardLinkWay,
+  CardNoticeKind,
+  CardNoticeSource,
+  CardNoticeStanding,
   CreditMode,
   CurrencyCode,
   CustomerGender,
   ExpenseBasis,
   Gender,
+  HoldStatus,
   ImageFormat,
   LabelSizeKey,
   LocationKind,
@@ -36,6 +41,7 @@ import type {
   StockDocKind,
   StockDocStatus,
   SystemAccount,
+  TelegramAccountStatus,
   Unit,
   UnitStatus,
   WriteoffReason,
@@ -1186,6 +1192,9 @@ export class StockDocument {
 
   @Column('text', { nullable: true })
   note: string | null
+
+  @Column('text', { array: true })
+  tags: string[]
 
   @Column('numeric', { transformer: numericAsNumber })
   totalQty: number
@@ -2845,6 +2854,279 @@ export class CurrencyRate {
   createdAt: Date
 }
 
+/** A Telegram account the business has signed into from here, read for the banks' chats alone. */
+@Entity('telegram_accounts')
+export class TelegramAccount {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  phone: string
+
+  @Column('text', { nullable: true })
+  name: string | null
+
+  @Column('text', { nullable: true })
+  telegramId: string | null
+
+  /** The session's key, sealed; null once the account is switched off or signed out. */
+  @Column('text', { nullable: true })
+  session: string | null
+
+  @Column('text')
+  status: TelegramAccountStatus
+
+  /** The banks' chats it reads, each with the last message of it that was read. */
+  @Column('jsonb', { default: () => "'[]'" })
+  chats: { id: string; title: string; lastId?: number }[]
+
+  @Column('timestamptz', { nullable: true })
+  lastNoticeAt: Date | null
+
+  @Column('timestamptz', { nullable: true })
+  lastSeenAt: Date | null
+
+  @Column('text', { nullable: true })
+  error: string | null
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date
+}
+
+/** What a bank's bot wrote about a card: as it came, and as it was read. */
+@Entity('card_notices')
+export class CardNotice {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  source: CardNoticeSource
+
+  /** Where it came from, once: the account, chat and message, or a key of its own for one put in by hand. */
+  @Column('text')
+  sourceKey: string
+
+  @Column('uuid', { nullable: true })
+  telegramAccountId: string | null
+
+  @Column('text', { nullable: true })
+  bot: string | null
+
+  @Column('timestamptz')
+  receivedAt: Date
+
+  @Column('text')
+  text: string
+
+  @Column('text')
+  kind: CardNoticeKind
+
+  @Column('text', { nullable: true })
+  direction: 'in' | 'out' | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  amount: number | null
+
+  @Column('text', { nullable: true })
+  currency: AnyCurrency | null
+
+  @Column('text', { nullable: true })
+  heading: string | null
+
+  @Column('text', { nullable: true })
+  place: string | null
+
+  @Column('text', { nullable: true })
+  cardTail: string | null
+
+  /** The bank's own clock as written: "2026-09-15T17:46". */
+  @Column('text', { nullable: true })
+  statedAt: string | null
+
+  @Column('bigint', { nullable: true, transformer: bigintAsNumber })
+  balance: number | null
+
+  @Column('uuid', { nullable: true })
+  accountId: string | null
+
+  @Column('boolean', { default: false })
+  gap: boolean
+
+  @Column('uuid', { nullable: true })
+  addedBy: string | null
+
+  @Column('text', { nullable: true })
+  addedByName: string | null
+
+  /** Money moving: open, tied to the document that wrote it, or left off the books. */
+  @Column('text', { nullable: true })
+  standing: CardNoticeStanding | null
+
+  @Column('text', { nullable: true })
+  linkWay: CardLinkWay | null
+
+  @Column('text', { nullable: true })
+  documentType: string | null
+
+  @Column('uuid', { nullable: true })
+  documentId: string | null
+
+  @Column('text', { nullable: true })
+  reason: string | null
+
+  @Column('uuid', { nullable: true })
+  handledBy: string | null
+
+  @Column('text', { nullable: true })
+  handledByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  handledAt: Date | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+/** Money in the books the bank never wrote of, looked at and found right. */
+@Entity('card_checks')
+export class CardCheck {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  documentType: string
+
+  @Column('uuid')
+  documentId: string
+
+  @Column('uuid')
+  accountId: string
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+}
+
+/** Goods set aside for a customer: promised, not moved. */
+@Entity('holds')
+export class Hold {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('text')
+  number: string
+
+  @Column('uuid')
+  clientKey: string
+
+  @Column('text')
+  status: HoldStatus
+
+  @Column('uuid')
+  locationId: string
+
+  @Column('uuid')
+  customerId: string
+
+  @Column('text')
+  customerName: string
+
+  @Column('uuid', { nullable: true })
+  priceTypeId: string | null
+
+  /** The last day the goods are held: "2026-10-15". */
+  @Column('date')
+  dueDate: string
+
+  @Column('text', { nullable: true })
+  note: string | null
+
+  /** The goods at the prices of the day they were set aside, in the base. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  total: number
+
+  @Column('numeric', { transformer: numericAsNumber })
+  totalQty: number
+
+  @Column('uuid', { nullable: true })
+  saleId: string | null
+
+  @Column('text')
+  searchKey: string
+
+  @Column('uuid', { nullable: true })
+  createdBy: string | null
+
+  @Column('text', { nullable: true })
+  createdByName: string | null
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date
+
+  @Column('uuid', { nullable: true })
+  closedBy: string | null
+
+  @Column('text', { nullable: true })
+  closedByName: string | null
+
+  @Column('timestamptz', { nullable: true })
+  closedAt: Date | null
+}
+
+@Entity('hold_lines')
+export class HoldLine {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column('uuid')
+  orgId: string
+
+  @Column('uuid')
+  holdId: string
+
+  @Column('int')
+  position: number
+
+  @Column('uuid')
+  variantId: string
+
+  @Column('numeric', { transformer: numericAsNumber })
+  qty: number
+
+  /** What one sold for on the day it was set aside, in the base. */
+  @Column('bigint', { transformer: bigintAsNumber })
+  price: number
+}
+
 export const ENTITIES = [
   Organization,
   Location,
@@ -2910,4 +3192,9 @@ export const ENTITIES = [
   CustomerGroupMember,
   LoyaltyTierRow,
   Promotion,
+  TelegramAccount,
+  CardNotice,
+  CardCheck,
+  Hold,
+  HoldLine,
 ]

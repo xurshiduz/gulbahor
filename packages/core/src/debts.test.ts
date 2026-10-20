@@ -146,7 +146,18 @@ describe('a sale on account', () => {
       customerId: ID,
       onAccount: { amount: som(100_000), dueDate: '2026-11-04' },
     })
-    expect(dated.onAccount).toMatchObject({ amount: som(100_000), dueDate: '2026-11-04' })
+    expect(dated.onAccount).toMatchObject([{ amount: som(100_000), dueDate: '2026-11-04' }])
+    // In several currencies at once: a line to each.
+    const both = saleInputSchema.parse({
+      ...sale,
+      customerId: ID,
+      onAccount: [
+        { currency: 'USD', amount: som(12_000) },
+        { currency: 'UZS', amount: som(88_000) },
+      ],
+    })
+    expect(both.onAccount.map((line) => line.currency)).toEqual(['USD', 'UZS'])
+    expect(saleInputSchema.parse({ ...sale, total: 0 }).onAccount).toEqual([])
     expect(
       saleInputSchema.safeParse({ ...sale, customerId: ID, onAccount: { amount: 1, dueDate: '4.11' } }).success,
     ).toBe(false)

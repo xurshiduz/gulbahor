@@ -7,7 +7,7 @@ import readXlsxFile from 'read-excel-file/node'
 import { describe, expect, it } from 'vitest'
 import writeXlsxFile from 'write-excel-file/node'
 
-import { columnLetter, lockSheet, templateColumns, templateWorkbook, unlockPlainCells } from './receipt-template'
+import { columnLetter, templateColumns, templateWorkbook, validationsXml, withChecks } from './receipt-template'
 
 const t = i18next.t.bind(i18next)
 
@@ -100,29 +100,31 @@ describe('the receipt template', () => {
   })
 })
 
-describe('locking the template', () => {
+describe('guarding the template', () => {
   const SHEET =
     '<worksheet><sheetViews/><cols/><sheetData><row r="1"/></sheetData><pageMargins left="0.7"/></worksheet>'
 
-  it('locks the sheet and puts the checks where Excel looks for them', () => {
-    const xml = lockSheet(SHEET, '<dataValidations count="1"/>')
+  it('does not lock the sheet: it only puts the checks where Excel looks for them', () => {
+    const xml = withChecks(SHEET, '<dataValidations count="1"/>')
     expect(xml).toBe(
       '<worksheet><sheetViews/><cols/><sheetData><row r="1"/></sheetData>' +
-        '<sheetProtection sheet="1" objects="1" scenarios="1" formatCells="0" formatColumns="0" formatRows="0" ' +
-        'insertRows="0" deleteRows="0" sort="0" autoFilter="0"/>' +
         '<dataValidations count="1"/><pageMargins left="0.7"/></worksheet>',
     )
+    expect(xml).not.toContain('sheetProtection')
   })
 
-  it('leaves open the cells nobody styled, and nothing else', () => {
-    expect(
-      unlockPlainCells('<styleSheet><cellXfs count="2"><xf ></xf><xf fontId="1"></xf></cellXfs></styleSheet>'),
-    ).toBe(
-      '<styleSheet><cellXfs count="2"><xf applyProtection="1"><protection locked="0"/></xf><xf fontId="1"></xf></cellXfs></styleSheet>',
-    )
-    expect(unlockPlainCells('<cellXfs count="1"><xf numFmtId="0"/></cellXfs>')).toBe(
-      '<cellXfs count="1"><xf numFmtId="0" applyProtection="1"><protection locked="0"/></xf></cellXfs>',
-    )
+  it('turns away whatever is typed into the head rows, and nothing below them', async () => {
+    await i18next.changeLanguage('uz')
+    const columns = templateColumns(t, TYPES, 'UZS')
+    const xml = validationsXml(columns, t)
+    const last = columnLetter(columns.length - 1)
+    // One rule over the hidden keys and the headers: nothing typed there is taken.
+    expect(xml).toContain(`sqref="A1:${last}2"><formula1>FALSE</formula1>`)
+    expect(xml).toContain('error="Sarlavha qatori o‘zgartirilmaydi. Ma’lumotni pastdagi qatorlarga yozing."')
+    // Every other rule starts under the headers.
+    const firstRows = [...xml.matchAll(/sqref="[A-Z]+(\d+):/g)].map((match) => Number(match[1]))
+    expect(firstRows.filter((row) => row < 3)).toEqual([1])
+    expect(xml.startsWith(`<dataValidations count="${firstRows.length}">`)).toBe(true)
   })
 
   it('names columns as Excel does', () => {

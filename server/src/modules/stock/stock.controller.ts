@@ -1,11 +1,14 @@
 import {
   idSchema,
   stockListQuerySchema,
+  stockUnitsQuerySchema,
   type Page,
   type StockListItemDto,
   type StockListQuery,
   type StockLocationDto,
   type StockProductDto,
+  type StockUnitDto,
+  type StockUnitsQuery,
 } from '@erp/core'
 import { Controller, Get, Param, Query } from '@nestjs/common'
 
@@ -36,5 +39,15 @@ export class StockController {
   @Can('stock.view')
   product(@CurrentActor() actor: Actor, @Param('id', zod(idSchema)) id: string): Promise<StockProductDto> {
     return this.stock.product(actor, id)
+  }
+
+  @Get('products/:id/units')
+  @Can('stock.view')
+  units(
+    @CurrentActor() actor: Actor,
+    @Param('id', zod(idSchema)) id: string,
+    @Query(zod(stockUnitsQuerySchema)) query: StockUnitsQuery,
+  ): Promise<StockUnitDto[]> {
+    return this.stock.units(actor, id, query)
   }
 }

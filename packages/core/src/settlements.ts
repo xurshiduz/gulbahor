@@ -5,7 +5,7 @@ import type { AnyCurrency } from './money'
 import type { CustomerDto } from './customers'
 import { ALL_CURRENCY_CODES } from './money'
 import type { AccountDto } from './pos'
-import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
+import { idSchema, listQuerySchema, noticeIdsSchema, optionalText, pinSchema, requiredText } from './schemas'
 
 /**
  * What a customer owes and is owed, and the money that settles it.
@@ -350,6 +350,7 @@ export const customerPaymentLineSchema = z.object({
    * not left to the day's rate. Counts only where the money is in another currency than the payment's.
    */
   settled: positive.nullish().transform((value) => value ?? null),
+  noticeIds: noticeIdsSchema,
 })
 export type CustomerPaymentLineInput = z.infer<typeof customerPaymentLineSchema>
 

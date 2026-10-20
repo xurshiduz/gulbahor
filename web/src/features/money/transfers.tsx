@@ -29,6 +29,7 @@ import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { SearchInput } from '@/components/ui/page'
+import type { NoticeStart } from '@/features/cards/notice-picks'
 import { currencyShort, placeName } from '@/features/money/payment-lines'
 import { api, ApiError } from '@/lib/api'
 import { base } from '@/lib/base'
@@ -361,7 +362,8 @@ export function TransferDialog({
   accounts,
   limit,
   setsRates,
-  startFrom = null,
+  startFrom: asked = null,
+  notice = null,
   onClose,
 }: {
   accounts: AccountDto[]
@@ -371,11 +373,15 @@ export function TransferDialog({
   setsRates: boolean
   /** The account the money leaves, when the window is opened for it: a terminal whose money reached the bank. */
   startFrom?: string | null
+  /** A bank's notice of money on a card, opened to say where it went or came from: the card and sum are its. */
+  notice?: NoticeStart | null
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const book = useRateBook()
+  // Opened for a notice of money leaving a card, the card is where it leaves from; of money reaching one, where to.
+  const startFrom = notice?.direction === 'out' ? notice.accountId : asked
   const [fromId, setFromId] = useState<string | null>(startFrom)
   // Opened for a terminal, its money goes to the bank account — the only one of its currency, when there is one.
   const [startTo] = useState<string | null>(() => {
@@ -386,10 +392,10 @@ export function TransferDialog({
             (account) => account.isActive && account.kind === 'bank' && account.currency === start.currency,
           )
         : []
-    return banks.length === 1 ? banks[0].id : null
+    return notice?.direction === 'in' ? notice.accountId : banks.length === 1 ? banks[0].id : null
   })
   const [toId, setToId] = useState<string | null>(startTo)
-  const [sums, setSums] = useState<ExchangeSums>({ amount: null, received: null })
+  const [sums, setSums] = useState<ExchangeSums>({ amount: notice?.amount ?? null, received: null })
   // What the bank keeps for moving it: seldom there, so the field stays folded until asked for.
   const [charged, setCharged] = useState(false)
   const [fee, setFee] = useState<number | null>(null)
@@ -434,6 +440,12 @@ export function TransferDialog({
     },
   })
 
+  const noticeHolds =
+    !!notice &&
+    (notice.direction === 'out'
+      ? fromId === notice.accountId && sums.amount === notice.amount
+      : toId === notice.accountId && (receivedOf(line) ?? sums.amount) === notice.amount)
+
   const submit = () => {
     const parsed = moneyTransferInputSchema.safeParse({
       clientKey,
@@ -444,6 +456,8 @@ export function TransferDialog({
       received: receivedOf(line),
       fee: withFee ? feeNow : null,
       note,
+      // The notice it was opened for stands for it while its card and sum are still the transfer's.
+      ...(notice && noticeHolds ? { noticeIds: [notice.id] } : {}),
     })
     if (!parsed.success) {
       setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])))

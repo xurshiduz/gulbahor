@@ -117,16 +117,26 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
         <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-2.5 py-1.5 text-[13px]">
           <UserRound className="size-4 shrink-0 text-ink-3" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{value.name}</span>
-            <span className="tabular block truncate text-xs text-ink-3">
-              {value.phone ? formatPhone(value.phone) : null}
-              {groups.length ? (
-                <span className="text-accent-ink">
-                  {value.phone ? ' · ' : ''}
-                  {groups.join(', ')}
-                </span>
-              ) : null}
+            <span className="block truncate font-medium" title={value.name}>
+              {value.name}
             </span>
+            {value.phone ? (
+              <span className="tabular block truncate text-xs text-ink-3">{formatPhone(value.phone)}</span>
+            ) : null}
+            {/* A group's name is said whole, however long: it may be what the cashier must keep in mind. */}
+            {groups.length ? (
+              <span className="mt-0.5 flex flex-wrap gap-1">
+                {groups.map((group) => (
+                  <span
+                    key={group}
+                    data-customer-group
+                    className="rounded bg-accent-soft px-1.5 text-[11px] leading-4 break-words text-accent-ink"
+                  >
+                    {group}
+                  </span>
+                ))}
+              </span>
+            ) : null}
           </span>
           <Button
             variant="ghost"
@@ -221,7 +231,9 @@ export const CustomerPicker = forwardRef<CustomerPickerHandle, CustomerPickerPro
               onClick={() => pick(customer)}
               className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
             >
-              <span className="min-w-0 flex-1 truncate font-medium">{customer.name}</span>
+              <span className="min-w-0 flex-1 truncate font-medium" title={customer.name}>
+                {customer.name}
+              </span>
               {customer.phone ? (
                 <span className="tabular shrink-0 text-xs text-ink-3">{formatPhone(customer.phone)}</span>
               ) : null}

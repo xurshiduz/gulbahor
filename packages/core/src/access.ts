@@ -62,8 +62,9 @@ export const MODULES: ModuleInfo[] = [
   {
     key: 'cards',
     title: 'Kartalar nazorati',
-    description: 'Bank xabarlari Telegram’dan o‘qiladi: kartaga pul tushgani sotuvga bog‘lanadi.',
-    state: 'planned',
+    description:
+      'Bank botlarining (HUMO, CardXabar) xabarlari Telegram akkauntdan o‘qiladi: kartaga qachon, qancha pul tushgani va chiqqani — «Pul → Karta xabarlari»da.',
+    state: 'optional',
   },
   {
     key: 'loyalty',
@@ -212,6 +213,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'money.collect', title: 'Kassadan pulni qabul qilish va kassaga pul berish' },
       { key: 'money.ops', title: 'Xarajat va boshqa kirimni yozish' },
       { key: 'money.categories', title: 'Xarajat va kirim turlarini boshqarish' },
+    ],
+  },
+  {
+    key: 'cards',
+    title: 'Kartalar nazorati',
+    module: 'cards',
+    permissions: [
+      { key: 'cards.view', title: 'Karta xabarlarini ko‘rish (kirim va chiqimlar)' },
+      { key: 'cards.settle', title: 'Karta xabarini hal qilish: to‘lovga bog‘lash yoki hisobga olmaslik' },
+      { key: 'cards.manage', title: 'Telegram akkauntini ulash va uzish, xabarni qo‘lda kiritish' },
     ],
   },
   {

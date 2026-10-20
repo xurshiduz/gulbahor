@@ -5,7 +5,7 @@ import { Fraction } from './fraction'
 import type { ImageThumb } from './images'
 import { ALL_CURRENCY_CODES, allocateExact, roundToStep, type AnyCurrency, type CurrencyCode } from './money'
 import type { PromoOffer } from './promotions'
-import { idSchema, listQuerySchema, optionalText, pinSchema, requiredText } from './schemas'
+import { idSchema, listQuerySchema, noticeIdsSchema, optionalText, pinSchema, requiredText } from './schemas'
 
 /**
  * The till: where money is kept, the shift a cashier works, and the sale.
@@ -613,6 +613,7 @@ export const salePaymentInputSchema = z
       .transform((value) => value ?? null),
     /** A terminal slip's number (last digits), or a note. */
     reference: optionalText(40),
+    noticeIds: noticeIdsSchema,
   })
   .superRefine((payment, context) => {
     if (payment.value !== null && payment.currency === null) {
@@ -679,6 +680,15 @@ export const saleOnAccountSchema = z.object({
 })
 export type SaleOnAccountInput = z.infer<typeof saleOnAccountSchema>
 
+/**
+ * What goes on the customer's account: a line to a currency — one, or several at once ("10 $ of theirs, the rest
+ * owed in so'm"). A lone line, as the till sent it before, is a list of one.
+ */
+const onAccountField = z
+  .union([saleOnAccountSchema, z.array(saleOnAccountSchema).max(8)])
+  .nullish()
+  .transform((value): SaleOnAccountInput[] => (value ? (Array.isArray(value) ? value : [value]) : []))
+
 export const saleInputSchema = z
   .object({
     /** Made by the till for each sale: sent twice, the sale is still made once. */
@@ -689,7 +699,7 @@ export const saleInputSchema = z
     /** Who is buying, when they are on the books. */
     customerId: idSchema.nullish().transform((value) => value ?? null),
     /** What of it goes on the customer's account: so much of the sum, and — agreed — what that is in its currency. */
-    onAccount: saleOnAccountSchema.nullish().transform((value) => value ?? null),
+    onAccount: onAccountField,
     /** The price type the whole sale is made at, when it is not the retail one: wholesale, a family price. */
     priceTypeId: idSchema.nullish().transform((value) => value ?? null),
     promoCode: promoCodeSchema,
@@ -705,15 +715,20 @@ export const saleInputSchema = z
     /** What the till showed as the total: if prices have changed since, the sale is refused rather than made at another sum. */
     total: amountSchema,
     note: optionalText(300),
+    /**
+     * The hold this sale takes: goods that were set aside for the customer, who has come for them. With the sale
+     * the hold is over — what of it is not on this receipt is anyone's again.
+     */
+    holdId: idSchema.nullish().transform((value) => value ?? null),
     approval: approvalField,
   })
   .superRefine(taggedOnce)
   .superRefine((sale, context) => {
     // A receipt that comes to nothing — goods given whole, to family — has nothing to be paid with.
-    if (!sale.payments.length && !sale.onAccount && sale.total > 0) {
+    if (!sale.payments.length && !sale.onAccount.length && sale.total > 0) {
       context.addIssue({ code: 'custom', path: ['payments'], message: 'To‘lovni kiriting' })
     }
-    if (sale.onAccount && !sale.customerId) {
+    if (sale.onAccount.length && !sale.customerId) {
       context.addIssue({ code: 'custom', path: ['customerId'], message: 'Balansga yozish uchun mijozni tanlang' })
     }
     const kept = sale.change.some((line) => line.way === 'account')
@@ -725,7 +740,7 @@ export const saleInputSchema = z
       })
     }
     // Lending part of a sale and keeping change from it at once is one sum written twice.
-    if (kept && sale.onAccount) {
+    if (kept && sale.onAccount.length) {
       context.addIssue({
         code: 'custom',
         path: ['change'],
@@ -855,10 +870,10 @@ export interface SaleDto extends Omit<SaleListItemDto, 'paidBy' | 'qty'> {
    */
   due: { id: string; dueDate: string | null } | null
   /**
-   * What the customer owes in all on the account this sale went on, as it stands now, for whoever may see it;
-   * null where the sale put nothing there, or nothing is owed.
+   * What the customer owes in all on each account this sale went on, as it stands now, for whoever may see it;
+   * none where the sale put nothing there, or nothing is owed.
    */
-  owes: { currency: AnyCurrency; balance: number } | null
+  owes: { currency: AnyCurrency; balance: number }[]
   note: string | null
   voidedAt: string | null
   voidedByName: string | null
@@ -988,13 +1003,13 @@ export const exchangeInputSchema = z
     /** For the difference, when the new goods are worth more. */
     payments: z.array(salePaymentInputSchema).max(10).default([]),
     /** What of the difference goes on the customer's account, as in any sale. */
-    onAccount: saleOnAccountSchema.nullish().transform((value) => value ?? null),
+    onAccount: onAccountField,
     change: changeField,
     total: amountSchema,
   })
   .superRefine(taggedOnce)
   .superRefine((goods, context) => {
-    if (goods.onAccount && !goods.customerId) {
+    if (goods.onAccount.length && !goods.customerId) {
       context.addIssue({ code: 'custom', path: ['customerId'], message: 'Balansga yozish uchun mijozni tanlang' })
     }
   })
@@ -1155,6 +1170,10 @@ export interface PosItemDto {
   epc: string | null
   /** A photograph of it: of its own colour when there is one. Absent in a cart kept from before. */
   image?: ImageThumb | null
+  /** The same photograph full size, to look at closely. */
+  imageLarge?: string | null
+  brandName?: string | null
+  categoryName?: string | null
   /**
    * In a cart sold at a price type: where its price came from — the type's own price for it (`type`), what the
    * type's formula makes of it where none is set (`formula`), or the retail price where there is no formula
@@ -1189,6 +1208,8 @@ export const posItemsSchema = z.object({
   variantIds: z.array(idSchema).min(1).max(300),
   priceTypeId: cartPriceType,
   promoCode: promoCodeSchema,
+  /** The hold the cart is taking: goods set aside under it are this cart's to sell. */
+  holdId: idSchema.nullish().transform((value) => value ?? null),
 })
 
 /** What the till needs to start: its shift, the day's rate, where money can go, how the shop rounds. */
@@ -1433,6 +1454,8 @@ export const moneyTransferInputSchema = z
      */
     fee: amountSchema.nullish().transform((value) => value || null),
     note: optionalText(200),
+    /** The banks' notices of it: the card it left, the card it reached, or both. */
+    noticeIds: noticeIdsSchema,
   })
   .refine((transfer) => transfer.fromAccountId !== transfer.toAccountId, {
     path: ['toAccountId'],

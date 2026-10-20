@@ -113,7 +113,7 @@ function desktop(title: string, body: string | undefined, tag: string | undefine
 export const greet = (title: string, body: string) => desktop(title, body, 'gb.hello')
 
 export interface Notice {
-  tone?: 'bad' | 'warn' | 'info'
+  tone?: 'bad' | 'warn' | 'info' | 'ok'
   title: string
   body?: string
   /** One notice per thing: told twice, it is shown once. */
@@ -131,7 +131,7 @@ export function announce({ tone = 'warn', title, body, tag, duration, open }: No
     duration,
     action: open ? { label: open.label, onClick: open.go } : undefined,
   }
-  toast[tone === 'bad' ? 'error' : tone === 'info' ? 'info' : 'warning'](title, options)
+  toast[tone === 'bad' ? 'error' : tone === 'info' ? 'info' : tone === 'ok' ? 'success' : 'warning'](title, options)
   if (supported() && Notification.permission === 'granted' && !watching()) {
     desktop(title, body, tag, open?.go)
   }

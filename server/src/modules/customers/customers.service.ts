@@ -117,7 +117,7 @@ export class CustomersService {
           qb.andWhere(debts ? 'NOT c.isSupplier' : suppliers ? 'c.isSupplier' : 'false')
         }
       }
-      applySearch(qb, 'c.search_key', query.q)
+      applySearch(qb, 'c.search_key', query.q, { names: true })
       applySort(qb, SORTABLE, query.sort, query.order, 'name')
       const [rows, total] = await qb
         .skip((query.page - 1) * query.size)
@@ -149,7 +149,7 @@ export class CustomersService {
   async brief(actor: Actor, query: CustomerBriefQuery): Promise<CustomerBriefDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const qb = em.createQueryBuilder(Customer, 'c').where('c.isActive')
-      applySearch(qb, 'c.search_key', query.q)
+      applySearch(qb, 'c.search_key', query.q, { names: true })
       if (query.supplier === 'first') qb.orderBy('c.isSupplier', 'DESC')
       // Without a search, the whole of those who supply goods: a receipt picks among them.
       const rows = await qb
@@ -215,8 +215,15 @@ export class CustomersService {
   async search(actor: Actor, q: string): Promise<PosCustomerDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const qb = em.createQueryBuilder(Customer, 'c').where('c.isActive')
-      applySearch(qb, 'c.search_key', q)
-      const rows = await qb.orderBy('c.name').limit(10).getMany()
+      applySearch(qb, 'c.search_key', q, { names: true })
+      // Every spelling of the name is offered; the one written as it was typed first.
+      const typed = searchKey(q)
+      const rows = await qb
+        .orderBy('(c.search_key LIKE :typed)', 'DESC')
+        .setParameter('typed', `${typed.replace(/[\\%_]/g, '\\$&')}%`)
+        .addOrderBy('c.name')
+        .limit(20)
+        .getMany()
       const rules = await rulesOf(em, rows, can(actor, 'customers.suppliers'))
       return rows.map((row) => rules.get(row.id) as PosCustomerDto)
     })
@@ -248,7 +255,7 @@ export class CustomersService {
       if (!debts || !suppliers) {
         qb.andWhere(debts ? 'NOT c.isSupplier' : 'c.isSupplier')
       }
-      applySearch(qb, 'c.search_key', query.q)
+      applySearch(qb, 'c.search_key', query.q, { names: true })
       const customers = await qb.orderBy('c.name').getMany()
       const today = await businessDay(em, actor.orgId)
       const standings = await standingsOf(

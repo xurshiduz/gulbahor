@@ -82,7 +82,8 @@ export function Select({ id, value, onChange, options, placeholder, invalid, dis
 
 interface SegmentsProps<T extends string> {
   id?: string
-  value: T
+  /** Null: nothing is chosen yet — the choice is the person's to make, and none is made for them. */
+  value: T | null
   onChange: (value: T) => void
   options: { value: T; label: string }[]
   className?: string
@@ -94,8 +95,9 @@ interface SegmentsProps<T extends string> {
  */
 export function Segments<T extends string>({ id, value, onChange, options, className }: SegmentsProps<T>) {
   const move = (step: number, from: HTMLElement) => {
-    const next =
-      options[(options.findIndex((option) => option.value === value) + step + options.length) % options.length]
+    // From the one the cursor is on: with nothing chosen yet, that is the first.
+    const at = options.findIndex((option) => option.value === from.dataset.segment)
+    const next = options[(at + step + options.length) % options.length]
     onChange(next.value)
     // The cursor follows the choice, as it does in a group of radio buttons.
     window.setTimeout(() => {
@@ -109,7 +111,7 @@ export function Segments<T extends string>({ id, value, onChange, options, class
       role="radiogroup"
       className={cn('flex h-8.5 w-full gap-0.5 rounded-md border border-line-strong bg-sunken p-0.5', className)}
     >
-      {options.map((option) => {
+      {options.map((option, index) => {
         const chosen = option.value === value
         return (
           <button
@@ -118,7 +120,8 @@ export function Segments<T extends string>({ id, value, onChange, options, class
             role="radio"
             aria-checked={chosen}
             data-segment={option.value}
-            tabIndex={chosen ? 0 : -1}
+            // Tab reaches the chosen one; with none chosen, the first.
+            tabIndex={chosen || (value === null && index === 0) ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => {
               if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {

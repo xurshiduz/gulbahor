@@ -26,7 +26,7 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-12 — core 257, agent 17, server 514 (46 fayl), veb 288 (41 fayl); typecheck, lint, i18n toza (13 ta ma'lum)
+Oxirgi to'liq tekshiruv: 2026-10-12: typecheck, lint, lug'at toza; core 273, agent 17, server 547, veb 318 (kartalar va UI testlari qayta yurgizildi)
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -235,7 +235,7 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
      - [ ] M1-d2. Xarajat o'zgarsa "Narxlarni yangilash"; `receipts.prices` ruxsati (egasi bilan kelishib); tovar kartasida narx taklifi; narx turi formasida ustun qoidalar ro'yxati, qoidalar to'qnashuvi; qoralamadan etiketka narxi (16.20 oxiri).
      - [x] M1-e. Narx turi formasi Turi va Valyuta'siz, hamma narx asosiy valyutada, Minimal formula bo'yicha jonli chegara; balans bitta son (16.18).
     - [ ] M1-f. Aksiya va minimal narx, "Qayta chop etish" ro'yxati (2026-10-08 qarorlari). Fiks / kursga bog'langan narx — kechiktirilgan (16.18).
-     - [x] K1. Kirim uchun Excel shablon va import (16.19, 1-ish): shablon sarlavhasi qulflangan va qotirilgan, ichida ustun kalitlari (sarlavha o'zgartirilsa ham taniladi), har narx turiga ixtiyoriy ustun, valyuta Excel'da emas — import oynasida (yetkazib beruvchining valyutasi o'zi qo'yiladi) (2026-10-12).
+     - [x] K1. Kirim uchun Excel shablon va import (16.19, 1-ish): shablon sarlavhasi qulflangan va qotirilgan, ichida ustun kalitlari (sarlavha o'zgartirilsa ham taniladi), har narx turiga ixtiyoriy ustun, valyuta Excel'da emas — import oynasida (yetkazib beruvchining valyutasi o'zi qo'yiladi) (2026-10-12). 2026-10-13: varaq himoyasi olib tashlandi (boshqa fayldan qo'yilgan kataklar qulflanib qolardi) — endi faqat sarlavha qatoriga yozish rad etiladi (ma'lumot tekshiruvi), qolgan joy ochiq.
      - [x] S1. "Sozlamalar → Modullar" haqiqatni aytadi: yoqib-o'chiriladigan (RFID), doim yoqiq (mijoz hisobi, qarzga sotish, terminal, import xarajatlari — switch yo'q), keyingi bosqichlarda (tanlov eslab qolinadi); kirimda narxi bor tovar maydonida "hozirgi" belgisi (2026-10-12).
      - [ ] K3. Tovarlarni tezkor tanlash oynasi (filtr, skaner, RFID stol o'quvchisi, ro'yxatni qo'yish) — aksiya, ommaviy narx o'zgartirish va etiketkada; aksiya model bo'yicha ham, aniq variant bo'yicha ham (16.19, 3-ish).
    - [x] M2. Yagona mijoz: baza, ko'chirish, har valyutada alohida qoldiq va "hisob ichida almashtirish", muddat va chegara, to'lovlar, qaytarish (~9 kun). Quyidagi bo'laklar bilan tugadi; ochiq qolgani — U1b va N0.
@@ -260,11 +260,26 @@ Bular uchun bazada ma'lumot yaratish yoki sotuv qilish kerak edi; egasining baza
 14. **Platforma** (YOL-XARITA, 3-bo'lim):
    - [x] P1. Xodimga rolidan tashqari qo'shimcha ruxsat (KEYINGI-REJA, 13b oxiri — qanday qurilgani).
 
+15. **Telegram: karta nazorati va botlar** (KEYINGI-REJA, 18-bo'lim; egasi, 2026-10-12 — M1-d2, K3 va M1-f dan oldin):
+   - [x] T1-a. Bank xabarini o'qish: `core/bank-notices.ts` (HumoBot va CardXabarBot bitta o'quvchi bilan, summa float'siz, qoldiq zanjiri) (2026-10-12).
+   - [x] T1-b. Xabarlar daftari: `card_notices`, "Pul → Karta xabarlari", o'qilmaganlar, zanjir uzilishi, notanish karta.
+   - [x] T1-c. Telegram akkauntlari: veb orqali kirish (telefon → kod → parol; egasining o'zi), sessiya shifrlangan, tinglovchi va qayta o'qish, holat sahifasi. `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` — egasi `server/.env` ga yozadi.
+   - [ ] T2. Pulga bog'lash: to'lov oynasida xabarni tanlash, tizim o'zi bog'lashi, bekor qilinganda qaytishi, "Karta xabarlari"da hal qilish (mijoz, xarajat, o'tkazma, "Tizimda bor", "Hisobga olinmaydi"), "Solishtirish" — qurildi (KEYINGI-REJA 18.3); qolgani — ogohlantirishlar (T3 bilan).
+   - [ ] T3. Rahbar boti va bildirishnomalar sozlamasi (10g, P4) — bot kaliti kerak.
+
+16. **Kassa: band qilish** (YOL-XARITA K1; KEYINGI-REJA, 20-bo'lim):
+   - [x] BQ. Band qilish (otlojka): tovar mijozga muddat bilan band qilinadi (qoldiqda qoladi, boshqaga sotilmaydi, ko'chirilmaydi, hisobdan chiqarilmaydi), kassada «Band qilish» tugmasi va oynasi, «Band qilinganlar» sahifasi (muddat, bo'shatish, sotish), olib ketish — oddiy sotuv, pul — oddiy to'lov (balansga), "Qoldiq"da "band: N".
+
+17. **Serverga qo'yish** (YOL-XARITA P5; `deploy/README.md`):
+   - [x] D1. `deploy/`: `install.sh` (Ubuntu 24.04: Node 22, PostgreSQL, nginx, `erp` xizmati, parollar serverda yasaladi), `update.sh` (zaxira, yonma-yon yig'ish, o'tish, ishga tushmasa qaytish), `backup.sh` (kunlik, 14 kun), nginx va systemd namunalari; cookie `Secure` belgisi `WEB_ORIGIN` dan (2026-10-12).
+   - [x] D2. Birinchi o'rnatish haqiqiy serverda — egasidan server (SSH) va domen kerak; lokal bazani ko'chirishmi yoki toza boshlashmi — egasi hal qiladi.
+   - [ ] D3. Zaxirani boshqa joyga ko'chirib turish (qayerga — egasi bilan).
+
 Qolgani (donalar ro'yxati, Humo bot, superadmin) — foydalanuvchi bilan.
 
 ## Hozir ishlanayotgan bo'lak
 
-Kassadagi aniqliklar, narx formulalari (M1-a, b, c, d1, e), balans ko'rinishi va kirim Excel shabloni (K1) tayyor, commit qilinmagan — egasi aytganda. Navbatda: M1-d2 (16.20 oxiri), keyin K3 (tovarlarni tezkor tanlash, aksiya variant bo'yicha), M1-f.
+—
 
 ## Ish daraxti nusxalari
 
@@ -311,3 +326,7 @@ Tiklash: `git read-tree <id>` emas — faqat qarash uchun `git diff <id>` yoki `
 | `19026cf6b58acd4e42c5ce9e5f81f2f7d6973278` | M4: mijozlarni birlashtirish (daftar orqali, tarix bitta hisob), akt-sverka (davr, tovar soni, Excel, chop), boshlang'ich qoldiqlar Excel'dan, kirimdan To'lov berish, chekda Jami qarzi va imzo; kassada qaytimni bir bosishda hisobda qoldirish, yetkazib beruvchi hisobiga rahbar so'zi bilan; tizim nomi vaqtincha «Sanoq» |
 | `995f2856c375d80d334418426883d916939dbe51` | M1-e (16.18): Chakana va Minimal tizim narxlari, yangi tur doim qo'shimcha, hamma narx asosiy valyutada (migratsiya 56000), Minimal formula bo'yicha kassada jonli (standart — yo'q), kassirga chegara raqami ko'rsatilmaydi; balans bitta son (qarz minus va qizil, haqi yashil) |
 | `8587af5c0c8787d84b6a8e209ed7da84f5f68a98` | K1 (16.19): kirim Excel shabloni va import (boshqa sessiya); M1-d1 (16.20): kirimda maydonga formula, yangi narx manbai bilan, "Narxlar" qatori (shu kirim uchun formula, qo'yilmaydi, narxi borlarga ham), `receiptPrice`, migratsiya 57000; tizim nomi «Savdo» |
+| `45b0dca7b6fbe65b3f7a7d5ca1930dc740d268f5` | T1-b, T1-c, T2 (asosiy qismi): karta xabarlari, Telegram akkauntlari, bog'lash va hal qilish, solishtirish; sahifa faqat ochishga haqi borga; ism har xil yozilsa ham topiladi |
+| `45b0dca7b6fbe65b3f7a7d5ca1930dc740d268f5` | — |
+| `f6f21015770847be5a6196866bbf2037ef6f251a` | BQ (YOL-XARITA K1; KEYINGI-REJA 20): band qilish — holds / hold_lines (migratsiya 60000), StockService.pick band tovarga tegmaydi, kassada «Band qilish» va /pos?hold, «Band qilinganlar» sahifasi, sotuvda holdId, Qoldiqda band: N |
+| `75be47af72e981690c9191959b8b887bff10b6a2` | D2: sinov serveriga o'rnatildi (Ubuntu 24.04, PostgreSQL 18, boshqa dastur bilan bitta serverda) — https://savdo.84.247.140.203.nip.io, HTTPS (Let's Encrypt), kunlik zaxira; kassa to'lov paneli: bir xil ustunlar (OwnPair), ortiqcha pul uchun majburiy tanlov, qaytimni bo'lishda Naqd so'm qatori |

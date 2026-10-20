@@ -8,35 +8,37 @@ import {
   type StockListItemDto,
   type StockLocationDto,
   type StockProductDto,
+  type VariantLookupDto,
 } from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Boxes } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilterCombo, FilterSelect } from '@/components/ui/column-filters'
 import { ColorDot } from '@/components/ui/combobox'
 import { Select } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
-import { Dialog } from '@/components/ui/dialog'
-import { EmptyState, Spinner } from '@/components/ui/feedback'
+import { EmptyState } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
-import { useAttributes, useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
+import { useBrands, useCategories, useCategoryOptions } from '@/features/catalog/catalog'
 import { matrixOf } from '@/features/receipts/receipt-state'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { base } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { withFilter } from '@/lib/list-search'
+import { useScanner } from '@/lib/scanner'
+import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/stock')
 
-const ALL = 'all'
+export const ALL = 'all'
 
 export function StockPage() {
   const { t } = useTranslation()
@@ -45,7 +47,7 @@ export function StockPage() {
   const navigate = route.useNavigate()
   const seesCost = can('stock.cost')
 
-  const { open, ...filters } = search
+  const filters = search
   const list = useQuery({
     queryKey: ['stock', 'list', filters],
     queryFn: ({ signal }) => api.get<PageOf<StockListItemDto>>('/stock', filters, signal),
@@ -83,6 +85,27 @@ export function StockPage() {
         cell: ({ row }) => row.original.sku,
       },
       {
+        id: 'barcode',
+        header: t('stock.barcode'),
+        meta: {
+          // Kept as text in the file: a long code is not a number to be rounded.
+          export: (row) => row.barcodes.join(', '),
+          className: 'w-px font-code text-xs text-ink-2 whitespace-nowrap',
+        },
+        // A model has a code for each colour and size: the first is shown, the rest are a hover away.
+        cell: ({ row }) => {
+          const [first, ...rest] = row.original.barcodes
+          return first ? (
+            <span data-barcodes title={rest.length ? row.original.barcodes.join('\n') : undefined}>
+              {first}
+              {rest.length ? <span className="text-ink-3"> +{rest.length}</span> : null}
+            </span>
+          ) : (
+            <span className="text-ink-3">—</span>
+          )
+        },
+      },
+      {
         id: 'name',
         header: t('products.name'),
         meta: { export: (row) => row.name, sortKey: 'name', fixed: true },
@@ -91,12 +114,16 @@ export function StockPage() {
             {faces ? <Thumb image={row.original.image} className="size-9" /> : null}
             <span>
               <span className="font-medium">{row.original.name}</span>
-              {row.original.brandName ? <span className="text-ink-3"> · {row.original.brandName}</span> : null}
             </span>
           </span>
         ),
       },
-      { id: 'brand', header: t('products.brand'), meta: { exportOnly: true, export: (row) => row.brandName } },
+      {
+        id: 'brand',
+        header: t('products.brand'),
+        meta: { export: (row) => row.brandName, className: 'text-ink-2' },
+        cell: ({ row }) => row.original.brandName ?? <span className="text-ink-3">—</span>,
+      },
       {
         id: 'category',
         header: t('products.category'),
@@ -126,7 +153,22 @@ export function StockPage() {
           className: 'tabular text-right font-semibold',
           headerClassName: 'text-right',
         },
-        cell: ({ row }) => `${formatNumber(row.original.qty)} ${UNIT_INFO[row.original.unit].short}`,
+        // What of it is promised to customers stands under it: it is there, but not for anyone else.
+        cell: ({ row }) => (
+          <span className="flex flex-col items-end leading-tight">
+            <span>{`${formatNumber(row.original.qty)} ${UNIT_INFO[row.original.unit].short}`}</span>
+            {row.original.held ? (
+              <span data-held className="text-xs font-normal text-accent-ink">
+                {t('stock.held', { n: formatNumber(row.original.held) })}
+              </span>
+            ) : null}
+          </span>
+        ),
+      },
+      {
+        id: 'held',
+        header: t('stock.heldColumn'),
+        meta: { exportOnly: true, export: (row) => row.held },
       },
       ...(seesCost
         ? [
@@ -166,8 +208,15 @@ export function StockPage() {
     [t, shownLocations, seesCost, faces],
   )
 
-  const setOpen = (productId: string | undefined) =>
-    void navigate({ search: (previous) => ({ ...previous, open: productId }) })
+  const openProduct = (productId: string, epc?: string) =>
+    void navigate({ to: '/stock/$productId', params: { productId }, search: { epc } })
+  // A label read anywhere on the list opens its model, the piece found among its pieces.
+  useScanner((code) => {
+    api
+      .get<VariantLookupDto>('/products/lookup', { code })
+      .then((found) => openProduct(found.productId, found.epc ?? undefined))
+      .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
+  })
   const filtered = !!(search.q || search.categoryId || search.brandId || search.locationId)
 
   return (
@@ -177,7 +226,7 @@ export function StockPage() {
         data={list.data?.items}
         loading={list.isFetching}
         rowId={(row) => row.productId}
-        onRowOpen={(row) => setOpen(row.productId)}
+        onRowOpen={(row) => openProduct(row.productId)}
         exportAs={{ fileName: t('stock.title'), rows: () => fetchAll<StockListItemDto>('/stock', filters) }}
         sort={search.sort ?? 'name'}
         order={search.order}
@@ -260,66 +309,11 @@ export function StockPage() {
           />
         }
       />
-      {open ? (
-        <StockProductDialog productId={open} locations={locations.data ?? []} onClose={() => setOpen(undefined)} />
-      ) : null}
     </Page>
   )
 }
 
-interface DialogProps {
-  productId: string
-  locations: StockLocationDto[]
-  onClose: () => void
-}
-
-/** One model across its colours and sizes: how many of each, here or everywhere. */
-function StockProductDialog({ productId, locations, onClose }: DialogProps) {
-  const { t } = useTranslation()
-  const attributes = useAttributes()
-  const [locationId, setLocationId] = useState(ALL)
-  const product = useQuery({
-    queryKey: ['stock', 'product', productId],
-    queryFn: ({ signal }) => api.get<StockProductDto>(`/stock/products/${productId}`, undefined, signal),
-  })
-
-  const present = locations.filter((location) =>
-    product.data?.variants.some((variant) => variant.byLocation[location.id]),
-  )
-
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      size="lg"
-      title={product.data?.name ?? t('stock.title')}
-      description={product.data ? `${t('products.sku')}: ${product.data.sku}` : undefined}
-    >
-      {product.data && attributes.data ? (
-        <div className="flex flex-col gap-4">
-          {present.length > 1 ? (
-            <Select
-              value={locationId}
-              onChange={setLocationId}
-              options={[
-                { value: ALL, label: t('stock.everywhere') },
-                ...present.map((location) => ({ value: location.id, label: location.name })),
-              ]}
-              className="w-56"
-            />
-          ) : null}
-          <StockMatrix product={product.data} attributes={attributes.data} locationId={locationId} />
-        </div>
-      ) : (
-        <div className="flex justify-center py-10">
-          <Spinner className="size-6" />
-        </div>
-      )}
-    </Dialog>
-  )
-}
-
-function StockMatrix({
+export function StockMatrix({
   product,
   attributes,
   locationId,

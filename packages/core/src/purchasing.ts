@@ -2,7 +2,8 @@ import { z } from 'zod'
 
 import { baseWorth, usualRateForm, type RateBook, type RateWay } from './currencies'
 import { Fraction } from './fraction'
-import type { ImageThumb } from './images'
+import type { ImageThumb, ProductImageDto } from './images'
+import type { UnitStatus } from './labels'
 import { ALL_CURRENCY_CODES, allocateExact, assertMinor, type AnyCurrency, type CurrencyCode } from './money'
 import { priceFormulaSchema, receiptPricingSchema, type PriceFormula, type ReceiptPricing } from './pricing'
 import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
@@ -26,13 +27,15 @@ export const RECEIPT_STATUS_LABELS: Record<ReceiptStatus, string> = {
 }
 
 /** What an expense is shared out by. */
-export const EXPENSE_BASES = ['value', 'quantity', 'weight'] as const
+/** `piece`: the amount is for each piece (a hanger, a bag), shared out by quantity at that much a piece. */
+export const EXPENSE_BASES = ['value', 'quantity', 'weight', 'piece'] as const
 export type ExpenseBasis = (typeof EXPENSE_BASES)[number]
 
 export const EXPENSE_BASIS_LABELS: Record<ExpenseBasis, string> = {
   value: 'Qiymat bo‘yicha',
   quantity: 'Dona bo‘yicha',
   weight: 'Vazn bo‘yicha',
+  piece: 'Har donaga',
 }
 
 const currencySchema = z.enum(ALL_CURRENCY_CODES as [AnyCurrency, ...AnyCurrency[]])
@@ -325,8 +328,13 @@ export function costReceipt(input: CostingInput): Costing {
 
   const hasWeights = input.lines.every((line) => (line.weightG ?? 0) > 0)
   const weightless: number[] = []
+  const totalQty = quantities.reduce((sum, qty) => sum + qty, 0n)
   const expenses = input.expenses.map((expense, position) => {
-    const amountUzs = toUzs(expense.amount, expense.currency)
+    const amount =
+      expense.basis === 'piece'
+        ? rounded(Fraction.of(totalQty).mul(Fraction.of(expense.amount)).div(Fraction.of(QTY_SCALE)))
+        : expense.amount
+    const amountUzs = toUzs(amount, expense.currency)
     let basis = expense.basis
     if (basis === 'weight' && !hasWeights) {
       weightless.push(position)
@@ -399,6 +407,8 @@ export interface StockLocationDto {
 export interface StockListItemDto {
   productId: string
   sku: string
+  /** The barcodes of every colour and size of the model, in no order that means anything. */
+  barcodes: string[]
   name: string
   brandName: string | null
   categoryName: string | null
@@ -406,6 +416,8 @@ export interface StockListItemDto {
   qty: number
   /** Quantity by place; places with nothing are left out. */
   byLocation: Record<string, number>
+  /** How much of `qty` is set aside for customers: there, but nobody else's to sell or send. */
+  held: number
   /** Present only for those allowed to see cost. */
   costUzs: number | null
   retailPrice: { amount: number; currency: CurrencyCode } | null
@@ -427,6 +439,34 @@ export interface StockProductDto {
   name: string
   sku: string
   unit: Unit
+  brandName: string | null
+  categoryName: string | null
+  retailPrice: { amount: number; currency: CurrencyCode } | null
+  images: ProductImageDto[]
   axisIds: string[]
   variants: StockVariantDto[]
+}
+
+/** The RFID-tagged pieces of a model, one by one: which tag is which piece in hand. */
+export const stockUnitsQuerySchema = z.object({
+  status: z.enum(['ready', 'in_stock', 'sold', 'void']).optional(),
+  locationId: idSchema.optional(),
+  variantId: idSchema.optional(),
+})
+export type StockUnitsQuery = z.infer<typeof stockUnitsQuerySchema>
+
+export interface StockUnitDto {
+  id: string
+  epc: string
+  variantId: string
+  status: UnitStatus
+  locationId: string | null
+  locationName: string | null
+  receiptId: string | null
+  receiptNumber: string | null
+  /** Which of its receipt's pieces of this colour and size it is: 1, 2, 3… */
+  unitNo: number | null
+  printCount: number
+  lastPrintedAt: string | null
+  createdAt: string
 }

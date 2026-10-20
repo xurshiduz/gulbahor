@@ -287,6 +287,48 @@ describe('Labels', () => {
       await beta.get('/api/products/lookup').query({ code: unit.epc }).expect(404)
     })
 
+    it('says whether the piece is sold, and a count keeps the tags it has counted', async () => {
+      const [unit] = await units()
+      const read = async () =>
+        (await alpha.get('/api/products/lookup').query({ code: unit.epc }).expect(200)).body.unitStatus
+      expect(await read()).toBe('in_stock')
+      await sql(`UPDATE rfid_units SET status = 'sold' WHERE epc = $1`, [unit.epc])
+      expect(await read()).toBe('sold')
+      await sql(`UPDATE rfid_units SET status = 'in_stock' WHERE epc = $1`, [unit.epc])
+
+      const count = await alpha
+        .post('/api/stock-documents')
+        .send({
+          kind: 'count',
+          locationId: shopId,
+          docDate: '2026-10-20',
+          lines: [],
+          tags: [unit.epc, unit.epc],
+        })
+        .expect(201)
+      expect(count.body.tags).toEqual([unit.epc])
+      const again = await alpha.get(`/api/stock-documents/${count.body.id}`).expect(200)
+      expect(again.body.tags).toEqual([unit.epc])
+      await alpha.delete(`/api/stock-documents/${count.body.id}`).expect(204)
+    })
+
+    it('lists the pieces of a model in the stock, and finds the model by a tag', async () => {
+      const [unit] = await units()
+      const [{ product_id: productId }]: { product_id: string }[] = await sql(
+        `SELECT v.product_id FROM rfid_units u JOIN product_variants v ON v.id = u.variant_id WHERE u.epc = $1`,
+        [unit.epc],
+      )
+      const pieces = (await alpha.get(`/api/stock/products/${productId}/units`).expect(200)).body
+      expect(pieces.map((piece: { epc: string }) => piece.epc)).toContain(unit.epc)
+      expect(pieces.find((piece: { epc: string }) => piece.epc === unit.epc).status).toBe('in_stock')
+      const found = (await alpha.get('/api/stock').query({ q: unit.epc, presence: 'all' }).expect(200)).body
+      expect(found.items.map((item: { productId: string }) => item.productId)).toEqual([productId])
+      const model = (await alpha.get(`/api/stock/products/${productId}`).expect(200)).body
+      expect(model).toMatchObject({ productId, images: [] })
+      expect(model).toHaveProperty('brandName')
+      await beta.get(`/api/stock/products/${productId}/units`).expect(200, [])
+    })
+
     it('tags goods that are already on hand, a new piece each time', async () => {
       await print({ rfid: true, items: [{ variantId: scarf, count: 2 }] }).expect(400)
       const result = await print({ rfid: true, locationId: shopId, items: [{ variantId: scarf, count: 2 }] }).expect(

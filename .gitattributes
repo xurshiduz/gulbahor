@@ -1,0 +1,4 @@
+# Serverda ishlaydigan skript va sozlamalar: Windows'da olinsa ham satr oxiri LF bo'lib qoladi
+# (aks holda bash "$'\r': command not found" deb to'xtaydi).
+deploy/* text eol=lf
+scripts/*.sh text eol=lf

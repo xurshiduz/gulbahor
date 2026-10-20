@@ -145,7 +145,12 @@ export const ProductPicker = forwardRef<HTMLInputElement, ProductPickerProps>(fu
                 <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{product.sku}</span>
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium">{product.name}</span>
-                  {product.brandName ? <span className="text-ink-3"> · {product.brandName}</span> : null}
+                  {product.brandName || product.categoryName ? (
+                    <span className="text-ink-3">
+                      {' '}
+                      · {[product.brandName, product.categoryName].filter(Boolean).join(', ')}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="flex shrink-0 items-center gap-0.5">
                   {product.axes

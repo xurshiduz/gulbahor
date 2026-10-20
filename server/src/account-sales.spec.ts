@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
+import { soundKey } from '@erp/core'
+
+import { SOUND } from './common/listing'
 import { PASSWORD, startApp, type Agent, type Harness } from './testing/harness'
 
 const som = (amount: number) => Math.round(amount * 100)
@@ -139,6 +142,33 @@ describe('Sales on account', () => {
       const context = (await cashier.get(`/api/pos/context/${registerId}`).expect(200)).body
       expect(context.mayLend).toBe(false)
       expect(context.approvers).toEqual([expect.objectContaining({ id: alphaUserId, debts: true })])
+    })
+
+    it('finds a name however it was spelt, the one typed first', async () => {
+      for (const name of ['Мухаммадали Юсупов', 'Mukhammadali Karimov', 'Muhamadali Tursunov', 'Muhammad Rizo']) {
+        await alpha.post('/api/customers').send({ name }).expect(201)
+      }
+      await alpha.post('/api/customers').send({ name: 'Muhammadali Ergashev' }).expect(201)
+      const names = async (q: string) =>
+        ((await cashier.get('/api/pos/customers').query({ q }).expect(200)).body as { name: string }[]).map(
+          (customer) => customer.name,
+        )
+      expect(await names('muhammadali')).toEqual([
+        'Muhammadali Ergashev',
+        'Muhamadali Tursunov',
+        'Mukhammadali Karimov',
+        'Мухаммадали Юсупов',
+      ])
+      expect(await names('мухаммадали')).toHaveLength(4)
+      expect(await names('kodir')).toEqual([])
+    })
+
+    it('folds a stored key in the database as the screens fold a query', async () => {
+      const keys = ['muxammadali', 'mukhammadali', 'qodirov', 'djamshid', 'dzhamshid', 'aliyev', 'ghulom', 'sattorov']
+      for (const key of keys) {
+        const [row] = await harness.dataSource.query(`SELECT ${SOUND('$1::text')} AS folded`, [key])
+        expect(row.folded).toBe(soundKey(key))
+      }
     })
   })
 
@@ -385,6 +415,95 @@ describe('Sales on account', () => {
         `SELECT count(*) AS off FROM (SELECT entry_id FROM ledger_lines GROUP BY entry_id HAVING sum(base) <> 0) x`,
       )
       expect(Number(off)).toBe(0)
+    })
+  })
+
+  describe('in several currencies at once', () => {
+    let omadillo: string
+    let nodir: string
+    const balances = async (customerId: string) =>
+      Object.fromEntries(
+        (
+          await sql<{ currency: string; balance: string }[]>(
+            `SELECT currency, balance FROM accounts WHERE customer_id = $1 ORDER BY currency`,
+            [customerId],
+          )
+        ).map((row) => [row.currency, Number(row.balance)]),
+      )
+
+    beforeAll(async () => {
+      omadillo = (await alpha.post('/api/customers').send({ name: 'Omadillo', phone: '90 555 11 22' }).expect(201)).body
+        .id
+      nodir = (await alpha.post('/api/customers').send({ name: 'Nodir', phone: '90 555 33 44' }).expect(201)).body.id
+      // 10 $ of theirs, left from before.
+      await alpha
+        .post('/api/customer-payments/opening')
+        .send({ clientKey: randomUUID(), customerId: omadillo, currency: 'USD', owes: 'us', amount: usd(10) })
+        .expect(201)
+    })
+
+    it('spends what is theirs in one currency and lends the rest in another, in one sale', async () => {
+      const twice = await sell({
+        customerId: omadillo,
+        onAccount: [
+          { currency: 'USD', amount: som(126_500) },
+          { currency: 'USD', amount: som(1_138_500) },
+        ],
+      })
+      expect(twice.status).toBe(400)
+      expect(twice.body.error.fields.onAccount).toBe('Har valyuta balansga bitta qator bilan yoziladi')
+
+      const sale = (
+        await sell(
+          {
+            customerId: omadillo,
+            onAccount: [
+              { currency: 'USD', amount: som(126_500) },
+              { currency: 'UZS', amount: som(2_403_500) },
+            ],
+          },
+          alpha,
+          2,
+        ).expect(201)
+      ).body as Sale & { owes: { currency: string; balance: number }[] }
+      expect(
+        sale.payments.filter((payment) => payment.method === 'account').map((p) => [p.currency, p.amount, p.base]),
+      ).toEqual([
+        ['USD', usd(10), som(126_500)],
+        ['UZS', som(2_403_500), som(2_403_500)],
+      ])
+      // The 10 $ were theirs: spent, not lent.
+      const rows = await sql<{ currency: string; prepaid: string }[]>(
+        `SELECT currency, prepaid FROM sale_payments WHERE sale_id = $1 AND method = 'account' ORDER BY position`,
+        [sale.id],
+      )
+      expect(rows.map((row) => [row.currency, Number(row.prepaid)])).toEqual([
+        ['USD', usd(10)],
+        ['UZS', 0],
+      ])
+      expect(sale.owes).toEqual([{ currency: 'UZS', balance: som(2_403_500) }])
+      expect(await balances(omadillo)).toEqual({ USD: 0, UZS: som(2_403_500) })
+
+      // One coat of the two back: half of what went on each account comes off it.
+      await ret(sale, som(1_265_000)).expect(201)
+      expect(await balances(omadillo)).toEqual({ USD: -usd(5), UZS: som(1_201_750) })
+    })
+
+    it('moves every currency of it when the receipt is given to someone else', async () => {
+      const sale = (
+        await sell({
+          customerId: omadillo,
+          onAccount: [
+            { currency: 'USD', amount: som(63_250) },
+            { currency: 'UZS', amount: som(1_201_750) },
+          ],
+        }).expect(201)
+      ).body as Sale
+      expect(await balances(omadillo)).toEqual({ USD: 0, UZS: som(2_403_500) })
+      await alpha.post(`/api/sales/${sale.id}/customer`).send({ customerId: nodir }).expect(200)
+      // The 5 $ of theirs this sale spent are theirs again; the other owes for the goods, in both currencies.
+      expect(await balances(omadillo)).toEqual({ USD: -usd(5), UZS: som(1_201_750) })
+      expect(await balances(nodir)).toEqual({ USD: usd(5), UZS: som(1_201_750) })
     })
   })
 })

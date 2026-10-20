@@ -13,6 +13,7 @@ interface AttributeRow extends Named {
 interface VariantRow {
   id: string
   valueIds: string[]
+  barcodes: string[]
 }
 
 const usd = (dollars: number) => Math.round(dollars * 100)
@@ -171,6 +172,10 @@ describe('Receiving', () => {
 
       const list = await alpha.get('/api/stock').query({ q: 'futbolka' }).expect(200)
       expect(list.body.items[0]).toMatchObject({ qty: 500, costUzs: inSom(1865), byLocation: { [shopId]: 500 } })
+      // The model's barcodes come with it: every colour's and size's.
+      const codes = tshirt.variants.flatMap((variant) => variant.barcodes)
+      expect(codes.length).toBeGreaterThan(0)
+      expect([...list.body.items[0].barcodes].sort()).toEqual([...codes].sort())
       expect((await alpha.get('/api/stock').query({ presence: 'out' })).body.total).toBe(0)
     })
 

@@ -13,12 +13,12 @@ const keys = (state: string) =>
 describe('what the system can do', () => {
   it('is said in three lists: what is switched, what every business has, what is still to come', () => {
     render(<ModuleList enabled={new Set(['rfid', 'consignment'])} onToggle={vi.fn()} />)
-    expect(keys('optional')).toEqual(['rfid'])
+    expect(keys('optional')).toEqual(['rfid', 'cards'])
     // Built, and part of every business: said, with nothing to switch.
     expect(keys('included')).toEqual(['partners', 'retail_credit', 'terminal', 'landed_cost'])
     expect(group('included').querySelector('[role="switch"]')).toBeNull()
     expect(plain(group('included').textContent)).toContain('Tizimning o‘zida bor')
-    expect(keys('planned')).toEqual(['consignment', 'cards', 'loyalty', 'payroll', 'shareholders', 'fiscal'])
+    expect(keys('planned')).toEqual(['consignment', 'loyalty', 'payroll', 'shareholders', 'fiscal'])
     expect(plain(group('planned').textContent)).toContain('Hali qurilmagan')
     // Every module is in one of the three, once.
     expect([...keys('optional'), ...keys('included'), ...keys('planned')].sort()).toEqual(

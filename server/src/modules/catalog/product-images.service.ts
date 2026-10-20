@@ -5,7 +5,6 @@ import {
   IMAGE_MAX_BYTES,
   IMAGE_SIZE_KEYS,
   IMAGE_SIZES,
-  imageUrl,
   MAX_PRODUCT_IMAGES,
   readImageSize,
   type ImageFormat,
@@ -26,7 +25,7 @@ import { AuditService } from '../audit/audit.service'
 import type { Actor } from '../auth/actor'
 import { FileStore } from '../files/file-store'
 import { RealtimeService } from '../realtime/realtime.service'
-import { productFaces } from './faces'
+import { imageDto, productFaces } from './faces'
 
 const FIELD_OF: Record<ImageSize, 'small' | 'medium' | 'large'> = { s: 'small', m: 'medium', l: 'large' }
 
@@ -35,18 +34,7 @@ const extension = (format: ImageFormat) => (format === 'jpeg' ? 'jpg' : 'webp')
 /** Where a photograph's files are kept: a folder of its own under its business. */
 const folderOf = (orgId: string, imageId: string) => `${orgId}/${imageId}`
 
-function toDto(image: ProductImage): ProductImageDto {
-  return {
-    id: image.id,
-    valueId: image.valueId,
-    small: imageUrl(image.orgId, image.id, 's', image.format),
-    medium: imageUrl(image.orgId, image.id, 'm', image.format),
-    large: imageUrl(image.orgId, image.id, 'l', image.format),
-    blur: image.blur,
-    width: image.width,
-    height: image.height,
-  }
-}
+const toDto = imageDto
 
 interface Checked {
   size: ImageSize

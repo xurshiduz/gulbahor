@@ -39,6 +39,7 @@ import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
 import { nextNumbers } from '../catalog/counters'
 import { rateLimit, valueLine, wantingRate } from '../money/agreed'
+import { checkPicks, tieNotices } from '../cards/card-links'
 import { CurrenciesService } from '../money/currencies.service'
 import { CUSTOMER_MERGE, LedgerService, type Posting } from '../money/ledger.service'
 import { MoneyService } from '../money/money.service'
@@ -226,6 +227,22 @@ export class CustomerPaymentsService {
             continue
           }
         }
+        // Money the bank already wrote of: the notices it was picked from are held for this payment.
+        const picked =
+          account.kind === 'card'
+            ? await checkPicks(em, {
+                noticeIds: line.noticeIds,
+                accountId: account.id,
+                direction: input.kind,
+                amount: line.amount,
+              })
+            : line.noticeIds?.length
+              ? 'Bank xabari faqat karta qatorida tanlanadi'
+              : null
+        if (picked) {
+          fields[`lines.${index}.noticeIds`] = picked
+          continue
+        }
         // What the two sides agreed the money settles stands as agreed, within what this person may agree to.
         const worth = valueLine(line.amount, account.currency, currency, book, changes ? line.settled : null, limit)
         if (typeof worth === 'string') {
@@ -346,6 +363,9 @@ export class CustomerPaymentsService {
         },
         postings,
       )
+      for (const line of input.lines) {
+        await tieNotices(em, actor, line.noticeIds, { type: DOCUMENT, id: payment.id }, 'picked')
+      }
 
       await this.audit.record(em, actor.orgId, actor, {
         action: input.kind === 'in' ? 'customer_payment.in' : 'customer_payment.out',
@@ -730,7 +750,7 @@ export class CustomerPaymentsService {
       }
       if (query.from) qb.andWhere('p.paidOn >= :from', { from: query.from })
       if (query.to) qb.andWhere('p.paidOn <= :to', { to: query.to })
-      applySearch(qb, 'p.search_key', query.q)
+      applySearch(qb, 'p.search_key', query.q, { names: true })
       const [rows, total] = await qb
         .orderBy('p.paidAt', 'DESC')
         .skip((query.page - 1) * query.size)

@@ -12,6 +12,7 @@ server          NestJS 11, TypeORM, PostgreSQL, Socket.IO
 web             React 19, Vite, TanStack Router/Query/Table, Tailwind 4, Radix
 agent           do'kon kompyuterida ishlaydigan kichik dastur: printerlarni serverga bog'laydi (agent/README.md)
 docs            reja va qarorlar
+deploy          serverga qo'yish: o'rnatish, yangilash va zaxira skriptlari (deploy/README.md)
 tools, scripts  tekshiruv va ish holati skriptlari, bulut muhitini tayyorlash
 local           faqat shu kompyuterda (git'ga tushmaydi): Billz'dan seed skriptlari, eski dastur tahlili, namunalar
 ```

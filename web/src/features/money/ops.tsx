@@ -32,6 +32,7 @@ import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { SearchInput } from '@/components/ui/page'
+import { useCardPicks, type NoticeStart } from '@/features/cards/notice-picks'
 import { useSession } from '@/features/auth/session'
 import {
   addRow,
@@ -51,6 +52,7 @@ import {
   sparePlaces,
   switchTill,
   TillField,
+  withNotice,
 } from '@/features/money/payment-lines'
 import { base, baseWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
@@ -104,6 +106,8 @@ export function useMoneyCategories(enabled = true) {
 
 interface MoneyOpDialogProps {
   kind?: MoneyOpKind
+  /** A bank's notice of money on a card, opened to say what it was: its card's line holds it already. */
+  notice?: NoticeStart | null
   onClose: () => void
 }
 
@@ -112,11 +116,14 @@ interface MoneyOpDialogProps {
  * was for is picked; where the money came from is typed into the rows that
  * stand ready, the same ones a partner's payment uses.
  */
-export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpDialogProps) {
+export function MoneyOpDialog({ kind: asked = 'expense', notice = null, onClose }: MoneyOpDialogProps) {
   const { t } = useTranslation()
-  const { can, me } = useSession()
+  const { can, me, hasModule } = useSession()
   const queryClient = useQueryClient()
+  const startKind: MoneyOpKind = notice ? (notice.direction === 'in' ? 'income' : 'expense') : asked
   const [kind, setKind] = useState<MoneyOpKind>(startKind)
+  // What the banks wrote of the cards' money going this way: a card's sum is picked from it.
+  const picks = useCardPicks(kind === 'income' ? 'in' : 'out', hasModule('cards'))
   const [categoryId, setCategoryId] = useState<string | null>(() => lastCategory(startKind))
   // Until a line is touched they are the ones this computer usually pays through.
   const [rows, setRows] = useState<PaymentRow[] | null>(null)
@@ -145,7 +152,10 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
   const tillId = tills.some((till) => till.id === pickedTill) ? pickedTill : defaultTill(tills, tillHere(), lastTill())
   // What this person keeps out of sight: a seldom used drawer or account, back from "another account" when wanted.
   const [hidden, setHidden] = useHiddenPlaces()
-  const shown = useMemo(() => rows ?? startRows(places, tillId, hidden), [rows, places, tillId, hidden])
+  const shown = useMemo(
+    () => rows ?? withNotice(startRows(places, tillId, hidden), notice),
+    [rows, places, tillId, hidden, notice],
+  )
   const pickTill = (id: string) => {
     setPickedTill(id)
     keepTill(id)
@@ -266,6 +276,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
         accountId: line.row.accountId,
         amount: line.row.amount,
         settled: agreedOf(line),
+        ...(line.row.noticeIds?.length ? { noticeIds: line.row.noticeIds } : {}),
       })),
       total,
       note,
@@ -389,6 +400,7 @@ export function MoneyOpDialog({ kind: startKind = 'expense', onClose }: MoneyOpD
               ours: t(kind === 'income' ? 'ops.cameIn' : 'ops.wentOut'),
               theirs: t('ops.inBase', baseWords(t)),
             }}
+            picks={picks}
           />
         )}
 

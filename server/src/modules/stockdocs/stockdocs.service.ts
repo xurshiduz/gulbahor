@@ -607,6 +607,7 @@ export class StockDocsService {
       lines.map((line) => line.variantId),
     )
     const shortages = lines.filter((line) => scaled(line.qty) < scaled(onHand.get(line.variantId) ?? 0))
+    // A count says what is on the shelves: what is short is short, whoever it was set aside for.
     const picked = await this.stock.pick(
       em,
       doc.locationId,
@@ -614,6 +615,7 @@ export class StockDocsService {
         variantId: line.variantId,
         qty: unscaled(scaled(onHand.get(line.variantId) ?? 0) - scaled(line.qty)),
       })),
+      true,
     )
 
     const movements: Movement[] = []
@@ -764,6 +766,7 @@ export class StockDocsService {
           : null,
       fullCount: doc.fullCount,
       note: doc.note,
+      tags: doc.tags,
       lines: lines.map((line) => ({
         id: line.id,
         variantId: line.variantId,
@@ -916,6 +919,7 @@ function header(input: StockDocInput) {
     receiptId: input.kind === 'supplier_return' ? input.receiptId : null,
     fullCount: input.kind === 'count' && input.fullCount,
     note: input.note,
+    tags: input.tags,
   }
 }
 

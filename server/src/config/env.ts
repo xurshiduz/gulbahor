@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+/** A name written with nothing after it ("KEY=") is a name left out. */
+const unset = <T extends z.ZodType>(inner: T) => z.preprocess((value) => (value === '' ? undefined : value), inner)
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3100),
@@ -19,6 +22,20 @@ const schema = z.object({
 
   SEED_OWNER_LOGIN: z.string().default('admin'),
   SEED_OWNER_PASSWORD: z.string().optional(),
+
+  /**
+   * The keys of the Telegram app the server speaks as (my.telegram.org → API development tools): they name the
+   * program, not a person. Without them card control signs into no account.
+   */
+  TELEGRAM_API_ID: unset(z.coerce.number().int().positive().optional()),
+  TELEGRAM_API_HASH: unset(
+    z
+      .string()
+      .regex(/^[a-f0-9]{32}$/i, 'TELEGRAM_API_HASH is 32 hexadecimal characters')
+      .optional(),
+  ),
+  /** What the accounts' sessions are sealed with. Left out, a key is made from JWT_SECRET. */
+  TELEGRAM_SESSION_KEY: unset(z.string().min(32).optional()),
 })
 
 export type Env = z.infer<typeof schema>

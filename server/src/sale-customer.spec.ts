@@ -182,11 +182,11 @@ describe('A receipt given to another customer', () => {
     const before = (await account(bobur)).balance
     const sale = await sell({ customerId: bobur, payments: [], onAccount: { amount: som(75_000) } })
     const seen = (await alpha.get(`/api/sales/${sale.id}`).expect(200)).body
-    expect(seen.owes).toEqual({ currency: 'UZS', balance: before + som(75_000) })
+    expect(seen.owes).toEqual([{ currency: 'UZS', balance: before + som(75_000) }])
     // A sale for money says nothing of it.
-    expect((await alpha.get(`/api/sales/${(await sell()).id}`).expect(200)).body.owes).toBeNull()
+    expect((await alpha.get(`/api/sales/${(await sell()).id}`).expect(200)).body.owes).toEqual([])
     await alpha.post(`/api/sales/${sale.id}/void`).send({ reason: 'Tozalash' }).expect(200)
-    expect((await alpha.get(`/api/sales/${sale.id}`).expect(200)).body.owes).toBeNull()
+    expect((await alpha.get(`/api/sales/${sale.id}`).expect(200)).body.owes).toEqual([])
   })
 
   it('moves change that was kept on the account as well', async () => {

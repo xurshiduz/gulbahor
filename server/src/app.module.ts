@@ -16,6 +16,7 @@ import { OrgsModule } from './modules/orgs/orgs.module'
 import { CustomersModule } from './modules/customers/customers.module'
 import { PosModule } from './modules/pos/pos.module'
 import { PricingModule } from './modules/pricing/pricing.module'
+import { CardsModule } from './modules/cards/cards.module'
 import { PromotionsModule } from './modules/promotions/promotions.module'
 import { ReportsModule } from './modules/reports/reports.module'
 import { ReceiptsModule } from './modules/receipts/receipts.module'
@@ -47,6 +48,7 @@ import { UsersModule } from './modules/users/users.module'
     CatalogModule,
     CustomersModule,
     PromotionsModule,
+    CardsModule,
     ReportsModule,
     StockModule,
     ReceiptsModule,

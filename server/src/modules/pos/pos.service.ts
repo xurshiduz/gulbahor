@@ -170,6 +170,7 @@ export class PosService {
     variantIds: string[],
     priceTypeId: string | null = null,
     promoCode: string | null = null,
+    holdId: string | null = null,
   ): Promise<PosItemDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const register = await this.register(em, actor, registerId)
@@ -179,6 +180,7 @@ export class PosService {
         register.locationId,
         priceTypeId,
         await this.running(em, actor, register, promoCode),
+        holdId,
       )
     })
   }

@@ -20,6 +20,8 @@ import {
   type ApprovalInput,
   type CurrencyCode,
   type PosContextDto,
+  HOLD_DAYS,
+  type HoldDto,
   type PosCustomerDto,
   type PosItemDto,
   type ReaderTagEvent,
@@ -34,6 +36,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
+import { Dialog } from '@/components/ui/dialog'
 import { Select } from '@/components/ui/controls'
 import { EmptyState, Shortcut, Spinner } from '@/components/ui/feedback'
 import { controlClass } from '@/components/ui/input'
@@ -42,6 +45,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Page } from '@/components/ui/page'
 import { Thumb } from '@/components/ui/thumb'
 import { useSession } from '@/features/auth/session'
+import { useCardPicks } from '@/features/cards/notice-picks'
 import { PaymentDialog } from '@/features/customers/payments'
 import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/exchange'
 import { useHiddenPlaces } from '@/features/money/hidden-places'
@@ -86,6 +90,7 @@ import {
 import { AgreedSum } from './agreed'
 import { ApprovalDialog } from './approval'
 import { HandoverDialog, WaitingTransfers } from './handover'
+import { HoldDialog } from './hold-dialog'
 import { ReturnDialog, ReturnPicker } from './return-parts'
 import { PromoCode } from './promo-code'
 import { ReceiptPreview } from './receipt-preview'
@@ -246,7 +251,9 @@ interface LastDocument {
  */
 function Till({ context, registers, onSwitch }: TillProps) {
   const { t } = useTranslation()
-  const { can, me } = useSession()
+  const { can, me, hasModule } = useSession()
+  // What the banks wrote of money landing on the shop's cards: a card's sum is picked from it.
+  const cardPicks = useCardPicks('in', hasModule('cards') && context.cards.length > 0)
   const queryClient = useQueryClient()
   const search = route.useSearch()
   const navigate = route.useNavigate()
@@ -263,18 +270,26 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [returning, setReturning] = useState<Returning | null>(null)
   /** The receipt picker: open, and with which code to look up at once. */
   const [picking, setPicking] = useState<{ code?: string } | null>(null)
+  /** The goods whose photograph is open full size. */
+  const [zoomed, setZoomed] = useState<PosItemDto | null>(null)
   // Every way of paying has its field, always there; what is kept is only what was typed into them.
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
   /** The customer at the counter is paying what they owe. */
-  // Which of the customer's accounts this sale goes on, when not their main one: asked again for the next customer.
-  const [accountPick, setAccountPick] = useState<{ customerId: string; currency: AnyCurrency } | null>(null)
+  // The customer's accounts this sale may go on besides their main one and those with money of theirs on them:
+  // asked again for the next customer.
+  const [accountAdded, setAccountAdded] = useState<{ customerId: string; currencies: AnyCurrency[] } | null>(null)
   // The customer at the till pays what they owe, or is handed back what is theirs.
   const [takingDebt, setTakingDebt] = useState<'in' | 'out' | null>(null)
+  /** The cart's goods are being set aside for the customer at the counter. */
+  const [holding, setHolding] = useState(false)
   /** What of the sale is to be left owing, and by when: typed while paying, gone with the sale. */
   /** When what is lent today falls due, as the cashier set it; left alone, the customer's days or the business's. */
   const [accountDue, setAccountDue] = useState<string | null | undefined>(undefined)
-  /** What of the sale goes on the customer's account: so much of it, and — agreed — what that is in its currency. */
-  const [account, setAccount] = useState<ExchangeSums>({ amount: null, received: null })
+  /**
+   * What of the sale goes on each of the customer's accounts, by currency: so much of it, and — agreed — what that
+   * is in the account's own.
+   */
+  const [account, setAccount] = useState<Partial<Record<AnyCurrency, ExchangeSums>>>({})
   // The day's rates: what every currency taken here is worth, and what goes on a customer's account in another.
   const { book } = context
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
@@ -288,7 +303,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const [giving, setGiving] = useState<Record<string, Partial<ChangeRow>>>({})
   const [splitting, setSplitting] = useState(false)
   /** What is done with money paid over the sum: handed back, unless the customer leaves it on their balance. */
-  const [changeMode, setChangeMode] = useState<ChangeMode>('give')
+  // Null: nobody has said yet. With a customer whose balance it could stay on, it is asked, never guessed.
+  const [changeMode, setChangeMode] = useState<ChangeMode | null>(null)
   /** Handing back: what of it stays on the customer's account instead, and — agreed — what that is in its currency. */
   const [keeping, setKeeping] = useState<{ amount: number | null; settled: number | null }>({
     amount: null,
@@ -359,6 +375,67 @@ function Till({ context, registers, onSwitch }: TillProps) {
   // not as it stood when the code was sent: otherwise the second of two would undo the first.
   const cartRef = useRef(cart)
   cartRef.current = cart
+
+  // "Sell these" from the list of goods set aside lands here with the hold: its goods and its customer are the
+  // cart, and the sale that follows is what the hold becomes.
+  useEffect(() => {
+    const id = search.hold
+    if (!id) {
+      return
+    }
+    void navigate({ search: {}, replace: true })
+    if (cartRef.current.lines.length) {
+      toast.error(t('holds.cartBusy'))
+      return
+    }
+    void (async () => {
+      try {
+        const hold = await api.get<HoldDto>(`/holds/${id}`)
+        if (hold.status !== 'active') {
+          toast.error(t('holds.over', { number: hold.number }))
+          return
+        }
+        // The goods wait in the shop they were set aside in: they are sold at a till of that shop.
+        if (hold.locationId !== context.register.locationId) {
+          toast.error(t('holds.otherShop', { number: hold.number, shop: hold.locationName }))
+          return
+        }
+        const customer = await api.get<PosCustomerDto>(`/pos/customers/${hold.customerId}`)
+        // The customer's own price, or the one the goods were set aside at if this person may still sell at it.
+        const at =
+          customer.priceType?.id ??
+          (context.priceTypes.some((type) => type.id === hold.priceTypeId) ? hold.priceTypeId : null)
+        const items = await api.post<PosItemDto[]>('/pos/items', {
+          registerId,
+          variantIds: hold.lines.map((line) => line.variantId),
+          priceTypeId: at,
+          promoCode: null,
+          holdId: hold.id,
+        })
+        const itemOf = new Map(items.map((item) => [item.variantId, item]))
+        setCart({
+          ...EMPTY_CART,
+          customer,
+          priceTypeId: at,
+          hold: { id: hold.id, number: hold.number },
+          lines: hold.lines.flatMap((line) => {
+            const item = itemOf.get(line.variantId)
+            return item ? [{ key: uuid(), item, qty: line.qty, discountText: '' }] : []
+          }),
+        })
+      } catch (error) {
+        toast.error(error instanceof ApiError ? error.message : String(error))
+      }
+    })()
+    // Only when the address brings a hold.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.hold])
+  // A cart emptied of the goods that were set aside is no longer that hold's: what is rung up next is its own sale.
+  useEffect(() => {
+    if (cart.hold && !cart.lines.length) {
+      setCart((current) => ({ ...current, hold: null }))
+    }
+  }, [cart.hold, cart.lines.length])
   const scanned = useRef(Promise.resolve())
   /** Pieces the till's reader has reported and that are being looked up right now. */
   const laid = useRef(new Set<string>())
@@ -411,6 +488,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
       const found = await answer
       if ('item' in found) {
         add(found.item, qty)
+      } else if (mayReturn && found.error instanceof ApiError && found.error.code === 'UNIT_SOLD') {
+        // A sold piece brought back to the counter is a return: its receipt is brought up, the piece marked.
+        setPicking({ code })
       } else {
         toast.error(found.error instanceof ApiError ? found.error.message : String(found.error), {
           description: code,
@@ -423,7 +503,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
   /** Asks for the cart's things again: a price or a count may have changed since they were put there. */
   const refresh = useMutation({
     mutationFn: ({ variantIds, at, code }: { variantIds: string[]; at: string | null; code: string | null }) =>
-      api.post<PosItemDto[]>('/pos/items', { registerId, variantIds, priceTypeId: at, promoCode: code }),
+      api.post<PosItemDto[]>('/pos/items', {
+        registerId,
+        variantIds,
+        priceTypeId: at,
+        promoCode: code,
+        // Goods set aside under the hold this cart takes are this cart's to sell.
+        holdId: cartRef.current.hold?.id ?? null,
+      }),
     meta: { silent: true },
     onSuccess: (items) => {
       const fresh = new Map(items.map((item) => [item.variantId, item]))
@@ -458,12 +545,20 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const serve = (customer: PosCustomerDto | null) => {
     const kept = context.priceTypes.some((type) => type.id === cart.priceTypeId) ? (cart.priceTypeId ?? null) : null
     const at = customer?.priceType?.id ?? kept
-    setCart((current) => ({ ...current, customer, priceTypeId: at }))
+    setCart((current) => ({
+      ...current,
+      customer,
+      priceTypeId: at,
+      // Goods held for one customer are not sold to another: with them goes the hold.
+      hold: current.hold && customer?.id === current.customer?.id ? current.hold : null,
+    }))
     if (at !== priceTypeId) {
       refreshCart(at)
     }
-    setAccount({ amount: null, received: null })
+    setAccount({})
     setAccountDue(undefined)
+    // What was said of one customer's change is not said of the next one's.
+    setChangeMode(null)
     // Found, the cursor goes back to the goods.
     window.setTimeout(focusSearch)
   }
@@ -480,7 +575,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
 
   // A window opened over the till (a customer's payment) takes the keys, the scanner and the reader.
   const covered = useCovered()
-  const idle = !closing && !viewing && !picking && !handing && !asking && !covered
+  const idle = !closing && !viewing && !picking && !handing && !asking && !zoomed && !covered
   /** A receipt's own barcode is no goods: it brings that receipt up, to take things back against it. */
   const receiptScanned = (code: string): boolean => {
     const number = mayReturn ? saleNumberOf(code) : null
@@ -587,35 +682,50 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const offAccount = refunding && returning ? Math.min(credit - totals.total, returning.found.caps.account ?? 0) : 0
   const toRefund = refunding ? credit - totals.total - offAccount : 0
 
-  // ── Putting part of it on the customer's account: in its currency, at the day's rate or a sum agreed. What is
-  // theirs there pays first; the rest is lent, and falls due on its day ──
+  // ── Putting part of it on the customer's accounts: in one currency or in several at once, each at the day's rate
+  // or a sum agreed. What is theirs in each pays first; the rest is lent, and falls due on its day ──
   const buyer = cart.customer ?? null
   // In an exchange too: the difference for the goods taken instead may go there.
   const crediting = !!buyer && toPay > 0 && (!returning || cart.lines.length > 0)
-  // The account it goes on: the customer's main currency's unless another is picked for this sale. A cart kept
-  // from before customers kept a currency of their own puts it in the base.
-  const accountCurrency =
-    (buyer && accountPick?.customerId === buyer.id ? accountPick.currency : null) ??
-    buyer?.currency ??
-    book?.base ??
-    base()
-  const onAccountNow = crediting ? Math.min(account.amount ?? 0, toPay) : 0
-  const accountLine =
-    crediting && buyer
-      ? exchangeLine(
-          { id: 'sale', currency: book?.base ?? base() },
-          accountCurrency,
-          { amount: onAccountNow || null, received: account.received },
-          book,
-          context.maxRateLossPercent,
-        )
-      : null
+  // Their main currency's account: where change or money handed back is kept. A cart kept from before customers
+  // kept a currency of their own keeps it in the base.
+  const accountCurrency = buyer?.currency ?? book?.base ?? base()
   // A cart kept from before accounts were known has a customer without them; a supplier's are not shown here.
   const accounts = buyer?.accounts ?? []
-  const balanceNow = accounts.find((item) => item.currency === accountCurrency)?.balance ?? 0
-  const settledNow = accountLine ? (accountLine.settled ?? 0) : onAccountNow
-  const lentNow = settledNow ? addedDebt(balanceNow, settledNow) : 0
-  const prepaidNow = settledNow - lentNow
+  // The currencies the business keeps: an account may be opened in any of them.
+  const keptCurrencies = [book?.base ?? base(), ...me.org.currencies.filter((code) => code !== (book?.base ?? base()))]
+  // The lines offered: the main account, every account with money of theirs on it, and any added for this sale.
+  const accountCurrencies =
+    crediting && buyer
+      ? [
+          ...new Set([
+            accountCurrency,
+            ...accounts.filter((item) => item.balance < 0).map((item) => item.currency),
+            ...(accountAdded?.customerId === buyer.id ? accountAdded.currencies : []),
+          ]),
+        ].filter((code) => keptCurrencies.includes(code))
+      : []
+  let unplaced = toPay
+  const accountLines = accountCurrencies.map((currency) => {
+    const sums = account[currency] ?? { amount: null, received: null }
+    // What goes there, as far as the sale goes: the lines before it come first.
+    const amount = Math.min(sums.amount ?? 0, unplaced)
+    unplaced -= amount
+    const line = exchangeLine(
+      { id: 'sale', currency: book?.base ?? base() },
+      currency,
+      { amount: amount || null, received: sums.received },
+      book,
+      context.maxRateLossPercent,
+    )
+    const balance = accounts.find((item) => item.currency === currency)?.balance ?? 0
+    const settled = line ? (line.settled ?? 0) : amount
+    const lent = settled ? addedDebt(balance, settled) : 0
+    // Theirs there, in the sale's money: what "=" takes first.
+    const haqi = balance < 0 ? (worthInBase(-balance, currency, book) ?? 0) : 0
+    return { currency, sums, amount, line, balance, settled, lent, prepaid: settled - lent, haqi }
+  })
+  const onAccountNow = accountLines.reduce((sum, line) => sum + line.amount, 0)
   const dueDate =
     accountDue !== undefined
       ? accountDue
@@ -624,7 +734,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
         : toIsoDate(addDays(todayIn(), buyer?.dueDays ?? context.debtDays))
   // Weighed as the server weighs it: in the base at today's rates, across all their accounts.
   const accountStop: AccountBar | null =
-    buyer && settledNow
+    buyer && onAccountNow
       ? accountBar(
           {
             supplier: buyer.supplier,
@@ -635,7 +745,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
             owedBase: accounts.reduce((sum, item) => sum + (worthInBase(item.balance, item.currency, book) ?? 0), 0),
             overdue: accounts.some((item) => item.overdue > 0),
           },
-          lentNow ? (worthInBase(lentNow, accountCurrency, book) ?? 0) : 0,
+          accountLines.reduce((sum, line) => sum + (worthInBase(line.lent, line.currency, book) ?? 0), 0),
           context.debtLimit,
         )
       : null
@@ -655,7 +765,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
             name: buyer.name,
             amount: late ? money(late.overdue, late.currency) : '',
           })
-  const accountRateAsk = !!accountLine?.strays && !context.mayOverDiscount
+  const strayLine = accountLines.find((line) => line.line?.strays)?.line ?? null
+  const accountRateAsk = !!strayLine && !context.mayOverDiscount
 
   // ── The money: paid in, or handed back ──
   // A customer who deals in another currency the till keeps is asked for it first: its row leads, and —
@@ -731,6 +842,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setGiving(changeMode === 'keep' && keeps ? { account: { value: over, amount: null } } : {})
   }, [over, changeMode, keeps])
   const handed = over > 0 && !refunding ? changeLines(changing, over, book) : []
+  // Paid over the sum by someone it could stay with: handed back, or left on their balance? Until the cashier
+  // says, nothing is sold — a default here is money given, or kept, without anyone having meant it. With nobody
+  // to keep it for, it can only be handed back.
+  const choosing = !refunding && over > 0 && keeps && changeMode === null
   const settlement = handed.length
     ? settle(owed, typed, { book, change: handed, roundStep: context.changeRoundStep })
     : allCash
@@ -873,9 +988,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
     setPaid({})
     setGiving({})
     setSplitting(false)
-    setChangeMode('give')
+    setChangeMode(null)
     setKeeping({ amount: null, settled: null })
-    setAccount({ amount: null, received: null })
+    setAccount({})
+    setAccountAdded(null)
     setAccountDue(undefined)
     setReturning(null)
     setPaying(false)
@@ -970,6 +1086,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
       )
       return
     }
+    if (choosing) {
+      toast.error(t('pos.changeChoose'))
+      if (!paying) {
+        openPay()
+      }
+      window.setTimeout(() => document.querySelector<HTMLElement>('[data-change-mode] [role="radio"]')?.focus())
+      return
+    }
     // Nothing typed into the fields: what is suggested there is what is meant.
     const amounts = entered.length
       ? entered.map((row, index) => ({
@@ -980,6 +1104,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           // What it counts for where that is not what the rate makes it: typed, or fitted to what is left.
           ...(row.currency !== base() && typed[index]?.value ? { value: typed[index].value } : {}),
           reference: row.reference || null,
+          ...(row.method === 'card' && row.noticeIds?.length ? { noticeIds: row.noticeIds } : {}),
         }))
       : tenders.flatMap((row) =>
           suggested[row.key]
@@ -1011,7 +1136,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
     const late = !!returning && returning.found.late && !returning.found.free
     // Goods taken instead of the ones brought back, for a customer whose group does not have that done.
     const barred = !!returning && returning.found.noExchange && cart.lines.length > 0 && !returning.found.free
-    if ((account.amount ?? 0) > toPay && crediting) {
+    if (accountLines.reduce((sum, line) => sum + (line.sums.amount ?? 0), 0) > toPay && crediting) {
       toast.error(t('pos.onAccountOver'))
       return
     }
@@ -1082,10 +1207,10 @@ function Till({ context, registers, onSwitch }: TillProps) {
           beyond ? t('pos.approvalRefund') : null,
           accountAsk ? accountWhy : null,
           supplierAsk ? t('pos.approvalSupplierKeep', { name: buyer?.name }) : null,
-          accountRateAsk && accountLine
+          accountRateAsk && strayLine
             ? t('pos.approvalAccountRate', {
                 name: buyer?.name,
-                percent: String(accountLine.gap).replace('.', ','),
+                percent: String(strayLine.gap).replace('.', ','),
               })
             : null,
           ...(changeRateAsk
@@ -1133,6 +1258,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
       customerId: cart.customer?.id ?? null,
       priceTypeId,
       promoCode,
+      holdId: cart.hold?.id ?? null,
       lines: cart.lines.map((line, index) => ({
         variantId: line.item.variantId,
         qty: line.qty,
@@ -1150,12 +1276,14 @@ function Till({ context, registers, onSwitch }: TillProps) {
       total: totals.total,
     }
     const lending = onAccountNow
-      ? {
-          currency: accountCurrency,
-          amount: onAccountNow,
-          settled: receivedOf(accountLine),
-          ...(lentNow ? { dueDate } : {}),
-        }
+      ? accountLines
+          .filter((line) => line.amount)
+          .map((line) => ({
+            currency: line.currency,
+            amount: line.amount,
+            settled: receivedOf(line.line),
+            ...(line.lent ? { dueDate } : {}),
+          }))
       : null
     if (!returning) {
       sell.mutate({
@@ -1316,6 +1444,12 @@ function Till({ context, registers, onSwitch }: TillProps) {
                         <span className="min-w-0 flex-1 truncate">
                           <span className="font-medium">{item.name}</span>
                           {item.label ? <span className="text-ink-2"> · {item.label}</span> : null}
+                          {item.brandName || item.categoryName ? (
+                            <span className="text-xs text-ink-3">
+                              {' · '}
+                              {[item.brandName, item.categoryName].filter(Boolean).join(', ')}
+                            </span>
+                          ) : null}
                         </span>
                         <span className={cn('tabular shrink-0 text-xs', item.onHand > 0 ? 'text-ink-3' : 'text-bad')}>
                           {formatNumber(item.onHand)}
@@ -1400,7 +1534,16 @@ function Till({ context, registers, onSwitch }: TillProps) {
                         <tr key={line.key} className="border-t border-line align-top first:border-t-0">
                           <td className="flex items-start gap-2.5 px-3 py-2">
                             {cart.lines.some((other) => other.item.image) ? (
-                              <Thumb image={line.item.image} className="size-10" />
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                disabled={!line.item.image}
+                                aria-label={t('products.imageOpen')}
+                                onClick={() => setZoomed(line.item)}
+                                className="shrink-0 enabled:cursor-zoom-in"
+                              >
+                                <Thumb image={line.item.image} className="size-12" />
+                              </button>
                             ) : null}
                             <div className="min-w-0">
                               <p className="font-medium">
@@ -1411,6 +1554,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
                               </p>
                               <p className="flex items-center gap-2 text-xs text-ink-3">
                                 <span className="font-code">{line.item.sku}</span>
+                                {line.item.brandName ? <span>{line.item.brandName}</span> : null}
+                                {line.item.categoryName ? <span>{line.item.categoryName}</span> : null}
                                 {line.item.epc ? (
                                   <span className="inline-flex items-center gap-1">
                                     <ScanLine className="size-3" />#{line.item.epc.slice(-6)}
@@ -1544,6 +1689,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               context={context}
               rows={tenders}
               onPatch={patchTender}
+              picks={cardPicks}
               returning={returning}
               refunding={refunding}
               due={refunding ? toRefund : toPay}
@@ -1557,7 +1703,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
                       rows: changing,
                       onPatch: (key, patch) =>
                         setGiving((current) => ({ ...current, [key]: { ...current[key], ...patch } })),
-                      mode: changeMode,
+                      mode: keeps ? changeMode : (changeMode ?? 'give'),
                       onMode: turnChange,
                       open: splitting,
                       // Folded away, all of it is cash again.
@@ -1608,27 +1754,41 @@ function Till({ context, registers, onSwitch }: TillProps) {
                 crediting && buyer
                   ? {
                       name: buyer.name,
-                      currency: accountCurrency,
-                      currencies: [base(), ...me.org.currencies.filter((code) => code !== base())],
-                      onCurrency: (currency) => {
-                        setAccountPick({ customerId: buyer.id, currency })
-                        // What was agreed was agreed in the other currency.
-                        setAccount({ amount: account.amount, received: null })
+                      rows: accountLines.map((line) => ({
+                        currency: line.currency,
+                        sums: line.sums,
+                        line: line.line,
+                        // A supplier's account is not shown at the till.
+                        balance: buyer.accounts ? line.balance : null,
+                        prepaid: line.prepaid,
+                        lent: line.lent,
+                        haqi: line.haqi,
+                        removable:
+                          line.currency !== accountCurrency &&
+                          !accounts.some((item) => item.currency === line.currency && item.balance < 0),
+                      })),
+                      spare: keptCurrencies.filter((code) => !accountCurrencies.includes(code)),
+                      onAdd: (currency) =>
+                        setAccountAdded((current) => ({
+                          customerId: buyer.id,
+                          currencies: [...(current?.customerId === buyer.id ? current.currencies : []), currency],
+                        })),
+                      onRemove: (currency) => {
+                        setAccountAdded((current) =>
+                          current
+                            ? { ...current, currencies: current.currencies.filter((code) => code !== currency) }
+                            : null,
+                        )
+                        setAccount(({ [currency]: _gone, ...rest }) => rest)
                       },
-                      sums: { amount: account.amount, received: account.received },
-                      line: accountLine,
                       max: toPay,
                       book,
                       setsRates: context.mayOverDiscount,
-                      // A supplier's account is not shown at the till.
-                      balance: buyer.accounts ? balanceNow : null,
-                      prepaid: prepaidNow,
-                      lent: lentNow,
                       dueDate,
                       noDue: !!buyer.noDue,
                       onDueDate: setAccountDue,
                       warning: accountAsk ? accountWhy : null,
-                      onChange: setAccount,
+                      onChange: (currency, sums) => setAccount((current) => ({ ...current, [currency]: sums })),
                     }
                   : null
               }
@@ -1758,6 +1918,11 @@ function Till({ context, registers, onSwitch }: TillProps) {
                   />
                 ) : null}
 
+                {cart.hold ? (
+                  <p data-hold-banner className="rounded-md bg-accent-soft px-2.5 py-1.5 text-xs text-accent-ink">
+                    {t('holds.selling', { number: cart.hold.number })}
+                  </p>
+                ) : null}
                 <Button
                   variant="primary"
                   className="h-11 text-sm"
@@ -1768,6 +1933,21 @@ function Till({ context, registers, onSwitch }: TillProps) {
                   {refunding ? t('pos.refundStep') : t('pos.pay')}
                   <Shortcut combo="f9" className="ml-1 opacity-70" />
                 </Button>
+                {cart.lines.length && !returning && !cart.hold ? (
+                  <Button
+                    tabIndex={-1}
+                    onClick={() => {
+                      if (buyer) {
+                        setHolding(true)
+                      } else {
+                        toast.error(t('holds.needCustomer'))
+                        toCustomer()
+                      }
+                    }}
+                  >
+                    {t('holds.make')}
+                  </Button>
+                ) : null}
                 {cart.lines.length || returning ? (
                   <Button
                     variant="ghost"
@@ -1806,6 +1986,32 @@ function Till({ context, registers, onSwitch }: TillProps) {
           />
         </HotkeyScope>
       ) : null}
+      {holding && buyer ? (
+        <HotkeyScope>
+          <HoldDialog
+            registerId={registerId}
+            customer={buyer}
+            priceTypeId={priceTypeId}
+            lines={cart.lines.map((line) => ({ variantId: line.item.variantId, qty: line.qty }))}
+            total={totals.total}
+            today={toIsoDate(todayIn())}
+            due={toIsoDate(addDays(todayIn(), HOLD_DAYS))}
+            onClose={() => setHolding(false)}
+            onDone={(hold, deposit) => {
+              const customer = buyer
+              setHolding(false)
+              reset()
+              toast.success(t('holds.made', { number: hold.number, due: hold.dueDate.split('-').reverse().join('.') }))
+              // What the customer leaves towards it is an ordinary payment onto their balance: they stay at
+              // the counter for it.
+              if (deposit) {
+                setCart({ ...EMPTY_CART, customer })
+                setTakingDebt('in')
+              }
+            }}
+          />
+        </HotkeyScope>
+      ) : null}
       {closing ? <CloseShiftDialog context={context} onClose={() => setClosing(false)} /> : null}
       {handing ? (
         <HandoverDialog
@@ -1814,6 +2020,21 @@ function Till({ context, registers, onSwitch }: TillProps) {
           setsRates={can('money.rates')}
           onClose={() => setHanding(false)}
         />
+      ) : null}
+      {zoomed?.image ? (
+        <Dialog
+          open
+          onClose={() => setZoomed(null)}
+          title={[zoomed.name, zoomed.label].filter(Boolean).join(' · ')}
+          size="xl"
+        >
+          <img
+            src={zoomed.imageLarge ?? zoomed.image.url}
+            alt=""
+            style={{ backgroundImage: `url(${zoomed.image.blur})` }}
+            className="mx-auto max-h-[70vh] w-auto max-w-full rounded-md bg-cover"
+          />
+        </Dialog>
       ) : null}
       {picking ? (
         <ReturnPicker

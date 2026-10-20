@@ -90,6 +90,7 @@ export const LABEL_SIZES = {
   '54x34': { width: 54, height: 34 },
   '60x40': { width: 60, height: 40 },
   '70x40': { width: 70, height: 40 },
+  '100x80': { width: 100, height: 80 },
 } as const
 export type LabelSizeKey = keyof typeof LABEL_SIZES
 export const LABEL_SIZE_KEYS = Object.keys(LABEL_SIZES) as [LabelSizeKey, ...LabelSizeKey[]]
@@ -322,7 +323,8 @@ export function buildLabelZpl(
       const box = item.box ? `^FB${item.box.width},${item.box.lines},0,${item.box.align},0` : ''
       lines.push(`${at}^A0N,${item.font},${item.font}${box}^FD${item.text}^FS`)
     } else if (item.ean) {
-      lines.push(`${at}^BY${item.module}^BEN,${item.height},Y,N^FD${item.code.slice(0, 12)}^FS`)
+      // The printer sets the first digit left of the bars, in the quiet zone the layout keeps for it.
+      lines.push(`^FO${item.x + 11 * item.module},${item.y}^BY${item.module}^BEN,${item.height},Y,N^FD${item.code.slice(0, 12)}^FS`)
     } else {
       lines.push(`${at}^BY${item.module}^BCN,${item.height},Y,N,N^FD${item.code}^FS`)
     }

@@ -2,6 +2,7 @@ import {
   formatMoney,
   internalBarcode,
   normalizeEpc,
+  type UnitStatus,
   variantLabel,
   type AxisSummary,
   type Page,
@@ -231,16 +232,22 @@ export class ProductsService {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const epc = normalizeEpc(code)
       if (epc) {
-        const tagged: { product_id: string; variant_id: string; name: string; sku: string; value_names: string[] }[] =
-          await em.query(
-            `SELECT p.id AS product_id, v.id AS variant_id, p.name, v.sku, ${VALUE_NAMES} AS value_names
+        const tagged: {
+          product_id: string
+          variant_id: string
+          name: string
+          sku: string
+          value_names: string[]
+          status: UnitStatus
+        }[] = await em.query(
+          `SELECT p.id AS product_id, v.id AS variant_id, p.name, v.sku, ${VALUE_NAMES} AS value_names, u.status
              FROM rfid_units u
              JOIN product_variants v ON v.id = u.variant_id
              JOIN products p ON p.id = v.product_id
              ${VALUE_JOINS}
              WHERE u.epc = $1 AND u.status <> 'void'`,
-            [epc],
-          )
+          [epc],
+        )
         if (tagged[0]) {
           const [unit] = tagged
           return {
@@ -250,6 +257,7 @@ export class ProductsService {
             sku: unit.sku,
             label: variantLabel(unit.value_names),
             epc,
+            unitStatus: unit.status,
           }
         }
       }

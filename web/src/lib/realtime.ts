@@ -9,7 +9,7 @@ import { renewSession } from './api'
  * reader, money or goods set off for someone. There is nothing to refetch, so whoever cares is simply
  * told (`useShopEvent`).
  */
-const SHOP_EVENTS = ['reader.tag', 'gate.alarm', 'money.sent', 'goods.sent'] as const
+const SHOP_EVENTS = ['reader.tag', 'gate.alarm', 'money.sent', 'goods.sent', 'card.in'] as const
 export type ShopEventName = (typeof SHOP_EVENTS)[number]
 
 /** Writes land together; one refetch a moment later covers all of them. */

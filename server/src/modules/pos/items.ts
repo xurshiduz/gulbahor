@@ -30,6 +30,8 @@ interface Row {
   on_hand: number
   category_id: string | null
   brand_id: string | null
+  brand_name: string | null
+  category_name: string | null
   season: Season | null
   image: { org: string; id: string; format: ImageFormat; blur: string } | null
 }
@@ -51,10 +53,18 @@ const FLOOR = priceWhere(`t.kind = 'min'`)
 /** The same, at the price type a cart is being sold at. */
 const SPECIAL = priceWhere('t.id = :priceTypeId')
 
-const ON_HAND = `(
+/**
+ * What the shop has of it to sell: what is there, less what is set aside for customers — but for the hold a cart
+ * is taking (`:taking`), whose goods are that cart's to sell.
+ */
+const ON_HAND = `greatest(0, (
   SELECT coalesce(sum(sb.qty), 0)::float8 FROM stock_balances sb
   WHERE sb.variant_id = v.id AND sb.location_id = :locationId
-)`
+) - (
+  SELECT coalesce(sum(hl.qty), 0)::float8 FROM hold_lines hl JOIN holds h ON h.id = hl.hold_id
+  WHERE h.status = 'active' AND h.location_id = :locationId AND hl.variant_id = v.id
+    AND h.id::text IS DISTINCT FROM :taking
+))`
 
 /** A photograph to show it by: of its own colour if there is one, else one of no colour in particular. */
 const IMAGE = `(
@@ -92,6 +102,8 @@ export async function sellables(
   locationId: string,
   priceTypeId: string | null = null,
   running: RunningPromotions | null = null,
+  /** The hold the cart is taking: its goods count as there to be sold. */
+  taking: string | null = null,
 ): Promise<PosItemDto[]> {
   if ('ids' in what && !what.ids.length) {
     return []
@@ -112,11 +124,14 @@ export async function sellables(
     .addSelect(FLOOR, 'floor')
     .addSelect('p.categoryId', 'category_id')
     .addSelect('p.brandId', 'brand_id')
+    .addSelect('(SELECT b.name FROM brands b WHERE b.id = p.brand_id)', 'brand_name')
+    .addSelect('(SELECT c.name FROM categories c WHERE c.id = p.category_id)', 'category_name')
     .addSelect('p.season', 'season')
     .addSelect(ON_HAND, 'on_hand')
     .addSelect(IMAGE, 'image')
     .where('v.isActive AND p.isActive')
     .setParameter('locationId', locationId)
+    .setParameter('taking', taking)
   if (priceTypeId) {
     qb.addSelect(SPECIAL, 'special').setParameter('priceTypeId', priceTypeId)
   }
@@ -175,6 +190,9 @@ export async function sellables(
       image: row.image
         ? { url: imageUrl(row.image.org, row.image.id, 's', row.image.format), blur: row.image.blur }
         : null,
+      imageLarge: row.image ? imageUrl(row.image.org, row.image.id, 'l', row.image.format) : null,
+      brandName: row.brand_name,
+      categoryName: row.category_name,
       decimals: UNIT_INFO[row.unit].decimals,
       epc: null,
     }

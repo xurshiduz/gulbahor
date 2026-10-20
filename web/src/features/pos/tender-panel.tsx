@@ -6,13 +6,14 @@ import {
   tillWorth,
   worthOf,
   type AnyCurrency,
+  type CardPickDto,
   type CurrencyCode,
   type RateBook,
   type PosContextDto,
   type RefundSettlement,
   type Settlement,
 } from '@erp/core'
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,14 +23,16 @@ import { DateInput } from '@/components/ui/date-input'
 import { Shortcut } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
+import { NoticePicks } from '@/features/cards/notice-picks'
 import { Balance, Balances } from '@/features/customers/balance'
-import { ReceivedInput, ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
-import { pairSentence, rateText, type ValuedLine } from '@/features/money/payment-lines'
+import { ReceivedNote, type ExchangeSums } from '@/features/money/exchange'
+import type { ValuedLine } from '@/features/money/payment-lines'
 import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 
 import { BalanceMove, ChangeRows, type ChangePanel } from './change-rows'
 import { GivenInput, GivenNote } from './given-for'
+import { OwnPair } from './own-pair'
 import {
   changeLines,
   changeOf,
@@ -100,6 +103,8 @@ interface TenderPanelProps {
   prefer?: AnyCurrency | null
   /** Who is buying, and what stands on their balance in each currency: in sight beside the money. */
   balances?: { name: string; accounts: { currency: AnyCurrency; balance: number }[] } | null
+  /** What the banks wrote of money landing on the shop's cards: a card's sum is picked from it. */
+  picks?: CardPickDto[]
 }
 
 /** What of the money owed for goods brought back stays on the customer's account. */
@@ -122,34 +127,49 @@ export interface KeepPanel {
   onChange: (sums: { amount: number | null; settled: number | null }) => void
 }
 
-export interface OnAccount {
-  /** Whose account. */
-  name: string
+/** One of the customer's accounts part of the sale may go on: a currency. */
+export interface OnAccountRow {
   currency: AnyCurrency
-  /** The currencies the business keeps: the sale may go on the customer's account in any of them. */
-  currencies?: AnyCurrency[]
-  onCurrency?: (currency: AnyCurrency) => void
+  /**
+   * What of the sale goes there, in the sale's money (`amount`), and — for an account in another currency — what
+   * that is in the account's own where it was typed (`received`; null: the day's rate makes it).
+   */
   sums: ExchangeSums
   /** The pair of sums where the account is in another currency than the sale; null where it is not. */
   line: ValuedLine | null
-  /** The most that can go there: what there is to pay. */
-  max: number
-  book: RateBook | null
-  /** An agreed sum however far from the day's rate is this person's to make. */
-  setsRates: boolean
   /** What stands on the account now, in its currency: above zero they owe, below it the money is theirs (haqi). */
   balance: number | null
   /** Of what goes there now, in the account's currency: what their haqi covers, and what is lent. */
   prepaid: number
   lent: number
-  /** When what is lent falls due; null: never. */
+  /** Their haqi there, in the sale's money: what "=" takes first. */
+  haqi: number
+  /** Opened for this sale only: it may be taken off again. */
+  removable: boolean
+}
+
+export interface OnAccount {
+  /** Whose accounts. */
+  name: string
+  /** A line to each currency: the main account, every one with money of theirs on it, any added for the sale. */
+  rows: OnAccountRow[]
+  /** The currencies a line may still be opened in. */
+  spare: AnyCurrency[]
+  onAdd: (currency: AnyCurrency) => void
+  onRemove: (currency: AnyCurrency) => void
+  /** The most that can go there in all: what there is to pay. */
+  max: number
+  book: RateBook | null
+  /** An agreed sum however far from the day's rate is this person's to make. */
+  setsRates: boolean
+  /** When what is lent falls due; null: never. One day for all of it. */
   dueDate: string | null
   /** Their debts are given no day: the day may be left empty. */
   noDue: boolean
   onDueDate: (date: string | null) => void
   /** Why a manager's word will be asked for, when it will. */
   warning: string | null
-  onChange: (sums: ExchangeSums) => void
+  onChange: (currency: AnyCurrency, sums: ExchangeSums) => void
 }
 
 /**
@@ -179,12 +199,14 @@ export function TenderPanel({
   keep = null,
   prefer = null,
   balances = null,
+  picks = [],
 }: TenderPanelProps) {
   const { t } = useTranslation()
   const accountId = useId()
   const keepId = useId()
   const dueId = useId()
   const sums = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLElement>(null)
   const { book } = context
   /** One of a currency in the base at the day's rate, in its smallest coin; null with no rate. */
   const unit = (currency: AnyCurrency) => tillWorth(100, currency, book)
@@ -233,8 +255,23 @@ export function TenderPanel({
     ? refund.problem === null && refund.due === 0
     : settlement.problem === null && settlement.due === 0
 
-  // What goes on the account is not for the money to cover.
-  const owing = onAccount ? Math.min(onAccount.sums.amount ?? 0, onAccount.max) : 0
+  // What goes on the accounts is not for the money to cover.
+  const typedOn = onAccount ? onAccount.rows.reduce((sum, row) => sum + (row.sums.amount ?? 0), 0) : 0
+  const owing = onAccount ? Math.min(typedOn, onAccount.max) : 0
+  const lentOn = onAccount ? onAccount.rows.some((row) => row.lent > 0) : false
+  // Paid over the sum, nothing is left to go on the account: what is over may stay there instead, as change kept.
+  // The two are never offered at once — unless something was typed here already, to be taken off again.
+  const lending = !!onAccount && (typedOn > 0 || !(change && change.over > 0))
+  // Paid over the sum by someone with a balance: handed back, or left there? Nobody has said yet, and it is not
+  // guessed — nothing is sold until the cashier says.
+  const undecided = !refunding && !!change && change.over > 0 && change.mode === null
+  /** The cursor goes to the choice that is waited for. */
+  const toChoice = () => panel.current?.querySelector<HTMLElement>('[data-change-mode] [role="radio"]')?.focus()
+  // What of the change goes into the customer's hand or to their card, in words: what stays on their balance is not.
+  const handedBack = changeWords(
+    changeOf(settlement).filter((part) => part.way !== 'account'),
+    t,
+  )
 
   /** What is left for a row to cover once the others have paid theirs, in so'm. */
   const restFor = (row: TenderRow): number => {
@@ -285,6 +322,7 @@ export function TenderPanel({
       .join('|'),
     ready: !entered.length || covered,
     covered,
+    undecided,
   }
   const latest = useRef(state)
   useLayoutEffect(() => {
@@ -306,7 +344,8 @@ export function TenderPanel({
   /** The same pair where money goes back: what the notes are handed over for. */
   const givenFor = (row: TenderRow) => ({ ...takenFor(row), rest: restFor(row) })
   // Somewhere on the panel a sum has a second one beside it: the columns are named then.
-  const paired = rows.some((row) => foreign(row) && unit(row.currency) !== null) || !!onAccount?.line
+  const paired =
+    rows.some((row) => foreign(row) && unit(row.currency) !== null) || !!onAccount?.rows.some((row) => row.line)
   // What is to pay, said in each other currency the till takes too.
   const others = context.currencies.filter((code) => code !== base() && unit(code) !== null)
 
@@ -344,11 +383,33 @@ export function TenderPanel({
           move(1)
         }
       } else if (now.ready) {
-        onComplete()
+        // What was paid over the sum waits to be told where it goes: Enter asks, it does not sell.
+        if (now.undecided) {
+          toChoice()
+        } else {
+          onComplete()
+        }
       } else {
         move(1)
       }
     })
+  }
+
+  /** Enter on the choice already made goes on to sell; on the other, it is the choice. */
+  const sellOnChosen = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target
+    if (
+      event.key === 'Enter' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      target instanceof HTMLElement &&
+      !!change?.mode &&
+      target.dataset.segment === change.mode
+    ) {
+      event.preventDefault()
+      onComplete()
+    }
   }
 
   /** Enter in the account's sum takes it and goes back to the money: the rest is paid there, and sold from there. */
@@ -357,7 +418,8 @@ export function TenderPanel({
     if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey || !(target instanceof HTMLElement)) {
       return
     }
-    if (target.id !== accountId && target.id !== keepId) {
+    // A sum on one of the accounts (`${accountId}-UZS`), or what is kept: Enter goes back to the money.
+    if (!target.id.startsWith(`${accountId}-`) && target.id !== keepId) {
       return
     }
     event.preventDefault()
@@ -369,7 +431,10 @@ export function TenderPanel({
   }
 
   return (
-    <section className="@container flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
+    <section
+      ref={panel}
+      className="@container flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-card"
+    >
       <div>
         <div className="flex items-baseline justify-between">
           <span className="text-sm font-medium">{refunding ? t('pos.toRefund') : t('pos.toPay')}</span>
@@ -484,8 +549,11 @@ export function TenderPanel({
                 </span>
                 <MoneyInput
                   value={row.amount}
-                  // What money was agreed to be worth was agreed for that much of it.
-                  onChange={(amount) => onPatch(row.key, amount === row.amount ? { amount } : { amount, value: null })}
+                  // What money was agreed to be worth was agreed for that much of it; a sum typed over the bank's
+                  // lets its notices go.
+                  onChange={(amount) =>
+                    onPatch(row.key, amount === row.amount ? { amount } : { amount, value: null, noticeIds: undefined })
+                  }
                   currency={row.currency}
                   fillValue={fillOf(row)}
                   disabled={noRate}
@@ -522,6 +590,13 @@ export function TenderPanel({
                   </>
                 ) : null}
               </div>
+              {!refunding && row.method === 'card' && row.accountId ? (
+                <NoticePicks
+                  picks={picks.filter((pick) => pick.accountId === row.accountId)}
+                  chosen={row.noticeIds ?? []}
+                  onChange={(noticeIds, sum) => onPatch(row.key, { amount: sum || null, value: null, noticeIds })}
+                />
+              ) : null}
               {!refunding && row.method === 'terminal' && (row.amount || within === row.key) ? (
                 <div data-enter-skip className="flex items-center justify-end gap-2">
                   <span className="text-xs text-ink-3">{t('pos.rrn')}</span>
@@ -604,23 +679,39 @@ export function TenderPanel({
         ) : (
           <>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-ink-3">{t('pos.change')}</span>
+              <span className={undecided ? 'font-medium text-warn' : 'text-ink-3'}>
+                {undecided ? t('pos.overPaid') : t('pos.change')}
+              </span>
+              {/* What goes back into the customer's hand, or to their card: what stays with the shop is not change.
+                  Nothing to hand back is said quietly — all of it stays on the balance, said below. Until the
+                  cashier has said which, it is only money over the sum. */}
               <span
+                data-change-said
                 className={cn(
-                  'tabular text-right text-lg font-semibold',
-                  settlement.problem === 'change_over' ? 'text-bad' : 'text-ok',
+                  'tabular text-right',
+                  undecided || handedBack ? 'text-lg font-semibold' : 'text-ink-3',
+                  undecided
+                    ? 'text-warn'
+                    : settlement.problem === 'change_over'
+                      ? 'text-bad'
+                      : handedBack
+                        ? 'text-ok'
+                        : '',
                 )}
               >
-                {/* What goes back into the customer's hand, or to their card: what stays with the shop is not change. */}
-                {changeWords(
-                  changeOf(settlement).filter((part) => part.way !== 'account'),
-                  t,
-                ) || money(0)}
+                {undecided ? money(change?.over ?? 0) : handedBack || money(0)}
               </span>
             </div>
             {/* What was paid over the sum is handed back, or left with the customer for next time: said, not guessed. */}
             {change && change.over > 0 ? (
-              <div data-enter-skip data-change-mode className="flex flex-wrap items-center gap-2">
+              <div
+                data-enter-skip
+                data-change-mode
+                data-undecided={undecided || undefined}
+                className="flex flex-wrap items-center gap-2"
+                onKeyDown={sellOnChosen}
+              >
+                {/* A choice of two, as wide as its words: it is not a heading of the panel. Waited for, it stands out. */}
                 <Segments
                   value={change.mode}
                   onChange={change.onMode}
@@ -628,8 +719,12 @@ export function TenderPanel({
                     { value: 'give', label: t('pos.changeGive') },
                     { value: 'keep', label: t('pos.changeKeep') },
                   ]}
-                  className="h-8 w-auto min-w-64 flex-1"
+                  className={cn(
+                    'h-7 w-fit [&>button]:flex-none [&>button]:px-3 [&>button]:text-xs',
+                    undecided && 'border-warn outline-2 outline-warn/25',
+                  )}
                 />
+                {undecided ? <span className="text-xs text-warn">{t('pos.changeChoose')}</span> : null}
                 {/* Seldom wanted: notes of another currency, or a card, stay folded until asked for. */}
                 {change.mode === 'give' && change.rows.some((row) => row.way !== 'account') ? (
                   <button
@@ -638,7 +733,7 @@ export function TenderPanel({
                     onClick={() => change.onOpen(!change.open)}
                     className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-accent-ink hover:bg-accent-soft"
                   >
-                    {change.open ? t('pos.changeAllCash') : t('pos.splitChange')}
+                    {change.open ? t('pos.changeAllCash', baseWords(t)) : t('pos.splitChange')}
                     {change.open ? null : <Shortcut combo="f10" />}
                   </button>
                 ) : null}
@@ -652,14 +747,16 @@ export function TenderPanel({
             {settlement.problem === 'change_over' ? (
               <p className="text-bad">{t('pos.changeOver', { amount: money(change?.over ?? 0) })}</p>
             ) : null}
-            {change && change.over > 0 && (change.mode === 'keep' ? !!change.keeper : change.open) ? (
+            {change &&
+            change.over > 0 &&
+            (change.mode === 'keep' ? !!change.keeper : change.mode === 'give' && change.open) ? (
               <ChangeRows context={context} change={change} settlement={settlement} onKeyDown={walk} />
             ) : null}
           </>
         )}
       </div>
 
-      {onAccount ? (
+      {onAccount && lending ? (
         // Like lending, decided rather than fallen into: Enter does not walk into it.
         <div
           data-enter-skip
@@ -667,108 +764,134 @@ export function TenderPanel({
           className="flex flex-col gap-1.5 border-t border-line pt-3"
           onKeyDown={backToMoney}
         >
-          <div className={ROW}>
-            <label htmlFor={accountId} className="min-w-0 text-[13px] text-ink-2">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate">
-                  {t('pos.onAccount')} · {onAccount.name}
-                </span>
-                {/* Which of their accounts: their main currency's unless another is picked for this sale. */}
-                {onAccount.onCurrency && (onAccount.currencies?.length ?? 0) > 1 ? (
-                  <Select
-                    value={onAccount.currency}
-                    onChange={(value) => onAccount.onCurrency?.(value as AnyCurrency)}
-                    options={(onAccount.currencies ?? []).map((code) => ({
-                      value: code,
-                      label: CURRENCIES[code].symbol,
-                    }))}
-                    className="h-7 w-20 shrink-0 text-xs"
-                  />
-                ) : null}
-              </span>
-            </label>
-            {/* "=" puts on the account whatever the money typed above has not covered. */}
-            <MoneyInput
-              id={accountId}
-              value={onAccount.sums.amount}
-              // What goes there in the sale's money is the anchor: typed, the account's sum follows afresh.
-              onChange={(amount) => onAccount.onChange({ amount, received: null })}
-              currency={base()}
-              fillValue={Math.min(onAccount.max, (onAccount.sums.amount ?? 0) + settlement.due)}
-              invalid={(onAccount.sums.amount ?? 0) > onAccount.max}
-            />
-            {onAccount.line ? (
-              // The pair: what goes on the account in the sale's money, the rate, and what the account's
-              // account takes for it in its own.
-              <>
-                <span
-                  className={RATE}
-                  title={
-                    onAccount.line.pair && onAccount.line.dayRate
-                      ? pairSentence(onAccount.line.pair, onAccount.line.dayRate)
-                      : undefined
-                  }
-                >
-                  {onAccount.line.dayRate ? rateText(onAccount.line.dayRate) : '—'}
-                </span>
-                <span className={UNDER}>{t('pos.onAccountIn', { currency: onAccount.currency })}</span>
-                <ReceivedInput
-                  line={onAccount.line}
-                  sums={onAccount.sums}
-                  toCurrency={onAccount.currency}
-                  onChange={onAccount.onChange}
-                  setsRates={onAccount.setsRates}
-                  label={t('pos.onAccountIn', { currency: onAccount.currency })}
-                />
-              </>
+          <div className="flex min-w-0 items-center gap-2 text-[13px] text-ink-2">
+            <span className="min-w-0 truncate">
+              {t('pos.onAccount')} · {onAccount.name}
+            </span>
+            {/* Another of their accounts, for this sale: "10 $ of theirs, the rest owed in so'm". */}
+            {onAccount.spare.length ? (
+              <Select
+                // Picked, it is a line of its own: the box is empty again for the next.
+                key={onAccount.spare.join()}
+                value=""
+                onChange={(value) => (value ? onAccount.onAdd(value as AnyCurrency) : undefined)}
+                placeholder={t('pos.onAccountAdd')}
+                options={onAccount.spare.map((code) => ({ value: code, label: currencyWords(t, code).Currency }))}
+                className="ml-auto h-7 w-36 shrink-0 text-xs"
+              />
             ) : null}
           </div>
-          {onAccount.line ? (
-            <ReceivedNote
-              line={onAccount.line}
-              book={onAccount.book}
-              setsRates={onAccount.setsRates}
-              className="text-right"
-            />
-          ) : null}
-          {/* What stands on their balance now — owed, or theirs to spend first — and after this sale. */}
-          {onAccount.balance !== null ? (
-            <p data-balance-move className="tabular text-right text-xs text-ink-3">
-              <BalanceMove
-                before={onAccount.balance}
-                after={onAccount.balance + (onAccount.sums.amount ? onAccount.prepaid + onAccount.lent : 0)}
-                currency={onAccount.currency}
-              />
-            </p>
-          ) : null}
-          {/* What their haqi covers and what is lent, and by when the lent part is to be paid. */}
-          {onAccount.sums.amount && (onAccount.prepaid || onAccount.lent) ? (
-            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-ink-3">
-              {onAccount.prepaid ? (
-                <span className="tabular">
-                  {t('pos.fromCredit', { amount: money(onAccount.prepaid, onAccount.currency) })}
-                </span>
-              ) : null}
-              {onAccount.lent ? (
-                <>
-                  <span className="tabular">
-                    {t('pos.lent', { amount: money(onAccount.lent, onAccount.currency) })}
-                  </span>
-                  <label htmlFor={dueId}>{t('pos.debtDue')}</label>
-                  <span className="w-36">
-                    <DateInput
-                      id={dueId}
-                      value={onAccount.dueDate ?? ''}
-                      onChange={(date) => onAccount.onDueDate(date || null)}
-                      warnPast
+          {onAccount.rows.map((row) => {
+            const symbol = CURRENCIES[row.currency].symbol
+            const id = `${accountId}-${row.currency}`
+            // "=" takes what is theirs there first, as far as the sale goes; else what the money typed above and
+            // the other lines leave.
+            const others = onAccount.rows
+              .filter((other) => other !== row)
+              .reduce((sum, other) => sum + (other.sums.amount ?? 0), 0)
+            const room = Math.max(0, Math.min(onAccount.max - others, (row.sums.amount ?? 0) + settlement.due))
+            const fill = row.haqi > 0 ? Math.min(room, row.haqi) : room
+            return (
+              <div key={row.currency} data-on-account-row={row.currency} className="flex flex-col gap-1.5">
+                <div className={ROW}>
+                  <label htmlFor={id} className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
+                    <span className="truncate">
+                      {/* Heard whole by a screen reader: whose account, and which. */}
+                      <span className="sr-only">
+                        {t('pos.onAccount')} · {onAccount.name} · {symbol} ·{' '}
+                      </span>
+                      {t('pos.onAccountOf', { currency: currencyWords(t, row.currency).Currency })}
+                    </span>
+                    {row.removable ? (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        title={t('pos.onAccountRemove')}
+                        aria-label={t('pos.onAccountRemove')}
+                        onClick={() => onAccount.onRemove(row.currency)}
+                        className="shrink-0 rounded p-0.5 text-ink-3 hover:bg-sunken hover:text-ink"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    ) : null}
+                  </label>
+                  {row.line ? (
+                    // A balance in another currency is written as cash of that currency is: its own sum, the
+                    // rate, and what that is in the sale's money — the same columns as the money above.
+                    <OwnPair
+                      id={id}
+                      currency={row.currency}
+                      book={book}
+                      own={row.sums.amount ? (row.sums.received ?? row.line.settled) : null}
+                      typed={row.sums.received !== null}
+                      value={row.sums.amount}
+                      room={room}
+                      // "=" takes what is theirs there first.
+                      ownMost={row.balance !== null && row.balance < 0 ? -row.balance : null}
+                      invalid={typedOn > onAccount.max}
+                      strays={row.line.strays && !onAccount.setsRates}
+                      onChange={(next) => onAccount.onChange(row.currency, { amount: next.value, received: next.own })}
                     />
-                  </span>
-                  {onAccount.noDue && !onAccount.dueDate ? <span>{t('pos.noDue')}</span> : null}
-                </>
-              ) : null}
+                  ) : (
+                    <MoneyInput
+                      id={id}
+                      value={row.sums.amount}
+                      onChange={(amount) => onAccount.onChange(row.currency, { amount, received: null })}
+                      currency={base()}
+                      fillValue={fill || undefined}
+                      invalid={typedOn > onAccount.max}
+                    />
+                  )}
+                </div>
+                {row.line ? (
+                  <ReceivedNote
+                    line={row.line}
+                    book={onAccount.book}
+                    setsRates={onAccount.setsRates}
+                    className="text-right"
+                  />
+                ) : null}
+                {/* What stands on their balance now — owed, or theirs to spend first — and after this sale, and of
+                    it what their haqi covers and what is lent. */}
+                {row.balance !== null || (row.sums.amount && (row.prepaid || row.lent)) ? (
+                  <p
+                    data-balance-move
+                    className="tabular flex flex-wrap items-center justify-end gap-x-3 text-right text-xs text-ink-3"
+                  >
+                    {row.sums.amount && row.prepaid ? (
+                      <span>{t('pos.fromCredit', { amount: money(row.prepaid, row.currency) })}</span>
+                    ) : null}
+                    {row.sums.amount && row.lent ? (
+                      <span>{t('pos.lent', { amount: money(row.lent, row.currency) })}</span>
+                    ) : null}
+                    {row.balance !== null ? (
+                      <BalanceMove
+                        before={row.balance}
+                        after={row.balance + (row.sums.amount ? row.prepaid + row.lent : 0)}
+                        currency={row.currency}
+                      />
+                    ) : null}
+                  </p>
+                ) : null}
+              </div>
+            )
+          })}
+          {/* By when what is lent is to be paid: one day for all of it. */}
+          {lentOn ? (
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-ink-3">
+              <label htmlFor={dueId}>{t('pos.debtDue')}</label>
+              <span className="w-36">
+                <DateInput
+                  id={dueId}
+                  value={onAccount.dueDate ?? ''}
+                  onChange={(date) => onAccount.onDueDate(date || null)}
+                  warnPast
+                />
+              </span>
+              {onAccount.noDue && !onAccount.dueDate ? <span>{t('pos.noDue')}</span> : null}
             </div>
           ) : null}
-          {onAccount.sums.amount && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}
+          {typedOn && onAccount.warning ? <p className="text-xs text-warn">{onAccount.warning}</p> : null}
         </div>
       ) : null}
       {refunding && keep ? (
@@ -784,37 +907,30 @@ export function TenderPanel({
               <span className="block truncate">{t('pos.keepOnAccount', { name: keep.name })}</span>
             </label>
             {/* "=" keeps there whatever the money typed above has not handed back. */}
-            <MoneyInput
-              id={keepId}
-              value={keep.amount}
-              onChange={(amount) => keep.onChange({ amount, settled: null })}
-              currency={base()}
-              fillValue={Math.min(keep.max, (keep.amount ?? 0) + refund.due)}
-              invalid={(keep.amount ?? 0) > keep.max}
-            />
             {keep.currency !== base() && unit(keep.currency) !== null ? (
-              <>
-                <span className={RATE}>
-                  {formatMoney(unit(keep.currency) as number, base(), { minor: 'auto', symbol: false })}
-                </span>
-                <span className={UNDER}>{t('pos.onAccountIn', { currency: keep.currency })}</span>
-                <MoneyInput
-                  aria-label={t('pos.onAccountIn', { currency: keep.currency })}
-                  value={keeping ? keep.settled : null}
-                  onChange={(settled) => keep.onChange({ amount: keep.amount, settled })}
-                  currency={keep.currency}
-                  placeholder={
-                    keeping && exchange(keeping, base(), keep.currency, book) !== null
-                      ? formatMoney(exchange(keeping, base(), keep.currency, book) as number, keep.currency, {
-                          symbol: false,
-                          group: ' ',
-                        })
-                      : undefined
-                  }
-                  invalid={keep.strays}
-                />
-              </>
-            ) : null}
+              // A balance in another currency: its own sum, the rate, and what that is of the money owed.
+              <OwnPair
+                id={keepId}
+                currency={keep.currency}
+                book={book}
+                own={keeping ? (keep.settled ?? exchange(keeping, base(), keep.currency, book)) : null}
+                typed={keep.settled !== null}
+                value={keep.amount}
+                room={Math.min(keep.max, (keep.amount ?? 0) + refund.due)}
+                invalid={(keep.amount ?? 0) > keep.max}
+                strays={keep.strays}
+                onChange={(next) => keep.onChange({ amount: next.value, settled: next.own })}
+              />
+            ) : (
+              <MoneyInput
+                id={keepId}
+                value={keep.amount}
+                onChange={(amount) => keep.onChange({ amount, settled: null })}
+                currency={base()}
+                fillValue={Math.min(keep.max, (keep.amount ?? 0) + refund.due)}
+                invalid={(keep.amount ?? 0) > keep.max}
+              />
+            )}
           </div>
           {/* What stands on their balance now, and what will once this much stays there. */}
           {keep.balance !== null ? (

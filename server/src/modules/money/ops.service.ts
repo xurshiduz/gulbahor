@@ -24,6 +24,7 @@ import { Db } from '../../database/db.service'
 import { Account, MoneyCategory, MoneyOp, MoneyOpLine, Shift } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
 import { can, type Actor } from '../auth/actor'
+import { checkPicks, tieNotices } from '../cards/card-links'
 import { nextNumbers } from '../catalog/counters'
 import { RealtimeService } from '../realtime/realtime.service'
 import { rateLimit, valueLine, wantingRate } from './agreed'
@@ -239,6 +240,22 @@ export class MoneyOpsService {
             continue
           }
         }
+        // Money the bank already wrote of: the notices it was picked from are held for this document.
+        const picked =
+          account.kind === 'card'
+            ? await checkPicks(em, {
+                noticeIds: line.noticeIds,
+                accountId: account.id,
+                direction: input.kind === 'income' ? 'in' : 'out',
+                amount: line.amount,
+              })
+            : line.noticeIds?.length
+              ? 'Bank xabari faqat karta qatorida tanlanadi'
+              : null
+        if (picked) {
+          fields[`lines.${index}.noticeIds`] = picked
+          continue
+        }
         // Money of another currency may be counted as an agreed sum of the base, within what this person may agree to.
         const worth = valueLine(line.amount, account.currency, book.base, book, line.settled, limit)
         if (typeof worth === 'string') {
@@ -326,6 +343,9 @@ export class MoneyOpsService {
         },
         postings,
       )
+      for (const line of input.lines) {
+        await tieNotices(em, actor, line.noticeIds, { type: DOCUMENT, id: op.id }, 'picked')
+      }
 
       await this.audit.record(em, actor.orgId, actor, {
         action: `money_op.${input.kind}`,

@@ -100,7 +100,7 @@ describe('a receipt on paper', () => {
         },
       ],
       due: { id: 'd1', dueDate: '2026-11-04' },
-      owes: { currency: 'UZS', balance: 180_000_000 },
+      owes: [{ currency: 'UZS', balance: 180_000_000 }],
     } as SaleDto
     const { container } = render(<ReceiptPaper sale={lent} template={DEFAULT_RECEIPT_TEMPLATE} orgName="Gulbahor" />)
     const text = plain(container.querySelector('[data-receipt-paper]')?.textContent ?? null)

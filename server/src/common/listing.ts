@@ -1,12 +1,23 @@
-import { queryKeys } from '@erp/core'
+import { queryKeys, soundKey } from '@erp/core'
 import { Brackets, ObjectLiteral, SelectQueryBuilder } from 'typeorm'
+
+/** `soundKey` in SQL, over a stored search key: the two must fold alike. */
+export const SOUND = (column: string) =>
+  `regexp_replace(replace(translate(replace(replace(replace(replace(${column}, 'dzh', 'j'), 'dj', 'j'), 'kh', 'h'), ` +
+  `'gh', 'g'), 'xq', 'hk'), 'iy', 'i'), '(.)\\1+', '\\1', 'g')`
 
 /**
  * Filters by a row's `search_key`. Every word of the query must appear, in
  * any order; the query is also tried as if typed with the wrong keyboard
- * layout. `column` is trusted SQL, never user input.
+ * layout. With `names`, a word may also be spelt another way (`soundKey`):
+ * "muhammadali" finds "Мухаммадали". `column` is trusted SQL, never user input.
  */
-export function applySearch<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, column: string, q: string | undefined) {
+export function applySearch<T extends ObjectLiteral>(
+  qb: SelectQueryBuilder<T>,
+  column: string,
+  q: string | undefined,
+  options: { names?: boolean } = {},
+) {
   const keys = queryKeys(q ?? '')
   if (!keys.length) {
     return
@@ -17,7 +28,14 @@ export function applySearch<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>, 
         anyKey.orWhere(
           new Brackets((everyWord) => {
             key.split(' ').forEach((word, j) => {
-              everyWord.andWhere(`${column} LIKE :search_${i}_${j}`, { [`search_${i}_${j}`]: `%${escapeLike(word)}%` })
+              const name = `search_${i}_${j}`
+              const params = { [name]: `%${escapeLike(word)}%`, [`${name}_sound`]: `%${escapeLike(soundKey(word))}%` }
+              everyWord.andWhere(
+                options.names
+                  ? `(${column} LIKE :${name} OR ${SOUND(column)} LIKE :${name}_sound)`
+                  : `${column} LIKE :${name}`,
+                params,
+              )
             })
           }),
         )

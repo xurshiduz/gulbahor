@@ -1,11 +1,15 @@
-import type {
-  CurrencyCode,
-  Page,
-  StockListItemDto,
-  StockListQuery,
-  StockLocationDto,
-  StockProductDto,
-  StockVariantDto,
+import {
+  normalizeEpc,
+  type CurrencyCode,
+  type Page,
+  type StockListItemDto,
+  type StockListQuery,
+  type StockLocationDto,
+  type StockProductDto,
+  type StockUnitDto,
+  type StockUnitsQuery,
+  type StockVariantDto,
+  type UnitStatus,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { EntityManager } from 'typeorm'
@@ -15,7 +19,7 @@ import { applySearch, applySort } from '../../common/listing'
 import { Db } from '../../database/db.service'
 import { Brand, Category, Location, Product, StockMovement, type StockMovementKind } from '../../database/entities'
 import { can, type Actor } from '../auth/actor'
-import { productFaces } from '../catalog/faces'
+import { productFaces, productImages } from '../catalog/faces'
 
 /** The kind of the one place per business that holds goods on the way between two others. */
 export const TRANSIT = 'transit'
@@ -205,16 +209,38 @@ export class StockService {
   }
 
   /**
+   * What of each of these variants is set aside for customers in a place: the lines of the holds that stand
+   * there. Goods held are in the shop and in its count, but are nobody else's to take.
+   */
+  async promised(em: EntityManager, locationId: string, variantIds: string[]): Promise<Map<string, number>> {
+    if (!variantIds.length) {
+      return new Map()
+    }
+    const rows: { variant_id: string; qty: number }[] = await em.query(
+      `SELECT l.variant_id, sum(l.qty)::float8 AS qty
+       FROM hold_lines l JOIN holds h ON h.id = l.hold_id
+       WHERE h.status = 'active' AND h.location_id = $1 AND l.variant_id = ANY($2)
+       GROUP BY l.variant_id`,
+      [locationId, variantIds],
+    )
+    return new Map(rows.map((row) => [row.variant_id, row.qty]))
+  }
+
+  /**
    * Chooses the pieces that make up `qty` of each variant in a place, oldest
    * batch first, and holds those balances until the transaction ends. Nothing
    * moves yet: the caller turns the pieces into movements. `missing` is how
-   * much of each want is not there.
+   * much of each want is not there — or is there, but set aside for a
+   * customer (`promised`: how much of the variant is). A count of what is
+   * really on the shelves takes no notice of promises (`counting`).
    */
   async pick(
     em: EntityManager,
     locationId: string,
     wants: { variantId: string; qty: number }[],
-  ): Promise<{ pieces: Piece[]; missing: number }[]> {
+    counting = false,
+  ): Promise<{ pieces: Piece[]; missing: number; promised: number }[]> {
+    const variantIds = [...new Set(wants.map((want) => want.variantId))]
     const held: Held[] = wants.length
       ? await em.query(
           `SELECT sb.batch_id, sb.variant_id, sb.qty::float8 AS qty, sb.cost_uzs::float8 AS cost_uzs
@@ -222,15 +248,34 @@ export class StockService {
            WHERE sb.location_id = $1 AND sb.variant_id = ANY($2) AND sb.qty > 0
            ORDER BY b.received_on, b.created_at, b.id
            FOR UPDATE OF sb`,
-          [locationId, [...new Set(wants.map((want) => want.variantId))]],
+          [locationId, variantIds],
         )
       : []
-    return wants.map((want) =>
-      carve(
+    // Read with the balances held: a hold made at the same moment waits for them, and is seen here once it is made.
+    const promised = counting ? new Map<string, number>() : await this.promised(em, locationId, variantIds)
+    const free = new Map<string, bigint>()
+    for (const variantId of variantIds) {
+      const there = held
+        .filter((balance) => balance.variant_id === variantId)
+        .reduce((sum, balance) => sum + scaled(balance.qty), 0n)
+      const kept = scaled(promised.get(variantId) ?? 0)
+      free.set(variantId, there > kept ? there - kept : 0n)
+    }
+    return wants.map((want) => {
+      const wanted = scaled(want.qty)
+      const room = free.get(want.variantId) ?? 0n
+      const take = wanted < room ? wanted : room
+      free.set(want.variantId, room - take)
+      const carved = carve(
         held.filter((balance) => balance.variant_id === want.variantId),
-        want.qty,
-      ),
-    )
+        Number(take) / QTY_SCALE,
+      )
+      return {
+        pieces: carved.pieces,
+        missing: carved.missing + Number(wanted - take) / QTY_SCALE,
+        promised: promised.get(want.variantId) ?? 0,
+      }
+    })
   }
 
   /** The same for named batches: the pieces a document put somewhere, taken from there again. */
@@ -291,6 +336,8 @@ export class StockService {
           : ''
       const onHand = `FROM stock_balances sb JOIN product_variants v ON v.id = sb.variant_id WHERE v.product_id = p.id AND sb.qty > 0 ${place}`
       const present = `EXISTS (SELECT 1 ${onHand})`
+      // What of it is set aside for customers in those same places.
+      const heldPlace = place.replace('sb.location_id', 'hd.location_id')
 
       const qb = em
         .createQueryBuilder(Product, 'p')
@@ -303,6 +350,17 @@ export class StockService {
         .addSelect(
           `(SELECT jsonb_object_agg(x.location_id, x.qty) FROM (SELECT sb.location_id, sum(sb.qty)::float8 AS qty ${onHand} GROUP BY sb.location_id) x)`,
           'by_location',
+        )
+        .addSelect(
+          `(SELECT coalesce(array_agg(vb.code ORDER BY vb.sort_order, vb.code), '{}') FROM variant_barcodes vb
+            JOIN product_variants bv ON bv.id = vb.variant_id WHERE bv.product_id = p.id)`,
+          'barcodes',
+        )
+        .addSelect(
+          `(SELECT coalesce(sum(hl.qty), 0)::float8 FROM hold_lines hl JOIN holds hd ON hd.id = hl.hold_id
+            JOIN product_variants hv ON hv.id = hl.variant_id
+            WHERE hd.status = 'active' AND hv.product_id = p.id ${heldPlace})`,
+          'held',
         )
         .addSelect(
           `(SELECT jsonb_build_object('amount', pr.amount, 'currency', pr.currency) FROM prices pr JOIN price_types t ON t.id = pr.price_type_id
@@ -330,7 +388,16 @@ export class StockService {
           { categoryId: query.categoryId },
         )
       }
-      applySearch(qb, 'p.search_key', query.q)
+      // A read or typed RFID tag finds the model of that very piece, whatever else the search would match.
+      const epc = query.q ? normalizeEpc(query.q) : null
+      if (epc) {
+        qb.andWhere(
+          `p.id IN (SELECT tv.product_id FROM rfid_units tu JOIN product_variants tv ON tv.id = tu.variant_id WHERE tu.epc = :epc)`,
+          { epc },
+        )
+      } else {
+        applySearch(qb, 'p.search_key', query.q)
+      }
       applySort(qb, SORTABLE, query.sort, query.order, 'name')
       qb.addOrderBy('p.id', 'ASC')
 
@@ -353,17 +420,21 @@ export class StockService {
             qty: number
             cost_uzs: number
             by_location: Record<string, number> | null
+            barcodes: string[] | null
+            held: number
             retail_price: { amount: number | string; currency: CurrencyCode } | null
           }
           return {
             productId: product.id,
             sku: product.sku,
+            barcodes: row.barcodes ?? [],
             name: product.name,
             brandName: row.brand_name,
             categoryName: row.category_name,
             unit: product.unit,
             qty: row.qty,
             byLocation: row.by_location ?? {},
+            held: row.held,
             costUzs: seesCost ? row.cost_uzs : null,
             retailPrice: row.retail_price
               ? { amount: Number(row.retail_price.amount), currency: row.retail_price.currency }
@@ -424,14 +495,83 @@ export class StockService {
         byLocation: row.by_location ?? {},
         costUzs: seesCost ? row.cost_uzs : null,
       }))
+      const [about]: {
+        brand_name: string | null
+        category_name: string | null
+        retail_price: { amount: number | string; currency: CurrencyCode } | null
+      }[] = await em.query(
+        `SELECT (SELECT name FROM brands WHERE id = $2) AS brand_name,
+                (SELECT name FROM categories WHERE id = $3) AS category_name,
+                (SELECT jsonb_build_object('amount', pr.amount, 'currency', pr.currency)
+                 FROM prices pr JOIN price_types t ON t.id = pr.price_type_id
+                 WHERE t.kind = 'retail' AND pr.product_id = $1 AND pr.variant_id IS NULL AND pr.location_id IS NULL
+                 LIMIT 1) AS retail_price`,
+        [product.id, product.brandId, product.categoryId],
+      )
       return {
         productId: product.id,
         name: product.name,
         sku: product.sku,
         unit: product.unit,
+        brandName: about.brand_name,
+        categoryName: about.category_name,
+        retailPrice: about.retail_price
+          ? { amount: Number(about.retail_price.amount), currency: about.retail_price.currency }
+          : null,
+        images: await productImages(em, product.id),
         axisIds: [product.axis1Id, product.axis2Id, product.axis3Id].filter((id): id is string => !!id),
         variants,
       }
+    })
+  }
+
+  /** A model's RFID-tagged pieces, newest first: the tag, where it is and what became of it. */
+  async units(actor: Actor, productId: string, query: StockUnitsQuery): Promise<StockUnitDto[]> {
+    const mine = placesOf(actor)
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const rows: {
+        id: string
+        epc: string
+        variant_id: string
+        status: UnitStatus
+        location_id: string | null
+        location_name: string | null
+        receipt_id: string | null
+        receipt_number: string | null
+        unit_no: number | null
+        print_count: number
+        last_printed_at: Date | null
+        created_at: Date
+      }[] = await em.query(
+        `SELECT u.id, u.epc, u.variant_id, u.status, u.location_id, l.name AS location_name,
+                u.receipt_id, r.number AS receipt_number, u.unit_no, u.print_count, u.last_printed_at, u.created_at
+         FROM rfid_units u
+         JOIN product_variants v ON v.id = u.variant_id
+         LEFT JOIN locations l ON l.id = u.location_id
+         LEFT JOIN receipts r ON r.id = u.receipt_id
+         WHERE v.product_id = $1
+           AND ($2::text IS NULL OR u.status = $2)
+           AND ($3::uuid IS NULL OR u.location_id = $3)
+           AND ($4::uuid IS NULL OR u.variant_id = $4)
+           AND ($5::uuid[] IS NULL OR u.location_id = ANY($5))
+         ORDER BY u.created_at DESC, u.unit_no NULLS LAST
+         LIMIT 2000`,
+        [productId, query.status ?? null, query.locationId ?? null, query.variantId ?? null, mine],
+      )
+      return rows.map((row) => ({
+        id: row.id,
+        epc: row.epc,
+        variantId: row.variant_id,
+        status: row.status,
+        locationId: row.location_id,
+        locationName: row.location_name,
+        receiptId: row.receipt_id,
+        receiptNumber: row.receipt_number,
+        unitNo: row.unit_no,
+        printCount: row.print_count,
+        lastPrintedAt: row.last_printed_at?.toISOString() ?? null,
+        createdAt: row.created_at.toISOString(),
+      }))
     })
   }
 }

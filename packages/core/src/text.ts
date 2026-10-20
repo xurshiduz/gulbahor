@@ -61,6 +61,24 @@ export function searchKey(text: string | null | undefined): string {
 }
 
 /**
+ * A name is spelt many ways — "Muhammadali", "Muxammadali", "Mukhammadali", "Мухаммадали" (read as "muxammadali"),
+ * "Muhamadali"; "Qodir" and "Kodir"; "Jamshid" and "Djamshid"; "Aliyev" and "Aliev". This folds a search key so
+ * that all of them meet. Only for names: on goods it would make XL and XXL one. The server folds the stored key
+ * the same way in SQL (`common/listing.ts`, `SOUND`); the two are kept in step by a test.
+ */
+export function soundKey(key: string): string {
+  return key
+    .replace(/dzh/g, 'j')
+    .replace(/dj/g, 'j')
+    .replace(/kh/g, 'h')
+    .replace(/gh/g, 'g')
+    .replace(/x/g, 'h')
+    .replace(/q/g, 'k')
+    .replace(/iy/g, 'i')
+    .replace(/(.)\1+/g, '$1')
+}
+
+/**
  * The keys a query should be tried as: as typed, and, for longer queries,
  * as if the keyboard layout had been wrong.
  */

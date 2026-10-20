@@ -31,3 +31,23 @@ export interface GoodsSentEvent {
   toLocationId: string
   sentBy: string | null
 }
+
+/**
+ * Money has landed on one of the business's cards, by the bank's own word. Unlike the others this one says how
+ * much (owner, 2026-10-12): whoever is taking a customer's transfer has to see that it came, and what came.
+ * It says no more than that — not what is left on the card, and nothing of what leaves it.
+ */
+export interface CardInEvent {
+  id: string
+  /** Null for a card the business keeps no account for. */
+  accountId: string | null
+  /** The business's name for the card, or its last digits ("*5512"). */
+  card: string
+  /** Minor units. */
+  amount: number
+  currency: string
+  /** When, by the bank's clock: "2026-10-12T10:20". */
+  at: string | null
+  /** The shops the card serves; none for every shop. */
+  locationIds: string[]
+}
