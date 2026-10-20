@@ -1019,6 +1019,12 @@ export const uz = {
   },
   stockdocs: {
     strays: {
+      foreign: 'Hujjatda yo‘q tovar: {{count}}',
+      foreignOne: 'hujjatda yo‘q',
+      extra: 'Jo‘natilgandan ortiq: {{count}}',
+      extraOne: 'ortiqcha',
+      missing: 'Kelmagan dona: {{count}}',
+      missingOne: 'jo‘natilgan, kelmadi',
       sold: 'Sotilgan dona o‘qildi: {{count}}',
       unknown: 'Tanilmagan RFID: {{count}}',
       soldOne: 'sotilgan',
@@ -1059,7 +1065,8 @@ export const uz = {
       confirm: 'Tovar jo‘natilsinmi?',
       confirmHint: 'Tovar bu joyning qoldig‘idan chiqadi va qabul qilinguncha yo‘lda turadi.',
       receive: 'Qabul qilish',
-      receiveHint: 'Kelgan tovarni sanang. Farq bo‘lsa, «Yetib kelgan» jadvalida haqiqiy sonni yozing.',
+      receiveHint:
+        'Kelgan tovarni sanang: skaner bilan o‘qing yoki farq bo‘lsa, «Yetib kelgan» jadvalida haqiqiy sonni yozing. Birinchi o‘qilgan dona bilan sanoq noldan boshlanadi.',
       receiveConfirm: 'Tovar qabul qilinsinmi?',
       receiveFull: 'Hammasi to‘liq keldi deb qabul qilinadi.',
       receiveShort_one: '{{count}} ta dona yetib kelmagan deb yoziladi va yo‘qotish sifatida hisobdan chiqadi.',

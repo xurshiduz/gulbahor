@@ -4,13 +4,19 @@ import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/cn'
 
-/** An RFID tag read on a document that was not counted: a sold piece, or a tag the system does not know. */
+/**
+ * What a document's reader saw but did not count: a sold piece, a tag the system does not know, goods not on a
+ * transfer being received or more of them than were sent — and a piece read as it was sent but not as it came.
+ */
 export interface TagStray {
+  /** The RFID tag; a barcode, for goods read by one. */
   epc: string
-  kind: 'sold' | 'unknown'
-  /** The model and variant, for a sold piece. */
+  kind: 'sold' | 'unknown' | 'foreign' | 'extra' | 'missing'
+  /** The model and variant, where it is known. */
   name: string | null
 }
+
+const KINDS: TagStray['kind'][] = ['missing', 'sold', 'foreign', 'extra', 'unknown']
 
 /**
  * What the reader saw but the count left out, as one quiet line: a handheld's
@@ -22,17 +28,14 @@ export function TagStrays({ strays }: { strays: TagStray[] }) {
   if (!strays.length) {
     return null
   }
-  const sold = strays.filter((stray) => stray.kind === 'sold')
-  const unknown = strays.length - sold.length
+  const counts = KINDS.map((kind) => [kind, strays.filter((stray) => stray.kind === kind).length] as const)
   return (
     <div className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">
       <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpen(!open)}>
         <span className="flex-1">
-          {[
-            sold.length ? t('stockdocs.strays.sold', { count: sold.length }) : null,
-            unknown ? t('stockdocs.strays.unknown', { count: unknown }) : null,
-          ]
-            .filter(Boolean)
+          {counts
+            .filter(([, count]) => count)
+            .map(([kind, count]) => t(`stockdocs.strays.${kind}`, { count }))
             .join(' · ')}
         </span>
         <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
@@ -41,11 +44,12 @@ export function TagStrays({ strays }: { strays: TagStray[] }) {
         <ul className="mt-2 space-y-1 text-xs">
           {strays.map((stray) => (
             <li key={stray.epc} className="flex gap-2">
-              <span className="font-mono">#{stray.epc.slice(-6)}</span>
+              <span className="font-mono">
+                {/^[0-9A-F]{24}$/.test(stray.epc) ? `#${stray.epc.slice(-6)}` : stray.epc.split(':')[0]}
+              </span>
               <span>
-                {stray.kind === 'sold'
-                  ? `${t('stockdocs.strays.soldOne')}: ${stray.name}`
-                  : t('stockdocs.strays.unknownOne')}
+                {t(`stockdocs.strays.${stray.kind}One`)}
+                {stray.name ? `: ${stray.name}` : ''}
               </span>
             </li>
           ))}

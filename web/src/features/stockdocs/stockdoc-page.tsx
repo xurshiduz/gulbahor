@@ -283,11 +283,56 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
     }
   }
 
+  // ── Receiving by the reader ──
+  // The first piece read starts the count from nothing: what arrived is then what was read, piece by piece.
+  const [readIn, setReadIn] = useState(false)
+  const sentQty = useMemo(() => new Map((doc?.lines ?? []).map((line) => [line.variantId, line.qty])), [doc])
+  const receiveScan = (found: VariantLookupDto, code: string) => {
+    const name = [found.productName, found.label].filter(Boolean).join(', ')
+    if (found.epc) {
+      if (seenTags.current.has(found.epc)) {
+        return
+      }
+      if (found.unitStatus === 'sold') {
+        stray({ epc: found.epc, kind: 'sold', name })
+        return
+      }
+    }
+    const sentOf = sentQty.get(found.variantId)
+    if (sentOf === undefined) {
+      stray({ epc: found.epc ?? code, kind: 'foreign', name })
+      return
+    }
+    if (found.epc) {
+      seenTags.current.add(found.epc)
+    }
+    const start = !readIn
+    setReadIn(true)
+    setArrived((current) => {
+      const counted = start ? Object.fromEntries([...sentQty.keys()].map((id) => [id, 0])) : current
+      const now = counted[found.variantId] ?? 0
+      if (now >= sentOf) {
+        stray({ epc: found.epc ?? `${code}:${now}`, kind: 'extra', name })
+        return counted
+      }
+      return { ...counted, [found.variantId]: now + 1 }
+    })
+  }
+  // What was read as it left and has not been read here: by its tag, the very piece that did not come.
+  const missingTags = readIn ? (doc?.tags ?? []).filter((tag) => !seenTags.current.has(tag)) : []
+  const shownStrays: TagStray[] = [
+    ...strays,
+    ...missingTags.map((tag): TagStray => ({ epc: tag, kind: 'missing', name: null })),
+  ]
+
   useScanner(
     (code) => {
       api
         .get<VariantLookupDto>('/products/lookup', { code })
         .then((found) => {
+          if (receiving) {
+            return receiveScan(found, code)
+          }
           // An RFID reader reports a tag many times over; each piece is counted once.
           if (found.epc) {
             if (seenTags.current.has(found.epc)) {
@@ -310,7 +355,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
           toast.error(error instanceof ApiError ? error.message : String(error))
         })
     },
-    { enabled: editable },
+    { enabled: editable || receiving },
   )
 
   // ── Saving and carrying out ──
@@ -588,7 +633,7 @@ function StockDocForm({ kind, doc, attributes, mine, places, onReloaded }: FormP
     >
       <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-6">
         <Form id={FORM_ID} onSubmit={() => void saveDraft()} className="max-w-5xl gap-4">
-          <TagStrays strays={strays} />
+          <TagStrays strays={shownStrays} />
           <Card>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field
