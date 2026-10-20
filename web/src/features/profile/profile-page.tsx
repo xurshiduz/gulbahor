@@ -1,4 +1,4 @@
-import { LANGUAGES, profileSchema, setPinSchema, type Language, type SessionDto } from '@erp/core'
+import { LANGUAGE_NAMES, LANGUAGES, profileSchema, setPinSchema, type SessionDto } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Controller, useForm } from 'react-hook-form'
@@ -24,7 +24,6 @@ import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/profile')
 
-const LANGUAGE_LABELS: Record<Language, string> = { uz: 'O‘zbekcha', ru: 'Русский' }
 
 export function ProfilePage() {
   const { t } = useTranslation()
@@ -104,7 +103,7 @@ function ProfileForm() {
                 control={form.control}
                 name="language"
                 render={({ field }) => (
-                  <Select id={id} value={field.value} onChange={field.onChange} options={LANGUAGES.map((language) => ({ value: language, label: LANGUAGE_LABELS[language] }))} />
+                  <Select id={id} value={field.value} onChange={field.onChange} options={LANGUAGES.map((language) => ({ value: language, label: LANGUAGE_NAMES[language] }))} />
                 )}
               />
             )}

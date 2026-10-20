@@ -2,7 +2,7 @@
 
     python tools/check_i18n.py
 
-"only uz" and "only ru" must both be empty. Thirteen keys are always listed as "missing": they are plural
+"only uz", "only ru" and "not in en" must be empty (Uzbek in Cyrillic is worked out from the Latin one). Thirteen keys are always listed as "missing": they are plural
 forms and groups this simple reader does not follow (audit.actions, import.confirm, import.newVariants,
 import.problems, import.rowsFound, products.variantCount, products.willRemove, promotions.receipts,
 receipts.unpricedWarning, roles.count, stockdocs.lostHere, stockdocs.shortWarning,
@@ -37,8 +37,12 @@ def keys_of(path):
 
 uz = keys_of('i18n/uz.ts')
 ru = keys_of('i18n/ru.ts')
+en = keys_of('i18n/en.ts')
 print('only uz:', sorted(uz - ru))
 print('only ru:', sorted(ru - uz))
+# English is checked by the compiler too (Dictionary); this is for whoever reads only this report.
+# A group written on one line in one file and spread out in the other is the same keys.
+print('not in en:', sorted(key for key in uz - en if not any(other.startswith(key + '/') for other in en)))
 
 flat = {key.replace('/', '.') for key in uz}
 groups = {key.rsplit('.', 1)[0] for key in flat}

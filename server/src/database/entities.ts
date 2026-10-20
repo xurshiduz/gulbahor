@@ -10,6 +10,7 @@ import type {
   CurrencyCode,
   CustomerGender,
   ExpenseBasis,
+  Language,
   Gender,
   HoldStatus,
   ImageFormat,
@@ -184,7 +185,7 @@ export class User {
   pinFailures: number
 
   @Column('text')
-  language: 'uz' | 'ru'
+  language: Language
 
   @Column('boolean')
   isActive: boolean

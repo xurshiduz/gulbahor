@@ -1,4 +1,4 @@
-import { APP_NAME, loginSchema, type LoginInput } from '@erp/core'
+import { APP_NAME, LANGUAGE_NAMES, LANGUAGES, loginSchema, type LoginInput } from '@erp/core'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { Moon, Sun } from 'lucide-react'
@@ -68,14 +68,14 @@ export function AuthLayout({ title, subtitle, children, wide }: { title: string;
         {children}
       </div>
       <div className="flex items-center gap-1 text-xs text-ink-3">
-        {(['uz', 'ru'] as const).map((language) => (
+        {LANGUAGES.map((language) => (
           <button
             key={language}
             type="button"
             onClick={() => setLanguage(language)}
             className={`rounded px-2 py-1 hover:bg-sunken ${i18n.language === language ? 'font-semibold text-ink' : ''}`}
           >
-            {language === 'uz' ? 'O‘zbekcha' : 'Русский'}
+            {LANGUAGE_NAMES[language]}
           </button>
         ))}
         <button type="button" onClick={toggleTheme} aria-label="Theme" className="ml-1 rounded p-1.5 hover:bg-sunken">

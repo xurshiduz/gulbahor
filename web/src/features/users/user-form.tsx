@@ -1,4 +1,5 @@
 import {
+  LANGUAGE_NAMES,
   LANGUAGES,
   resetPasswordSchema,
   userCreateSchema,
@@ -43,7 +44,6 @@ interface Values {
   extraPermissions: string[]
 }
 
-const LANGUAGE_LABELS: Record<Language, string> = { uz: 'O‘zbekcha', ru: 'Русский' }
 const FORM_ID = 'user-form'
 
 type Option = Pick<LocationDto, 'id' | 'name' | 'code' | 'kind' | 'parentId'>
@@ -140,7 +140,7 @@ export function UserFormDialog({ user, onClose }: { user: UserDto | null; onClos
                   control={form.control}
                   name="language"
                   render={({ field }) => (
-                    <Select id={id} value={field.value} onChange={field.onChange} options={LANGUAGES.map((language) => ({ value: language, label: LANGUAGE_LABELS[language] }))} />
+                    <Select id={id} value={field.value} onChange={field.onChange} options={LANGUAGES.map((language) => ({ value: language, label: LANGUAGE_NAMES[language] }))} />
                   )}
                 />
               )}

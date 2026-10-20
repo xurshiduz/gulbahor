@@ -135,8 +135,17 @@ export type RemovePinInput = z.infer<typeof removePinSchema>
 
 export const unlockSchema = z.object({ pin: pinSchema })
 
-export const LANGUAGES = ['uz', 'ru'] as const
+/** Uzbek in the Latin script first; Uzbek in Cyrillic is the same words written in the other script. */
+export const LANGUAGES = ['uz', 'uz-Cyrl', 'ru', 'en'] as const
 export type Language = (typeof LANGUAGES)[number]
+
+/** Each language's name in itself, for the place it is picked. */
+export const LANGUAGE_NAMES: Record<Language, string> = {
+  uz: 'O‘zbekcha',
+  'uz-Cyrl': 'Ўзбекча',
+  ru: 'Русский',
+  en: 'English',
+}
 
 export const profileSchema = z.object({
   fullName: requiredText(120),
