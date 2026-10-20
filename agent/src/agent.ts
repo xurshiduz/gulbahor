@@ -2,7 +2,7 @@ import { hostname } from 'node:os'
 
 import { io, type Socket } from 'socket.io-client'
 
-import { isLocalHost, sendToPrinter } from './printer'
+import { isLocalHost, sendToPrinter, sendToWindowsPrinter } from './printer'
 import { Guard, openLineReader, Presence, type OpenReader, type ReaderConfig, type ReaderLink } from './readers'
 
 export const VERSION = '0.2.0'
@@ -17,6 +17,8 @@ export interface AgentOptions {
   onRefused?: (reason: string) => void
   /** How a reader is listened to; the tests put a pretend one here. */
   openReader?: OpenReader
+  /** Printers plugged in by USB: "host:port" set up in the system → Windows print queue name. */
+  usbPrinters?: Record<string, string>
 }
 
 interface PrintOrder {
@@ -215,9 +217,13 @@ export function startAgent(options: AgentOptions): Socket {
       answer({ ok: false, error: `${order.host} lokal tarmoq manzili emas` })
       return
     }
-    sendToPrinter(order.host, order.port, order.data).then(
+    const queue = options.usbPrinters?.[`${order.host}:${order.port}`]
+    const send = queue
+      ? sendToWindowsPrinter(queue, order.data)
+      : sendToPrinter(order.host, order.port, order.data)
+    send.then(
       () => {
-        log(`Chop etildi: ${order.host}:${order.port}`)
+        log(`Chop etildi: ${queue ?? `${order.host}:${order.port}`}`)
         answer({ ok: true })
       },
       (error: Error) => {

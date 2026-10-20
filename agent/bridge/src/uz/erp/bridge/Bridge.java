@@ -82,6 +82,17 @@ public final class Bridge {
                     }
                 }
             });
+            // Right after init the pad answers nothing (power reads -1, inventory stays silent); it settles in about two seconds.
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+            // The pad beeps on every read, many times a second while a piece lies on it; the till says it once.
+            if (!uhf.setBeep(0)) {
+                log("O'quvchi signalini o'chirib bo'lmadi");
+            }
             // Low on purpose: the goods lying beside the pad must not be read with the ones on it.
             if (!uhf.setPower(AntennaNameEnum.ANT1, power)) {
                 log("Quvvatni o'rnatib bo'lmadi (" + power + " dBm): o'quvchining o'z sozlamasi qoladi");

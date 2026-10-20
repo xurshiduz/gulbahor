@@ -34,6 +34,8 @@ R3 arxividagi kutubxona yangiroq va UR4 ni ham biladi, shuning uchun bitta to'pl
 
 ## Yig'ish va ishga tushirish
 
+Chainway kutubxonasi `UHFAPI.dll` ni ko'prik papkasining o'zidan qidiradi, shuning uchun `UHFAPI.dll` va `libusb-1.0.dll` `lib/` dan shu papkaga ham nusxalanadi.
+
 ```bat
 build.cmd
 run.cmd r3
@@ -53,6 +55,8 @@ Keyin tizimda **Qurilmalar → RFID o'quvchilar → O'quvchi qo'shish**: manzil 
 UR4 ning rele chiqishiga chiroq va ovozli signal ulanadi: `ALARM` kelganda ko'prik releni yoqadi va `--alarm-ms` dan keyin o'chiradi.
 
 ## Tekshiriladiganlar (uskuna kelganda)
+
+**2026-10-20, R3S bilan sinaldi:** o'qiydi va kodlarni agentga beradi. `init` dan keyin o'quvchi ~2 soniya hech bir buyruqqa javob bermaydi (quvvat `-1`, o'qish jim), shuning uchun ko'prik 2 soniya kutadi. Har o'qishdagi o'quvchi signali o'chiriladi (`setBeep(0)`, o'quvchining xotirasida qoladi). Chainway'ning o'z dasturi (`UHFUsbDemo.jar`) ishlab turganda ko'prik o'quvchiga ulana olmaydi.
 
 1. Do'kon kompyuterida `build.cmd` yig'adimi va `run.cmd r3` Chainway kutubxonasini yuklay oladimi (`UHFAPI.dll`, `libusb-1.0.dll` `lib/` da).
 2. R3: `run.cmd r3` dan keyin "O'quvchi ulandi" chiqadimi; dona qo'yilganda agent jurnalida va kassada ko'rinadimi.

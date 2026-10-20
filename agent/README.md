@@ -37,6 +37,21 @@ Aloqa doim do'kon tomondan ochiladi. Shuning uchun do'konga doimiy (statik) IP h
    "Ulandi: …" yozuvi chiqadi, tizimdagi **Qurilmalar** sahifasida agent "Ulangan" bo'ladi.
 5. **Qurilmalar → Printerlar → Printer qo'shish**: agentni tanlang, printerning IP manzilini yozing. Keyin printer qatoridagi menyudan **Sinov etiketkasi** ni bosing.
 
+### Printer USB orqali ulangan bo'lsa (faqat Windows)
+
+1. Windows'da printer uchun RAW navbat qo'shiladi (PowerShell, printer ulangan holda; port nomi `Get-PrinterPort` da, masalan `USB002`):
+
+   ```powershell
+   Add-PrinterDriver -Name 'Generic / Text Only'
+   Add-Printer -Name 'Chainway CP30' -DriverName 'Generic / Text Only' -PortName 'USB002'
+   ```
+2. `agent.json` ga tizimdagi manzil va navbat nomi yoziladi:
+
+   ```json
+   { "url": "…", "key": "…", "usbPrinters": { "127.0.0.1:9100": "Chainway CP30" } }
+   ```
+3. Tizimda printer qo'shilganda manzil `127.0.0.1`, port `9100` yoziladi. Agent shu manzilga kelgan ishni tarmoqqa emas, Windows navbatiga uzatadi.
+
 Kompyuter yonganda agent o'zi ishga tushishi uchun uni Windows'da Task Scheduler ("At log on") yoki Linux'da systemd xizmati sifatida qo'shing.
 
 ## RFID o'quvchilar

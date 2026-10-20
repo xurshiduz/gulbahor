@@ -7,6 +7,7 @@ import { startAgent, VERSION } from './agent'
 interface Config {
   url?: string
   key?: string
+  usbPrinters?: Record<string, string>
 }
 
 /** `agent.json` beside the program or in the folder it is started from; the environment wins over both. */
@@ -16,6 +17,7 @@ function readConfig(): Config {
   return {
     url: process.env.ERP_URL ?? fromFile.url,
     key: process.env.ERP_KEY ?? fromFile.key,
+    usbPrinters: fromFile.usbPrinters,
   }
 }
 
@@ -40,6 +42,7 @@ log(`ERP agenti ${VERSION}: ${config.url}`)
 startAgent({
   url: config.url,
   key: config.key,
+  usbPrinters: config.usbPrinters,
   log,
   onRefused: () => {
     log('Kalitni tekshiring: Qurilmalar sahifasida yangi kalit oling va agent.json ga yozing.')

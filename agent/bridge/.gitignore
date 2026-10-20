@@ -5,3 +5,5 @@ vendor/
 # Yig'ilgan fayllar
 out/
 gulbahor-bridge.jar
+/*.dll
+erp-bridge.jar
