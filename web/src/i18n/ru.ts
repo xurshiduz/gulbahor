@@ -1507,6 +1507,8 @@ export const ru: Dictionary = {
     complete: 'Продать',
     clear: 'Очистить чек',
     returnTitle: 'Возврат',
+    left: 'Осталось',
+    dropTender: 'Убрать',
     returnFind: 'Номер чека или RFID-метка',
     returnSold: 'Продано',
     returnQty: 'Возврат',

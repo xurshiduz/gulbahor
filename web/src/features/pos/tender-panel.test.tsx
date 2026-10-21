@@ -61,10 +61,12 @@ function Money({
   due,
   onComplete,
   borrower,
+  tiles = false,
 }: {
   due: number
   onComplete: (rows: TenderRow[], lent: number) => void
   borrower?: Borrower
+  tiles?: boolean
 }) {
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
   const [lent, setLent] = useState<number | null>(null)
@@ -122,6 +124,7 @@ function Money({
       busy={false}
       onComplete={() => onComplete(entered, owing)}
       onBack={() => undefined}
+      tiles={tiles}
     />
   )
 }
@@ -1003,5 +1006,32 @@ describe('rows kept out of sight', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Yashirilganlarni yig‘ish/ }))
     expect(shown()).toEqual(['cash', 'cash:USD', 'account:humo'])
+  })
+})
+
+describe('the boxes at the till', () => {
+  const shown = () => [...document.querySelectorAll('[data-tender]')].map((row) => row.getAttribute('data-tender'))
+
+  it('stands only the ways picked, each filled with what is left to pay', async () => {
+    const done = vi.fn()
+    render(<Money due={som(710_000)} onComplete={done} tiles />)
+    // Nothing typed: cash is what is meant, and it alone stands.
+    expect(shown()).toEqual(['cash'])
+    expect(plain(document.querySelector('[data-left]')?.textContent)).toContain('710 000')
+
+    await userEvent.type(field('cash'), '500000')
+    await userEvent.click(document.querySelector('[data-chip="account:humo"]') as HTMLElement)
+    expect(shown()).toEqual(['cash', 'account:humo'])
+    expect(field('account:humo').value.replace(/\s/g, '')).toBe('210000')
+    expect(plain(document.querySelector('[data-left]')?.textContent)).toMatch(/0 so‘m/)
+
+    // Taken away, its sum goes with it.
+    await userEvent.click(
+      within(document.querySelector('[data-tender="account:humo"]') as HTMLElement).getByRole('button', {
+        name: 'Olib tashlash',
+      }),
+    )
+    expect(shown()).toEqual(['cash'])
+    expect(plain(document.querySelector('[data-left]')?.textContent)).toContain('210 000')
   })
 })

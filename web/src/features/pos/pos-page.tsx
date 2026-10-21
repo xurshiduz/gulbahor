@@ -48,7 +48,6 @@ import { useSession } from '@/features/auth/session'
 import { useCardPicks } from '@/features/cards/notice-picks'
 import { PaymentDialog } from '@/features/customers/payments'
 import { exchangeLine, receivedOf, type ExchangeSums } from '@/features/money/exchange'
-import { useHiddenPlaces } from '@/features/money/hidden-places'
 import { useRegisters } from '@/features/money/money-page'
 import { api, ApiError } from '@/lib/api'
 import { base, baseWords, currencyWords } from '@/lib/base'
@@ -294,9 +293,6 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const { book } = context
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
-  // Seldom used ways of paying this person keeps out of sight, and whether they are shown for now.
-  const [hiddenPlaces, setHiddenPlaces] = useHiddenPlaces()
-  const [peek, setPeek] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
   const wanted = useRef<TenderKind | 'agreed' | null>(null)
   /** How the change goes back when not all of it is cash in the base: what was typed, and whether the rows are out. */
@@ -881,13 +877,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
       field.select()
       return
     }
-    // Every row of the kind is out of sight: they come out, and the cursor goes there.
-    setPeek(true)
-    window.setTimeout(() => {
-      const shown = find()
-      shown?.focus()
-      shown?.select()
-    })
+    // No box of the kind yet: its button puts one there, with what is left to pay, and takes the cursor in.
+    document.querySelector<HTMLButtonElement>(`[data-chip-kind="${kind}"]`)?.click()
   }
   // Into the payment the cursor goes to the way of paying that was asked for, so'm when none was; back
   // in the cart, to the search field or to the sum agreed on.
@@ -920,8 +911,6 @@ function Till({ context, registers, onSwitch }: TillProps) {
     // With no way of paying asked for, the cursor goes to the customer's own currency where they have one here.
     wanted.current = kind ?? (prefer ? 'other' : null)
     setPaying(true)
-    // Each payment starts with what is hidden out of sight again.
-    setPeek(false)
     setSplitting(false)
   }
   /** F10: the change goes back in parts — the rows come out and the cursor goes to the first. */
@@ -1732,7 +1721,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               busy={busy}
               onComplete={() => complete()}
               onBack={() => backToCart()}
-              hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces, peek, onPeek: setPeek }}
+              tiles
               offAccount={offAccount}
               prefer={prefer}
               keep={

@@ -8,6 +8,8 @@ import { ru } from './ru'
 import { uz } from './uz'
 
 const STORAGE_KEY = 'gb.language'
+/** Set when the language was picked on the sign-in screen: the person signing in takes it with them. */
+const PICKED_KEY = 'gb.language.picked'
 
 function storedLanguage(): Language {
   try {
@@ -40,6 +42,29 @@ export function setLanguage(language: Language) {
   }
   document.documentElement.lang = language
   void i18n.changeLanguage(language)
+}
+
+/** Picked before signing in: kept, so it becomes the person's own once they are in. */
+export function pickLanguage(language: Language) {
+  setLanguage(language)
+  try {
+    localStorage.setItem(PICKED_KEY, '1')
+  } catch {
+    // Without storage the picked language still holds until the session sets the person's own.
+  }
+}
+
+/** The language picked on the sign-in screen, once: null when none was. */
+export function takePickedLanguage(): Language | null {
+  try {
+    if (localStorage.getItem(PICKED_KEY) !== '1') {
+      return null
+    }
+    localStorage.removeItem(PICKED_KEY)
+    return storedLanguage()
+  } catch {
+    return null
+  }
 }
 
 export { i18n }

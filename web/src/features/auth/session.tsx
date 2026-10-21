@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, type ReactN
 import { useTranslation } from 'react-i18next'
 
 import { Spinner } from '@/components/ui/feedback'
-import { setLanguage } from '@/i18n'
+import { setLanguage, takePickedLanguage } from '@/i18n'
 import { api, ApiError, setSignedOutHandler } from '@/lib/api'
 import { setBase } from '@/lib/base'
 import { useRealtime } from '@/lib/realtime'
@@ -72,9 +72,19 @@ export function SessionGate({ setup, children }: { setup: ReactNode; children: R
   }, [signedOut])
 
   useEffect(() => {
-    if (me) {
-      setLanguage(me.user.language)
+    if (!me) {
+      return
     }
+    // The language picked on the sign-in screen is the one they want: it becomes theirs.
+    const picked = takePickedLanguage()
+    if (picked && picked !== me.user.language) {
+      setLanguage(picked)
+      void api
+        .patch('/auth/profile', { fullName: me.user.fullName, language: picked })
+        .then(() => queryClient.invalidateQueries({ queryKey: ME_KEY }))
+      return
+    }
+    setLanguage(me.user.language)
   }, [me?.user.language]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSessionEnded = useCallback(() => {

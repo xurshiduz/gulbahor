@@ -1519,6 +1519,8 @@ export const en: Dictionary = {
     complete: 'Sell',
     clear: 'Clear the receipt',
     returnTitle: 'Return',
+    left: 'Left to pay',
+    dropTender: 'Remove',
     returnFind: 'Receipt number or RFID tag',
     returnSold: 'Sold',
     returnQty: 'Returned',

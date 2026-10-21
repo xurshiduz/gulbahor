@@ -1509,6 +1509,8 @@ export const uz = {
     complete: 'Sotish',
     clear: 'Chekni tozalash',
     returnTitle: 'Qaytarish',
+    left: 'Qoldi',
+    dropTender: 'Olib tashlash',
     returnFind: 'Chek raqami yoki RFID belgi',
     returnSold: 'Sotilgan',
     returnQty: 'Qaytadi',

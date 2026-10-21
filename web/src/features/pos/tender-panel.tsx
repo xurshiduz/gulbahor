@@ -13,7 +13,7 @@ import {
   type RefundSettlement,
   type Settlement,
 } from '@erp/core'
-import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Plus, X } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -94,6 +94,11 @@ interface TenderPanelProps {
   offAccount?: number
   /** Seldom used rows kept out of sight; none hidden without it. */
   hiding?: Hiding | null
+  /**
+   * The till's way: a button for every way of paying, and only the ways picked stand as a box of their own, filled
+   * with what is left to pay. Without it every way has its row, ready to be typed into.
+   */
+  tiles?: boolean
   /** Handing back: so much of it may stay on the customer's account instead. Offered when there is someone whose. */
   keep?: KeepPanel | null
   /**
@@ -196,6 +201,7 @@ export function TenderPanel({
   onAccount = null,
   offAccount = 0,
   hiding = null,
+  tiles = false,
   keep = null,
   prefer = null,
   balances = null,
@@ -230,8 +236,12 @@ export function TenderPanel({
       !(!entered.length && suggested[row.key])
     )
   }
-  const shown = rows.filter((row) => !tucked(row))
-  const away = rows.filter(tucked)
+  // Picked at the till, a way of paying stands as a box; one holding a sum, or what is meant with nothing typed, too.
+  const [opened, setOpened] = useState<string[]>([])
+  const standing = (row: TenderRow) =>
+    opened.includes(row.key) || !!row.amount || (!entered.length && !!suggested[row.key])
+  const shown = rows.filter((row) => (tiles ? standing(row) : !tucked(row)))
+  const away = tiles ? [] : rows.filter(tucked)
   /** A row as the line under the sums names it when it is out of sight. */
   const nameOf = (row: TenderRow): string => {
     if (row.method === 'cash') {
@@ -285,6 +295,31 @@ export function TenderPanel({
     const rest = restFor(row)
     return foreign(row) ? (dueIn(rest, row.currency, book) ?? rest) : rest
   }
+
+  /** A way of paying picked: its box comes, holding what is left to pay, and the cursor goes there. */
+  const pickRow = (row: TenderRow) => {
+    if (!standing(row)) {
+      setOpened((current) => [...current, row.key])
+      const fill = fillOf(row)
+      if (fill > 0 && !(!entered.length && suggested[row.key])) {
+        onPatch(row.key, { amount: fill })
+      }
+    }
+    window.setTimeout(() => {
+      const field = panel.current?.querySelector<HTMLInputElement>(`[data-tender="${row.key}"] input`)
+      field?.focus()
+      field?.select()
+    })
+  }
+  /** A box taken away: its sum goes with it. */
+  const dropRow = (row: TenderRow) => {
+    setOpened((current) => current.filter((key) => key !== row.key))
+    onPatch(row.key, { amount: null, value: null, reference: '', noticeIds: undefined })
+  }
+  /** What a way of paying is called on its button and its box. */
+  const labelOf = (row: TenderRow): string => nameOf(row)
+  // What is left to pay, said large: the receipt's due until something is typed.
+  const left = refunding ? (entered.length ? refund.due : due) : entered.length ? settlement.due : due
 
   // ── What each place holds now, and would after this: for whoever may see balances (`context.held`) ──
   const placeOf = (row: Pick<TenderRow, 'method' | 'currency' | 'accountId'>) =>
@@ -454,6 +489,14 @@ export function TenderPanel({
               .join(' · ')}
           </p>
         ) : null}
+        {tiles ? (
+          <div data-left className="mt-1 flex items-baseline justify-between">
+            <span className="text-sm font-medium text-ok">{t('pos.left')}</span>
+            <span className={cn('tabular text-3xl font-semibold', left > 0 ? 'text-ok' : 'text-ink-3')}>
+              {money(left)}
+            </span>
+          </div>
+        ) : null}
         {balances ? (
           <p data-balances className="tabular mt-1 text-right text-xs text-ink-3">
             {t('pos.customerBalances', { name: balances.name })}:{' '}
@@ -465,6 +508,37 @@ export function TenderPanel({
           </p>
         ) : null}
       </div>
+
+      {tiles ? (
+        // Every way of paying, as a button: pressed, it stands as a box below with what is left to pay in it.
+        <div data-enter-skip className="flex flex-wrap gap-1.5 border-t border-line pt-3">
+          {rows.map((row) => {
+            const kind = kindOf(row)
+            const on = standing(row)
+            const first = rows.find((item) => kindOf(item) === kind) === row
+            return (
+              <button
+                key={row.key}
+                type="button"
+                tabIndex={-1}
+                data-chip={row.key}
+                data-chip-kind={first ? kind : undefined}
+                onClick={() => pickRow(row)}
+                className={cn(
+                  'inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors',
+                  on
+                    ? 'border-accent/40 bg-accent-soft text-accent-ink'
+                    : 'border-line bg-surface text-ink-2 hover:bg-sunken hover:text-ink',
+                )}
+              >
+                <span className="max-w-40 truncate">{labelOf(row)}</span>
+                {first ? <Shortcut combo={KIND_KEYS[kind]} /> : null}
+                {on ? null : <Plus className="size-3.5" />}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
 
       <div ref={sums} className="flex flex-col gap-2 border-t border-line pt-3" onKeyDown={walk}>
         {paired ? (
@@ -500,7 +574,7 @@ export function TenderPanel({
               data-tender={row.key}
               data-kind={kind}
               onFocus={() => setWithin(row.key)}
-              className="group flex flex-col gap-1.5"
+              className={cn('group flex flex-col gap-1.5', tiles && 'rounded-lg border border-line bg-canvas/40 p-2.5')}
             >
               <div className={ROW}>
                 <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
@@ -526,7 +600,18 @@ export function TenderPanel({
                     <span className="shrink-0 text-xs text-ink-3">{t('pos.payTerminal')}</span>
                   ) : null}
                   {first ? <Shortcut combo={KIND_KEYS[kind]} /> : null}
-                  {place !== null && hiding ? (
+                  {tiles ? (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title={t('pos.dropTender')}
+                      aria-label={t('pos.dropTender')}
+                      onClick={() => dropRow(row)}
+                      className="ml-auto shrink-0 rounded p-0.5 text-ink-3 hover:bg-sunken hover:text-bad"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  ) : place !== null && hiding ? (
                     // Out of sight until it is wanted; a hidden one shown for now may be shown always again.
                     <button
                       type="button"

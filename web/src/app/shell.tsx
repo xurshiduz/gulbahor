@@ -1,5 +1,7 @@
 import {
   formatMoney,
+  LANGUAGE_NAMES,
+  LANGUAGES,
   type AnyCurrency,
   type CardInEvent,
   type GateAlarmEvent,
@@ -9,10 +11,8 @@ import {
 } from '@erp/core'
 import { Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
-  ArrowDownLeft,
-  ArrowLeftRight,
-  ArrowUpRight,
-  HandCoins,
+  Check,
+  Languages,
   Lock,
   LogOut,
   Moon,
@@ -20,7 +20,6 @@ import {
   Menu as MenuIcon,
   PanelLeftClose,
   PanelLeftOpen,
-  ReceiptText,
   Sun,
   UserRound,
 } from 'lucide-react'
@@ -32,6 +31,9 @@ import { Menu } from '@/components/ui/controls'
 import { Tooltip } from '@/components/ui/feedback'
 import { PageChrome } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
+import { setLanguage } from '@/i18n'
+import { api } from '@/lib/api'
+import { queryClient } from '@/lib/query'
 import { tillHere } from '@/features/money/payment-lines'
 import { MoneyOpDialog } from '@/features/money/ops'
 import { PaymentDialog } from '@/features/customers/payments'
@@ -318,49 +320,25 @@ export function Shell() {
           <div ref={setTitleSlot} className="flex min-w-0 flex-1 items-baseline gap-2" />
 
           <div className="flex shrink-0 items-center gap-1">
-            {canPay || canSpend ? (
-              <Menu
-                trigger={
-                  <Button variant="ghost" aria-label={t('payments.desk')}>
-                    <ArrowLeftRight />
-                    <span className="hidden xl:inline">{t('payments.desk')}</span>
-                  </Button>
-                }
-                items={[
-                  ...(canTake
-                    ? [
-                        {
-                          label: t('payments.takeIn'),
-                          icon: <ArrowDownLeft />,
-                          shortcut: 'mod+k',
-                          onSelect: () => setPaying('in'),
-                        },
-                      ]
-                    : []),
-                  ...(canPayOut
-                    ? [
-                        {
-                          label: t('payments.payOut'),
-                          icon: <ArrowUpRight />,
-                          shortcut: 'alt+c',
-                          onSelect: () => setPaying('out'),
-                        },
-                      ]
-                    : []),
-                  ...(canSpend
-                    ? [
-                        {
-                          label: t('ops.expense'),
-                          icon: <ReceiptText />,
-                          shortcut: 'alt+x',
-                          onSelect: () => setSpending('expense'),
-                        },
-                        { label: t('ops.income'), icon: <HandCoins />, onSelect: () => setSpending('income') },
-                      ]
-                    : []),
-                ]}
-              />
-            ) : null}
+            {/* The language, for this person: kept with them, so the next sign-in speaks it too. */}
+            <Menu
+              trigger={
+                <Button variant="ghost" aria-label={t('profile.language')}>
+                  <Languages />
+                  <span className="hidden sm:inline">{LANGUAGE_NAMES[me.user.language]}</span>
+                </Button>
+              }
+              items={LANGUAGES.map((language) => ({
+                label: LANGUAGE_NAMES[language],
+                icon: language === me.user.language ? <Check /> : <span className="size-4" />,
+                onSelect: () => {
+                  setLanguage(language)
+                  void api
+                    .patch('/auth/profile', { fullName: me.user.fullName, language })
+                    .then(() => queryClient.invalidateQueries({ queryKey: ['me'] }))
+                },
+              }))}
+            />
             <Tooltip content={connected ? t('common.online') : t('common.offline')}>
               <span
                 className="flex size-8 items-center justify-center"

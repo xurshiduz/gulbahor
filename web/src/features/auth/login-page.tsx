@@ -12,7 +12,7 @@ import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
-import { setLanguage } from '@/i18n'
+import { pickLanguage } from '@/i18n'
 import { api, ApiError } from '@/lib/api'
 
 export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
@@ -72,7 +72,7 @@ export function AuthLayout({ title, subtitle, children, wide }: { title: string;
           <button
             key={language}
             type="button"
-            onClick={() => setLanguage(language)}
+            onClick={() => pickLanguage(language)}
             className={`rounded px-2 py-1 hover:bg-sunken ${i18n.language === language ? 'font-semibold text-ink' : ''}`}
           >
             {LANGUAGE_NAMES[language]}
