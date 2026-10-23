@@ -24,9 +24,11 @@ Bu fayl — ishning qayerda turganini aytadi. Har sessiya ish boshlashdan oldin 
 
 2026-10-09 da foydalanuvchi aytgach V9 ning 9a, 9b, 9c, 9d, 9c′, 9e, 9e+ va 9e++ (kassa tortmasi) bo'laklari ish daraxti nusxalaridan alohida commit bo'ldi, oxirgisi — etiketka 54×34 standart; `main` `origin` ga push qilindi.
 
+2026-10-23 da foydalanuvchi aytgach o'sha kungacha yig'ilgan ish (etiketka dizayneri va undan keyingisi — pastda, "2026-10-23") bitta commit bo'ldi `main` da. Push qilinmagan. Test serverda shu holat 17:26 dan ishlaydi.
+
 Lokal bazada bemalol ishlash mumkin (foydalanuvchi so'zi, 2026-10-06): sinov yozuvlari, migratsiyani qo'llash va qaytarish. Avtomatik testlar o'z bazasida (`gulbahor_test`) qoladi, chunki har yurishda bazani bo'shatadi.
 
-Oxirgi to'liq tekshiruv: 2026-10-12: typecheck, lint, lug'at toza; core 273, agent 17, server 547, veb 318 (kartalar va UI testlari qayta yurgizildi)
+Oxirgi to'liq tekshiruv: 2026-10-23: typecheck, lint, lug'at toza; core 279, agent 17, veb 334. Server testlaridan faqat o'zgargan qismlar yurgizildi (app, card-control, avatar — 45 ta); to'liq server yurishi 2026-10-12 da (547).
 
 ## Bulut sessiyasi hisoboti (2026-10-06, branch `cloud/exchange-partners`)
 
@@ -131,6 +133,17 @@ Egasiga aytiladigan (ma'lumotga oid, kod emas):
 - 2026-10-05: PIN kod aynan 4 ta raqam, har raqamga alohida katak (`PinInput`): bloklangan ekranda 4-raqam terilishi bilan o'zi tekshiriladi, xato bo'lsa kataklar qizarib silkinadi (telefonda titraydi); kassadagi rahbar tasdig'i va profildagi "Yangi PIN" ham shu kataklarda. **Eski PIN 4 raqamdan uzun bo'lsa, endi terib bo'lmaydi** — parol bilan kirib, Profil → Xavfsizlikda yangisini o'rnatish kerak.
 - 2026-10-05: menyuni yig'ish-ochish tugmasi menyuning pastidan yuqori panelning chap boshiga ko'chirildi.
 - 2026-10-05: PIN kodni o'chirib qo'yish (Profil → Xavfsizlik, joriy parol bilan; `POST /auth/pin/remove`); parol maydonlarida "ko'z" tugmasi (`PasswordInput`: kirish, parolni almashtirish, PIN kartasi); ekranni bloklash — **Ctrl+L**, kassada mijoz maydoni — **Ctrl+M** (eski Alt+L va Alt+M ham ishlaydi). Qolgan Alt tugmalari o'zgarmadi: Ctrl+K qidiruvga, Ctrl+C va Ctrl+X nusxa olish va qirqishga, Ctrl+raqam brauzer tablariga band.
+
+### 2026-10-23 (egasi so'rovlari, bitta commit)
+
+- **Etiketka dizayneri** (oldingi sessiyada boshlangan): biznesning o'z shablonlari (`core/label-designs.ts`, `organizations.label_designs`, migratsiya `1790000063000`), elementlar sudrab joylashtiriladi va burchagidan kattalashtiriladi, logo rasmdan. Shablon bo'sh boshlanadi (Gulbahor namunasi olib tashlandi), namuna qiymatlar maydon nomlari bilan (`useSampleValues`), standart shtrix-kod — Code 128. Katta PNG logoni kattalashtirish tuzatildi (manba 800 px JPEG qilib saqlanadi, eski chizish natijasi tashlanadi). Sozlamalar → Etiketka tizim kartalari uslubida; Sozlamalar tablari menyuda alohida bandlar.
+- **Nom va logo**: menyu tepasida faqat biznes nomi; `mark.svg` va `logo.svg` (vektor, Gulbahor'niki — ko'p biznes uchun keyin har biznes o'z logosini yuklaydi).
+- **Karta xabarlari kechikardi** (soatlab, keyin hammasi birdan): Telegram so'rovida vaqt chegarasi yo'q edi — jim qolgan ulanishda so'rov abadiy kutib, akkaunt "band" qolar va qayta o'qish to'xtardi. Endi `gram.driver.ts` da 60 s chegara, xato bo'lgan ulanish qo'yib yuboriladi va qayta ko'tariladi, qayta o'qish har daqiqada. O'qib bo'lmagan xabarlar ("Balans", "/start") ro'yxatda faqat "Не прочитано" filtri bilan. Test serverda yangi pul xabari bilan hali ko'rilmagan.
+- **Agent bitta fayl bilan o'rnatiladi**: `npm run build:agent` agentni `web/public/agent/erp-agent.cjs` ga yig'adi; "Qurilmalar"da "Kompyuterga o'rnatish" → `.cmd` fayl (manzil va yangi kalit ichida): Node bo'lmasa yuklaydi, `%LOCALAPPDATA%\SavdoAgent` ga o'rnatadi, Windows ishga tushishiga qo'shadi (administratorsiz), har ishga tushishda yangisini oladi (`agent-installer.ts`, `agent/README.md`). Bu kompyuterda soxta kalit bilan sinaldi; haqiqiy kalit bilan "Ulangan" bo'lishi ko'rilmagan.
+- **Kassa**: to'lov usullari oldida valyuta belgisi yoki karta/terminal belgisi (`TenderMark`), kattaroq tugmalar; kassalar ro'yxati va kassa tanlovi yuqoridagi do'kon bo'yicha; inkassatsiya va smena yopishda valyuta qatorini yashirish (kassadagi `places.hidden` ro'yxati bilan bir xil); chek oynasida kam ishlatiladigan amallar "⋯" menyusida, oyna tugmalari sig'masa ikkinchi qatorga o'tadi.
+- **Profil rasmi**: Profilda rasm tanlanadi, doira ichida surib va kattalashtirib joylashtiriladi, brauzer 256 px kvadrat yasaydi (`PUT /auth/avatar`, `users.avatar`, migratsiya `1790000064000`); yuqori panel va xodimlar ro'yxatida `Avatar`.
+- **Mavzular**: yorug' va qorong'i ko'zni charchatmaydigan qilib qayta tanlandi (qorong'ida oq matn yo'q), yangi **Sepiya** (`.theme-sepia` — Tailwind'ning `sepia` filtri bilan to'qnashmasin); yuqori panelda menyu: Yorug', Qorong'i, Sepiya, Tizim.
+- **Xato ekrani**: router va ilova uchun o'zimizning ekran (`app/error-screen.tsx`), yangi versiyadan keyin eski fayl topilmasa bir marta o'zi qayta yuklanadi.
 
 ## Hali ekranda ko'rilmagan
 

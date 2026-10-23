@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt'
 
 import type { Env } from '../../config/env'
 import { AuditModule } from '../audit/audit.module'
+import { FilesModule } from '../files/files.module'
 import { ActorService } from './actor.service'
 import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
@@ -14,6 +15,7 @@ import { AuthService } from './auth.service'
 @Module({
   imports: [
     AuditModule,
+    FilesModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => ({ secret: config.get('JWT_SECRET') }),

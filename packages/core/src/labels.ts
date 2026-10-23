@@ -324,7 +324,9 @@ export function buildLabelZpl(
       lines.push(`${at}^A0N,${item.font},${item.font}${box}^FD${item.text}^FS`)
     } else if (item.ean) {
       // The printer sets the first digit left of the bars, in the quiet zone the layout keeps for it.
-      lines.push(`^FO${item.x + 11 * item.module},${item.y}^BY${item.module}^BEN,${item.height},Y,N^FD${item.code.slice(0, 12)}^FS`)
+      lines.push(
+        `^FO${item.x + 11 * item.module},${item.y}^BY${item.module}^BEN,${item.height},Y,N^FD${item.code.slice(0, 12)}^FS`,
+      )
     } else {
       lines.push(`${at}^BY${item.module}^BCN,${item.height},Y,N,N^FD${item.code}^FS`)
     }
@@ -374,6 +376,8 @@ export const labelPrintSchema = z
     printerId: idSchema.nullish().transform((value) => value ?? null),
     /** The head of the printer the file is for; a chosen printer knows its own. */
     dpi: z.union([z.literal(203), z.literal(300)]).default(203),
+    /** One of the business's label designs; without one, the labels are laid out the usual way at `size`. */
+    designId: idSchema.nullish().transform((value) => value ?? null),
   })
   .superRefine((request, context) => {
     const seen = new Set<string>()

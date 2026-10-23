@@ -92,7 +92,9 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
             <PageBarBoundary>{children}</PageBarBoundary>
           </div>
           {footer ? (
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
+              {footer}
+            </div>
           ) : null}
         </Primitive.Content>
       </Primitive.Portal>

@@ -49,6 +49,7 @@ import { base as baseCurrency } from '@/lib/base'
 import { useHotkey } from '@/lib/hotkeys'
 import { LIST_DEFAULTS } from '@/lib/list-search'
 import { toast } from '@/lib/toast'
+import { useGlobalShop } from '@/lib/shop'
 
 import { CurrenciesView, currencyName } from './currencies-view'
 import { useCurrencies, useRateBook } from './rates'
@@ -230,7 +231,10 @@ export function MoneyPage() {
 /** The stand as the business has it now; every sale, payment and transfer refreshes it. */
 function StandTab() {
   const { me } = useSession()
-  const [shopId, setShopId] = useState<string | null>(null)
+  // Not picked here, the shop picked in the top bar is the one shown; «everywhere» here is null.
+  const [globalShop] = useGlobalShop()
+  const [pickedShop, setShopId] = useState<string | null | undefined>(undefined)
+  const shopId = pickedShop === undefined ? globalShop : pickedShop
   const accounts = useAccounts()
   const registers = useRegisters()
   const places = useLocations()
@@ -267,6 +271,12 @@ function RegistersTab({ canManage, onEdit }: { canManage: boolean; onEdit: (regi
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const registers = useRegisters()
+  // A shop picked in the top bar shows its own tills only.
+  const [globalShop] = useGlobalShop()
+  const shown = useMemo(
+    () => (registers.data ?? []).filter((register) => !globalShop || register.locationId === globalShop),
+    [registers.data, globalShop],
+  )
 
   const setActive = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
@@ -368,7 +378,7 @@ function RegistersTab({ canManage, onEdit }: { canManage: boolean; onEdit: (regi
   return (
     <DataTable
       columns={columns}
-      data={registers.data}
+      data={shown}
       loading={registers.isPending}
       rowId={(row) => row.id}
       onRowOpen={canManage ? onEdit : undefined}

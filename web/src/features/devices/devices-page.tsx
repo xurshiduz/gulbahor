@@ -17,6 +17,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   Copy,
+  Download,
   KeyRound,
   MonitorSmartphone,
   MoreHorizontal,
@@ -47,6 +48,7 @@ import { formatRecent } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { toast } from '@/lib/toast'
 
+import { downloadAgentInstaller } from './agent-installer'
 import { ReadersTab } from './readers'
 
 const route = getRouteApi('/devices')
@@ -260,6 +262,24 @@ export function DevicesPage() {
               }
               items={[
                 { label: t('common.edit'), icon: <Pencil />, onSelect: () => setAgentForm(row.original) },
+                {
+                  // The file holds a key, and keys are never shown twice: a new one is given, and a computer that
+                  // was using the old one is asked about first.
+                  label: t('devices.install'),
+                  icon: <Download />,
+                  onSelect: async () => {
+                    if (
+                      !row.original.lastSeenAt ||
+                      (await confirm({
+                        title: t('devices.renewConfirm', { name: row.original.name }),
+                        confirmLabel: t('devices.install'),
+                        tone: 'danger',
+                      }))
+                    ) {
+                      renewKey.mutate(row.original.id)
+                    }
+                  },
+                },
                 {
                   label: t('devices.renewKey'),
                   icon: <KeyRound />,
@@ -485,27 +505,40 @@ function KeyDialog({ agent, onClose }: { agent: AgentKeyDto; onClose: () => void
       description={t('devices.keyHint')}
       size="lg"
       footer={
-        <>
-          <Button onClick={() => void copy()}>
-            <Copy />
-            {t('devices.copy')}
-          </Button>
-          <Button variant="primary" onClick={onClose}>
-            {t('devices.keyDone')}
-          </Button>
-        </>
+        <Button variant="primary" onClick={onClose}>
+          {t('devices.keyDone')}
+        </Button>
       }
     >
-      <div className="flex flex-col gap-3 text-[13px] text-ink-2">
+      <div className="flex flex-col gap-4 text-[13px] text-ink-2">
+        <Button
+          variant="primary"
+          className="h-11 w-full text-sm"
+          onClick={() => downloadAgentInstaller(window.location.origin, agent.key, agent.name)}
+        >
+          <Download />
+          {t('devices.download')}
+        </Button>
         <ol className="list-decimal space-y-1 pl-5">
           <li>{t('devices.step1')}</li>
           <li>{t('devices.step2')}</li>
           <li>{t('devices.step3')}</li>
         </ol>
-        <pre className="font-code overflow-x-auto rounded-md border border-line bg-sunken p-3 text-xs text-ink select-all">
-          {config}
-        </pre>
         <p className="text-xs text-warn">{t('devices.keyOnce')}</p>
+        {/* For a computer that is not Windows, or one set up by hand. */}
+        <details className="group text-xs">
+          <summary className="cursor-pointer text-ink-3 hover:text-ink">{t('devices.byHand')}</summary>
+          <div className="mt-2 flex flex-col gap-2">
+            <p>{t('devices.byHandHint')}</p>
+            <pre className="font-code overflow-x-auto rounded-md border border-line bg-sunken p-3 text-ink select-all">
+              {config}
+            </pre>
+            <Button size="sm" className="self-start" onClick={() => void copy()}>
+              <Copy />
+              {t('devices.copy')}
+            </Button>
+          </div>
+        </details>
       </div>
     </Dialog>
   )

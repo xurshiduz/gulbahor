@@ -25,6 +25,7 @@ import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { dayCell, fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatDay, formatNumber, formatPhone } from '@/lib/format'
+import { useShopFilter } from '@/lib/shop'
 
 import { HoldBadge, HoldCard, holdGoods } from './hold-card'
 
@@ -44,7 +45,10 @@ const STATES: HoldListState[] = ['active', 'overdue', 'taken', 'released', 'all'
 export function HoldsPage() {
   const { t } = useTranslation()
   const { can, me } = useSession()
-  const search = route.useSearch()
+  const urlSearch = route.useSearch()
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(urlSearch.locationId)
+  const search = { ...urlSearch, locationId: shopFilter.locationId }
   const navigate = route.useNavigate()
   const go = useNavigate()
   const queryClient = useQueryClient()
@@ -213,7 +217,7 @@ export function HoldsPage() {
             <FilterCombo
               options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
               value={search.locationId ?? null}
-              onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
+              onChange={(locationId) => filter({ locationId: shopFilter.toUrl(locationId) })}
             />
           ),
         }}

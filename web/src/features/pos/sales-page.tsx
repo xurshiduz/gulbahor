@@ -17,6 +17,7 @@ import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { useShopFilter } from '@/lib/shop'
 
 import { ReturnsTab } from './returns-tab'
 import { SaleDialog } from './sale-dialog'
@@ -66,7 +67,10 @@ export function SalesPage() {
 function SalesTab({ locations }: { locations: LocationOption[] }) {
   const { t } = useTranslation()
   const { can } = useSession()
-  const search = route.useSearch()
+  const urlSearch = route.useSearch()
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(urlSearch.locationId)
+  const search = { ...urlSearch, locationId: shopFilter.locationId }
   const navigate = route.useNavigate()
   const { open: openId, tab: _tab, ...filters } = search
   const seesCost = can('stock.cost')
@@ -231,7 +235,7 @@ function SalesTab({ locations }: { locations: LocationOption[] }) {
             <FilterCombo
               options={locations.map((location) => ({ value: location.id, label: location.name }))}
               value={search.locationId ?? null}
-              onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
+              onChange={(locationId) => filter({ locationId: shopFilter.toUrl(locationId) })}
             />
           ),
           soldAt: <FilterDates from={search.from} to={search.to} onChange={(range) => filter(range)} />,

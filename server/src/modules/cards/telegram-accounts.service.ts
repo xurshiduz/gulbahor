@@ -37,7 +37,7 @@ import {
 import { TelegramGateway } from './telegram.gateway'
 
 /** How often each bank's chat is read again, in case a message that came live was missed. */
-const SWEEP_EVERY_MS = 5 * 60_000
+const SWEEP_EVERY_MS = 60_000
 /** How often each connection is looked at; a dropped one is raised again and its chats read at once. */
 const WATCH_EVERY_MS = 60_000
 /** How much of a chat is read at once. Messages already kept are known by where they came from. */
@@ -555,9 +555,9 @@ export class TelegramAccountsService implements OnApplicationBootstrap, OnModule
   /** What went wrong is written on the account: a session Telegram ended asks for a new sign-in, anything else is tried again. */
   private async failed(orgId: string, id: string, error: unknown) {
     const out = error instanceof SignedOut
-    if (out) {
-      await this.drop(id)
-    }
+    // A connection that failed is let go either way: one left open but dead hears nothing and was never raised
+    // again; let go, the next watch raises it afresh from its session and reads what was missed.
+    await this.drop(id).catch(() => undefined)
     this.logger.warn(`telegram account ${id}: ${(error as Error).message}`)
     await this.db.tenant(orgId, async ({ em, afterCommit }) => {
       await em.update(TelegramAccount, id, {

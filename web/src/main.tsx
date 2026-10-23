@@ -8,6 +8,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
 
+import { AppErrorBoundary } from './app/error-screen'
 import { router } from './app/router'
 import { ConfirmProvider } from './components/ui/dialog'
 import { TooltipProvider } from './components/ui/feedback'
@@ -21,16 +22,18 @@ installSoftKeyboard()
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={350}>
-        <ConfirmProvider>
-          <SessionGate setup={<SetupPage />}>
-            <RouterProvider router={router} />
-          </SessionGate>
-        </ConfirmProvider>
-        {/* Messages come up in the top right corner, under the top bar; what they look like is in lib/toast.tsx. */}
-        <Toaster position="top-right" expand visibleToasts={5} gap={8} offset={{ top: 56, right: 16 }} />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={350}>
+          <ConfirmProvider>
+            <SessionGate setup={<SetupPage />}>
+              <RouterProvider router={router} />
+            </SessionGate>
+          </ConfirmProvider>
+          {/* Messages come up in the top right corner, under the top bar; what they look like is in lib/toast.tsx. */}
+          <Toaster position="top-right" expand visibleToasts={5} gap={8} offset={{ top: 56, right: 16 }} />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   </StrictMode>,
 )

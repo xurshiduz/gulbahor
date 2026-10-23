@@ -458,6 +458,7 @@ function toDto(user: User, extras: Extras): UserDto {
   return {
     id: user.id,
     fullName: user.fullName,
+    avatar: user.avatar,
     login: user.login,
     phone: user.phone,
     language: user.language,

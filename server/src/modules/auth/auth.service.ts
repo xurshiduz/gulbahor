@@ -1,5 +1,11 @@
 import {
+  AVATAR_MAX_BYTES,
+  AVATAR_SIDE,
+  decodePicture,
+  imageUrl,
+  readImageSize,
   searchKey,
+  type AvatarInput,
   type ChangePasswordInput,
   type LoginInput,
   type MeDto,
@@ -9,11 +15,13 @@ import {
   type SetPinInput,
 } from '@erp/core'
 import { Injectable } from '@nestjs/common'
+import { randomUUID } from 'node:crypto'
 
 import { AppError } from '../../common/errors'
 import { Db } from '../../database/db.service'
 import { Organization, Session, User } from '../../database/entities'
 import { AuditService } from '../audit/audit.service'
+import { FileStore } from '../files/file-store'
 import { orgDto } from '../orgs/org.mapper'
 import { RealtimeService } from '../realtime/realtime.service'
 import type { Actor } from './actor'
@@ -43,6 +51,7 @@ export class AuthService {
     private readonly actors: ActorService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
+    private readonly files: FileStore,
   ) {}
 
   async login(input: LoginInput, meta: ClientMeta): Promise<Tokens> {
@@ -172,6 +181,7 @@ export class AuthService {
         user: {
           id: user.id,
           fullName: user.fullName,
+          avatar: user.avatar,
           login: user.login,
           phone: user.phone,
           language: user.language,
@@ -201,6 +211,42 @@ export class AuthService {
         this.realtime.changed(actor.orgId, ['users', 'me'])
       })
     })
+  }
+
+  /**
+   * A person's own picture, or none. The browser draws the square from what they framed; here it is only
+   * checked — a WebP or a JPEG by its own bytes, no larger than drawn — and kept under a new address, so a
+   * browser holding the old one for good never shows it again. The old file goes once the new one is written down.
+   */
+  async setAvatar(actor: Actor, input: AvatarInput): Promise<{ avatar: string | null }> {
+    let made: { key: string; url: string } | null = null
+    if (input.picture) {
+      const said = decodePicture(input.picture)
+      const data = said ? Buffer.from(said.base64, 'base64') : null
+      const found = data ? readImageSize(data) : null
+      if (!said || !data || !found || found.format !== said.format) {
+        throw AppError.validation({ picture: 'Rasm WebP yoki JPEG bo‘lishi kerak' })
+      }
+      if (data.length > AVATAR_MAX_BYTES || found.width > AVATAR_SIDE * 2 || found.height > AVATAR_SIDE * 2) {
+        throw AppError.validation({ picture: 'Rasm juda katta' })
+      }
+      const id = randomUUID()
+      const file = found.format === 'jpeg' ? 's.jpg' : 's.webp'
+      made = { key: `${actor.orgId}/${id}/${file}`, url: imageUrl(actor.orgId, id, 's', found.format) }
+      await this.files.put(made.key, data)
+    }
+    const before = await this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const user = await em.findOneByOrFail(User, { id: actor.userId })
+      await em.update(User, user.id, { avatar: made?.url ?? null })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['users', 'me']))
+      return user.avatar
+    })
+    // `/api/files/<org>/<id>/<name>` → the key the file was kept under.
+    const old = before?.replace(/^\/api\/files\//, '')
+    if (old && old !== made?.key) {
+      await this.files.remove(old).catch(() => undefined)
+    }
+    return { avatar: made?.url ?? null }
   }
 
   async changePassword(actor: Actor, input: ChangePasswordInput): Promise<void> {

@@ -34,6 +34,7 @@ import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { withFilter } from '@/lib/list-search'
 import { useScanner } from '@/lib/scanner'
+import { useShopFilter } from '@/lib/shop'
 import { toast } from '@/lib/toast'
 
 const route = getRouteApi('/stock')
@@ -47,7 +48,9 @@ export function StockPage() {
   const navigate = route.useNavigate()
   const seesCost = can('stock.cost')
 
-  const filters = search
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(search.locationId)
+  const filters = { ...search, locationId: shopFilter.locationId }
   const list = useQuery({
     queryKey: ['stock', 'list', filters],
     queryFn: ({ signal }) => api.get<PageOf<StockListItemDto>>('/stock', filters, signal),
@@ -67,8 +70,8 @@ export function StockPage() {
 
   // One column per place, unless the list is already narrowed to one.
   const shownLocations = useMemo(
-    () => (search.locationId ? [] : (locations.data ?? [])),
-    [locations.data, search.locationId],
+    () => (filters.locationId ? [] : (locations.data ?? [])),
+    [locations.data, filters.locationId],
   )
 
   const faces = !!list.data?.items.some((item) => item.image)
@@ -217,7 +220,7 @@ export function StockPage() {
       .then((found) => openProduct(found.productId, found.epc ?? undefined))
       .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
   })
-  const filtered = !!(search.q || search.categoryId || search.brandId || search.locationId)
+  const filtered = !!(search.q || search.categoryId || search.brandId || filters.locationId)
 
   return (
     <Page title={t('stock.title')}>
@@ -286,11 +289,11 @@ export function StockPage() {
               className="w-72"
             />
             <Select
-              value={search.locationId ?? ALL}
+              value={filters.locationId ?? ALL}
               onChange={(locationId) =>
                 void navigate({
                   search: (previous) =>
-                    withFilter(previous, { locationId: locationId === ALL ? undefined : locationId }),
+                    withFilter(previous, { locationId: shopFilter.toUrl(locationId === ALL ? undefined : locationId) }),
                 })
               }
               options={[

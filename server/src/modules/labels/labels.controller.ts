@@ -1,6 +1,8 @@
 import {
   idSchema,
+  labelDesignsSchema,
   labelPrintSchema,
+  type LabelDesigns,
   printJobListQuerySchema,
   type LabelPrintInput,
   type LabelPrintResult,
@@ -10,7 +12,7 @@ import {
   type PrintJobListQuery,
   type ReceiptLabelsDto,
 } from '@erp/core'
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 
 import { zod } from '../../common/zod.pipe'
 import { Actor, Can, CurrentActor } from '../auth/actor'
@@ -33,6 +35,18 @@ export class LabelsController {
   @Get('printers')
   printers(@CurrentActor() actor: Actor): Promise<PrinterDto[]> {
     return this.devices.printers(actor)
+  }
+
+  /** The business's label designs: to print with, and to change in the settings. */
+  @Get('designs')
+  designs(@CurrentActor() actor: Actor): Promise<LabelDesigns> {
+    return this.labels.designs(actor)
+  }
+
+  @Put('designs')
+  @Can('settings.manage')
+  setDesigns(@CurrentActor() actor: Actor, @Body(zod(labelDesignsSchema)) input: LabelDesigns): Promise<LabelDesigns> {
+    return this.labels.setDesigns(actor, input)
   }
 
   @Get('receipts/:id')

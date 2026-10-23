@@ -19,6 +19,7 @@ import { Field } from '@/components/ui/field'
 import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { MoneyInput } from '@/components/ui/money-input'
+import { useHiddenPlaces } from '@/features/money/hidden-places'
 import { api } from '@/lib/api'
 import { base, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
@@ -120,6 +121,7 @@ export function OpenShift({ context }: { context: PosContextDto }) {
 export function CloseShiftDialog({ context, onClose }: { context: PosContextDto; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [hiddenPlaces, setHiddenPlaces] = useHiddenPlaces()
   const shift = context.shift as ShiftDto
   const currencies = context.currencies
   const [cash, setCash] = useState<Counted>({})
@@ -184,6 +186,7 @@ export function CloseShiftDialog({ context, onClose }: { context: PosContextDto;
           onChange={setHandings}
           currencies={currencies.filter((currency) => safes.some((safe) => safe.currency === currency))}
           limits={cash}
+          hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces }}
         />
         {context.terminals.length ? (
           <div className="grid gap-4 sm:grid-cols-2">

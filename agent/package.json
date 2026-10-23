@@ -12,7 +12,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && npm run bundle",
+    "bundle": "esbuild src/main.ts --bundle --platform=node --target=node20 --legal-comments=none --log-level=warning --outfile=../web/public/agent/erp-agent.cjs",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.18.8",
+    "esbuild": "^0.28.2",
     "socket.io": "^4.8.1",
     "vitest": "^3.2.4"
   }

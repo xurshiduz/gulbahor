@@ -10,7 +10,16 @@ Aloqa doim do'kon tomondan ochiladi. Shuning uchun do'konga doimiy (statik) IP h
 - Node.js 22.12 yoki yangiroq.
 - Printer tarmoqqa (LAN) ulangan va o'zgarmas IP manzilga ega. Chainway CP30 da: sozlamalarda printer tili **ZPL**, port **9100**.
 
-## O'rnatish
+## Windows'da o'rnatish (bitta fayl)
+
+1. Tizimda **Qurilmalar → Do'kon agentlari**: yangi agent uchun **Agent qo'shish**, mavjudi uchun qatordagi **Kompyuterga o'rnatish**.
+2. Ochilgan oynada **O'rnatish faylini yuklab olish** — `Savdo-agent-<nomi>.cmd`. Unda saytning manzili va yangi kalit bor.
+3. Faylni do'kon kompyuterida ikki marta bosib oching. U `%LOCALAPPDATA%\SavdoAgent` ga o'rnatadi: Node.js bo'lmasa (yoki eski bo'lsa) yoniga `node.exe` ni yuklaydi, agentni saytdan oladi (`/agent/erp-agent.cjs`), `agent.json` ni yozadi (boshqa sozlamalari, masalan `usbPrinters`, saqlanadi), Windows ishga tushishiga qo'shadi (administrator kerak emas) va ko'rinmas holda ishga tushiradi.
+4. Agent har ishga tushganda eng yangisini saytdan oladi, to'xtasa 10 soniyada qayta turadi; kalit rad etilsa to'xtaydi. Jurnal — `%LOCALAPPDATA%\SavdoAgent\agent.log`.
+
+Agentning bitta fayli `npm run build:agent` bilan `web/public/agent/` ga yig'iladi (git'ga tushmaydi) va sayt bilan birga tarqatiladi.
+
+## Qo'lda o'rnatish (Linux yoki dastur ustida ishlash)
 
 1. Tizimda **Qurilmalar → Do'kon agentlari → Agent qo'shish**. Saqlangandan keyin kalit ko'rsatiladi. U faqat bir marta ko'rinadi.
 2. Do'kon kompyuterida shu papkada:

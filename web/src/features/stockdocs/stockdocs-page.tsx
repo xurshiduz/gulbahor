@@ -27,6 +27,7 @@ import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
 import { cn } from '@/lib/cn'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
+import { useShopFilter } from '@/lib/shop'
 
 export const DOC_ROUTES = {
   transfer: '/transfers',
@@ -130,8 +131,11 @@ interface ListProps {
 }
 
 /** The list of one kind of stock document; the three kinds differ only in a few columns. */
-function StockDocsList({ kind, search, onSearch }: ListProps) {
+function StockDocsList({ kind, search: urlSearch, onSearch }: ListProps) {
   const { t } = useTranslation()
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(urlSearch.locationId)
+  const search = { ...urlSearch, locationId: shopFilter.locationId }
   const { can } = useSession()
   const go = useNavigate()
   const canManage = can(`${STOCK_DOC_PERMISSION[kind]}.manage`)
@@ -340,7 +344,7 @@ function StockDocsList({ kind, search, onSearch }: ListProps) {
             <FilterCombo
               options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
               value={search.locationId ?? null}
-              onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
+              onChange={(locationId) => filter({ locationId: shopFilter.toUrl(locationId) })}
             />
           ),
           date: <FilterDates from={search.from} to={search.to} onChange={(range) => filter(range)} />,

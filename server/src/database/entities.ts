@@ -10,6 +10,7 @@ import type {
   CurrencyCode,
   CustomerGender,
   ExpenseBasis,
+  LabelDesigns,
   Language,
   Gender,
   HoldStatus,
@@ -74,6 +75,10 @@ export class Organization {
 
   @Column('jsonb')
   settings: Partial<OrgSettings>
+
+  /** The business's label designs: apart from `settings`, which every session reads. */
+  @Column('jsonb', { select: false })
+  labelDesigns: LabelDesigns
 
   @Column('boolean')
   setupCompleted: boolean
@@ -183,6 +188,10 @@ export class User {
 
   @Column('int')
   pinFailures: number
+
+  /** Where the person's own picture is fetched from (`/api/files/…`); a new picture is a new address. */
+  @Column('text', { nullable: true })
+  avatar: string | null
 
   @Column('text')
   language: Language

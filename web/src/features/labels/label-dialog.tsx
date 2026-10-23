@@ -38,6 +38,7 @@ import { formatNumber } from '@/lib/format'
 import { usePreference } from '@/lib/preferences'
 import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
+import { useLabelDesigns } from '@/features/settings/label-designs'
 
 const FORM_ID = 'label-form'
 /** Stands for "no printer: give me the file" in the printer list. */
@@ -50,9 +51,13 @@ interface Choice {
   dpi: PrinterDpi
   rfid: boolean
   withPrice: boolean
+  /** One of the business's label designs, `USUAL` for the usual layout at `size`; undefined: the design printing picks first. */
+  designId?: string
 }
 
 const NO_CHOICE: Choice = { printerId: null, size: DEFAULT_LABEL_SIZE, dpi: 203, rfid: true, withPrice: true }
+/** Stands for "no design: the usual layout" in the design list. */
+const USUAL = 'usual'
 
 interface LocationOption {
   id: string
@@ -113,6 +118,12 @@ export function LabelDialog({ receipt, onClose }: Props) {
       ? null
       : (printers.data?.find((item) => item.id === choice.printerId) ?? printers.data?.[0] ?? null)
   const size = 'size' in changed || !printer ? choice.size : printer.labelSize
+  const designs = useLabelDesigns()
+  const designList = designs.data?.designs ?? []
+  const designId =
+    choice.designId === USUAL
+      ? null
+      : (designList.find((item) => item.id === choice.designId)?.id ?? designs.data?.defaultId ?? null)
   const rfidOn = hasModule('rfid')
   const rfid = rfidOn && choice.rfid && (!printer || printer.rfid)
 
@@ -204,6 +215,7 @@ export function LabelDialog({ receipt, onClose }: Props) {
           ),
         ),
         size,
+        designId,
         dpi: choice.dpi,
         rfid,
         withPrice: choice.withPrice,
@@ -212,7 +224,7 @@ export function LabelDialog({ receipt, onClose }: Props) {
       }),
     meta: { silent: true },
     onSuccess: (result) => {
-      save({ ...choice, printerId: printer?.id ?? FILE, size })
+      save({ ...choice, printerId: printer?.id ?? FILE, size, designId: designId ?? USUAL })
       void queryClient.invalidateQueries({ queryKey: ['labels'] })
       void queryClient.invalidateQueries({ queryKey: ['printjobs'] })
       if (result.file) {
@@ -279,16 +291,36 @@ export function LabelDialog({ receipt, onClose }: Props) {
               />
             )}
           </Field>
-          <Field label={t('labels.size')}>
-            {(id) => (
-              <Select
-                id={id}
-                value={size}
-                onChange={(value) => setChanged((current) => ({ ...current, size: value as LabelSizeKey }))}
-                options={LABEL_SIZE_KEYS.map((key) => ({ value: key, label: `${key.replace('x', ' × ')} mm` }))}
-              />
-            )}
-          </Field>
+          {designList.length ? (
+            <Field label={t('labelDesign.pick')}>
+              {(id) => (
+                <Select
+                  id={id}
+                  value={designId ?? USUAL}
+                  onChange={(value) => setChanged((current) => ({ ...current, designId: value }))}
+                  options={[
+                    ...designList.map((item) => ({
+                      value: item.id,
+                      label: `${item.name} · ${item.width} × ${item.height} mm`,
+                    })),
+                    { value: USUAL, label: t('labelDesign.usual') },
+                  ]}
+                />
+              )}
+            </Field>
+          ) : null}
+          {designId ? null : (
+            <Field label={t('labels.size')}>
+              {(id) => (
+                <Select
+                  id={id}
+                  value={size}
+                  onChange={(value) => setChanged((current) => ({ ...current, size: value as LabelSizeKey }))}
+                  options={LABEL_SIZE_KEYS.map((key) => ({ value: key, label: `${key.replace('x', ' × ')} mm` }))}
+                />
+              )}
+            </Field>
+          )}
           {!printer ? (
             <Field label={t('labels.dpi')}>
               {(id) => (

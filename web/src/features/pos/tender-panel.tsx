@@ -13,7 +13,7 @@ import {
   type RefundSettlement,
   type Settlement,
 } from '@erp/core'
-import { ArrowLeft, Eye, EyeOff, Plus, X } from 'lucide-react'
+import { ArrowLeft, CreditCard, Eye, EyeOff, Plus, Smartphone, X } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,6 +53,39 @@ export type TenderKind = 'cash' | 'other' | 'card' | 'terminal'
 export const kindOf = (row: TenderRow): TenderKind =>
   row.method === 'cash' ? (row.currency !== base() ? 'other' : 'cash') : row.method
 const KIND_KEYS: Record<TenderKind, string> = { cash: 'f5', other: 'f6', card: 'f7', terminal: 'f8' }
+
+/**
+ * A way of paying told at a glance: cash by its currency's sign (a long one, like so‘m, by its first letter),
+ * a card and a terminal by their pictures, each in its own colour.
+ */
+function TenderMark({ kind, currency, big = false }: { kind: TenderKind; currency: string; big?: boolean }) {
+  const symbol = (CURRENCIES as Record<string, { symbol: string }>)[currency]?.symbol ?? currency
+  const sign = symbol.length <= 2 ? symbol : symbol[0].toUpperCase()
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-full font-semibold',
+        big ? 'size-7 text-[13px]' : 'size-5 text-[11px]',
+        kind === 'card'
+          ? 'bg-accent-soft text-accent-ink'
+          : kind === 'terminal'
+            ? 'bg-info-soft text-info'
+            : kind === 'cash'
+              ? 'bg-ok-soft text-ok'
+              : 'bg-warn-soft text-warn',
+      )}
+    >
+      {kind === 'card' ? (
+        <CreditCard className={big ? 'size-4' : 'size-3'} />
+      ) : kind === 'terminal' ? (
+        <Smartphone className={big ? 'size-4' : 'size-3'} />
+      ) : (
+        sign
+      )}
+    </span>
+  )
+}
 
 /** The key a row is hidden by (`placeKey`): cash of another currency by its currency, a card or terminal by itself. */
 export const tenderPlace = (row: TenderRow): string | null =>
@@ -516,6 +549,10 @@ export function TenderPanel({
             const kind = kindOf(row)
             const on = standing(row)
             const first = rows.find((item) => kindOf(item) === kind) === row
+            const place = tenderPlace(row)
+            // Kept out of sight it is still there for its key (F5–F8) to press.
+            const tuckedChip =
+              !!hiding && !hiding.peek && !on && place !== null && (hiding.hidden.includes(place) || stranger(row))
             return (
               <button
                 key={row.key}
@@ -525,18 +562,42 @@ export function TenderPanel({
                 data-chip-kind={first ? kind : undefined}
                 onClick={() => pickRow(row)}
                 className={cn(
-                  'inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors',
+                  'inline-flex h-10 items-center gap-2 rounded-lg border pr-3 pl-2 text-[13px] font-medium transition-colors',
+                  tuckedChip && 'hidden',
+                  place !== null && hiding?.hidden.includes(place) && 'border-dashed',
                   on
                     ? 'border-accent/40 bg-accent-soft text-accent-ink'
                     : 'border-line bg-surface text-ink-2 hover:bg-sunken hover:text-ink',
                 )}
               >
-                <span className="max-w-40 truncate">{labelOf(row)}</span>
+                <TenderMark kind={kind} currency={row.currency} />
+                <span className="max-w-44 truncate">{labelOf(row)}</span>
                 {first ? <Shortcut combo={KIND_KEYS[kind]} /> : null}
                 {on ? null : <Plus className="size-3.5" />}
               </button>
             )
           })}
+          {hiding && anyHidden ? (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => hiding.onPeek(!hiding.peek)}
+              className="inline-flex h-8 items-center gap-1.5 px-1.5 text-xs text-ink-3 hover:text-ink"
+            >
+              {hiding.peek ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              {hiding.peek
+                ? t('pos.foldHidden')
+                : t('pos.hiddenRows', {
+                    names: rows
+                      .filter((row) => {
+                        const place = tenderPlace(row)
+                        return place !== null && (hiding.hidden.includes(place) || stranger(row)) && !standing(row)
+                      })
+                      .map(nameOf)
+                      .join(', '),
+                  })}
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -577,7 +638,8 @@ export function TenderPanel({
               className={cn('group flex flex-col gap-1.5', tiles && 'rounded-lg border border-line bg-canvas/40 p-2.5')}
             >
               <div className={ROW}>
-                <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
+                <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink">
+                  <TenderMark kind={kind} currency={row.currency} big />
                   <span className="truncate">
                     {account ? (
                       <>
@@ -600,6 +662,22 @@ export function TenderPanel({
                     <span className="shrink-0 text-xs text-ink-3">{t('pos.payTerminal')}</span>
                   ) : null}
                   {first ? <Shortcut combo={KIND_KEYS[kind]} /> : null}
+                  {tiles && place !== null && hiding ? (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title={isHidden ? t('pos.showRow') : t('pos.hideRow')}
+                      aria-label={isHidden ? t('pos.showRow') : t('pos.hideRow')}
+                      onClick={() =>
+                        hiding.onChange(
+                          isHidden ? hiding.hidden.filter((key) => key !== place) : [...hiding.hidden, place],
+                        )
+                      }
+                      className="ml-auto shrink-0 rounded p-0.5 text-ink-3 hover:bg-sunken hover:text-ink"
+                    >
+                      {isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                    </button>
+                  ) : null}
                   {tiles ? (
                     <button
                       type="button"
@@ -607,7 +685,10 @@ export function TenderPanel({
                       title={t('pos.dropTender')}
                       aria-label={t('pos.dropTender')}
                       onClick={() => dropRow(row)}
-                      className="ml-auto shrink-0 rounded p-0.5 text-ink-3 hover:bg-sunken hover:text-bad"
+                      className={cn(
+                        'shrink-0 rounded p-0.5 text-ink-3 hover:bg-sunken hover:text-bad',
+                        !(place !== null && hiding) && 'ml-auto',
+                      )}
                     >
                       <X className="size-3.5" />
                     </button>

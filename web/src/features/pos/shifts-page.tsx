@@ -23,6 +23,7 @@ import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { useShopFilter } from '@/lib/shop'
 
 import { ShiftDialog } from './shift-parts'
 
@@ -47,7 +48,10 @@ const diffIn = (shift: ShiftDto, currency: AnyCurrency) =>
 export function ShiftsPage() {
   const { t } = useTranslation()
   const { can, me } = useSession()
-  const search = route.useSearch()
+  const urlSearch = route.useSearch()
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(urlSearch.locationId)
+  const search = { ...urlSearch, locationId: shopFilter.locationId }
   const navigate = route.useNavigate()
   const { open: openId, ...filters } = search
   const reviews = can('sales.shifts')
@@ -189,7 +193,7 @@ export function ShiftsPage() {
             <FilterCombo
               options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
               value={search.locationId ?? null}
-              onChange={(locationId) => filter({ locationId: locationId ?? undefined })}
+              onChange={(locationId) => filter({ locationId: shopFilter.toUrl(locationId) })}
             />
           ),
           openedAt: <FilterDates from={search.from} to={search.to} onChange={(range) => filter(range)} />,

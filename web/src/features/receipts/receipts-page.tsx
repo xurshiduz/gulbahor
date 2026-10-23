@@ -25,6 +25,7 @@ import { dayCell, fetchAll, moneyCell } from '@/lib/excel'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useHotkey } from '@/lib/hotkeys'
 import { withFilter } from '@/lib/list-search'
+import { useShopFilter } from '@/lib/shop'
 
 import { ReceiptImportDialog } from './receipt-import'
 import { STATUS_TONES } from './receipt-page'
@@ -40,7 +41,10 @@ interface LocationOption {
 export function ReceiptsPage() {
   const { t } = useTranslation()
   const { can } = useSession()
-  const search = route.useSearch()
+  const urlSearch = route.useSearch()
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(urlSearch.locationId)
+  const search = { ...urlSearch, locationId: shopFilter.locationId }
   const navigate = route.useNavigate()
   const go = useNavigate()
   const canManage = can('receipts.manage')
@@ -226,7 +230,9 @@ export function ReceiptsPage() {
               options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
               value={search.locationId ?? null}
               onChange={(locationId) =>
-                void navigate({ search: (previous) => withFilter(previous, { locationId: locationId ?? undefined }) })
+                void navigate({
+                  search: (previous) => withFilter(previous, { locationId: shopFilter.toUrl(locationId) }),
+                })
               }
             />
           ),

@@ -9,24 +9,29 @@
  * Colors are named for what they are used for, never for how they look, so
  * the dark theme is a second set of values and nothing else.
  */
+/*
+ * All three are made to be looked at all day: no pure white text on black, no pure black on white, the page a
+ * shade apart from the cards on it, colours muted rather than bright.
+ */
+/* Light: a cool grey page under white cards, text a deep slate rather than black. */
 :root {
-  --bg: #f4f5f7;
+  --bg: #edf0f4;
   --surface: #ffffff;
-  --sunken: #f0f2f5;
-  --line: #e2e5ea;
-  --line-strong: #c5cbd5;
+  --sunken: #f2f4f7;
+  --line: #e1e5eb;
+  --line-strong: #c7cdd6;
   --control: #8a93a3;
-  --ink: #171d29;
-  --ink-2: #434c5c;
-  --ink-3: #667080;
+  --ink: #252c38;
+  --ink-2: #485263;
+  --ink-3: #6a7383;
   --accent: #2f5bd3;
   --accent-hover: #2549b3;
-  --accent-soft: #e9effc;
+  --accent-soft: #e7eefb;
   --accent-ink: #2447ab;
   --on-accent: #ffffff;
   --ok: #17734a;
   --ok-soft: #e2f3ea;
-  --warn: #946007;
+  --warn: #8f5d09;
   --warn-soft: #fbf0d9;
   --bad: #b4271f;
   --bad-soft: #fbe9e7;
@@ -37,29 +42,59 @@
   color-scheme: light;
 }
 
+/* Sepia: warm paper, cream cards, brown ink — the easiest on the eyes in daylight. */
+.theme-sepia {
+  --bg: #f0e7d8;
+  --surface: #fbf7ef;
+  --sunken: #f4ece0;
+  --line: #e3d8c6;
+  --line-strong: #c6bba9;
+  --control: #968a78;
+  --ink: #3b3328;
+  --ink-2: #5a5043;
+  --ink-3: #7b705f;
+  --accent: #7a5a34;
+  --accent-hover: #644928;
+  --accent-soft: #e8ddcb;
+  --accent-ink: #6b4e2b;
+  --on-accent: #fbf7ef;
+  --ok: #3b7a35;
+  --ok-soft: #e4ead2;
+  --warn: #93600c;
+  --warn-soft: #f5e5c2;
+  --bad: #a3331f;
+  --bad-soft: #f5dcd2;
+  --info: #2f6670;
+  --info-soft: #dee8e2;
+  --overlay: rgb(58 47 32 / 0.4);
+  --shadow: 74 56 30;
+  color-scheme: light;
+}
+
+/* Dark: Google's grey rather than blue-black, and text a soft grey — white on black dazzles. */
 .dark {
-  --bg: #101216;
-  --surface: #171a1f;
-  --sunken: #1e2228;
-  --line: #292d35;
-  --line-strong: #3b414c;
-  --control: #626c7b;
-  --ink: #e3e6eb;
-  --ink-2: #b2b8c3;
-  --ink-3: #8b929e;
-  --accent: #7f9cf0;
-  --accent-hover: #96aef4;
-  --accent-soft: #1d2740;
-  --accent-ink: #aabef6;
-  --on-accent: #0e1116;
-  --ok: #5fc08c;
-  --ok-soft: #15291f;
-  --warn: #dea854;
-  --warn-soft: #2e2413;
-  --bad: #f08d83;
-  --bad-soft: #341b19;
-  --info: #62bcd5;
-  --info-soft: #12272e;
+  --bg: #131314;
+  --surface: #1c1d1f;
+  --sunken: #252628;
+  --line: #2e3033;
+  --line-strong: #43464a;
+  --control: #6b6f75;
+  --ink: #d6d8db;
+  --ink-2: #aeb2b7;
+  --ink-3: #868a90;
+  --accent: #8fb0ee;
+  --accent-hover: #a5c0f2;
+  --accent-soft: #1f2a3d;
+  --accent-ink: #a9c2f2;
+  --on-accent: #10141b;
+  --ok: #6ab88a;
+  --ok-soft: #172820;
+  --warn: #d4a35a;
+  --warn-soft: #2c2416;
+  --bad: #e2877e;
+  --bad-soft: #321d1b;
+  --info: #6cb3c7;
+  --info-soft: #14262c;
   --overlay: rgb(0 0 0 / 0.6);
   --shadow: 0 0 0;
   color-scheme: dark;

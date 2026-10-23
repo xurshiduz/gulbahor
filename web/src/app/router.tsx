@@ -18,6 +18,8 @@ import {
 import { createRootRoute, createRoute, createRouter, redirect, stripSearchParams } from '@tanstack/react-router'
 import { z } from 'zod'
 
+import { RouteError } from './error-screen'
+
 import { AuditPage } from '@/features/audit/audit-page'
 import { ProductPage } from '@/features/catalog/product-page'
 import { ProductsPage } from '@/features/catalog/products-page'
@@ -590,6 +592,7 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  defaultErrorComponent: RouteError,
   defaultNotFoundComponent: () => (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
       <p className="text-3xl font-semibold text-ink-3">404</p>

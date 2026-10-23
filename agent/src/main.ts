@@ -10,10 +10,16 @@ interface Config {
   usbPrinters?: Record<string, string>
 }
 
-/** `agent.json` beside the program or in the folder it is started from; the environment wins over both. */
+/**
+ * `agent.json` in the folder it is started from or beside the program (the single installed file sits beside it,
+ * the built one a folder down); the environment wins over all.
+ */
 function readConfig(): Config {
-  const file = [join(process.cwd(), 'agent.json'), join(__dirname, '..', 'agent.json')].find((path) => existsSync(path))
-  const fromFile = file ? (JSON.parse(readFileSync(file, 'utf8')) as Config) : {}
+  const file = [join(process.cwd(), 'agent.json'), join(__dirname, 'agent.json'), join(__dirname, '..', 'agent.json')].find(
+    (path) => existsSync(path),
+  )
+  // Windows PowerShell writes a byte-order mark at the start of the file it saves; JSON will not have it.
+  const fromFile = file ? (JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')) as Config) : {}
   return {
     url: process.env.ERP_URL ?? fromFile.url,
     key: process.env.ERP_KEY ?? fromFile.key,

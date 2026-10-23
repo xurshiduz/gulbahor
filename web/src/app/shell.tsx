@@ -13,8 +13,11 @@ import { Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-r
 import {
   Check,
   Languages,
+  Store,
   Lock,
   LogOut,
+  Coffee,
+  Monitor,
   Moon,
   Keyboard,
   Menu as MenuIcon,
@@ -26,6 +29,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Menu } from '@/components/ui/controls'
 import { Tooltip } from '@/components/ui/feedback'
@@ -34,6 +38,7 @@ import { useSession } from '@/features/auth/session'
 import { setLanguage } from '@/i18n'
 import { api } from '@/lib/api'
 import { queryClient } from '@/lib/query'
+import { useGlobalShop, useMyShops } from '@/lib/shop'
 import { tillHere } from '@/features/money/payment-lines'
 import { MoneyOpDialog } from '@/features/money/ops'
 import { PaymentDialog } from '@/features/customers/payments'
@@ -48,7 +53,7 @@ import { mayOpen, NAVIGATION, type NavItem } from './navigation'
 import { Sidebar } from './sidebar'
 import { NotificationPrompt } from './notification-prompt'
 import { ShortcutsHelp } from './shortcuts-help'
-import { toggleTheme } from './theme'
+import { setTheme, useTheme } from './theme'
 
 const COLLAPSED_KEY = 'gb.sidebar.collapsed'
 
@@ -93,12 +98,15 @@ function useNarrow(): boolean {
 /** The frame around every screen: the menu on the left, a slim bar on top, the screen itself in the rest. */
 export function Shell() {
   const { t } = useTranslation()
+  const theme = useTheme()
   const navigate = useNavigate()
   const { me, can, hasModule, lock, logout, connected } = useSession()
   const [collapsed, setCollapsed] = useCollapsed()
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
   const touch = useMemo(isTouch, [])
+  const myShops = useMyShops()
+  const [globalShop, setGlobalShop] = useGlobalShop()
   const keyboardUp = useSoftKeyboard()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -320,6 +328,31 @@ export function Shell() {
           <div ref={setTitleSlot} className="flex min-w-0 flex-1 items-baseline gap-2" />
 
           <div className="flex shrink-0 items-center gap-1">
+            {/* The shop the whole system shows, for whoever works in more than one place: each page's own filter starts from it. */}
+            {(myShops.data?.length ?? 0) > 1 ? (
+              <Menu
+                trigger={
+                  <Button variant="ghost" aria-label={t('nav.shopPicker')}>
+                    <Store />
+                    <span className="hidden max-w-36 truncate sm:inline">
+                      {myShops.data?.find((shop) => shop.id === globalShop)?.name ?? t('nav.everyShop')}
+                    </span>
+                  </Button>
+                }
+                items={[
+                  {
+                    label: t('nav.everyShop'),
+                    icon: globalShop ? <span className="size-4" /> : <Check />,
+                    onSelect: () => setGlobalShop(null),
+                  },
+                  ...(myShops.data ?? []).map((shop) => ({
+                    label: shop.name,
+                    icon: shop.id === globalShop ? <Check /> : <span className="size-4" />,
+                    onSelect: () => setGlobalShop(shop.id),
+                  })),
+                ]}
+              />
+            ) : null}
             {/* The language, for this person: kept with them, so the next sign-in speaks it too. */}
             <Menu
               trigger={
@@ -348,21 +381,41 @@ export function Shell() {
                 <span className={cn('size-2 rounded-full', connected ? 'bg-ok' : 'animate-pulse bg-warn')} />
               </span>
             </Tooltip>
-            <Tooltip content={t('command.toggleTheme')}>
-              <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={t('command.toggleTheme')}>
-                <Sun className="hidden dark:block" />
-                <Moon className="dark:hidden" />
-              </Button>
-            </Tooltip>
+            {/* Each theme picked by name; the button shows the one in use. */}
+            <Menu
+              trigger={
+                <Button variant="ghost" size="icon" aria-label={t('profile.theme')} title={t('profile.theme')}>
+                  {theme === 'dark' ? (
+                    <Moon />
+                  ) : theme === 'sepia' ? (
+                    <Coffee />
+                  ) : theme === 'system' ? (
+                    <Monitor />
+                  ) : (
+                    <Sun />
+                  )}
+                </Button>
+              }
+              items={(
+                [
+                  ['light', Sun, 'profile.themeLight'],
+                  ['dark', Moon, 'profile.themeDark'],
+                  ['sepia', Coffee, 'profile.themeSepia'],
+                  ['system', Monitor, 'profile.themeSystem'],
+                ] as const
+              ).map(([value, Icon, label]) => ({
+                label: t(label),
+                icon: theme === value ? <Check /> : <Icon />,
+                onSelect: () => setTheme(value),
+              }))}
+            />
             <Menu
               trigger={
                 <button
                   type="button"
                   className="flex h-8.5 items-center gap-2 rounded-md px-2 text-[13px] font-medium hover:bg-sunken"
                 >
-                  <span className="flex size-6 items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-ink">
-                    {initials(me.user.fullName)}
-                  </span>
+                  <Avatar name={me.user.fullName} src={me.user.avatar} />
                   <span className="hidden max-w-40 truncate sm:block">{me.user.fullName}</span>
                 </button>
               }
@@ -412,9 +465,4 @@ export function Shell() {
       <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
 }

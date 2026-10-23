@@ -9,12 +9,13 @@ import {
 } from '@erp/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Ban, Printer, Undo2, UserRoundPen } from 'lucide-react'
+import { Ban, MoreHorizontal, Printer, Undo2, UserRoundPen } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
+import { Menu } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge, Spinner } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
@@ -95,23 +96,38 @@ export function SaleDialog({ saleId, onClose }: { saleId: string; onClose: () =>
       description={sale ? `${sale.locationName} · ${sale.registerName} · ${sale.shiftNumber}` : undefined}
       footer={
         <>
-          {sale?.status === 'completed' && can('pos.void') && !voiding ? (
-            <Button variant="danger" className="mr-auto" onClick={() => setVoiding(true)}>
-              <Ban />
-              {t('sales.void')}
-            </Button>
-          ) : null}
-          {mayGive && !giving && !voiding ? (
-            <Button
-              onClick={() => {
-                setToId(sale?.customerId ?? null)
-                setGiving(true)
-              }}
-            >
-              <UserRoundPen />
-              {t('sales.changeCustomer')}
-            </Button>
-          ) : null}
+          {/* The rarer actions wait in a menu, so the row keeps to what is done every day. */}
+          {(() => {
+            const rare = [
+              ...(mayGive && !giving && !voiding
+                ? [
+                    {
+                      label: t('sales.changeCustomer'),
+                      icon: <UserRoundPen />,
+                      onSelect: () => {
+                        setToId(sale?.customerId ?? null)
+                        setGiving(true)
+                      },
+                    },
+                  ]
+                : []),
+              ...(sale?.status === 'completed' && can('pos.void') && !voiding
+                ? [{ label: t('sales.void'), icon: <Ban />, tone: 'danger' as const, onSelect: () => setVoiding(true) }]
+                : []),
+            ]
+            return rare.length ? (
+              <span className="mr-auto">
+                <Menu
+                  trigger={
+                    <Button variant="ghost" size="icon" aria-label={t('common.actions')}>
+                      <MoreHorizontal />
+                    </Button>
+                  }
+                  items={rare}
+                />
+              </span>
+            ) : null
+          })()}
           {sale?.status === 'completed' &&
           can('pos.return') &&
           sale.lines.some((line) => line.returnedQty < line.qty) ? (

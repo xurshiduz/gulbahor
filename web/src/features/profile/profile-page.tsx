@@ -22,6 +22,8 @@ import { api } from '@/lib/api'
 import { formatPhone } from '@/lib/format'
 import { toast } from '@/lib/toast'
 
+import { AvatarCard } from './avatar-card'
+
 const route = getRouteApi('/profile')
 
 
@@ -42,7 +44,10 @@ export function ProfilePage() {
         ]}
       >
         <TabPanel value="profile">
-          <ProfileForm />
+          <div className="flex flex-col gap-4">
+            <AvatarCard />
+            <ProfileForm />
+          </div>
         </TabPanel>
         <TabPanel value="security">
           <div className="flex flex-col gap-4">
@@ -118,6 +123,7 @@ function ProfileForm() {
                   { value: 'system', label: t('profile.themeSystem') },
                   { value: 'light', label: t('profile.themeLight') },
                   { value: 'dark', label: t('profile.themeDark') },
+                  { value: 'sepia', label: t('profile.themeSepia') },
                 ]}
               />
             )}

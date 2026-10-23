@@ -30,6 +30,29 @@ describe('handing cash over', () => {
     expect(emptyHandings([everywhere], ['UZS']).UZS?.toAccountId).toBe('s0')
   })
 
+  it('keeps a currency out of sight that this person hid, and brings it back when asked', async () => {
+    function Fields() {
+      const [hidden, setHidden] = useState(['cash:USD'])
+      const [value, setValue] = useState(() => emptyHandings(safes, ['UZS', 'USD']))
+      return (
+        <HandoverFields
+          safes={safes}
+          value={value}
+          onChange={setValue}
+          currencies={['UZS', 'USD']}
+          hiding={{ hidden, onChange: setHidden }}
+        />
+      )
+    }
+    render(<Fields />)
+    expect(screen.queryByLabelText('Topshiriladigan dollar')).toBeNull()
+    await userEvent.click(screen.getByText(/Yashirilgan: Dollar/))
+    expect(screen.getByLabelText('Topshiriladigan dollar')).toBeTruthy()
+    // Shown again for good from its own eye; the base currency has none.
+    await userEvent.click(screen.getByRole('button', { name: /ko‘rsatish|Ko‘rsatish/ }))
+    expect(screen.getAllByRole('button', { name: /yashirish|Yashirish/ })).toHaveLength(1)
+  })
+
   it('sends only what holds a sum', () => {
     const handings: Handings = {
       UZS: { amount: som(350_000), toAccountId: 's1' },

@@ -55,11 +55,25 @@ function refusal(error: unknown): Error {
   return new TelegramRefusal('other', 0, name || 'Telegram')
 }
 
+/**
+ * How long a request may go unanswered. A connection that went quiet without an error leaves GramJS waiting for
+ * ever: the account stayed busy, no sweep ran and notices came hours late, all at once at the next sign-in.
+ */
+const ASK_TIMEOUT_MS = 60_000
+
 const asked = async <T>(work: () => Promise<T>): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined
   try {
-    return await work()
+    return await Promise.race([
+      work(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('TIMEOUT: Telegram did not answer')), ASK_TIMEOUT_MS)
+      }),
+    ])
   } catch (error) {
     throw refusal(error)
+  } finally {
+    clearTimeout(timer)
   }
 }
 

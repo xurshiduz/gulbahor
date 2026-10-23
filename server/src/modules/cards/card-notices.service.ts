@@ -150,7 +150,8 @@ export class CardNoticesService implements OnModuleDestroy {
       if (query.state === 'open') where.push(`n.standing = 'open' AND n.received_at >= ${SINCE}`)
       if (query.state === 'linked') where.push(`n.standing = 'linked'`)
       if (query.state === 'dismissed') where.push(`n.standing = 'dismissed'`)
-      if (query.state === 'unread') where.push(`n.kind = 'unread'`)
+      // A bot's menu, /start or a bare balance says nothing about money: shown only when asked for by name.
+      where.push(query.state === 'unread' ? `n.kind = 'unread'` : `n.kind <> 'unread'`)
       if (query.state === 'gap') where.push(`n.gap`)
       if (query.state === 'unknown_card') where.push(`n.card_tail IS NOT NULL AND n.account_id IS NULL`)
       // The day is the bank's own where it wrote one, and the business's day of arrival where it did not.

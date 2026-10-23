@@ -162,10 +162,21 @@ export interface SessionDto {
   current: boolean
 }
 
+/** A person's own picture: square, drawn by the browser from the photo they framed. */
+export const AVATAR_SIDE = 256
+export const AVATAR_MAX_BYTES = 120_000
+export const avatarInputSchema = z.object({
+  /** A WebP or JPEG data URL; null takes the picture off. */
+  picture: z.string().max(Math.ceil((AVATAR_MAX_BYTES * 4) / 3) + 40).nullable(),
+})
+export type AvatarInput = z.infer<typeof avatarInputSchema>
+
 export interface MeDto {
   user: {
     id: string
     fullName: string
+    /** Where the person's picture is fetched from; null — their initials stand in. */
+    avatar: string | null
     login: string
     phone: string | null
     language: Language
@@ -396,6 +407,7 @@ export type UserListQuery = z.infer<typeof userListQuerySchema>
 export interface UserDto {
   id: string
   fullName: string
+  avatar: string | null
   login: string
   phone: string | null
   language: Language

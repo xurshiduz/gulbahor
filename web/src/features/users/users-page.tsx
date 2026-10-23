@@ -11,6 +11,7 @@ import { FilterSelect } from '@/components/ui/column-filters'
 import { Menu } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { useConfirm } from '@/components/ui/dialog'
+import { Avatar } from '@/components/ui/avatar'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
@@ -68,6 +69,7 @@ export function UsersPage() {
         meta: { sortKey: 'fullName', fixed: true },
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
+            <Avatar name={row.original.fullName} src={row.original.avatar} />
             <span className="font-medium">{row.original.fullName}</span>
             {row.original.isOwner ? (
               <Badge tone="accent">

@@ -20,6 +20,7 @@ import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { moneyCell, saveExcel, type ExportColumn } from '@/lib/excel'
+import { useShopFilter } from '@/lib/shop'
 
 import { bucketLabel, dayLabel, PeriodPicker } from './parts'
 import { SalesReport } from './sales-report'
@@ -67,7 +68,9 @@ export function SalesReportPage() {
   })
   const shops = (places.data ?? []).filter((place) => place.kind === 'store')
   // A shop that is no longer this person's to see is not asked about.
-  const shop = shops.some((item) => item.id === search.shop) ? search.shop : undefined
+  // Nothing named in the address, the shop picked in the top bar is the one; «every shop» there overrides it.
+  const shopFilter = useShopFilter(search.shop)
+  const shop = shops.some((item) => item.id === shopFilter.locationId) ? shopFilter.locationId : undefined
   const report = useSalesReport(range, shop)
 
   const setPeriod = (next: ReportPeriod) =>
@@ -104,7 +107,10 @@ export function SalesReportPage() {
               value={shop ?? EVERY_SHOP}
               onChange={(value) =>
                 void navigate({
-                  search: (previous) => ({ ...previous, shop: value === EVERY_SHOP ? undefined : value }),
+                  search: (previous) => ({
+                    ...previous,
+                    shop: shopFilter.toUrl(value === EVERY_SHOP ? undefined : value),
+                  }),
                 })
               }
               options={[

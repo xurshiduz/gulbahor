@@ -1,3 +1,4 @@
+import { APP_NAME } from '@erp/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { useState, type ReactElement } from 'react'
@@ -29,7 +30,7 @@ describe('Page', () => {
     expect(screen.getByRole('heading', { name: 'Kirim' })).toBeTruthy()
     expect(screen.getByText('Chilonzor')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Yaratish' })).toBeTruthy()
-    expect(document.title).toBe('Kirim · Savdo')
+    expect(document.title).toBe(`Kirim · ${APP_NAME}`)
   })
 
   it("puts its name into the frame's top bar and keeps the buttons with the content", () => {

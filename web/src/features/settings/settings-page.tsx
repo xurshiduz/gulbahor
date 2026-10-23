@@ -18,6 +18,7 @@ import { base } from '@/lib/base'
 import { toast } from '@/lib/toast'
 
 import { BaseCurrencyCard } from './base-currency'
+import { LabelDesignList } from './label-designs'
 import { LabelSettings } from './label-settings'
 import { ModuleList, switched } from './module-list'
 import { ReceiptSettings } from './receipt-settings'
@@ -46,7 +47,13 @@ export function SettingsPage() {
           <ReceiptSettings />
         </TabPanel>
         <TabPanel value="label">
-          <LabelSettings />
+          <div className="flex flex-col gap-6">
+            <LabelDesignList />
+            <section className="flex flex-col gap-3">
+              <h2 className="eyebrow">{t('labelDesign.usual')}</h2>
+              <LabelSettings />
+            </section>
+          </div>
         </TabPanel>
         <TabPanel value="business">
           <div className="flex flex-col gap-3">

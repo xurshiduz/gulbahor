@@ -1,4 +1,3 @@
-import { APP_NAME } from '@erp/core'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
@@ -50,7 +49,7 @@ export function isActive(item: NavItem, items: NavItem[], pathname: string, sear
 }
 
 interface SidebarProps {
-  /** The business signed in to: under the system's name, smaller. */
+  /** The business signed in to: the only name at the top, so each business sees its own. */
   business: string
   groups: ShownGroup[]
   collapsed: boolean
@@ -101,14 +100,11 @@ export function Sidebar({ business, groups, collapsed }: SidebarProps) {
           collapsed ? 'justify-center' : 'px-3.5',
         )}
       >
-        <img src="/favicon.svg" alt="" className="size-6 shrink-0" />
+        <img src="/mark.svg" alt="" className="size-7 shrink-0 object-contain" />
         {!collapsed ? (
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-semibold">{APP_NAME}</p>
-            <p className="truncate text-[11px] text-ink-3" title={business}>
-              {business}
-            </p>
-          </div>
+          <p className="min-w-0 truncate text-sm font-semibold" title={business}>
+            {business}
+          </p>
         ) : null}
       </div>
 

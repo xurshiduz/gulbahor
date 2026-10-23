@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/feedback'
 import { useSession } from '@/features/auth/session'
 import { formatNumber } from '@/lib/format'
+import { useGlobalShop } from '@/lib/shop'
 
 import { BarChart, bucketLabel, dayLabel, shortSom, som, Stat } from './parts'
 import { useSalesReport } from './sales-report-page'
@@ -21,8 +22,10 @@ const DAYS = 14
 export function SalesToday() {
   const { me } = useSession()
   const today = todayIn(me.org.timezone)
-  const day = useSalesReport(periodRange('today', today), undefined)
-  const recent = useSalesReport({ from: toIsoDate(addDays(today, 1 - DAYS)), to: toIsoDate(today) }, undefined)
+  // The shop picked in the top bar, when one is.
+  const [shop] = useGlobalShop()
+  const day = useSalesReport(periodRange('today', today), shop ?? undefined)
+  const recent = useSalesReport({ from: toIsoDate(addDays(today, 1 - DAYS)), to: toIsoDate(today) }, shop ?? undefined)
   return <SalesTodayView day={day.data} recent={recent.data} />
 }
 

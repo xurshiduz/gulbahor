@@ -60,6 +60,8 @@ import { CardLinks1790000059000 } from './1790000059000-card-links'
 import { Holds1790000060000 } from './1790000060000-holds'
 import { StockDocTags1790000061000 } from './1790000061000-stock-doc-tags'
 import { ExpensePerPiece1790000062000 } from './1790000062000-expense-per-piece'
+import { LabelDesigns1790000063000 } from './1790000063000-label-designs'
+import { UserAvatar1790000064000 } from './1790000064000-user-avatar'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -125,4 +127,6 @@ export const MIGRATIONS = [
   Holds1790000060000,
   StockDocTags1790000061000,
   ExpensePerPiece1790000062000,
+  LabelDesigns1790000063000,
+  UserAvatar1790000064000,
 ]

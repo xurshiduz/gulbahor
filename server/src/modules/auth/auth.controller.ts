@@ -1,4 +1,5 @@
 import {
+  avatarInputSchema,
   changePasswordSchema,
   idSchema,
   loginSchema,
@@ -6,6 +7,7 @@ import {
   removePinSchema,
   setPinSchema,
   unlockSchema,
+  type AvatarInput,
   type ChangePasswordInput,
   type LoginInput,
   type MeDto,
@@ -14,7 +16,7 @@ import {
   type SessionDto,
   type SetPinInput,
 } from '@erp/core'
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Req, Res } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Throttle } from '@nestjs/throttler'
 import type { CookieOptions, Request, Response } from 'express'
@@ -80,6 +82,12 @@ export class AuthController {
   @HttpCode(204)
   updateProfile(@CurrentActor() actor: Actor, @Body(zod(profileSchema)) input: ProfileInput): Promise<void> {
     return this.auth.updateProfile(actor, input)
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Put('avatar')
+  setAvatar(@CurrentActor() actor: Actor, @Body(zod(avatarInputSchema)) input: AvatarInput): Promise<{ avatar: string | null }> {
+    return this.auth.setAvatar(actor, input)
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

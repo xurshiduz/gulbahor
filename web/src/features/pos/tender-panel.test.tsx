@@ -71,6 +71,8 @@ function Money({
   const [paid, setPaid] = useState<Record<string, Partial<TenderRow>>>({})
   const [lent, setLent] = useState<number | null>(null)
   const [dueDate, setDueDate] = useState('2026-11-04')
+  const [hidden, setHidden] = useState<string[]>([])
+  const [peek, setPeek] = useState(false)
   const rows = tenderRows(context).map((row) => ({ ...row, ...paid[row.key] }))
   const entered = enteredRows(rows)
   const owing = Math.min(lent ?? 0, due)
@@ -125,6 +127,7 @@ function Money({
       onComplete={() => onComplete(entered, owing)}
       onBack={() => undefined}
       tiles={tiles}
+      hiding={tiles ? { hidden, onChange: setHidden, peek, onPeek: setPeek } : null}
     />
   )
 }
@@ -1033,5 +1036,25 @@ describe('the boxes at the till', () => {
     )
     expect(shown()).toEqual(['cash'])
     expect(plain(document.querySelector('[data-left]')?.textContent)).toContain('210 000')
+  })
+
+  it('keeps a way out of sight once hidden, and brings it back when asked', async () => {
+    render(<Money due={som(100_000)} onComplete={vi.fn()} tiles />)
+    const chip = () => document.querySelector('[data-chip="account:pos"]') as HTMLElement
+    await userEvent.click(chip())
+    await userEvent.click(
+      within(document.querySelector('[data-tender="account:pos"]') as HTMLElement).getByRole('button', {
+        name: 'Yashirish',
+      }),
+    )
+    // Still on the box while it holds a sum; taken away, its button goes out of sight.
+    await userEvent.click(
+      within(document.querySelector('[data-tender="account:pos"]') as HTMLElement).getByRole('button', {
+        name: 'Olib tashlash',
+      }),
+    )
+    expect(chip().className).toContain('hidden')
+    await userEvent.click(screen.getByRole('button', { name: /Yashirilgan/ }))
+    expect(chip().className).not.toMatch(/(^| )hidden( |$)/)
   })
 })

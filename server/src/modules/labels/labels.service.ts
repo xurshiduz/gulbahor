@@ -1,10 +1,18 @@
 import {
+  buildDesignZpl,
   buildLabelZpl,
   DEFAULT_LABEL_TEMPLATE,
   formatMoney,
+  GENDER_LABELS,
+  SEASON_LABELS,
   variantLabel,
   type CurrencyCode,
+  type Gender,
   type LabelData,
+  type LabelDesign,
+  type LabelDesigns,
+  type LabelValues,
+  type Season,
   type LabelPrintInput,
   type LabelPrintResult,
   type ReceiptLabelsDto,
@@ -21,7 +29,7 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { PrintQueueService } from './print-queue.service'
 import { NEXT_EPC, receiptUnitCounts, settleReceiptUnits } from './units'
 
-type Described = Omit<LabelData, 'epc' | 'copies'>
+type Described = Omit<LabelData, 'epc' | 'copies'> & { values: LabelValues }
 
 interface Unit {
   id: string
@@ -98,10 +106,11 @@ export class LabelsService {
       throwIfAny(fields)
       const dataOf = (variantId: string): Described => {
         const data = described.get(variantId) as Described
-        return input.withPrice ? data : { ...data, price: null }
+        return input.withPrice ? data : { ...data, price: null, values: { ...data.values, price: undefined } }
       }
+      const design = input.designId ? await this.design(em, actor.orgId, input.designId) : null
 
-      let labels: LabelData[]
+      let labels: (LabelData & { values: LabelValues })[]
       let count: number
       if (input.rfid) {
         const units = receipt
@@ -114,7 +123,10 @@ export class LabelsService {
           `UPDATE rfid_units SET print_count = print_count + 1, last_printed_at = now() WHERE id = ANY($1)`,
           [units.map((unit) => unit.id)],
         )
-        labels = units.map((unit) => ({ ...dataOf(unit.variant_id), epc: unit.epc }))
+        labels = units.map((unit) => {
+          const data = dataOf(unit.variant_id)
+          return { ...data, epc: unit.epc, values: { ...data.values, tag: `#${unit.epc.slice(-6)}` } }
+        })
         count = units.length
       } else {
         labels = input.items.map((item) => ({ ...dataOf(item.variantId), epc: null, copies: item.count }))
@@ -125,7 +137,14 @@ export class LabelsService {
       // Laid out the way the business set its labels.
       const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
       const template = { ...DEFAULT_LABEL_TEMPLATE, ...org.settings.label }
-      const zpl = labels.map((label) => buildLabelZpl(label, format, template)).join('\n')
+      const dpi = printer?.dpi ?? input.dpi
+      const zpl = labels
+        .map((label) =>
+          design
+            ? buildDesignZpl(design, label.values, { dpi, epc: label.epc, copies: label.copies })
+            : buildLabelZpl(label, format, template),
+        )
+        .join('\n')
       const what = `${count} ta ${input.rfid ? 'RFID ' : ''}etiketka`
       const title = receipt ? `${receipt.number}: ${what}` : what
 
@@ -239,8 +258,25 @@ export class LabelsService {
       value_names: string[]
       barcode: string | null
       price: { amount: number | string; currency: CurrencyCode } | null
+      brand: string | null
+      category: string | null
+      season: Season | null
+      gender: Gender | null
+      origin_country: string | null
+      collection_year: number | null
+      material: string | null
+      manufacturer: string | null
+      color: string | null
+      size: string | null
     }[] = await em.query(
       `SELECT v.id, p.name, v.sku, array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
+              (SELECT b.name FROM brands b WHERE b.id = p.brand_id) AS brand,
+              (SELECT c.name FROM categories c WHERE c.id = p.category_id) AS category,
+              p.season, p.gender, p.origin_country, p.collection_year, p.material, p.manufacturer,
+              (SELECT string_agg(av.name, ', ') FROM attribute_values av JOIN attributes at ON at.id = av.attribute_id
+               WHERE av.id IN (v.value1_id, v.value2_id, v.value3_id) AND at.kind = 'color') AS color,
+              (SELECT string_agg(av.name, ', ') FROM attribute_values av JOIN attributes at ON at.id = av.attribute_id
+               WHERE av.id IN (v.value1_id, v.value2_id, v.value3_id) AND at.kind = 'size') AS size,
               (SELECT c.code FROM variant_barcodes c WHERE c.variant_id = v.id
                ORDER BY c.sort_order, c.created_at LIMIT 1) AS barcode,
               -- The most specific price wins: this variant here, this variant, this place, the model.
@@ -259,18 +295,79 @@ export class LabelsService {
        WHERE v.id = ANY($1)`,
       [variantIds, locationId],
     )
+    const printedAt = new Date().toLocaleDateString('ru-RU')
     return new Map(
-      rows.map((row) => [
-        row.id,
-        {
+      rows.map((row) => {
+        const price = row.price ? formatMoney(Number(row.price.amount), row.price.currency, { minor: 'auto' }) : null
+        const details = variantLabel(row.value_names)
+        // What a design may put on the label; a fact the goods do not have is left out, and so is its line.
+        const values: LabelValues = {
           name: row.name,
-          details: variantLabel(row.value_names),
+          brand: row.brand ?? undefined,
+          category: row.category ?? undefined,
+          details: details || undefined,
+          color: row.color ?? undefined,
+          size: row.size ?? undefined,
+          season: row.season ? SEASON_LABELS[row.season] : undefined,
+          gender: row.gender ? GENDER_LABELS[row.gender] : undefined,
+          country: row.origin_country ?? undefined,
+          collection: row.collection_year ? String(row.collection_year) : undefined,
+          material: row.material ?? undefined,
+          manufacturer: row.manufacturer ?? undefined,
           sku: row.sku,
-          barcode: row.barcode,
-          price: row.price ? formatMoney(Number(row.price.amount), row.price.currency, { minor: 'auto' }) : null,
-        },
-      ]),
+          price: price ?? undefined,
+          barcode: row.barcode ?? row.sku,
+          printedAt,
+        }
+        return [row.id, { name: row.name, details, sku: row.sku, barcode: row.barcode, price, values }]
+      }),
     )
+  }
+
+  /** The business's label designs. */
+  async designs(actor: Actor): Promise<LabelDesigns> {
+    return this.db.tenant(actor.orgId, ({ em }) => this.designsIn(em, actor.orgId))
+  }
+
+  async setDesigns(actor: Actor, input: LabelDesigns): Promise<LabelDesigns> {
+    const ids = new Set(input.designs.map((design) => design.id))
+    if (ids.size !== input.designs.length) {
+      throw AppError.validation({ designs: 'Shablon takrorlangan' })
+    }
+    const saved: LabelDesigns = {
+      designs: input.designs,
+      defaultId: input.defaultId && ids.has(input.defaultId) ? input.defaultId : (input.designs[0]?.id ?? null),
+    }
+    return this.db.tenant(actor.orgId, async ({ em, afterCommit }) => {
+      const before = await this.designsIn(em, actor.orgId)
+      await em.query(`UPDATE organizations SET label_designs = $2 WHERE id = $1`, [actor.orgId, JSON.stringify(saved)])
+      const names = (list: LabelDesigns) => list.designs.map((design) => design.name).join(', ')
+      await this.audit.record(em, actor.orgId, actor, {
+        action: 'org.label',
+        entity: 'org',
+        entityId: actor.orgId,
+        summary: 'Etiketka shablonlari',
+        changes: { designs: [names(before), names(saved)] },
+      })
+      afterCommit(() => this.realtime.changed(actor.orgId, ['labels']))
+      return saved
+    })
+  }
+
+  private async designsIn(em: EntityManager, orgId: string): Promise<LabelDesigns> {
+    const [row]: { label_designs: LabelDesigns }[] = await em.query(
+      `SELECT label_designs FROM organizations WHERE id = $1`,
+      [orgId],
+    )
+    return row?.label_designs ?? { designs: [], defaultId: null }
+  }
+
+  private async design(em: EntityManager, orgId: string, id: string): Promise<LabelDesign> {
+    const design = (await this.designsIn(em, orgId)).designs.find((item) => item.id === id)
+    if (!design) {
+      throw AppError.validation({ designId: 'Etiketka shabloni topilmadi' })
+    }
+    return design
   }
 
   private async receipt(em: EntityManager, actor: Actor, id: string): Promise<Receipt> {

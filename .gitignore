@@ -12,6 +12,8 @@ coverage/
 
 # Do'kon agentining kaliti
 agent.json
+# Agentning bitta faylga yig'ilgani (npm run build:agent): sayt uni o'rnatuvchiga beradi
+web/public/agent/
 
 # Yuklangan fayllar
 uploads/

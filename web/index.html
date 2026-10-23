@@ -4,8 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Savdo</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <title>Gulbahor Boutique</title>
     <script>
       // Applied before the first paint so a dark screen never flashes white.
       // Light unless this person chose dark, or chose to follow the system and the system is dark.
@@ -13,6 +14,7 @@
         const stored = localStorage.getItem('gb.theme')
         const dark = stored === 'dark' || (stored === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.classList.toggle('theme-sepia', stored === 'sepia')
       } catch {}
     </script>
   </head>

@@ -53,8 +53,10 @@ import { api, ApiError } from '@/lib/api'
 import { base, baseWords, currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { useHiddenPlaces } from '@/features/money/hidden-places'
 import { HotkeyScope, useCovered, useHotkey } from '@/lib/hotkeys'
 import { useShopEvent } from '@/lib/realtime'
+import { useGlobalShop } from '@/lib/shop'
 import { useScanner } from '@/lib/scanner'
 import { toast } from '@/lib/toast'
 import { uuid } from '@/lib/uuid'
@@ -134,7 +136,13 @@ export function PosPage() {
   const { t } = useTranslation()
   const { can } = useSession()
   const registers = useRegisters()
-  const active = useMemo(() => (registers.data ?? []).filter((register) => register.isActive), [registers.data])
+  const [globalShop] = useGlobalShop()
+  // A shop picked in the top bar offers its own tills; one with none offers all, so the till is never left empty.
+  const active = useMemo(() => {
+    const open = (registers.data ?? []).filter((register) => register.isActive)
+    const here = open.filter((register) => register.locationId === globalShop)
+    return globalShop && here.length ? here : open
+  }, [registers.data, globalShop])
   const [registerId, setRegisterId] = useState<string | null>(() => stored<string | null>(REGISTER_KEY, null))
   const register = active.find((item) => item.id === registerId) ?? (active.length === 1 ? active[0] : null)
 
@@ -293,6 +301,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
   const { book } = context
   /** The goods are agreed on and the money is being taken: the receipt is shown, the cart is not. */
   const [paying, setPaying] = useState(false)
+  // Seldom used ways of paying this person keeps out of sight, and whether they are shown for now.
+  const [hiddenPlaces, setHiddenPlaces] = useHiddenPlaces()
+  const [peek, setPeek] = useState(false)
   /** Where the cursor goes when that changes: a way of paying on the way in, a field of the cart on the way back. */
   const wanted = useRef<TenderKind | 'agreed' | null>(null)
   /** How the change goes back when not all of it is cash in the base: what was typed, and whether the rows are out. */
@@ -911,6 +922,8 @@ function Till({ context, registers, onSwitch }: TillProps) {
     // With no way of paying asked for, the cursor goes to the customer's own currency where they have one here.
     wanted.current = kind ?? (prefer ? 'other' : null)
     setPaying(true)
+    // Each payment starts with what is hidden out of sight again.
+    setPeek(false)
     setSplitting(false)
   }
   /** F10: the change goes back in parts — the rows come out and the cursor goes to the first. */
@@ -1722,6 +1735,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
               onComplete={() => complete()}
               onBack={() => backToCart()}
               tiles
+              hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces, peek, onPeek: setPeek }}
               offAccount={offAccount}
               prefer={prefer}
               keep={
@@ -2008,6 +2022,7 @@ function Till({ context, registers, onSwitch }: TillProps) {
           context={context}
           limit={context.maxRateLossPercent}
           setsRates={can('money.rates')}
+          hiding={{ hidden: hiddenPlaces, onChange: setHiddenPlaces }}
           onClose={() => setHanding(false)}
         />
       ) : null}

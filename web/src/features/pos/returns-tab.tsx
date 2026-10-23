@@ -14,6 +14,7 @@ import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { fetchAll, moneyCell, timeCell } from '@/lib/excel'
 import { formatDateTime, formatNumber } from '@/lib/format'
+import { useShopFilter } from '@/lib/shop'
 
 import { ReturnDialog } from './return-parts'
 
@@ -24,7 +25,10 @@ const money = (minor: number) => formatMoney(minor, base(), { minor: 'auto' })
 /** Every return made, newest first: what came back on which receipt, and whether it became an exchange. */
 export function ReturnsTab({ locations }: { locations: { id: string; name: string }[] }) {
   const { t } = useTranslation()
-  const search = route.useSearch()
+  const urlSearch = route.useSearch()
+  // The place picked in the top bar stands in for one the page does not name.
+  const shopFilter = useShopFilter(urlSearch.locationId)
+  const search = { ...urlSearch, locationId: shopFilter.locationId }
   const navigate = route.useNavigate()
   const { page, size, q, locationId, shiftId, from, to } = search
   const filters = { page, size, q, locationId, shiftId, from, to }
@@ -163,7 +167,7 @@ export function ReturnsTab({ locations }: { locations: { id: string; name: strin
             <FilterCombo
               options={locations.map((location) => ({ value: location.id, label: location.name }))}
               value={locationId ?? null}
-              onChange={(value) => filter({ locationId: value ?? undefined })}
+              onChange={(value) => filter({ locationId: shopFilter.toUrl(value) })}
             />
           ),
           returnedAt: <FilterDates from={from} to={to} onChange={(range) => filter(range)} />,

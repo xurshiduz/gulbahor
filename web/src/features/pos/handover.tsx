@@ -7,7 +7,7 @@ import {
   type RateBook,
 } from '@erp/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -92,6 +92,11 @@ interface HandoverFieldsProps {
   currencies: AnyCurrency[]
   /** Money may go to a safe of another currency, changed on the way at the day's rate or a sum agreed. */
   changing?: Changing
+  /**
+   * The drawers this person keeps out of sight (`cash:CNY`, the same list as at the till). The first currency —
+   * the base — is never hidden, nor one with a sum in it.
+   */
+  hiding?: { hidden: string[]; onChange: (hidden: string[]) => void }
 }
 
 /**
@@ -106,14 +111,26 @@ export function HandoverFields({
   autoFocus,
   currencies,
   changing,
+  hiding,
 }: HandoverFieldsProps) {
   const { t } = useTranslation()
+  const [peek, setPeek] = useState(false)
   const patch = (currency: AnyCurrency, change: Partial<Handing>) =>
     onChange({ ...value, [currency]: { ...handingIn(value, currency), ...change } })
+  const keyOf = (currency: AnyCurrency) => `cash:${currency}`
+  const isHidden = (currency: AnyCurrency) => !!hiding?.hidden.includes(keyOf(currency))
+  const away = currencies.filter(
+    (currency, index) => index > 0 && isHidden(currency) && !handingIn(value, currency).amount,
+  )
+  const shown = peek ? currencies : currencies.filter((currency) => !away.includes(currency))
+  const flip = (currency: AnyCurrency) =>
+    hiding?.onChange(
+      isHidden(currency) ? hiding.hidden.filter((key) => key !== keyOf(currency)) : [...hiding.hidden, keyOf(currency)],
+    )
 
   return (
     <div className="flex flex-col gap-4">
-      {currencies.map((currency, index) => {
+      {shown.map((currency, index) => {
         // A safe of the drawer's own currency first; those of another only where money may change on the way.
         const options = [
           ...safes.filter((safe) => safe.currency === currency),
@@ -144,27 +161,43 @@ export function HandoverFields({
               )}
             </Field>
             <Field label={t('money.transferTo')}>
-              {(id) =>
-                options.length > 1 ? (
-                  <Select
-                    id={id}
-                    value={handing.toAccountId ?? ''}
-                    onChange={(toAccountId) => patch(currency, { toAccountId, received: null })}
-                    options={options.map((safe) => ({
-                      value: safe.id,
-                      label:
-                        safe.currency === currency
-                          ? safe.name
-                          : `${safe.name} (${CURRENCY_LIST[safe.currency].symbol})`,
-                    }))}
-                  />
-                ) : (
-                  <span id={id} className="flex h-8.5 items-center gap-1 text-[13px] text-ink-2">
-                    <ArrowRight className="size-3.5 text-ink-3" />
-                    {options[0]?.name}
-                  </span>
-                )
-              }
+              {(id) => (
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    {options.length > 1 ? (
+                      <Select
+                        id={id}
+                        value={handing.toAccountId ?? ''}
+                        onChange={(toAccountId) => patch(currency, { toAccountId, received: null })}
+                        options={options.map((safe) => ({
+                          value: safe.id,
+                          label:
+                            safe.currency === currency
+                              ? safe.name
+                              : `${safe.name} (${CURRENCY_LIST[safe.currency].symbol})`,
+                        }))}
+                      />
+                    ) : (
+                      <span id={id} className="flex h-8.5 items-center gap-1 text-[13px] text-ink-2">
+                        <ArrowRight className="size-3.5 text-ink-3" />
+                        {options[0]?.name}
+                      </span>
+                    )}
+                  </div>
+                  {hiding && currency !== currencies[0] ? (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title={isHidden(currency) ? t('pos.showRow') : t('pos.hideRow')}
+                      aria-label={isHidden(currency) ? t('pos.showRow') : t('pos.hideRow')}
+                      onClick={() => flip(currency)}
+                      className="shrink-0 rounded p-1 text-ink-3 hover:bg-sunken hover:text-ink"
+                    >
+                      {isHidden(currency) ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                    </button>
+                  ) : null}
+                </div>
+              )}
             </Field>
             {line && to && changing ? (
               <ReceivedField
@@ -180,6 +213,19 @@ export function HandoverFields({
           </div>
         )
       })}
+      {away.length || (peek && hiding?.hidden.length) ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setPeek(!peek)}
+          className="inline-flex items-center gap-1.5 self-start text-xs text-ink-3 hover:text-ink"
+        >
+          {peek ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+          {peek
+            ? t('pos.foldHidden')
+            : t('pos.hiddenRows', { names: away.map((currency) => t(`currencies.short.${currency}`)).join(', ') })}
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -201,11 +247,13 @@ export function HandoverDialog({
   context,
   limit,
   setsRates,
+  hiding,
   onClose,
 }: {
   context: PosContextDto
   limit: number
   setsRates: boolean
+  hiding?: HandoverFieldsProps['hiding']
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -272,6 +320,7 @@ export function HandoverDialog({
           onChange={setHandings}
           currencies={currencies}
           changing={changing}
+          hiding={hiding}
           autoFocus
         />
         <Field label={t('receipts.note')}>
