@@ -140,14 +140,16 @@ const stockSearch = z.object({
   locationId: z.string().optional().catch(undefined),
   categoryId: z.string().optional().catch(undefined),
   brandId: z.string().optional().catch(undefined),
-  presence: z.enum(['in', 'out', 'all']).default('in').catch('in'),
+  // The catalogue opens on every model, as Billz's does; the tabs narrow it.
+  presence: z.enum(['in', 'out', 'all']).default('all').catch('all'),
+  status: z.enum(['active', 'archived']).default('active').catch('active'),
 })
 const stockRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/stock',
   component: StockPage,
   validateSearch: stockSearch,
-  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, presence: 'in' })] },
+  search: { middlewares: [stripSearchParams({ ...LIST_DEFAULTS, presence: 'all', status: 'active' })] },
 })
 
 const stockProductRoute = createRoute({
@@ -220,7 +222,7 @@ const customersRoute = createRoute({
   component: CustomersPage,
   validateSearch: z.object({
     ...listSearch,
-    tab: z.enum(['list', 'groups', 'loyalty', 'debts']).default('list').catch('list'),
+    tab: z.enum(['list', 'suppliers', 'groups', 'loyalty', 'debts']).default('list').catch('list'),
     status: z.enum(['active', 'archived', 'all']).default('active').catch('active'),
     supplier: z.enum(['yes', 'no']).optional().catch(undefined),
     balance: z.enum(['owes', 'owed']).optional().catch(undefined),

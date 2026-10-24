@@ -1,5 +1,6 @@
 import {
   baseWorth,
+  byRate,
   formatMoney,
   formulaText,
   NO_ROUNDING,
@@ -302,7 +303,12 @@ export class PricingService {
         revertsId: null,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['pricing', 'products', 'stock']))
-      return { ...result, revision: { id: revision.id, number: revision.number } }
+      return {
+        ...result,
+        revision: { id: revision.id, number: revision.number },
+        // Whose labels now say the old price: offered for printing again.
+        productIds: [...new Set(changes.map((change) => change.productId))],
+      }
     })
   }
 
@@ -326,6 +332,8 @@ export class PricingService {
         return known.old === null ? 'no_price' : roundPrice(withPercent(known.old, operation.percent), rounding)
       case 'amount':
         return known.old === null ? 'no_price' : roundPrice(Math.max(0, known.old + operation.amount), rounding)
+      case 'rate':
+        return known.old === null ? 'no_price' : roundPrice(byRate(known.old, operation.from, operation.to), rounding)
       case 'from_type':
         return known.source === null ? 'no_source' : roundPrice(withPercent(known.source, operation.percent), rounding)
       case 'formula': {
@@ -864,6 +872,10 @@ function scale(amount: number, next: number, old: number): number {
   return Number((BigInt(amount) * BigInt(next) * 2n + BigInt(old)) / (BigInt(old) * 2n))
 }
 
+/** A rate as people write it: 12 600, 1 735,29. */
+const formatRate = (rate: number) =>
+  rate.toLocaleString('en-US', { maximumFractionDigits: 6 }).replace(/,/g, ' ').replace('.', ',')
+
 function scopeText(rule: Pick<PriceRuleDto, 'categoryName' | 'brandName' | 'season'>): string {
   const parts = [rule.categoryName, rule.brandName, rule.season ? SEASON_LABELS[rule.season] : null].filter(Boolean)
   return parts.length ? parts.join(', ') : 'Hamma tovar'
@@ -875,6 +887,10 @@ function describe(operation: RepriceOperation, currency: CurrencyCode, sourceNam
       return percentText(operation.percent)
     case 'amount':
       return `${operation.amount < 0 ? '−' : '+'}${formatMoney(Math.abs(operation.amount), currency)}`
+    case 'rate':
+      return `Kurs ${formatRate(operation.from)} → ${formatRate(operation.to)} (${percentText(
+        Math.round((operation.to / operation.from - 1) * 10000) / 100,
+      )})`
     case 'from_type':
       return `${sourceName} ${percentText(operation.percent)}`
     case 'formula': {

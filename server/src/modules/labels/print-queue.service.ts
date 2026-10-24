@@ -81,13 +81,14 @@ export class PrintQueueService {
   private async drain(orgId: string, agentId: string): Promise<void> {
     while (this.hub.isOnline(agentId)) {
       const order = await this.db.tenant(orgId, async ({ em }) => {
-        const [row]: { id: string; payload: string; host: string; port: number }[] = await em.query(
-          `SELECT j.id, j.payload, p.host, p.port
+        const [row]: { id: string; payload: string; queue: string | null; host: string; port: number }[] =
+          await em.query(
+            `SELECT j.id, j.payload, p.queue, p.host, p.port
            FROM print_jobs j JOIN printers p ON p.id = j.printer_id
            WHERE j.agent_id = $1 AND j.status = 'queued'
            ORDER BY j.created_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED`,
-          [agentId],
-        )
+            [agentId],
+          )
         if (!row) {
           return null
         }
@@ -95,7 +96,7 @@ export class PrintQueueService {
           `UPDATE print_jobs SET status = 'sent', attempts = attempts + 1, sent_at = now(), error = NULL WHERE id = $1`,
           [row.id],
         )
-        return { id: row.id, host: row.host, port: row.port, data: row.payload }
+        return { id: row.id, queue: row.queue, host: row.host, port: row.port, data: row.payload }
       })
       if (!order) {
         return

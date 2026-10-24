@@ -134,6 +134,8 @@ export interface DesignBars {
   code: string
   ean: boolean
   digits: boolean
+  /** How tall the digits under the bars are, in dots: the element's own size. */
+  digitFont: number
 }
 
 export interface DesignPicture {
@@ -205,7 +207,9 @@ export function layoutDesign(design: LabelDesign, values: LabelValues, dpi: 203 
       if (!module) {
         continue
       }
-      const digitRoom = element.digits ? Math.round(height * 0.22) : 0
+      const digitFont = pointsToDots(element.size, dotsPerMm)
+      // The digits take their own height and a little air above them; the bars get the rest.
+      const digitRoom = element.digits ? digitFont + Math.round(dotsPerMm / 2) : 0
       items.push({
         kind: 'bars',
         x: x + Math.max(0, Math.floor((width - modules * module) / 2)),
@@ -216,6 +220,7 @@ export function layoutDesign(design: LabelDesign, values: LabelValues, dpi: 203 
         code: ean ? code.slice(0, 12) : code,
         ean,
         digits: element.digits,
+        digitFont,
       })
       continue
     }
@@ -264,6 +269,10 @@ export function buildDesignZpl(
       }
     } else if (item.kind === 'bars') {
       const digits = item.digits ? 'Y' : 'N'
+      // The digits under the bars are written in the printer's default font: set to the size asked for.
+      if (item.digits) {
+        lines.push(`^CF0,${item.digitFont}`)
+      }
       // EAN-13: the printer sets the first digit left of the bars, in their quiet zone.
       lines.push(
         item.ean

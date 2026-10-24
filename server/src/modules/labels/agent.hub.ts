@@ -1,4 +1,4 @@
-import type { AgentPrintAnswer, AgentPrintOrder } from '@erp/core'
+import type { AgentLocalPrinter, AgentPrintAnswer, AgentPrintOrder } from '@erp/core'
 import { Injectable } from '@nestjs/common'
 import type { Socket } from 'socket.io'
 
@@ -15,6 +15,19 @@ const ANSWER_TIMEOUT_MS = 30_000
 @Injectable()
 export class AgentHub {
   private readonly sockets = new Map<string, Socket>()
+  /** The printers Windows has on each connected agent's computer, as it last said. */
+  private readonly local = new Map<string, AgentLocalPrinter[]>()
+
+  localPrinters(agentId: string): AgentLocalPrinter[] {
+    return this.sockets.has(agentId) ? (this.local.get(agentId) ?? []) : []
+  }
+
+  /** True when the list is not what it was. */
+  setLocalPrinters(agentId: string, printers: AgentLocalPrinter[]): boolean {
+    const changed = JSON.stringify(this.local.get(agentId) ?? []) !== JSON.stringify(printers)
+    this.local.set(agentId, printers)
+    return changed
+  }
 
   isOnline(agentId: string | null): boolean {
     return !!agentId && this.sockets.has(agentId)
@@ -42,6 +55,7 @@ export class AgentHub {
       return false
     }
     this.sockets.delete(agentId)
+    this.local.delete(agentId)
     return true
   }
 

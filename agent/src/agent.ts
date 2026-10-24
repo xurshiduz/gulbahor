@@ -2,10 +2,17 @@ import { hostname } from 'node:os'
 
 import { io, type Socket } from 'socket.io-client'
 
-import { isLocalHost, sendToPrinter, sendToWindowsPrinter } from './printer'
+import {
+  isLocalHost,
+  listWindowsPrinters,
+  sendToPrinter,
+  sendToWindowsPrinter,
+  setDefaultWindowsPrinter,
+  type LocalPrinter,
+} from './printer'
 import { Guard, openLineReader, Presence, type OpenReader, type ReaderConfig, type ReaderLink } from './readers'
 
-export const VERSION = '0.2.0'
+export const VERSION = '0.3.0'
 
 export interface AgentOptions {
   /** Where the system lives: https://erp.example.uz */
@@ -17,12 +24,19 @@ export interface AgentOptions {
   onRefused?: (reason: string) => void
   /** How a reader is listened to; the tests put a pretend one here. */
   openReader?: OpenReader
-  /** Printers plugged in by USB: "host:port" set up in the system → Windows print queue name. */
+  /** Printers plugged in by USB: "host:port" set up in the system → Windows print queue name. (Older setups.) */
   usbPrinters?: Record<string, string>
+  /** How this computer's printers are found and the default set; the tests put pretend ones here. */
+  localPrinters?: {
+    list: () => Promise<LocalPrinter[]>
+    setDefault: (name: string) => Promise<void>
+    send: (queue: string, data: string) => Promise<void>
+  }
 }
 
 interface PrintOrder {
   id: string
+  queue?: string | null
   host: string
   port: number
   data: string
@@ -36,6 +50,9 @@ interface UnitsReply {
   cursor: string
   more: boolean
 }
+
+/** How often this computer's printers are looked at again: one plugged in shows up in the system within this. */
+const PRINTERS_EVERY_MS = 30_000
 
 /** The whole list of pieces that may not leave is fetched afresh this often, in case a change was missed. */
 const FULL_SYNC_MS = 10 * 60_000
@@ -196,6 +213,7 @@ export function startAgent(options: AgentOptions): Socket {
     // Closed from here: the program is stopping. A line that merely dropped leaves the gate working.
     if (reason === 'io client disconnect') {
       clearInterval(refresh)
+      clearInterval(looking)
       closeReaders()
     }
   })
@@ -206,21 +224,74 @@ export function startAgent(options: AgentOptions): Socket {
     // Redialling with the same key would only be refused again.
     socket.io.reconnection(false)
     clearInterval(refresh)
+    clearInterval(looking)
     closeReaders()
     options.onRefused?.(reason)
   })
 
   // ── Printers ──
+  const local = options.localPrinters ?? {
+    list: listWindowsPrinters,
+    setDefault: setDefaultWindowsPrinter,
+    send: sendToWindowsPrinter,
+  }
+  let reported = ''
+  /** Says which printers Windows has here, when the list is new to the server. */
+  const report = async (always = false) => {
+    if (!socket.connected) {
+      return
+    }
+    try {
+      const printers = await local.list()
+      const now = JSON.stringify(printers)
+      if (always || now !== reported) {
+        reported = now
+        socket.emit('printers', printers)
+      }
+    } catch (error) {
+      log(`Printerlar ro'yxatini olib bo'lmadi: ${(error as Error).message}`)
+    }
+  }
+  socket.on('connect', () => void report(true))
+  const looking = setInterval(() => void report(), PRINTERS_EVERY_MS)
+  looking.unref()
+
+  socket.on('receipt.printer', ({ name }: { name: string | null }) => {
+    if (!name) {
+      return
+    }
+    local.setDefault(name).then(
+      () => {
+        log(`Chek printeri: ${name}`)
+        void report()
+      },
+      (error: Error) => log(`Chek printerini asosiy qilib bo'lmadi (${name}): ${error.message}`),
+    )
+  })
+
   socket.on('print', (order: PrintOrder, answer: Answer) => {
+    if (order.queue) {
+      // A printer plugged into this computer, by the name Windows gives it.
+      const queue = order.queue
+      local.send(queue, order.data).then(
+        () => {
+          log(`Chop etildi: ${queue}`)
+          answer({ ok: true })
+        },
+        (error: Error) => {
+          log(`Printerga yuborilmadi (${queue}): ${error.message}`)
+          answer({ ok: false, error: `Printerga yuborilmadi (${queue}): ${error.message}` })
+        },
+      )
+      return
+    }
     if (!isLocalHost(order.host)) {
       log(`Rad etildi: ${order.host} lokal tarmoq manzili emas`)
       answer({ ok: false, error: `${order.host} lokal tarmoq manzili emas` })
       return
     }
     const queue = options.usbPrinters?.[`${order.host}:${order.port}`]
-    const send = queue
-      ? sendToWindowsPrinter(queue, order.data)
-      : sendToPrinter(order.host, order.port, order.data)
+    const send = queue ? sendToWindowsPrinter(queue, order.data) : sendToPrinter(order.host, order.port, order.data)
     send.then(
       () => {
         log(`Chop etildi: ${queue ?? `${order.host}:${order.port}`}`)

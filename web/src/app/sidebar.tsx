@@ -100,7 +100,9 @@ export function Sidebar({ business, groups, collapsed }: SidebarProps) {
           collapsed ? 'justify-center' : 'px-3.5',
         )}
       >
-        <img src="/mark.svg" alt="" className="size-7 shrink-0 object-contain" />
+        {/* Black on the light themes, light on the dark one. */}
+        <img src="/mark.png" alt="" className="size-7 shrink-0 object-contain dark:hidden" />
+        <img src="/mark-light.png" alt="" className="hidden size-7 shrink-0 object-contain dark:block" />
         {!collapsed ? (
           <p className="min-w-0 truncate text-sm font-semibold" title={business}>
             {business}
@@ -245,10 +247,10 @@ function Section({ group, active, open, onToggle, isActive }: SectionProps & { o
                 to={item.to}
                 search={item.search as never}
                 aria-current={here ? 'page' : undefined}
-                className={cn('group', ROW, 'h-8 px-2', here ? ACTIVE : IDLE)}
+                className={cn('group', ROW, 'h-auto min-h-8 px-2 py-1.5', here ? ACTIVE : IDLE)}
               >
-                {/* A name longer than the column is cut; the whole of it shows on hover. */}
-                <span className="min-w-0 flex-1 truncate" title={t(item.label)}>
+                {/* A name longer than the column goes on to a second line rather than being cut. */}
+                <span className="line-clamp-2 min-w-0 flex-1 leading-snug" title={t(item.label)}>
                   {t(item.label)}
                 </span>
                 {item.shortcut ? <Shortcut combo={item.shortcut} className="hidden group-hover:inline-flex" /> : null}

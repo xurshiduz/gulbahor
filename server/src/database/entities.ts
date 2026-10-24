@@ -1379,6 +1379,10 @@ export class StoreAgent {
   @Column('text', { nullable: true })
   version: string | null
 
+  /** The Windows printer the agent makes its computer's default: where the till's receipts go. */
+  @Column('text', { nullable: true })
+  receiptPrinter: string | null
+
   @Column('timestamptz', { nullable: true })
   lastSeenAt: Date | null
 
@@ -1408,6 +1412,10 @@ export class Printer {
 
   @Column('uuid')
   agentId: string
+
+  /** The Windows name of a printer plugged into the agent's computer; null — on the network at host:port. */
+  @Column('text', { nullable: true })
+  queue: string | null
 
   @Column('text')
   host: string

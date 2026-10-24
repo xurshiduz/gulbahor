@@ -18,6 +18,8 @@ interface DialogProps {
   dirty?: boolean
   children: ReactNode
   footer?: ReactNode
+  /** Slides in from the right edge, full height: a card to look through beside the list it came from. */
+  side?: boolean
 }
 
 const SIZES = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-5xl' }
@@ -29,7 +31,7 @@ const keepOpenForMessages = (event: Event) => {
   }
 }
 
-export function Dialog({ open, onClose, title, description, size = 'md', dirty, children, footer }: DialogProps) {
+export function Dialog({ open, onClose, title, description, size = 'md', dirty, children, footer, side }: DialogProps) {
   const { t } = useTranslation()
   const confirm = useConfirm()
 
@@ -46,9 +48,10 @@ export function Dialog({ open, onClose, title, description, size = 'md', dirty, 
         <Primitive.Overlay className="fixed inset-0 z-40 bg-overlay data-[state=open]:animate-fade-in" />
         <Primitive.Content
           className={cn(
-            // In the middle of the screen, both ways; the opening animation moves `transform`, not `translate`.
-            'fixed top-1/2 left-1/2 z-40 flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
-            'rounded-xl border border-line bg-surface shadow-float outline-none data-[state=open]:animate-pop-in',
+            side
+              ? 'fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l border-line bg-surface shadow-float outline-none data-[state=open]:animate-slide-in'
+              : // In the middle of the screen, both ways; the opening animation moves `transform`, not `translate`.
+                'fixed top-1/2 left-1/2 z-40 flex max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-line bg-surface shadow-float outline-none data-[state=open]:animate-pop-in',
             SIZES[size],
           )}
           onInteractOutside={keepOpenForMessages}

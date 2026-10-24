@@ -8,12 +8,13 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronUp,
+  GripVertical,
   Columns3,
   FileSpreadsheet,
   Inbox,
 } from 'lucide-react'
 import { Popover } from 'radix-ui'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/cn'
@@ -43,6 +44,8 @@ declare module '@tanstack/react-table' {
     export?: (row: TData) => ExportValue | ExportCell
     /** Not shown on the screen: a column of the spreadsheet only, for what the screen folds into another column. */
     exportOnly?: boolean
+    /** Offered in the column chooser but off until a person switches it on: the rarely wanted ones. */
+    hiddenByDefault?: boolean
   }
 }
 
@@ -59,6 +62,8 @@ export interface TablePagination {
 interface ColumnPreference {
   hidden: string[]
   order: string[]
+  /** The columns off by default that this person switched on. */
+  shown?: string[]
 }
 
 interface DataTableProps<T> {
@@ -90,6 +95,8 @@ interface DataTableProps<T> {
    * that are shown, in the order they are shown.
    */
   exportAs?: { fileName: string; rows: () => Promise<T[]> }
+  /** What opens under a row, across the whole table (a model's variants); null — the row is closed. */
+  expanded?: (row: T) => ReactNode | null
 }
 
 /**
@@ -114,6 +121,7 @@ export function DataTable<T>({
   empty,
   rowClassName,
   exportAs,
+  expanded,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const bodyRef = useRef<HTMLTableSectionElement>(null)
@@ -145,6 +153,14 @@ export function DataTable<T>({
   }, [preference.order, columnIds.join('|')])
 
   const shown = useMemo(() => columns.filter((column) => !column.meta?.exportOnly), [columns])
+  // Hidden: what this person put away, and what is off by default and they have not switched on.
+  const hidden = useMemo(() => {
+    const on = new Set(preference.shown ?? [])
+    const byDefault = shown
+      .filter((column) => column.meta?.hiddenByDefault && !on.has(column.id as string))
+      .map((column) => column.id as string)
+    return [...new Set([...preference.hidden, ...byDefault])]
+  }, [shown, preference.hidden, preference.shown])
 
   const table = useReactTable({
     data: rows,
@@ -155,7 +171,7 @@ export function DataTable<T>({
     manualPagination: true,
     state: {
       columnOrder: ordered,
-      columnVisibility: Object.fromEntries(preference.hidden.map((id) => [id, false])),
+      columnVisibility: Object.fromEntries(hidden.map((id) => [id, false])),
     },
   })
 
@@ -254,7 +270,7 @@ export function DataTable<T>({
                 columns={ordered.flatMap((id) => {
                   const column = columns.find((item) => item.id === id)
                   const meta = column?.meta
-                  return column && meta?.export && !preference.hidden.includes(id)
+                  return column && meta?.export && !hidden.includes(id)
                     ? [
                         {
                           title: meta.label ?? (typeof column.header === 'string' ? column.header : id),
@@ -266,12 +282,7 @@ export function DataTable<T>({
               />
             ) : null}
             {preferenceKey ? (
-              <ColumnChooser
-                columns={shown}
-                order={ordered}
-                hidden={preference.hidden}
-                onChange={(next) => setPreference(next)}
-              />
+              <ColumnChooser columns={shown} order={ordered} hidden={hidden} onChange={(next) => setPreference(next)} />
             ) : null}
             {/* The screen's own buttons end the row, when no row above has taken them. */}
             {actionsRef ? <div ref={actionsRef} className="contents" /> : null}
@@ -354,35 +365,46 @@ export function DataTable<T>({
                       ))}
                     </tr>
                   ))
-                : table.getRowModel().rows.map((row, index) => (
-                    <tr
-                      key={row.id}
-                      data-active={index === active}
-                      onClick={() => {
-                        setActive(index)
-                        onRowOpen?.(row.original)
-                      }}
-                      className={cn(
-                        'outline-2 -outline-offset-2 outline-transparent transition-colors',
-                        onRowOpen && 'cursor-pointer hover:bg-canvas',
-                        index === active && 'bg-accent-soft/60 hover:bg-accent-soft/60',
-                        loading && 'opacity-60',
-                        rowClassName?.(row.original),
-                      )}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
+                : table.getRowModel().rows.map((row, index) => {
+                    const under = expanded?.(row.original)
+                    return (
+                      <Fragment key={row.id}>
+                        <tr
+                          data-active={index === active}
+                          onClick={() => {
+                            setActive(index)
+                            onRowOpen?.(row.original)
+                          }}
                           className={cn(
-                            'border-b border-line px-3 py-2 align-middle',
-                            cell.column.columnDef.meta?.className,
+                            'outline-2 -outline-offset-2 outline-transparent transition-colors',
+                            onRowOpen && 'cursor-pointer hover:bg-canvas',
+                            index === active && 'bg-accent-soft/60 hover:bg-accent-soft/60',
+                            loading && 'opacity-60',
+                            rowClassName?.(row.original),
                           )}
                         >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                          {row.getVisibleCells().map((cell) => (
+                            <td
+                              key={cell.id}
+                              className={cn(
+                                'border-b border-line px-3 py-2 align-middle',
+                                cell.column.columnDef.meta?.className,
+                              )}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                        {under ? (
+                          <tr data-expanded>
+                            <td colSpan={visibleCount} className="border-b border-line bg-canvas/50 px-3 py-2">
+                              {under}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    )
+                  })}
             </tbody>
           </table>
           {isEmpty ? (empty ?? <EmptyState icon={Inbox} title={t('common.nothingFound')} />) : null}
@@ -517,22 +539,41 @@ function ColumnChooser<T>({
   const { t } = useTranslation()
   const byId = new Map(columns.map((column) => [column.id as string, column]))
   const choosable = order.filter((id) => byId.has(id) && !byId.get(id)?.meta?.fixed)
+  const offByDefault = (id: string) => !!byId.get(id)?.meta?.hiddenByDefault
+  const [dragged, setDragged] = useState<string | null>(null)
+  const [over, setOver] = useState<string | null>(null)
 
   const labelOf = (id: string) => {
     const column = byId.get(id)
     return column?.meta?.label ?? (typeof column?.header === 'string' ? column.header : id)
   }
 
-  const move = (id: string, delta: number) => {
-    const index = order.indexOf(id)
-    const target = index + delta
-    if (target < 0 || target >= order.length) {
+  // What is saved is said the way the table reads it: what was put away, and what was switched on of the rest.
+  const save = (nextHidden: string[], nextOrder = order) =>
+    onChange({
+      order: nextOrder,
+      hidden: nextHidden.filter((id) => !offByDefault(id)),
+      shown: columns.map((column) => column.id as string).filter((id) => offByDefault(id) && !nextHidden.includes(id)),
+    })
+  const set = (id: string, on: boolean) => save(on ? hidden.filter((item) => item !== id) : [...hidden, id])
+
+  const moveTo = (id: string, target: string) => {
+    if (id === target) {
       return
     }
-    const next = [...order]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    onChange({ hidden, order: next })
+    const next = order.filter((item) => item !== id)
+    next.splice(next.indexOf(target), 0, id)
+    save(hidden, next)
   }
+  const step = (id: string, delta: number) => {
+    const index = choosable.indexOf(id)
+    const target = choosable[index + delta]
+    if (target) {
+      moveTo(id, target)
+    }
+  }
+
+  const allOn = choosable.every((id) => !hidden.includes(id))
 
   return (
     <Popover.Root>
@@ -547,33 +588,78 @@ function ColumnChooser<T>({
         <Popover.Content
           align="end"
           sideOffset={6}
-          className="z-50 w-64 rounded-lg border border-line bg-surface p-2 shadow-float data-[state=open]:animate-pop-in"
+          className="z-50 flex max-h-[min(70vh,36rem)] w-80 flex-col rounded-xl border border-line bg-surface shadow-float data-[state=open]:animate-pop-in"
         >
-          <p className="eyebrow px-1.5 pb-1.5">{t('common.columns')}</p>
-          <div className="flex flex-col">
+          <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
+            <p className="text-[13px] font-semibold text-ink">{t('common.columns')}</p>
+            <button
+              type="button"
+              className="text-xs text-accent hover:underline"
+              onClick={() => onChange({ hidden: [], order: [], shown: [] })}
+            >
+              {t('common.resetColumns')}
+            </button>
+          </div>
+          <div className="border-b border-line px-2 py-1.5">
+            <div className="flex h-8 items-center rounded-md px-1.5 hover:bg-sunken">
+              <Checkbox
+                checked={allOn}
+                onChange={(checked) => save(checked ? [] : [...choosable])}
+                label={t('common.allColumns')}
+                className="min-w-0 flex-1 font-medium"
+              />
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {choosable.map((id) => (
-              <div key={id} className="flex h-8 items-center gap-1 rounded-md px-1.5 hover:bg-sunken">
+              <div
+                key={id}
+                data-column={id}
+                draggable
+                onDragStart={(event) => {
+                  setDragged(id)
+                  event.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setOver(id)
+                }}
+                onDragLeave={() => setOver((current) => (current === id ? null : current))}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (dragged) {
+                    moveTo(dragged, id)
+                  }
+                  setDragged(null)
+                  setOver(null)
+                }}
+                onDragEnd={() => {
+                  setDragged(null)
+                  setOver(null)
+                }}
+                className={cn(
+                  'group/col mb-1 flex h-9 items-center gap-1 rounded-lg border border-line bg-canvas/60 pr-1 pl-2 transition-colors',
+                  dragged === id && 'opacity-40',
+                  over === id && dragged !== id && 'border-accent bg-accent-soft',
+                )}
+              >
                 <Checkbox
                   checked={!hidden.includes(id)}
-                  onChange={(checked) =>
-                    onChange({ order, hidden: checked ? hidden.filter((item) => item !== id) : [...hidden, id] })
-                  }
+                  onChange={(checked) => set(id, checked)}
                   label={labelOf(id)}
                   className="min-w-0 flex-1"
                 />
-                <Button variant="ghost" size="iconSm" className="size-6" onClick={() => move(id, -1)} aria-label="↑">
-                  <ChevronUp />
-                </Button>
-                <Button variant="ghost" size="iconSm" className="size-6" onClick={() => move(id, 1)} aria-label="↓">
-                  <ChevronDown />
-                </Button>
+                <span className="flex opacity-0 transition-opacity group-hover/col:opacity-100">
+                  <Button variant="ghost" size="iconSm" className="size-6" onClick={() => step(id, -1)} aria-label="↑">
+                    <ChevronUp />
+                  </Button>
+                  <Button variant="ghost" size="iconSm" className="size-6" onClick={() => step(id, 1)} aria-label="↓">
+                    <ChevronDown />
+                  </Button>
+                </span>
+                <GripVertical className="size-4 shrink-0 cursor-grab text-ink-3" aria-hidden />
               </div>
             ))}
-          </div>
-          <div className="mt-1.5 border-t border-line pt-1.5">
-            <Button variant="ghost" size="sm" className="w-full" onClick={() => onChange({ hidden: [], order: [] })}>
-              {t('common.resetColumns')}
-            </Button>
           </div>
         </Popover.Content>
       </Popover.Portal>

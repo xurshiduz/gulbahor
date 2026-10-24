@@ -1,6 +1,7 @@
 import {
   agentAlarmSchema,
   agentReaderStateSchema,
+  agentLocalPrintersSchema,
   agentTagSchema,
   agentUnitsRequestSchema,
   type AgentUnitsReply,
@@ -74,6 +75,7 @@ export class AgentGateway implements OnGatewayConnection, OnGatewayDisconnect {
     known(agent)
     socket.emit('welcome', { name: agent.name })
     socket.emit('readers', await this.readers.forAgent(agent).catch(() => []))
+    socket.emit('receipt.printer', { name: agent.receiptPrinter })
     this.realtime.changed(agent.orgId, ['devices', 'printjobs'])
 
     await this.queue.recover(agent.orgId, agent.id)
@@ -88,6 +90,20 @@ export class AgentGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.readers.agentGone(agent.id)
     await this.devices.agentSeen(agent).catch(() => undefined)
     this.realtime.changed(agent.orgId, ['devices', 'printjobs'])
+  }
+
+  /** The printers Windows has on the agent's computer: what "Printer qo'shish" offers for USB. */
+  @SubscribeMessage('printers')
+  async printers(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown): Promise<{ ok: boolean }> {
+    const agent = await this.agentOf(socket)
+    const list = agentLocalPrintersSchema.safeParse(body)
+    if (!agent || !list.success) {
+      return { ok: false }
+    }
+    if (this.hub.setLocalPrinters(agent.id, list.data)) {
+      this.realtime.changed(agent.orgId, ['devices'])
+    }
+    return { ok: true }
   }
 
   /** A piece laid on a till's reader. */

@@ -59,7 +59,8 @@ export function AuthLayout({ title, subtitle, children, wide }: { title: string;
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-5">
       <div className="flex items-center gap-2.5">
-        <img src="/logo.svg" alt={APP_NAME} className="h-28 w-auto object-contain" />
+        <img src="/logo.png" alt={APP_NAME} className="h-36 w-auto object-contain dark:hidden" />
+        <img src="/logo-light.png" alt={APP_NAME} className="hidden h-28 w-auto object-contain dark:block" />
       </div>
       <div className={`w-full rounded-xl border border-line bg-surface p-6 shadow-card ${wide ? 'max-w-2xl' : 'max-w-sm'}`}>
         <h1 className="text-base font-semibold">{title}</h1>

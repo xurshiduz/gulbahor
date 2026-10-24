@@ -67,6 +67,10 @@ interface LocationOption {
 interface Props {
   /** Labels for the goods of this receipt; without it, for goods picked here. */
   receipt?: Pick<ReceiptDto, 'id' | 'number' | 'lines' | 'products'>
+  /** A model to start with, opened from its card in the catalogue. */
+  productId?: string
+  /** Models to start with: those whose prices were just changed. */
+  productIds?: string[]
   onClose: () => void
 }
 
@@ -87,7 +91,7 @@ function saveFile(name: string, text: string) {
  * less the ones already printed; on its own the dialog takes any goods:
  * pick a model or scan a piece's barcode, and one more label is added.
  */
-export function LabelDialog({ receipt, onClose }: Props) {
+export function LabelDialog({ receipt, productId: startWith, productIds, onClose }: Props) {
   const { t } = useTranslation()
   const { can, hasModule } = useSession()
   const queryClient = useQueryClient()
@@ -193,6 +197,21 @@ export function LabelDialog({ receipt, onClose }: Props) {
       )
     }
   }
+
+  // Opened from a model's card, or after prices changed: those models are already in the list, one by one.
+  const started = useRef(false)
+  useEffect(() => {
+    const first = startWith ? [startWith] : (productIds ?? [])
+    if (first.length && !started.current) {
+      started.current = true
+      void (async () => {
+        for (const id of first) {
+          await add(id)
+        }
+      })()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startWith])
 
   useScanner(
     (code) => {

@@ -26,6 +26,7 @@ import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
 import { Page, SearchInput } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { useBrands, useCategories, useCategoryOptions, usePriceTypes } from '@/features/catalog/catalog'
+import { LabelDialog } from '@/features/labels/label-dialog'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
 import { fetchAll, moneyCell } from '@/lib/excel'
@@ -53,6 +54,9 @@ export function PricesPage() {
   const canPrice = can('products.prices')
   const seesCost = can('stock.cost')
   const [repricing, setRepricing] = useState(false)
+  // The models whose prices just changed, their labels to be printed again.
+  const [relabel, setRelabel] = useState<string[] | null>(null)
+  const confirm = useConfirm()
 
   const { tab, ...listSearch } = search
 
@@ -325,8 +329,20 @@ export function PricesPage() {
           priceTypes={types}
           seesCost={seesCost}
           onClose={() => setRepricing(false)}
+          onApplied={(productIds) => {
+            setRepricing(false)
+            // The labels on the shelf still say the old price: printing them again is offered, never forced.
+            if (can('labels.print')) {
+              void confirm({
+                title: t('pricing.relabelTitle', { count: productIds.length }),
+                description: t('pricing.relabelHint'),
+                confirmLabel: t('pricing.relabel'),
+              }).then((yes) => (yes ? setRelabel(productIds) : undefined))
+            }
+          }}
         />
       ) : null}
+      {relabel ? <LabelDialog productIds={relabel} onClose={() => setRelabel(null)} /> : null}
     </Page>
   )
 }

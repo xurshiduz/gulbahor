@@ -267,4 +267,14 @@ describe('isLocalHost', () => {
     expect(printerInputSchema.parse(printer)).toMatchObject({ port: 9100, locationId: null })
     expect(printerInputSchema.safeParse({ ...printer, host: 'evil.example.com' }).success).toBe(false)
   })
+
+  it('takes a printer on a cable by its Windows name, with no address', () => {
+    const printer = { name: 'CP30', agentId: ID, dpi: 203, labelSize: '50x30', rfid: true }
+    expect(printerInputSchema.parse({ ...printer, queue: 'Chainway CP30' })).toMatchObject({
+      queue: 'Chainway CP30',
+      host: '',
+    })
+    // Neither a name nor an address: nowhere to print.
+    expect(printerInputSchema.safeParse({ ...printer, queue: '  ' }).success).toBe(false)
+  })
 })

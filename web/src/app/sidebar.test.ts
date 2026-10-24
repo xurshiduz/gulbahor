@@ -15,8 +15,8 @@ describe('the menu', () => {
     expect(NAVIGATION.map((group) => group.key)).toEqual([
       'main',
       'sales',
+      // Goods and stock are one section, as in Billz.
       'catalog',
-      'stock',
       'customers',
       'marketing',
       'money',

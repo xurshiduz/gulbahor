@@ -1,5 +1,6 @@
 import {
   DEFAULT_CUSTOMER_TERMS,
+  DEFAULT_ORG_SETTINGS,
   formatDate,
   fromIsoDate,
   searchKey,
@@ -38,6 +39,7 @@ import {
   CustomerGroup,
   CustomerGroupMember,
   LoyaltyTierRow,
+  Organization,
   PriceType,
 } from '../../database/entities'
 import { AuditService, diff } from '../audit/audit.service'
@@ -215,6 +217,11 @@ export class CustomersService {
   async search(actor: Actor, q: string): Promise<PosCustomerDto[]> {
     return this.db.tenant(actor.orgId, async ({ em }) => {
       const qb = em.createQueryBuilder(Customer, 'c').where('c.isActive')
+      // A business that sells only to buyers keeps its suppliers out of the till's way.
+      const org = await em.findOneByOrFail(Organization, { id: actor.orgId })
+      if (!{ ...DEFAULT_ORG_SETTINGS, ...org.settings }.tillShowsSuppliers) {
+        qb.andWhere('NOT c.isSupplier')
+      }
       applySearch(qb, 'c.search_key', q, { names: true })
       // Every spelling of the name is offered; the one written as it was typed first.
       const typed = searchKey(q)

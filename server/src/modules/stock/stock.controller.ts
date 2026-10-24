@@ -1,9 +1,12 @@
 import {
+  stockHistoryQuerySchema,
+  type StockHistoryItemDto,
+  type StockHistoryQuery,
+  type StockListDto,
   idSchema,
   stockListQuerySchema,
   stockUnitsQuerySchema,
   type Page,
-  type StockListItemDto,
   type StockListQuery,
   type StockLocationDto,
   type StockProductDto,
@@ -25,7 +28,7 @@ export class StockController {
   list(
     @CurrentActor() actor: Actor,
     @Query(zod(stockListQuerySchema)) query: StockListQuery,
-  ): Promise<Page<StockListItemDto>> {
+  ): Promise<StockListDto> {
     return this.stock.list(actor, query)
   }
 
@@ -39,6 +42,17 @@ export class StockController {
   @Can('stock.view')
   product(@CurrentActor() actor: Actor, @Param('id', zod(idSchema)) id: string): Promise<StockProductDto> {
     return this.stock.product(actor, id)
+  }
+
+  /** What happened to a model's pieces, newest first: receipts, sales, transfers, counts. */
+  @Get('products/:id/history')
+  @Can('stock.view')
+  history(
+    @CurrentActor() actor: Actor,
+    @Param('id', zod(idSchema)) id: string,
+    @Query(zod(stockHistoryQuerySchema)) query: StockHistoryQuery,
+  ): Promise<Page<StockHistoryItemDto>> {
+    return this.stock.history(actor, id, query)
   }
 
   @Get('products/:id/units')

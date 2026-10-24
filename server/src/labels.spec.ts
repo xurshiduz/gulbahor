@@ -45,9 +45,16 @@ describe('Labels', () => {
   const sockets: Socket[] = []
 
   /** The shop agent itself, the program that runs on a shop computer, pointed at this server. */
-  const connectAgent = (key: string): Promise<Socket> =>
+  const connectAgent = (key: string, more: Partial<Parameters<typeof startAgent>[0]> = {}): Promise<Socket> =>
     new Promise((resolve, reject) => {
-      const socket = startAgent({ url: apiUrl, key, onRefused: (reason) => reject(new Error(reason)) })
+      const socket = startAgent({
+        url: apiUrl,
+        key,
+        onRefused: (reason) => reject(new Error(reason)),
+        // No real Windows printers here: none found, none set.
+        localPrinters: { list: async () => [], setDefault: async () => undefined, send: async () => undefined },
+        ...more,
+      })
       sockets.push(socket)
       socket.once('welcome', () => resolve(socket))
       socket.once('connect_error', reject)
@@ -413,6 +420,49 @@ describe('Labels', () => {
         expect(jobs.find((job) => job.id === test.id)?.status).toBe('done')
       })
       expect(printed).toContain('^FDSinov: CP30^FS')
+    })
+
+    it('finds the printers plugged into the agent’s computer, prints to one by its name, and sets the receipt printer', async () => {
+      const usb = { name: 'Chainway CP30', port: 'USB002', driver: 'Generic / Text Only', isDefault: false }
+      const receipts = { name: 'Xprinter XP-365B', port: 'USB001', driver: 'Xprinter', isDefault: true }
+      const sent: { queue: string; data: string }[] = []
+      const defaults: string[] = []
+      const made = (await alpha.post('/api/devices/agents').send({ name: 'Sklad kompyuteri' }).expect(201)).body
+      await connectAgent(made.key, {
+        localPrinters: {
+          list: async () => [receipts, usb],
+          setDefault: async (name) => void defaults.push(name),
+          send: async (queue, data) => void sent.push({ queue, data }),
+        },
+      })
+      await eventually(async () => {
+        const agent = ((await alpha.get('/api/devices/agents').expect(200)).body as { id: string }[]).find(
+          (item) => item.id === made.id,
+        )
+        expect(agent).toMatchObject({ localPrinters: [receipts, usb], receiptPrinter: null })
+      })
+
+      // No address for a printer on a cable: the name Windows gives it is enough.
+      const printer = { name: 'CP30 USB', agentId: made.id, queue: usb.name, dpi: 203, labelSize: '50x30', rfid: false }
+      const created = (await alpha.post('/api/devices/printers').send(printer).expect(201)).body
+      expect(created).toMatchObject({ queue: usb.name, host: '' })
+      await alpha.post('/api/devices/printers').send({ ...printer, name: 'Hech qayer', queue: null }).expect(400)
+      const test = (await alpha.post(`/api/devices/printers/${created.id}/test`).expect(200)).body
+      await eventually(async () => {
+        const jobs = (await alpha.get('/api/labels/jobs').expect(200)).body.items as { id: string; status: string }[]
+        expect(jobs.find((job) => job.id === test.id)?.status).toBe('done')
+      })
+      expect(sent).toEqual([{ queue: usb.name, data: expect.stringContaining('^FDSinov: CP30 USB^FS') }])
+
+      // The receipt printer is made the computer's default at once, and again whenever the agent connects.
+      await alpha
+        .put(`/api/devices/agents/${made.id}`)
+        .send({ name: 'Sklad kompyuteri', receiptPrinter: receipts.name })
+        .expect(200)
+      await eventually(async () => expect(defaults).toEqual([receipts.name]))
+      // A form that does not send it leaves it as it was.
+      const kept = (await alpha.put(`/api/devices/agents/${made.id}`).send({ name: 'Ombor kompyuteri' }).expect(200)).body
+      expect(kept.receiptPrinter).toBe(receipts.name)
     })
 
     it('says so when the printer does not answer, and can try again', async () => {

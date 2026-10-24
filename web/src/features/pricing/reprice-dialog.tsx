@@ -46,6 +46,8 @@ interface Props {
   /** What the window opens at: "fill in what is missing" starts with that price type, by the rules. */
   start?: { priceTypeId: string; kind: RepriceKind }
   onClose: () => void
+  /** The change is made: its models are offered for new labels, in a window that takes this one's place. */
+  onApplied?: (productIds: string[]) => void
 }
 
 type Direction = 'up' | 'down'
@@ -55,7 +57,7 @@ type Direction = 'up' | 'down'
  * is worked out first and shown, old price beside new; only then, and only
  * if nothing was altered since, can it be applied.
  */
-export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onClose }: Props) {
+export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onClose, onApplied }: Props) {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const queryClient = useQueryClient()
@@ -76,6 +78,9 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onCl
   // From cost at today's rates of the currencies the goods came in: what bringing them in again would cost.
   const [today, setToday] = useState(false)
   const [sourceId, setSourceId] = useState<string | null>(null)
+  // The rate the prices were set at and the one they are to follow.
+  const [rateFrom, setRateFrom] = useState<number | null>(null)
+  const [rateTo, setRateTo] = useState<number | null>(null)
   const [round, setRound] = useState(true)
   const [note, setNote] = useState('')
 
@@ -89,19 +94,21 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onCl
         ? { kind, percent: percent === null ? undefined : sign * percent }
         : kind === 'amount'
           ? { kind, amount: amount === null ? undefined : sign * amount }
-          : kind === 'formula'
-            ? {
-                kind,
-                // A price to be named outright, and none typed yet, is not a request.
-                formula: formula.way === 'fixed' && !formula.amount ? undefined : formulaOf(formula),
-                today: today && formula.way !== 'fixed',
-              }
-            : { kind, priceTypeId: source?.id, percent: percent === null ? undefined : sign * percent }
+          : kind === 'rate'
+            ? { kind, from: rateFrom ?? undefined, to: rateTo ?? undefined }
+            : kind === 'formula'
+              ? {
+                  kind,
+                  // A price to be named outright, and none typed yet, is not a request.
+                  formula: formula.way === 'fixed' && !formula.amount ? undefined : formulaOf(formula),
+                  today: today && formula.way !== 'fixed',
+                }
+              : { kind, priceTypeId: source?.id, percent: percent === null ? undefined : sign * percent }
     if (kind === 'formula' && formula.way === 'fixed' && !formula.amount) {
       return repriceSchema.safeParse({})
     }
     return repriceSchema.safeParse({ priceTypeId, filter, operation, round, note })
-  }, [kind, percent, amount, today, formula, sign, source, priceTypeId, filter, round, note])
+  }, [kind, percent, amount, rateFrom, rateTo, today, formula, sign, source, priceTypeId, filter, round, note])
 
   // A preview belongs to the request it was worked out for; any change to the fields makes it stale.
   const key = request.success ? JSON.stringify({ ...request.data, note: undefined }) : null
@@ -123,7 +130,11 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onCl
       void queryClient.invalidateQueries({ queryKey: ['pricing'] })
       void queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success(t('pricing.applied', { number: result.revision?.number, count: result.changed }))
-      onClose()
+      if (onApplied && result.productIds?.length) {
+        onApplied(result.productIds)
+      } else {
+        onClose()
+      }
     },
     onError: failed,
   })
@@ -246,7 +257,29 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onCl
               )}
             </Field>
           ) : null}
-          {kind !== 'formula' ? (
+          {kind === 'rate' ? (
+            <>
+              <Field label={t('pricing.rateFrom')} required>
+                {(id) => <NumberInput id={id} autoFocus value={rateFrom} onChange={setRateFrom} decimals={6} />}
+              </Field>
+              <Field
+                label={t('pricing.rateTo')}
+                required
+                hint={
+                  rateFrom && rateTo
+                    ? t('pricing.rateMove', {
+                        percent: `${rateTo >= rateFrom ? '+' : '−'}${formatNumber(
+                          Math.round(Math.abs(rateTo / rateFrom - 1) * 10000) / 100,
+                        )}%`,
+                      })
+                    : undefined
+                }
+              >
+                {(id) => <NumberInput id={id} value={rateTo} onChange={setRateTo} decimals={6} />}
+              </Field>
+            </>
+          ) : null}
+          {kind !== 'formula' && kind !== 'rate' ? (
             <Field label={t('pricing.direction')}>
               {(id) => (
                 <Select
@@ -265,7 +298,7 @@ export function RepriceDialog({ filter, scope, priceTypes, seesCost, start, onCl
             <Field label={t('pricing.amount')} required>
               {(id) => <MoneyInput id={id} autoFocus value={amount} onChange={setAmount} currency={type.currency} />}
             </Field>
-          ) : kind === 'formula' ? null : (
+          ) : kind === 'formula' || kind === 'rate' ? null : (
             <Field label={t('pricing.percent')} required>
               {(id) => (
                 <NumberInput

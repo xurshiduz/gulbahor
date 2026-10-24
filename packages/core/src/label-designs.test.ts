@@ -74,6 +74,21 @@ describe('a label design', () => {
     expect(layoutDesign(design([{ field: 'barcode', w: 5, h: 10 }]), SAMPLE_LABEL_VALUES).items).toEqual([])
   })
 
+  it('sizes the digits under the bars as asked, the bars taking what height is left', () => {
+    const bars = (size: number) =>
+      layoutDesign(design([{ field: 'barcode', w: 40, h: 15, size }]), SAMPLE_LABEL_VALUES).items[0] as {
+        height: number
+        digitFont: number
+      }
+    expect(bars(14).digitFont).toBeGreaterThan(bars(7).digitFont)
+    expect(bars(14).height).toBeLessThan(bars(7).height)
+    const zpl = buildDesignZpl(design([{ field: 'barcode', w: 40, h: 15, size: 14 }]), SAMPLE_LABEL_VALUES)
+    expect(zpl).toContain(`^CF0,${bars(14).digitFont}`)
+    // No digits, no font for them.
+    const bare = buildDesignZpl(design([{ field: 'barcode', w: 40, h: 15, digits: false }]), SAMPLE_LABEL_VALUES)
+    expect(bare).not.toContain('^CF0')
+  })
+
   it('tells the printer bold, the line under, the chip and the logo', () => {
     const zpl = buildDesignZpl(
       design(

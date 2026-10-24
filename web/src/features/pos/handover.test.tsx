@@ -53,6 +53,20 @@ describe('handing cash over', () => {
     expect(screen.getAllByRole('button', { name: /yashirish|Yashirish/ })).toHaveLength(1)
   })
 
+  it('shows what the server refused under the sum it is about', () => {
+    render(
+      <HandoverFields
+        safes={safes}
+        value={emptyHandings(safes, ['UZS', 'USD'])}
+        onChange={() => undefined}
+        currencies={['UZS', 'USD']}
+        errors={{ USD: 'Hisobda buncha pul yo‘q' }}
+      />,
+    )
+    expect(screen.getByText('Hisobda buncha pul yo‘q')).toBeTruthy()
+    expect(screen.getAllByText('Hisobda buncha pul yo‘q')).toHaveLength(1)
+  })
+
   it('sends only what holds a sum', () => {
     const handings: Handings = {
       UZS: { amount: som(350_000), toAccountId: 's1' },

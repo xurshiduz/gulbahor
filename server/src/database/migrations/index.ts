@@ -62,6 +62,7 @@ import { StockDocTags1790000061000 } from './1790000061000-stock-doc-tags'
 import { ExpensePerPiece1790000062000 } from './1790000062000-expense-per-piece'
 import { LabelDesigns1790000063000 } from './1790000063000-label-designs'
 import { UserAvatar1790000064000 } from './1790000064000-user-avatar'
+import { UsbPrinters1790000065000 } from './1790000065000-usb-printers'
 
 /** Listed by hand, oldest first, so the same set runs from source and from the build. */
 export const MIGRATIONS = [
@@ -129,4 +130,5 @@ export const MIGRATIONS = [
   ExpensePerPiece1790000062000,
   LabelDesigns1790000063000,
   UserAvatar1790000064000,
+  UsbPrinters1790000065000,
 ]

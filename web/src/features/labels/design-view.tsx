@@ -85,7 +85,8 @@ function Bars({ item }: { item: DesignBars }) {
     return null
   }
   const left = item.x + (item.ean ? 11 * item.module : 0)
-  const digits = Math.round(item.module * 10)
+  // The size set on the element, the same the printer is told.
+  const digits = item.digitFont
   return (
     <>
       {barRuns(modules).map((bar) => (

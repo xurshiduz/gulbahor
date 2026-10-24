@@ -40,7 +40,6 @@ import {
   Users,
   UsersRound,
   Wallet,
-  Warehouse,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -56,6 +55,8 @@ export interface NavItem {
   module?: string
   /** Only in development builds. */
   devOnly?: boolean
+  /** Guards its pages as the menu does, but takes no line in it: reached from another screen. */
+  hidden?: boolean
 }
 
 /** A section of the menu and the screens in it. One with a single screen is shown as that screen. */
@@ -91,22 +92,14 @@ export const NAVIGATION: NavGroup[] = [
     ],
   },
   {
+    // Goods and their stock in one place, as in Billz: the catalogue first, then the documents that move them.
     key: 'catalog',
-    label: 'nav.groupCatalog',
+    label: 'nav.groupGoods',
     icon: Shirt,
     items: [
-      { to: '/products', label: 'nav.products', icon: Shirt, permission: 'products.view' },
-      { to: '/prices', label: 'nav.prices', icon: BadgePercent, permission: 'products.view' },
-      { to: '/labels', label: 'nav.labels', icon: Tags, permission: 'labels.print' },
-      { to: '/references', label: 'nav.references', icon: BookMarked, permission: 'products.view' },
-    ],
-  },
-  {
-    key: 'stock',
-    label: 'nav.groupStock',
-    icon: Warehouse,
-    items: [
-      { to: '/stock', label: 'nav.stock', icon: Boxes, permission: 'stock.view' },
+      { to: '/stock', label: 'nav.catalog', icon: Boxes, permission: 'stock.view' },
+      // A model's own page: opened from its card in the catalogue, not from the menu.
+      { to: '/products', label: 'nav.products', icon: Shirt, permission: 'products.view', hidden: true },
       { to: '/receipts', label: 'nav.receipts', icon: PackagePlus, permission: 'receipts.view' },
       { to: '/transfers', label: 'nav.transfers', icon: Truck, permission: 'transfers.view' },
       { to: '/counts', label: 'nav.counts', icon: ClipboardCheck, permission: 'counts.view' },
@@ -117,6 +110,17 @@ export const NAVIGATION: NavGroup[] = [
         icon: PackageX,
         permission: 'supplier_returns.view',
       },
+      // Whom the goods come from, beside the goods themselves, as in Billz.
+      {
+        to: '/customers',
+        search: { tab: 'suppliers' },
+        label: 'nav.suppliers',
+        icon: Truck,
+        permission: 'customers.view',
+      },
+      { to: '/prices', label: 'nav.prices', icon: BadgePercent, permission: 'products.view' },
+      { to: '/labels', label: 'nav.labels', icon: Tags, permission: 'labels.print' },
+      { to: '/references', label: 'nav.references', icon: BookMarked, permission: 'products.view' },
     ],
   },
   {

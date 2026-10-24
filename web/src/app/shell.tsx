@@ -135,7 +135,7 @@ export function Shell() {
     return NAVIGATION.map((group) => ({
       ...group,
       items: group.items
-        .filter(sees)
+        .filter((item) => sees(item) && !item.hidden)
         .map((item) => ({ ...item, shortcut: ++position <= 9 ? `alt+${position}` : undefined })),
     })).filter((group) => group.items.length > 0)
   }, [sees])

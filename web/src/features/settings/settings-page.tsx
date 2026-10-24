@@ -94,6 +94,7 @@ function BusinessSettings() {
         debtLimit: me.org.settings.debtLimit as number | null,
         receiptLineExtra: me.org.settings.receiptLineExtra,
         receiptLineSupplier: me.org.settings.receiptLineSupplier,
+        tillShowsSuppliers: me.org.settings.tillShowsSuppliers ?? true,
       },
     },
   })
@@ -283,6 +284,18 @@ function BusinessSettings() {
               onChange={field.onChange}
               label={t('settings.receiptLineSupplier')}
               hint={t('settings.receiptLineSupplierHint')}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="settings.tillShowsSuppliers"
+          render={({ field }) => (
+            <Switch
+              checked={field.value}
+              onChange={field.onChange}
+              label={t('settings.tillShowsSuppliers')}
+              hint={t('settings.tillShowsSuppliersHint')}
             />
           )}
         />

@@ -47,7 +47,7 @@ import { Checkbox, Menu, Select, TabPanel, Tabs, type MenuItem } from '@/compone
 import { DataTable } from '@/components/ui/data-table'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog } from '@/components/ui/dialog'
-import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
+import { Badge, EmptyState, Shortcut, Tooltip } from '@/components/ui/feedback'
 import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form, zodCheck } from '@/components/ui/form'
 import { Input, Textarea } from '@/components/ui/input'
@@ -122,11 +122,14 @@ export function CustomersPage() {
   const [over, setOver] = useState<Over | null>(null)
   const groups = useCustomerGroups(seesBase)
 
-  const { edit, tab: asked, debtState: _debts, ...filters } = search
+  const { edit, tab: asked, debtState: _debts, ...listed } = search
   // Whoever keeps the debts without the base has that sheet and no other.
   const tab = seesBase ? asked : 'debts'
-  // Only these two sheets have something to add.
-  const adds = canManage && (tab === 'list' || tab === 'groups')
+  // The suppliers' sheet is the same list, held to them.
+  const suppliers = tab === 'suppliers'
+  const filters = suppliers ? { ...listed, supplier: 'yes' as const } : listed
+  // Only these sheets have something to add.
+  const adds = canManage && (tab === 'list' || tab === 'groups' || suppliers)
   const list = useQuery({
     queryKey: ['customers', 'list', filters],
     queryFn: ({ signal }) => api.get<Listed>('/customers', filters, signal),
@@ -144,7 +147,8 @@ export function CustomersPage() {
   const open = (value: string | undefined) => void navigate({ search: (previous) => ({ ...previous, edit: value }) })
 
   const add = () => (tab === 'groups' ? setGroupForm(null) : open('new'))
-  const addLabel = tab === 'groups' ? t('customers.addGroup') : t('customers.add')
+  const addLabel =
+    tab === 'groups' ? t('customers.addGroup') : suppliers ? t('customers.addSupplier') : t('customers.add')
   useHotkey('n', add, {
     label: addLabel,
     group: t('shortcuts.groupList'),
@@ -153,35 +157,45 @@ export function CustomersPage() {
 
   const columns = useMemo<ColumnDef<CustomerDto>[]>(
     () => {
-      const menu = (customer: CustomerDto): MenuItem[] => [
+      // The everyday ones, a click away on the row itself: the statement, taking money and paying it out.
+      const quick = (customer: CustomerDto) => [
         // The server sends the accounts only to whoever may see them: so it is with the statement.
         ...(customer.balances !== null
           ? [
               {
+                key: 'statement',
                 label: t('payments.statement'),
                 icon: <ScrollText />,
-                onSelect: () => setOver({ kind: 'statement', customer }),
+                tone: 'ink' as const,
+                kind: 'statement' as const,
               },
             ]
           : []),
         ...(canTake && customer.isActive
           ? [
               {
+                key: 'in',
                 label: t('payments.takeIn'),
                 icon: <ArrowDownLeft />,
-                onSelect: () => setOver({ kind: 'in', customer }),
+                tone: 'ok' as const,
+                kind: 'in' as const,
               },
             ]
           : []),
         ...(canPayOut && customer.isActive
           ? [
               {
+                key: 'out',
                 label: t('payments.payOut'),
                 icon: <ArrowUpRight />,
-                onSelect: () => setOver({ kind: 'out', customer }),
+                tone: 'bad' as const,
+                kind: 'out' as const,
               },
             ]
           : []),
+      ]
+      // The rest, in the menu.
+      const menu = (customer: CustomerDto): MenuItem[] => [
         ...(canAdjust && customer.isActive
           ? [{ label: t('payments.opening'), icon: <Scale />, onSelect: () => setOver({ kind: 'opening', customer }) }]
           : []),
@@ -264,7 +278,7 @@ export function CustomersPage() {
             },
           ]
         : []
-      return [
+      const columnsList: ColumnDef<CustomerDto>[] = [
         {
           id: 'name',
           header: t('customers.name'),
@@ -431,6 +445,34 @@ export function CustomersPage() {
           },
         },
       ]
+      const quickColumn: ColumnDef<CustomerDto> = {
+        id: 'quick',
+        header: '',
+        meta: { fixed: true, className: 'w-px whitespace-nowrap' },
+        cell: ({ row }) => (
+          <span data-quick className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
+            {quick(row.original).map((action) => (
+              <Tooltip key={action.key} content={action.label}>
+                <Button
+                  variant="ghost"
+                  size="iconSm"
+                  tabIndex={-1}
+                  aria-label={action.label}
+                  onClick={() => setOver({ kind: action.kind, customer: row.original })}
+                  className={cn(
+                    action.tone === 'ok' && 'text-ok hover:bg-ok-soft hover:text-ok',
+                    action.tone === 'bad' && 'text-bad hover:bg-bad-soft hover:text-bad',
+                    action.tone === 'ink' && 'text-accent hover:bg-accent-soft hover:text-accent-ink',
+                  )}
+                >
+                  {action.icon}
+                </Button>
+              </Tooltip>
+            ))}
+          </span>
+        ),
+      }
+      return [quickColumn, ...columnsList]
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t, canManage, seesBalances, canTake, canPayOut, canAdjust],
@@ -447,9 +489,9 @@ export function CustomersPage() {
   const soon = search.birthdayIn !== undefined
 
   // A customer opens on their card for whoever keeps the cards, on their account for whoever keeps only that.
-  const onRowOpen = canManage
-    ? (row: CustomerDto) => open(row.id)
-    : (row: CustomerDto) => (row.balances !== null ? setOver({ kind: 'statement', customer: row }) : undefined)
+  // A row opens the account — its statement — for whoever may see it; the card is edited from the menu.
+  const onRowOpen = (row: CustomerDto) =>
+    row.balances !== null ? setOver({ kind: 'statement', customer: row }) : canManage ? open(row.id) : undefined
 
   return (
     <Page
@@ -482,6 +524,8 @@ export function CustomersPage() {
           ...(seesBase
             ? [
                 { value: 'list', label: t('customers.title') },
+                // Their sums are for whoever keeps the suppliers' accounts; the list itself is everyone's.
+                { value: 'suppliers', label: t('customers.suppliers') },
                 { value: 'groups', label: t('customers.groups') },
                 { value: 'loyalty', label: t('customers.loyalty') },
               ]
@@ -496,8 +540,9 @@ export function CustomersPage() {
           <LoyaltyTab />
         </TabPanel>
         <TabPanel value="debts">{seesBalances ? <DebtorsTab /> : null}</TabPanel>
-        <TabPanel value="list">
-          {summary ? (
+        {/* One list for both sheets: on the suppliers' it holds to them, with no buyers' figures. */}
+        <TabPanel value={suppliers ? 'suppliers' : 'list'}>
+          {summary && !suppliers ? (
             <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
               <Figure label={t('customers.total')} value={summary.total} />
               <Figure label={t('customers.newThisWeek')} value={summary.newThisWeek} tone="ok" />
@@ -525,13 +570,16 @@ export function CustomersPage() {
             loading={list.isFetching}
             rowId={(row) => row.id}
             onRowOpen={onRowOpen}
-            exportAs={{ fileName: t('customers.title'), rows: () => fetchAll<CustomerDto>('/customers', filters) }}
+            exportAs={{
+              fileName: suppliers ? t('customers.suppliers') : t('customers.title'),
+              rows: () => fetchAll<CustomerDto>('/customers', filters),
+            }}
             sort={search.sort ?? 'name'}
             order={search.order}
             onSortChange={(sort, order) =>
               void navigate({ search: (previous) => withFilter(previous, { sort, order }) })
             }
-            preferenceKey="customers"
+            preferenceKey={suppliers ? 'suppliers' : 'customers'}
             rowClassName={(row) => (row.isActive ? undefined : 'text-ink-3')}
             pagination={{
               page: search.page,
@@ -541,7 +589,7 @@ export function CustomersPage() {
               onSizeChange: (size) => void navigate({ search: (previous) => withFilter(previous, { size }) }),
             }}
             filters={{
-              kind: (
+              kind: suppliers ? null : (
                 <FilterSelect
                   value={search.supplier ?? 'all'}
                   onChange={(supplier) =>
@@ -620,8 +668,16 @@ export function CustomersPage() {
             empty={
               <EmptyState
                 icon={UsersRound}
-                title={search.q || soon ? t('common.nothingFound') : t('customers.empty')}
-                hint={search.q || soon ? undefined : t('customers.emptyHint')}
+                title={
+                  search.q || soon
+                    ? t('common.nothingFound')
+                    : suppliers
+                      ? t('customers.noSuppliers')
+                      : t('customers.empty')
+                }
+                hint={
+                  search.q || soon ? undefined : suppliers ? t('customers.noSuppliersHint') : t('customers.emptyHint')
+                }
               />
             }
           />
@@ -631,6 +687,7 @@ export function CustomersPage() {
         <CustomerDialog
           key={edit}
           customer={dialogCustomer}
+          supplier={suppliers}
           groups={(groups.data ?? []).filter((group) => group.isActive)}
           onClose={() => open(undefined)}
           onSaved={refresh}
@@ -749,11 +806,14 @@ interface Values {
 export function CustomerDialog({
   customer,
   initial,
+  supplier = false,
   groups,
   onClose,
   onSaved,
 }: {
   customer: CustomerDto | null
+  /** A new one starts as a supplier: added from the suppliers' sheet. */
+  supplier?: boolean
   /** A new customer's name and phone as far as they were typed (at the till). */
   initial?: { name?: string; phone?: string }
   /** The groups a customer can be put in. */
@@ -777,7 +837,7 @@ export function CustomerDialog({
       tags: customer?.tags ?? [],
       currency: customer?.currency ?? me.org.baseCurrency,
       priceTypeId: customer?.priceType?.id ?? RETAIL,
-      isSupplier: customer?.isSupplier ?? false,
+      isSupplier: customer?.isSupplier ?? (supplier && can('customers.suppliers')),
       credit: terms.credit,
       creditLimit: terms.creditLimit,
       due: terms.noDue ? 'none' : terms.dueDays ? 'days' : 'default',

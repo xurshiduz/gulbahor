@@ -371,11 +371,27 @@ export function LabelDesigner({ design: start, onSave, onClose, saving }: LabelD
                   </>
                 ) : null}
                 {element.field === 'barcode' ? (
-                  <Switch
-                    checked={element.digits}
-                    onChange={(digits) => patchElement(element.id, { digits })}
-                    label={t('labelDesign.digits')}
-                  />
+                  <>
+                    <Switch
+                      checked={element.digits}
+                      onChange={(digits) => patchElement(element.id, { digits })}
+                      label={t('labelDesign.digits')}
+                    />
+                    {element.digits ? (
+                      // The digits grow or shrink; the bars take what height is left in the box.
+                      <Field label={t('labelDesign.digitsSize')}>
+                        {(id) => (
+                          <Select
+                            id={id}
+                            value={String(element.size)}
+                            onChange={(value) => patchElement(element.id, { size: Number(value) })}
+                            options={SIZES.map((size) => ({ value: String(size), label: String(size) }))}
+                            className="w-20"
+                          />
+                        )}
+                      </Field>
+                    ) : null}
+                  </>
                 ) : null}
                 {element.field === 'logo' ? (
                   <Button onClick={() => file.current?.click()}>

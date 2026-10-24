@@ -184,6 +184,21 @@ describe('Receiving', () => {
       expect(product.prices).toHaveLength(1)
       expect(product.prices[0]).toMatchObject({ amount: 90_000_00, currency: 'UZS' })
       expect((await alpha.get(`/api/products/${jeans.id}`)).body.prices).toEqual([])
+
+      // The catalogue: every price type of a model in one list, and the figures of the whole list it shows.
+      const listed = (await alpha.get('/api/stock').query({ q: 'futbolka' }).expect(200)).body
+      expect(listed.items[0].prices).toEqual([
+        { priceTypeId: product.prices[0].priceTypeId, name: expect.any(String), amount: 90_000_00 },
+      ])
+      expect(listed.summary).toMatchObject({ models: 1, qty: 500, retailValue: 500 * 90_000_00 })
+      expect(listed.summary.costUzs).toBe(listed.items[0].costUzs)
+      expect((await alpha.get('/api/stock').query({ status: 'archived', presence: 'all' })).body.total).toBe(0)
+
+      // Its history: the receipt that brought the pieces, once for each place, the number to open it by.
+      const history = (await alpha.get(`/api/stock/products/${tshirt.id}/history`).expect(200)).body
+      expect(history.total).toBe(1)
+      expect(history.items[0]).toMatchObject({ kind: 'receipt', documentType: 'receipt', qty: 500 })
+      expect(history.items[0].number).toMatch(/^K-/)
     })
 
     it('cannot be edited, posted twice or deleted once posted', async () => {

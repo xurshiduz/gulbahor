@@ -123,3 +123,86 @@ export function sendToWindowsPrinter(queue: string, data: string, timeoutMs = 30
     child.stdin.end(Buffer.from(data, 'utf8').toString('base64'))
   })
 }
+
+/** A printer Windows has here, as the system is told of it. */
+export interface LocalPrinter {
+  name: string
+  port: string | null
+  driver: string | null
+  isDefault: boolean
+}
+
+function powershell(script: string, env: Record<string, string> = {}, timeoutMs = 20_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      env: { ...process.env, ...env },
+      windowsHide: true,
+    })
+    let out = ''
+    let errors = ''
+    const timer = setTimeout(() => {
+      child.kill()
+      reject(new Error('powershell javob bermadi'))
+    }, timeoutMs)
+    child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString('utf8')))
+    child.stderr.on('data', (chunk: Buffer) => (errors += chunk.toString()))
+    child.once('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      if (code === 0) {
+        resolve(out)
+      } else {
+        reject(new Error(errors.trim().split(/\r?\n/)[0] || `powershell ${code}`))
+      }
+    })
+  })
+}
+
+const LIST_PRINTERS = `
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+@(Get-CimInstance Win32_Printer | ForEach-Object {
+  [pscustomobject]@{ name = $_.Name; port = $_.PortName; driver = $_.DriverName; isDefault = [bool]$_.Default }
+}) | ConvertTo-Json -Compress
+`
+
+/** Every printer Windows has on this computer — those plugged in by USB among them. Nothing elsewhere. */
+export async function listWindowsPrinters(): Promise<LocalPrinter[]> {
+  if (process.platform !== 'win32') {
+    return []
+  }
+  const text = (await powershell(LIST_PRINTERS)).trim()
+  if (!text) {
+    return []
+  }
+  const parsed = JSON.parse(text) as unknown
+  return (Array.isArray(parsed) ? parsed : [parsed])
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      name: String(item.name ?? ''),
+      port: item.port ? String(item.port) : null,
+      driver: item.driver ? String(item.driver) : null,
+      isDefault: item.isDefault === true,
+    }))
+    .filter((item) => item.name)
+}
+
+const SET_DEFAULT = `
+$printer = Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq $env:ERP_PRINTER }
+if (-not $printer) { throw "Printer topilmadi: $env:ERP_PRINTER" }
+$result = Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
+if ($result.ReturnValue -ne 0) { throw "Asosiy printer qilib bo'lmadi ($($result.ReturnValue))" }
+`
+
+/**
+ * Makes a printer Windows' default for this user: the browser's silent printing (the "Savdo" shortcut) sends
+ * the till's receipts there.
+ */
+export async function setDefaultWindowsPrinter(name: string): Promise<void> {
+  if (process.platform !== 'win32') {
+    return
+  }
+  await powershell(SET_DEFAULT, { ERP_PRINTER: name })
+}

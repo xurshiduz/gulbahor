@@ -178,6 +178,16 @@ describe('Pricing', () => {
       expect(xl.prices).toEqual([{ priceTypeId: retail, amount: som(110_000), currency: 'UZS' }])
     })
 
+    it('follows a rate as far as it moved, and names the models whose labels are now old', async () => {
+      // The dollar went 12 000 → 12 600: 99 000 becomes 103 950, up to the thousand 104 000.
+      const preview = (await reprice({ kind: 'rate', from: 12_000, to: 12_600 }).expect(200)).body
+      expect(lineOf(preview, 'Polo')?.next).toBe(som(104_000))
+      expect(preview.productIds).toBeUndefined()
+      const exact = (await reprice({ kind: 'rate', from: 12_000, to: 12_600 }, { round: false }).expect(200)).body
+      expect(lineOf(exact, 'Polo')?.next).toBe(som(103_950))
+      await reprice({ kind: 'rate', from: 0, to: 12_600 }).expect(400)
+    })
+
     it('rounds to the step of the price type', async () => {
       const preview = (await reprice({ kind: 'percent', percent: 3 }).expect(200)).body
       // 99 000 + 3% = 101 970, to the thousand.
@@ -550,6 +560,21 @@ describe('Pricing', () => {
       expect(foreign.status).toBe(400)
       const [revision] = (await alpha.get('/api/pricing/revisions').expect(200)).body.items
       await beta.post(`/api/pricing/revisions/${revision.id}/revert`).expect(404)
+    })
+  })
+
+  describe('after a rate moved', () => {
+    it('names the models it changed, whose labels now say the old price, and goes back like any change', async () => {
+      const before = (await list()).Polo.prices[retail]
+      const done = (
+        await reprice({ kind: 'rate', from: 12_000, to: 12_600 }, { dryRun: false, filter: { q: 'polo' } }).expect(200)
+      ).body
+      expect(done.productIds).toEqual([poloId])
+      expect((await list()).Polo.prices[retail]).toBeGreaterThan(before)
+      const [last] = (await alpha.get('/api/pricing/revisions').expect(200)).body.items
+      expect(last.summary).toMatch(/^Kurs 12 000 → 12 600 \(\+5/)
+      await alpha.post(`/api/pricing/revisions/${done.revision.id}/revert`).expect(200)
+      expect((await list()).Polo.prices[retail]).toBe(before)
     })
   })
 })

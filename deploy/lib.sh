@@ -56,9 +56,29 @@ build_release() {
   ln -sfn "$ENV_FILE" "$new/server/.env"
   chown -R "$APP_USER:$APP_USER" "$new"
 
-  say "Bog'liqliklar va yig'ish (bir necha daqiqa)"
+  # Bog'liqliklar o'zgarmagan bo'lsa (package-lock.json avvalgisi bilan bir xil), ular avvalgi nusxadan
+  # ko'chiriladi: npm ci yangilashning eng uzun qismi edi. Nusxa to'liq (havola emas) — orqaga qaytish uchun
+  # avvalgi nusxa o'zgarmay qoladi. Biror papka yetishmasa, odatdagidek npm ci.
+  local reused=0
+  if [[ -n "$previous" && -d "$previous/node_modules" ]] && cmp -s "$previous/package-lock.json" "$new/package-lock.json"; then
+    say "Bog'liqliklar o'zgarmagan: avvalgi nusxadan ko'chirilmoqda"
+    reused=1
+    for dir in node_modules packages/core/node_modules server/node_modules web/node_modules agent/node_modules; do
+      if [[ -d "$previous/$dir" ]]; then
+        cp -a "$previous/$dir" "$new/$dir" || reused=0
+      fi
+    done
+    chown -R "$APP_USER:$APP_USER" "$new"
+  fi
+
+  say "Yig'ish"
   # Past ustuvorlikda: serverda ishlab turgan boshqa dasturlarga xalaqit bermasin.
-  (cd "$new" && as_app nice -n 10 npm ci --no-audit --no-fund && as_app nice -n 10 npm run build)
+  if [[ $reused -eq 1 ]]; then
+    (cd "$new" && as_app nice -n 10 npm run build)
+  else
+    say "Bog'liqliklar o'rnatilmoqda (bir necha daqiqa)"
+    (cd "$new" && as_app nice -n 10 npm ci --no-audit --no-fund && as_app nice -n 10 npm run build)
+  fi
 
   # Eski sahifa ochiq turgan brauzer keyin so'raydigan fayllar yo'qolib qolmasin: avvalgi nusxaning so'nggi
   # ikki haftada yig'ilgan fayllari yangisining yonida qoladi.

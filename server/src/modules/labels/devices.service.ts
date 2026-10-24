@@ -20,11 +20,12 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { AgentHub } from './agent.hub'
 import { PrintQueueService } from './print-queue.service'
 
-const AGENT_AUDITED: (keyof StoreAgent & string)[] = ['name', 'locationId']
+const AGENT_AUDITED: (keyof StoreAgent & string)[] = ['name', 'locationId', 'receiptPrinter']
 const PRINTER_AUDITED: (keyof Printer & string)[] = [
   'name',
   'locationId',
   'agentId',
+  'queue',
   'host',
   'port',
   'dpi',
@@ -40,6 +41,8 @@ export interface KnownAgent {
   id: string
   orgId: string
   name: string
+  /** Made the computer's default when the agent connects. */
+  receiptPrinter: string | null
 }
 
 /**
@@ -73,6 +76,7 @@ export class DevicesService {
           orgId: actor.orgId,
           name: input.name,
           locationId: input.locationId,
+          receiptPrinter: input.receiptPrinter ?? null,
           keyHash: hashToken(key),
           createdBy: actor.userId,
         }),
@@ -93,7 +97,11 @@ export class DevicesService {
       const before = await this.agentRow(em, id)
       await this.assertAgentName(em, input.name, id)
       await this.assertPlace(em, input.locationId)
-      await em.update(StoreAgent, id, { name: input.name, locationId: input.locationId })
+      await em.update(StoreAgent, id, {
+        name: input.name,
+        locationId: input.locationId,
+        ...(input.receiptPrinter === undefined ? {} : { receiptPrinter: input.receiptPrinter }),
+      })
       const after = await this.agentRow(em, id)
       await this.audit.record(em, actor.orgId, actor, {
         action: 'agent.update',
@@ -102,7 +110,11 @@ export class DevicesService {
         summary: after.name,
         changes: diff(before, after, AGENT_AUDITED),
       })
-      afterCommit(() => this.realtime.changed(actor.orgId, ['devices']))
+      afterCommit(() => {
+        // Said to the agent at once; one off the line hears it when it connects.
+        this.hub.emit(id, 'receipt.printer', { name: after.receiptPrinter })
+        this.realtime.changed(actor.orgId, ['devices'])
+      })
       return this.agentDto(after)
     })
   }
@@ -157,7 +169,7 @@ export class DevicesService {
     return this.db.system(async (em) => {
       const result: unknown = await em.query(
         `UPDATE agents SET last_seen_at = now(), hostname = $2, version = $3 WHERE key_hash = $1
-         RETURNING id, org_id, name`,
+         RETURNING id, org_id, name, receipt_printer`,
         [hashToken(key), about.hostname, about.version],
       )
       // An UPDATE ... RETURNING comes back as [rows, count].
@@ -165,9 +177,10 @@ export class DevicesService {
         id: string
         org_id: string
         name: string
+        receipt_printer: string | null
       }[]
       const row = rows[0]
-      return row ? { id: row.id, orgId: row.org_id, name: row.name } : null
+      return row ? { id: row.id, orgId: row.org_id, name: row.name, receiptPrinter: row.receipt_printer } : null
     })
   }
 
@@ -191,7 +204,7 @@ export class DevicesService {
         action: 'printer.create',
         entity: 'printer',
         entityId: saved.id,
-        summary: `${saved.name} (${saved.host}:${saved.port})`,
+        summary: `${saved.name} (${saved.queue ? `USB: ${saved.queue}` : `${saved.host}:${saved.port}`})`,
       })
       afterCommit(() => this.realtime.changed(actor.orgId, ['devices']))
       return this.printerDto(await this.printerRow(em, saved.id))
@@ -361,6 +374,8 @@ export class DevicesService {
       hostname: row.hostname,
       version: row.version,
       printers: row.printers,
+      localPrinters: this.hub.localPrinters(row.id),
+      receiptPrinter: row.receiptPrinter,
       createdAt: row.createdAt.toISOString(),
     }
   }
@@ -374,6 +389,7 @@ export class DevicesService {
       agentId: row.agentId,
       agentName: row.agentName,
       online: this.hub.isOnline(row.agentId),
+      queue: row.queue,
       host: row.host,
       port: row.port,
       dpi: row.dpi,

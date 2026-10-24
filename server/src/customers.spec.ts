@@ -295,6 +295,14 @@ describe('Customers', () => {
       expect(made.isSupplier).toBe(true)
       const picked = (await cashier.get('/api/pos/customers').query({ q: 'yiwu' }).expect(200)).body[0]
       expect(picked.supplier).toBe(true)
+
+      // A business that sells to buyers only keeps its suppliers out of the till's search, and can bring them back.
+      const showSuppliers = (tillShowsSuppliers: boolean) =>
+        alpha.put('/api/org').send({ name: 'Alpha', settings: { autoLockMinutes: 10, tillShowsSuppliers } }).expect(200)
+      await showSuppliers(false)
+      expect((await cashier.get('/api/pos/customers').query({ q: 'yiwu' }).expect(200)).body).toEqual([])
+      await showSuppliers(true)
+      expect((await cashier.get('/api/pos/customers').query({ q: 'yiwu' }).expect(200)).body).toHaveLength(1)
     })
 
     it('lets only who may adjust accounts set the terms; a form without them keeps them', async () => {

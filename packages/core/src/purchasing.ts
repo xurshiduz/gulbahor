@@ -6,8 +6,8 @@ import type { ImageThumb, ProductImageDto } from './images'
 import type { UnitStatus } from './labels'
 import { ALL_CURRENCY_CODES, allocateExact, assertMinor, type AnyCurrency, type CurrencyCode } from './money'
 import { priceFormulaSchema, receiptPricingSchema, type PriceFormula, type ReceiptPricing } from './pricing'
-import { idSchema, listQuerySchema, optionalText, requiredText } from './schemas'
-import type { Unit } from './catalog'
+import { idSchema, listQuerySchema, optionalText, requiredText, type Page } from './schemas'
+import type { Gender, Season, Unit } from './catalog'
 
 /**
  * Buying goods: who they come from, the document that takes them into
@@ -392,6 +392,8 @@ export const stockListQuerySchema = listQuerySchema.extend({
   brandId: idSchema.optional(),
   /** `in`: only what is on hand; `out`: models with nothing left; `all`. */
   presence: z.enum(['in', 'out', 'all']).default('in'),
+  /** The catalogue's archive is the models taken out of sale. */
+  status: z.enum(['active', 'archived']).default('active'),
 })
 export type StockListQuery = z.infer<typeof stockListQuerySchema>
 
@@ -421,9 +423,64 @@ export interface StockListItemDto {
   /** Present only for those allowed to see cost. */
   costUzs: number | null
   retailPrice: { amount: number; currency: CurrencyCode } | null
+  /** The model's price of every price type it has one of, retail first: one cell, a line for each. */
+  prices: StockPriceDto[]
+  /** What else the catalogue can show, each a column a person may switch on. */
+  gender: Gender | null
+  season: Season | null
+  collectionYear: number | null
+  material: string | null
+  originCountry: string | null
+  manufacturer: string | null
+  factoryCode: string | null
+  mxikCode: string | null
+  /** How many colours and sizes it has. */
+  variants: number
+  /** Whom it was bought from, by its posted receipts. */
+  suppliers: string[]
+  createdAt: string
   /** The first of its photographs. */
   image: ImageThumb | null
 }
+
+export interface StockPriceDto {
+  priceTypeId: string
+  name: string
+  amount: number
+}
+
+/** The whole list the filters cover, not only the page shown: how many models and pieces, and what they are worth. */
+export interface StockSummaryDto {
+  models: number
+  qty: number
+  /** For those who may see cost. */
+  costUzs: number | null
+  /** At the models' retail prices, in the base. */
+  retailValue: number
+}
+
+export interface StockListDto extends Page<StockListItemDto> {
+  summary: StockSummaryDto
+}
+
+/** One movement of a model's pieces, as its card lists them: newest first. */
+export interface StockHistoryItemDto {
+  at: string
+  kind: string
+  documentType: string
+  documentId: string
+  number: string | null
+  qty: number
+  locationName: string | null
+  /** The colour and size it was, where the model has them. */
+  variant: string | null
+}
+
+export const stockHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(10),
+})
+export type StockHistoryQuery = z.infer<typeof stockHistoryQuerySchema>
 
 export interface StockVariantDto {
   variantId: string
@@ -432,6 +489,7 @@ export interface StockVariantDto {
   qty: number
   byLocation: Record<string, number>
   costUzs: number | null
+  barcodes: string[]
 }
 
 export interface StockProductDto {

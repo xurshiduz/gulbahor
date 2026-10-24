@@ -21,7 +21,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { exchangeLine, ReceivedField, receivedOf, transferSums } from '@/features/money/exchange'
 import { useRateBook } from '@/features/money/rates'
 import { TransferButtons } from '@/features/money/transfers'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { currencyWords } from '@/lib/base'
 import { cn } from '@/lib/cn'
 import { toast } from '@/lib/toast'
@@ -97,6 +97,8 @@ interface HandoverFieldsProps {
    * the base — is never hidden, nor one with a sum in it.
    */
   hiding?: { hidden: string[]; onChange: (hidden: string[]) => void }
+  /** What the server said of a currency's sum ("Hisobda buncha pul yo‘q"), shown under it. */
+  errors?: Partial<Record<AnyCurrency, string>>
 }
 
 /**
@@ -112,6 +114,7 @@ export function HandoverFields({
   currencies,
   changing,
   hiding,
+  errors,
 }: HandoverFieldsProps) {
   const { t } = useTranslation()
   const [peek, setPeek] = useState(false)
@@ -145,7 +148,7 @@ export function HandoverFields({
           <div key={currency} className={cn('grid items-start gap-3', changing ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <Field
               label={t('pos.handoverIn', currencyWords(t, currency))}
-              error={over ? t('pos.handoverOver') : undefined}
+              error={over ? t('pos.handoverOver') : errors?.[currency]}
             >
               {(id) => (
                 <MoneyInput
@@ -266,26 +269,52 @@ export function HandoverDialog({
   // One key for each currency: a handover sent twice is still made once.
   const [keys] = useState(() => Object.fromEntries(currencies.map((currency) => [currency, uuid()])))
 
+  // Refusals of the server, by the currency whose sum they are about.
+  const [refused, setRefused] = useState<Partial<Record<AnyCurrency, string>>>({})
+
   const send = useMutation({
+    // Shown here, under the sum: the app's own notice stays quiet on a refusal of a field.
+    meta: { silent: true },
     mutationFn: async () => {
+      setRefused({})
       const sent: MoneyTransferDto[] = []
       for (const currency of currencies) {
         const handing = handingIn(handings, currency)
         if (!handing.amount || !handing.toAccountId) {
           continue
         }
-        sent.push(
-          await api.post<MoneyTransferDto>('/money/transfers', {
-            clientKey: keys[currency],
-            fromAccountId: context.drawers[currency],
-            toAccountId: handing.toAccountId,
-            amount: handing.amount,
-            received: receivedOf(handingLine(currency, handing, context.safes, changing)),
-            note,
-          }),
-        )
+        try {
+          sent.push(
+            await api.post<MoneyTransferDto>('/money/transfers', {
+              clientKey: keys[currency],
+              fromAccountId: context.drawers[currency],
+              toAccountId: handing.toAccountId,
+              amount: handing.amount,
+              received: receivedOf(handingLine(currency, handing, context.safes, changing)),
+              note,
+            }),
+          )
+        } catch (error) {
+          throw Object.assign(error as Error, { currency, sent })
+        }
       }
       return sent
+    },
+    onError: (error: Error & { currency?: AnyCurrency; sent?: MoneyTransferDto[] }) => {
+      const fields = error instanceof ApiError ? error.fields : undefined
+      const said = fields ? Object.values(fields)[0] : undefined
+      if (said && error.currency) {
+        setRefused({ [error.currency]: said })
+      } else {
+        toast.error(error.message)
+      }
+      // What went before the refused one did go: it is said, and the till shows it on its way.
+      if (error.sent?.length) {
+        toast.success(t('pos.handedOver', { amount: error.sent.map(transferSums).join(' + ') }))
+        for (const key of ['pos', 'money', 'shifts']) {
+          void queryClient.invalidateQueries({ queryKey: [key] })
+        }
+      }
     },
     onSuccess: (sent) => {
       for (const key of ['pos', 'money', 'shifts']) {
@@ -321,6 +350,7 @@ export function HandoverDialog({
           currencies={currencies}
           changing={changing}
           hiding={hiding}
+          errors={refused}
           autoFocus
         />
         <Field label={t('receipts.note')}>

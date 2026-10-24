@@ -391,7 +391,7 @@ function outranks(a: number[], b: number[]): boolean {
 
 // ───────────────────────────── Changing prices in bulk ─────────────────────────────
 
-export const REPRICE_KINDS = ['percent', 'amount', 'formula', 'from_type'] as const
+export const REPRICE_KINDS = ['percent', 'amount', 'rate', 'formula', 'from_type'] as const
 export type RepriceKind = (typeof REPRICE_KINDS)[number]
 
 export const REPRICE_KIND_LABELS: Record<RepriceKind, string> = {
@@ -399,7 +399,11 @@ export const REPRICE_KIND_LABELS: Record<RepriceKind, string> = {
   amount: 'Summaga o‘zgartirish',
   formula: 'Qoida yoki formula bo‘yicha hisoblash',
   from_type: 'Boshqa narx turidan hisoblash',
+  rate: 'Kurs bo‘yicha',
 }
+
+/** A rate as it is written: 12 600 for a dollar, 1 735,29 for a yuan. */
+const rateSchema = z.number().positive().max(1_000_000_000)
 
 const operationSchema = z.discriminatedUnion('kind', [
   /** Every price up or down by a percentage. */
@@ -419,8 +423,23 @@ const operationSchema = z.discriminatedUnion('kind', [
   }),
   /** From another price type's prices: wholesale as retail less 15%. */
   z.object({ kind: z.literal('from_type'), priceTypeId: idSchema, percent: percentSchema }),
+  /**
+   * As far as a rate moved: the dollar was 12 000 and is 12 600, every price goes up as much (5%). Prices stay
+   * fixed between such moves; this is how they follow the rate when the business says so.
+   */
+  z.object({ kind: z.literal('rate'), from: rateSchema, to: rateSchema }),
 ])
 export type RepriceOperation = z.infer<typeof operationSchema>
+
+/** Six decimals are what rates are kept to: a rate as a whole number of millionths, for sums with no float. */
+const millionths = (rate: number) => BigInt(Math.round(rate * 1_000_000))
+
+/** A price moved as far as a rate did, to the nearest minor unit: 76 000 at 12 000 → 12 600 is 79 800. */
+export function byRate(amount: number, from: number, to: number): number {
+  const num = BigInt(amount) * millionths(to)
+  const den = millionths(from)
+  return Number((num * 2n + den) / (den * 2n))
+}
 
 export const priceListFilterSchema = z.object({
   q: z.string().trim().max(100).optional(),
@@ -486,6 +505,8 @@ export interface RepriceResult {
   /** New prices that are under cost. */
   belowCost: number
   lines: RepriceLineDto[]
+  /** Once made: every model whose price changed, so its labels can be printed again. */
+  productIds?: string[]
 }
 
 export interface PriceListItemDto {

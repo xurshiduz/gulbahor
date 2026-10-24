@@ -9,13 +9,13 @@ import {
 } from '@erp/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { FileSpreadsheet } from 'lucide-react'
+import { FileSpreadsheet, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/controls'
-import { Skeleton, Tooltip } from '@/components/ui/feedback'
-import { Page } from '@/components/ui/page'
+import { EmptyState, Skeleton, Tooltip } from '@/components/ui/feedback'
+import { Card, Page } from '@/components/ui/page'
 import { useSession } from '@/features/auth/session'
 import { api } from '@/lib/api'
 import { base } from '@/lib/base'
@@ -133,6 +133,16 @@ export function SalesReportPage() {
         <div className={report.isPlaceholderData ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
           <SalesReport data={report.data} />
         </div>
+      ) : report.isError ? (
+        // A report that could not be made says so, instead of loading for ever.
+        <Card>
+          <EmptyState
+            icon={TriangleAlert}
+            title={t('reports.failed')}
+            hint={report.error instanceof Error ? report.error.message : undefined}
+            action={<Button onClick={() => void report.refetch()}>{t('errorScreen.retry')}</Button>}
+          />
+        </Card>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">

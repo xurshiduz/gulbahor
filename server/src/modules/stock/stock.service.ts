@@ -2,7 +2,9 @@ import {
   normalizeEpc,
   type CurrencyCode,
   type Page,
-  type StockListItemDto,
+  type StockListDto,
+  type StockHistoryItemDto,
+  type StockHistoryQuery,
   type StockListQuery,
   type StockLocationDto,
   type StockProductDto,
@@ -323,7 +325,7 @@ export class StockService {
   }
 
   /** Models with what is on hand of each, in all the places this person works in or in one of them. */
-  async list(actor: Actor, query: StockListQuery): Promise<Page<StockListItemDto>> {
+  async list(actor: Actor, query: StockListQuery): Promise<StockListDto> {
     const mine = placesOf(actor)
     if (query.locationId && mine && !mine.includes(query.locationId)) {
       throw AppError.forbidden()
@@ -367,7 +369,31 @@ export class StockService {
             WHERE t.kind = 'retail' AND pr.product_id = p.id AND pr.variant_id IS NULL AND pr.location_id IS NULL)`,
           'retail_price',
         )
-        .where('p.isActive')
+        .addSelect(
+          `(SELECT coalesce(jsonb_agg(jsonb_build_object('priceTypeId', t.id, 'name', t.name, 'amount', pr.amount)
+              ORDER BY (t.kind = 'retail') DESC, t.created_at), '[]') FROM prices pr JOIN price_types t ON t.id = pr.price_type_id
+            WHERE t.is_active AND pr.product_id = p.id AND pr.variant_id IS NULL AND pr.location_id IS NULL)`,
+          'prices',
+        )
+        .addSelect('(SELECT count(*)::int FROM product_variants cv WHERE cv.product_id = p.id)', 'variant_count')
+        .addSelect(
+          `(SELECT coalesce(array_agg(DISTINCT sc.name ORDER BY sc.name), '{}') FROM receipt_lines rl
+            JOIN receipts rr ON rr.id = rl.receipt_id AND rr.status = 'posted'
+            JOIN product_variants rv ON rv.id = rl.variant_id
+            JOIN customers sc ON sc.id = coalesce(rl.supplier_id, rr.supplier_id)
+            WHERE rv.product_id = p.id)`,
+          'suppliers',
+        )
+        // The whole list the filters cover, before it is cut into pages: what the catalogue's figures say.
+        .addSelect('count(*) OVER ()', 'all_models')
+        .addSelect(`sum((SELECT coalesce(sum(sb.qty), 0) ${onHand})) OVER ()`, 'all_qty')
+        .addSelect(`sum((SELECT coalesce(sum(sb.cost_uzs), 0) ${onHand})) OVER ()`, 'all_cost')
+        .addSelect(
+          `sum((SELECT coalesce(sum(sb.qty), 0) ${onHand}) * coalesce((SELECT pr.amount FROM prices pr JOIN price_types t ON t.id = pr.price_type_id
+            WHERE t.kind = 'retail' AND pr.product_id = p.id AND pr.variant_id IS NULL AND pr.location_id IS NULL LIMIT 1), 0)) OVER ()`,
+          'all_value',
+        )
+        .where(query.status === 'archived' ? 'NOT p.isActive' : 'p.isActive')
       if (query.locationId) qb.setParameter('locationId', query.locationId)
       // No place at all still makes a list the query can read: one that matches nothing.
       else if (mine) qb.setParameter('places', mine.length ? mine : [null])
@@ -423,6 +449,9 @@ export class StockService {
             barcodes: string[] | null
             held: number
             retail_price: { amount: number | string; currency: CurrencyCode } | null
+            prices: { priceTypeId: string; name: string; amount: number | string }[] | null
+            variant_count: number
+            suppliers: string[] | null
           }
           return {
             productId: product.id,
@@ -439,9 +468,90 @@ export class StockService {
             retailPrice: row.retail_price
               ? { amount: Number(row.retail_price.amount), currency: row.retail_price.currency }
               : null,
+            prices: (row.prices ?? []).map((price) => ({ ...price, amount: Number(price.amount) })),
+            gender: product.gender,
+            season: product.season,
+            collectionYear: product.collectionYear,
+            material: product.material,
+            originCountry: product.originCountry,
+            manufacturer: product.manufacturer,
+            factoryCode: product.factoryCode,
+            mxikCode: product.mxikCode,
+            variants: row.variant_count,
+            suppliers: row.suppliers ?? [],
+            createdAt: product.createdAt.toISOString(),
             image: faces.get(product.id) ?? null,
           }
         }),
+        total,
+        page: query.page,
+        size: query.size,
+        summary: (() => {
+          const first = raw[0] as { all_qty?: string | number; all_cost?: string | number; all_value?: string | number }
+          return {
+            models: total,
+            qty: Number(first?.all_qty ?? 0),
+            costUzs: seesCost ? Math.round(Number(first?.all_cost ?? 0)) : null,
+            retailValue: Math.round(Number(first?.all_value ?? 0)),
+          }
+        })(),
+      }
+    })
+  }
+
+  /**
+   * What happened to a model's pieces, newest first, one line for each document and place: the receipt that
+   * brought them, the sales, transfers, counts and write-offs. Only the places this person works in.
+   */
+  async history(actor: Actor, productId: string, query: StockHistoryQuery): Promise<Page<StockHistoryItemDto>> {
+    const mine = placesOf(actor)
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const where = `v.product_id = $1 ${mine ? 'AND m.location_id = ANY($2)' : ''}`
+      const params: unknown[] = mine ? [productId, mine] : [productId]
+      const grouped = `
+        SELECT m.kind, m.document_type, m.document_id, m.location_id, min(m.created_at) AS at, sum(m.qty)::float8 AS qty,
+          string_agg(DISTINCT nullif(concat_ws(' / ', a1.name, a2.name, a3.name), ''), ', ') AS variant
+        FROM stock_movements m
+        JOIN product_variants v ON v.id = m.variant_id
+        LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
+        LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
+        LEFT JOIN attribute_values a3 ON a3.id = v.value3_id
+        WHERE ${where}
+        GROUP BY m.kind, m.document_type, m.document_id, m.location_id`
+      const [{ total }]: { total: number }[] = await em.query(`SELECT count(*)::int AS total FROM (${grouped}) g`, params)
+      const rows: {
+        kind: string
+        document_type: string
+        document_id: string
+        at: Date
+        qty: number
+        variant: string | null
+        location_name: string | null
+        number: string | null
+      }[] = await em.query(
+        `SELECT g.*, l.name AS location_name,
+           coalesce(r.number, d.number, s.number, sr.number) AS number
+         FROM (${grouped}) g
+         LEFT JOIN locations l ON l.id = g.location_id
+         LEFT JOIN receipts r ON r.id = g.document_id
+         LEFT JOIN stock_documents d ON d.id = g.document_id
+         LEFT JOIN sales s ON s.id = g.document_id
+         LEFT JOIN sale_returns sr ON sr.id = g.document_id
+         ORDER BY g.at DESC
+         LIMIT ${query.size} OFFSET ${(query.page - 1) * query.size}`,
+        params,
+      )
+      return {
+        items: rows.map((row) => ({
+          at: new Date(row.at).toISOString(),
+          kind: row.kind,
+          documentType: row.document_type,
+          documentId: row.document_id,
+          number: row.number,
+          qty: row.qty,
+          locationName: row.location_name,
+          variant: row.variant,
+        })),
         total,
         page: query.page,
         size: query.size,
@@ -465,9 +575,11 @@ export class StockService {
         qty: number
         cost_uzs: number
         by_location: Record<string, number> | null
+        barcodes: string[] | null
       }[] = await em.query(
         `SELECT v.id, v.value1_id, v.value2_id, v.value3_id, v.sku,
-                coalesce(s.qty, 0)::float8 AS qty, coalesce(s.cost_uzs, 0)::float8 AS cost_uzs, s.by_location
+                coalesce(s.qty, 0)::float8 AS qty, coalesce(s.cost_uzs, 0)::float8 AS cost_uzs, s.by_location,
+                (SELECT coalesce(array_agg(vb.code ORDER BY vb.sort_order, vb.code), '{}') FROM variant_barcodes vb WHERE vb.variant_id = v.id) AS barcodes
          FROM product_variants v
          LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
          LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
@@ -494,6 +606,7 @@ export class StockService {
         qty: row.qty,
         byLocation: row.by_location ?? {},
         costUzs: seesCost ? row.cost_uzs : null,
+        barcodes: row.barcodes ?? [],
       }))
       const [about]: {
         brand_name: string | null

@@ -222,6 +222,8 @@ export interface OrgSettings {
   debtDays: number
   /** What one customer may owe in the base without someone's word; more needs someone allowed to lend. 0: every debt needs it. */
   debtLimit: number
+  /** The till's customer search finds suppliers too; off, it finds the buyers alone. */
+  tillShowsSuppliers: boolean
   /** How the receipts look on paper; what is not set here is as `DEFAULT_RECEIPT_TEMPLATE` has it. */
   receipt?: Partial<ReceiptTemplate>
   /** What goes on the labels; what is not set here is as `DEFAULT_LABEL_TEMPLATE` has it. */
@@ -238,6 +240,7 @@ export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   receiptLineSupplier: false,
   debtDays: 30,
   debtLimit: 0,
+  tillShowsSuppliers: true,
 }
 
 export interface OrgDto {
@@ -265,6 +268,7 @@ export const orgUpdateSchema = z.object({
     receiptLineSupplier: z.boolean().optional(),
     debtDays: z.coerce.number().int().min(1).max(3650).optional(),
     debtLimit: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    tillShowsSuppliers: z.boolean().optional(),
   }),
 })
 export type OrgUpdateInput = z.infer<typeof orgUpdateSchema>

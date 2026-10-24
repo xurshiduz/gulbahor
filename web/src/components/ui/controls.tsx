@@ -7,6 +7,7 @@ import {
   Tabs as TabsPrimitive,
 } from 'radix-ui'
 import { useEffect, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/cn'
 
@@ -30,10 +31,23 @@ interface SelectProps {
   invalid?: boolean
   disabled?: boolean
   className?: string
+  /** What an open list with nothing in it says; a list never opens as a bare empty box. */
+  empty?: string
 }
 
 /** A short, fixed list. Opens with Enter, Space or the arrows; typing jumps to a match. */
-export function Select({ id, value, onChange, options, placeholder, invalid, disabled, className }: SelectProps) {
+export function Select({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  invalid,
+  disabled,
+  className,
+  empty,
+}: SelectProps) {
+  const { t } = useTranslation()
   return (
     <SelectPrimitive.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
       <SelectPrimitive.Trigger
@@ -59,6 +73,9 @@ export function Select({ id, value, onChange, options, placeholder, invalid, dis
           className="z-50 max-h-72 min-w-(--radix-select-trigger-width) overflow-hidden rounded-lg border border-line bg-surface p-1 shadow-float data-[state=open]:animate-pop-in"
         >
           <SelectPrimitive.Viewport>
+            {options.length ? null : (
+              <p className="px-2 py-1.5 text-[13px] text-ink-3">{empty ?? t('common.listEmpty')}</p>
+            )}
             {options.map((option) => (
               <SelectPrimitive.Item
                 key={option.value}

@@ -7,6 +7,7 @@ import {
   type AgentDto,
   type AgentInput,
   type AgentKeyDto,
+  type AgentLocalPrinter,
   type LabelSizeKey,
   type PrinterDto,
   type PrinterInput,
@@ -33,7 +34,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
-import { Checkbox, Menu, Select, TabPanel, Tabs } from '@/components/ui/controls'
+import { Checkbox, Menu, Segments, Select, TabPanel, Tabs } from '@/components/ui/controls'
 import { DataTable } from '@/components/ui/data-table'
 import { Dialog, useConfirm } from '@/components/ui/dialog'
 import { Badge, EmptyState, Shortcut } from '@/components/ui/feedback'
@@ -150,7 +151,8 @@ export function DevicesPage() {
         id: 'address',
         header: t('devices.address'),
         meta: { className: 'font-code text-xs whitespace-nowrap' },
-        cell: ({ row }) => `${row.original.host}:${row.original.port}`,
+        cell: ({ row }) =>
+          row.original.queue ? `USB · ${row.original.queue}` : `${row.original.host}:${row.original.port}`,
       },
       {
         id: 'format',
@@ -241,6 +243,12 @@ export function DevicesPage() {
         header: t('devices.computer'),
         meta: { className: 'text-ink-2' },
         cell: ({ row }) => [row.original.hostname, row.original.version].filter(Boolean).join(' · '),
+      },
+      {
+        id: 'receiptPrinter',
+        header: t('devices.receiptPrinter'),
+        meta: { className: 'text-ink-2' },
+        cell: ({ row }) => row.original.receiptPrinter ?? <span className="text-ink-3">—</span>,
       },
       {
         id: 'printers',
@@ -410,6 +418,7 @@ export function DevicesPage() {
 interface AgentValues {
   name: string
   locationId: string | null
+  receiptPrinter: string | null
 }
 
 function AgentFormDialog({
@@ -424,7 +433,11 @@ function AgentFormDialog({
   const { t } = useTranslation()
   const locations = useLocations()
   const form = useForm<AgentValues>({
-    defaultValues: { name: agent?.name ?? '', locationId: agent?.locationId ?? null },
+    defaultValues: {
+      name: agent?.name ?? '',
+      locationId: agent?.locationId ?? null,
+      receiptPrinter: agent?.receiptPrinter ?? null,
+    },
   })
   const errors = form.formState.errors
 
@@ -478,6 +491,30 @@ function AgentFormDialog({
             />
           )}
         </Field>
+        {agent ? (
+          // The computer's printers are known once its agent has been on the line.
+          <Field
+            label={t('devices.receiptPrinter')}
+            hint={agent.online ? t('devices.receiptPrinterHint') : t('devices.usbOffline')}
+          >
+            {(id) => (
+              <Controller
+                control={form.control}
+                name="receiptPrinter"
+                render={({ field }) => (
+                  <Select
+                    id={id}
+                    value={field.value ?? ''}
+                    onChange={(name) => field.onChange(name || null)}
+                    placeholder={t('devices.receiptPrinterNone')}
+                    empty={agent.online ? t('devices.usbNone') : t('devices.usbOffline')}
+                    options={localChoices(agent.localPrinters, field.value, t('devices.usbTag'))}
+                  />
+                )}
+              />
+            )}
+          </Field>
+        ) : null}
       </Form>
     </Dialog>
   )
@@ -546,10 +583,29 @@ function KeyDialog({ agent, onClose }: { agent: AgentKeyDto; onClose: () => void
 
 // ───────────────────────────── Printer ─────────────────────────────
 
+/**
+ * The printers Windows has on the agent's computer, to pick from: those on a USB port first, the virtual ones
+ * (PDF, OneNote) last. One already chosen stays even when the agent is off the line.
+ */
+function localChoices(printers: AgentLocalPrinter[], chosen: string | null, usb: string) {
+  const isUsb = (printer: AgentLocalPrinter) => /^USB/i.test(printer.port ?? '')
+  const sorted = [...printers].sort((a, b) => Number(isUsb(b)) - Number(isUsb(a)) || a.name.localeCompare(b.name))
+  const options = sorted.map((printer) => ({
+    value: printer.name,
+    label: isUsb(printer) ? `${printer.name} · ${usb} (${printer.port})` : printer.name,
+  }))
+  return chosen && !options.some((option) => option.value === chosen)
+    ? [{ value: chosen, label: chosen }, ...options]
+    : options
+}
+
 interface PrinterValues {
   name: string
   agentId: string | null
   locationId: string | null
+  /** Plugged into the agent's computer, or on the shop's network. */
+  via: 'usb' | 'network'
+  queue: string | null
   host: string
   port: number | null
   dpi: string
@@ -575,11 +631,15 @@ function PrinterFormDialog({
       name: printer?.name ?? '',
       agentId: printer?.agentId ?? (agents.length === 1 ? agents[0].id : null),
       locationId: printer?.locationId ?? (agents.length === 1 ? agents[0].locationId : null),
+      // USB first: the easy way, a cable into the till's computer.
+      via: printer && !printer.queue ? 'network' : 'usb',
+      queue: printer?.queue ?? null,
       host: printer?.host ?? '',
       port: printer?.port ?? 9100,
       dpi: String(printer?.dpi ?? 203),
       labelSize: printer?.labelSize ?? DEFAULT_LABEL_SIZE,
-      rfid: printer?.rfid ?? true,
+      // On only when asked for: a printer with no RFID module would fail every tagged label.
+      rfid: printer?.rfid ?? false,
     },
   })
   const errors = form.formState.errors
@@ -593,8 +653,20 @@ function PrinterFormDialog({
     },
     onError: (error) => void applyServerErrors(error, form),
   })
-  const submit = form.handleSubmit((values) => {
-    const input = zodCheck(form, printerInputSchema, { ...values, dpi: Number(values.dpi), port: values.port ?? 9100 })
+  const via = form.watch('via')
+  const agent = agents.find((item) => item.id === form.watch('agentId'))
+  const submit = form.handleSubmit(({ via: way, ...values }) => {
+    if (way === 'usb' && !values.queue) {
+      form.setError('queue', { message: t('devices.pickUsb') })
+      return
+    }
+    const input = zodCheck(form, printerInputSchema, {
+      ...values,
+      queue: way === 'usb' ? values.queue : null,
+      host: way === 'usb' ? '' : values.host,
+      dpi: Number(values.dpi),
+      port: values.port ?? 9100,
+    })
     if (input) {
       mutation.mutate(input)
     }
@@ -657,37 +729,99 @@ function PrinterFormDialog({
             )}
           </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-          <Field label={t('devices.host')} hint={t('devices.hostHint')} error={errors.host?.message} required>
-            {(id) => (
-              <Input
-                id={id}
-                className="font-code"
-                placeholder="192.168.1.50"
-                invalid={!!errors.host}
-                {...form.register('host')}
-              />
-            )}
-          </Field>
-          <Field label={t('devices.port')} error={errors.port?.message}>
+        <Field label={t('devices.connection')}>
+          {(id) => (
+            <Controller
+              control={form.control}
+              name="via"
+              render={({ field }) => (
+                <Segments
+                  id={id}
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={[
+                    { value: 'usb', label: t('devices.viaUsb') },
+                    { value: 'network', label: t('devices.viaNetwork') },
+                  ]}
+                />
+              )}
+            />
+          )}
+        </Field>
+        {via === 'usb' ? (
+          <Field
+            label={t('devices.usbPrinter')}
+            hint={
+              !agent
+                ? t('devices.usbPickAgent')
+                : !agent.online
+                  ? t('devices.usbOffline')
+                  : agent.localPrinters.length
+                    ? t('devices.usbHint')
+                    : t('devices.usbNone')
+            }
+            error={errors.queue?.message}
+            required
+          >
             {(id) => (
               <Controller
                 control={form.control}
-                name="port"
+                name="queue"
                 render={({ field }) => (
-                  <NumberInput
+                  <Select
                     id={id}
-                    value={field.value}
-                    onChange={field.onChange}
-                    min={1}
-                    max={65535}
-                    invalid={!!errors.port}
+                    value={field.value ?? ''}
+                    onChange={(name) => {
+                      field.onChange(name)
+                      form.clearErrors('queue')
+                      // The name Windows gives it is a fair name here too, until one is written.
+                      if (!form.getValues('name').trim()) {
+                        form.setValue('name', name, { shouldDirty: true })
+                      }
+                    }}
+                    placeholder={t('devices.usbPick')}
+                    empty={
+                      !agent ? t('devices.usbPickAgent') : agent.online ? t('devices.usbNone') : t('devices.usbOffline')
+                    }
+                    options={localChoices(agent?.localPrinters ?? [], field.value, t('devices.usbTag'))}
                   />
                 )}
               />
             )}
           </Field>
-        </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+            <Field label={t('devices.host')} hint={t('devices.hostHint')} error={errors.host?.message} required>
+              {(id) => (
+                <Input
+                  id={id}
+                  className="font-code"
+                  placeholder="192.168.1.50"
+                  invalid={!!errors.host}
+                  {...form.register('host')}
+                />
+              )}
+            </Field>
+            <Field label={t('devices.port')} error={errors.port?.message}>
+              {(id) => (
+                <Controller
+                  control={form.control}
+                  name="port"
+                  render={({ field }) => (
+                    <NumberInput
+                      id={id}
+                      value={field.value}
+                      onChange={field.onChange}
+                      min={1}
+                      max={65535}
+                      invalid={!!errors.port}
+                    />
+                  )}
+                />
+              )}
+            </Field>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('devices.labelSize')}>
             {(id) => (

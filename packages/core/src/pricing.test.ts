@@ -15,6 +15,7 @@ import {
   receiptPricingSchema,
   repriceSchema,
   withPercent,
+  byRate,
   type Markup,
   type PriceFormula,
   type RuledMarkup,
@@ -359,5 +360,15 @@ describe('a price on a receipt', () => {
     expect(pricingSays(receiptPricingSchema.parse({ all: true }))).toBe(true)
     expect(pricingSays(receiptPricingSchema.parse({ skip: true }))).toBe(true)
     expect(receiptPricingSchema.safeParse({ formula: { base: 'fixed', percent: 0, amount: 0 } }).success).toBe(false)
+  })
+})
+
+describe('a price that follows a rate', () => {
+  it('moves as far as the rate did, to the nearest minor unit, with no float', () => {
+    expect(byRate(som(76_000), 12_000, 12_600)).toBe(som(79_800))
+    expect(byRate(som(99_000), 12_000, 12_600)).toBe(som(103_950))
+    // A yuan rate with decimals.
+    expect(byRate(som(100_000), 1735.29, 1800)).toBe(10_372_906)
+    expect(byRate(som(50_000), 12_600, 12_000)).toBe(4_761_905)
   })
 })

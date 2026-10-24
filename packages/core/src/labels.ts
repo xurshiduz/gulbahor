@@ -472,12 +472,34 @@ export function isLocalHost(host: string): boolean {
   return !value.includes('.') || /\.(local|lan|home|internal)$/.test(value)
 }
 
+/** A Windows printer name: what the agent hands raw jobs to, and what it makes the computer's default. */
+const windowsPrinterName = z.string().trim().max(200)
+
 export const agentInputSchema = z.object({
   name: requiredText(60),
   /** The shop or warehouse whose computer it runs on. */
   locationId: idSchema.nullish().transform((value) => value ?? null),
+  /**
+   * The receipt printer of that computer: the agent makes it Windows' default, so the till prints a receipt
+   * with no dialog (the "Savdo" shortcut opens the browser with silent printing). Not sent — left as it is.
+   */
+  receiptPrinter: windowsPrinterName
+    .nullish()
+    .transform((value) => value || null)
+    .optional(),
 })
 export type AgentInput = z.infer<typeof agentInputSchema>
+
+/** A printer Windows has on the agent's computer — plugged in by USB or added from the network. */
+export const agentLocalPrinterSchema = z.object({
+  name: windowsPrinterName.min(1),
+  port: z.string().max(200).nullable(),
+  driver: z.string().max(200).nullable(),
+  isDefault: z.boolean(),
+})
+export type AgentLocalPrinter = z.infer<typeof agentLocalPrinterSchema>
+/** What the agent says it found; a computer with more is cut short rather than refused. */
+export const agentLocalPrintersSchema = z.array(agentLocalPrinterSchema).transform((list) => list.slice(0, 50))
 
 export interface AgentDto {
   id: string
@@ -490,6 +512,9 @@ export interface AgentDto {
   hostname: string | null
   version: string | null
   printers: number
+  /** What Windows has on that computer, as the agent last said; empty while it is off the line. */
+  localPrinters: AgentLocalPrinter[]
+  receiptPrinter: string | null
   createdAt: string
 }
 
@@ -498,22 +523,33 @@ export interface AgentKeyDto extends AgentDto {
   key: string
 }
 
-export const printerInputSchema = z.object({
-  name: requiredText(60),
-  locationId: idSchema.nullish().transform((value) => value ?? null),
-  /** The agent on the same network as the printer. */
-  agentId: idSchema,
-  host: z
-    .string()
-    .trim()
-    .max(120)
-    .refine(isLocalHost, 'Printerning lokal tarmoqdagi manzilini yozing, masalan 192.168.1.50'),
-  port: z.number().int().min(1).max(65535).default(9100),
-  dpi: z.union([z.literal(203), z.literal(300)]),
-  labelSize: z.enum(LABEL_SIZE_KEYS),
-  /** It has an RFID encoder and tagged labels loaded. */
-  rfid: z.boolean(),
-})
+export const printerInputSchema = z
+  .object({
+    name: requiredText(60),
+    locationId: idSchema.nullish().transform((value) => value ?? null),
+    /** The agent on the same network as the printer — or on whose computer it is plugged in. */
+    agentId: idSchema,
+    /**
+     * Plugged into the agent's computer (USB): the name Windows gives it, picked from what the agent found.
+     * Null: on the network, reached at `host:port`.
+     */
+    queue: windowsPrinterName.nullish().transform((value) => value || null),
+    host: z.string().trim().max(120).default(''),
+    port: z.number().int().min(1).max(65535).default(9100),
+    dpi: z.union([z.literal(203), z.literal(300)]),
+    labelSize: z.enum(LABEL_SIZE_KEYS),
+    /** It has an RFID encoder and tagged labels loaded. */
+    rfid: z.boolean(),
+  })
+  .superRefine((printer, context) => {
+    if (!printer.queue && !isLocalHost(printer.host)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['host'],
+        message: 'Printerning lokal tarmoqdagi manzilini yozing, masalan 192.168.1.50',
+      })
+    }
+  })
 export type PrinterInput = z.infer<typeof printerInputSchema>
 
 export interface PrinterDto {
@@ -524,6 +560,8 @@ export interface PrinterDto {
   agentId: string
   agentName: string
   online: boolean
+  /** The Windows name of a printer plugged into the agent's computer; null — on the network at host:port. */
+  queue: string | null
   host: string
   port: number
   dpi: PrinterDpi
@@ -534,6 +572,8 @@ export interface PrinterDto {
 /** What the agent is told to do, and what it answers. */
 export interface AgentPrintOrder {
   id: string
+  /** Set: handed to this Windows printer on the agent's computer; host and port are not looked at. */
+  queue?: string | null
   host: string
   port: number
   data: string
