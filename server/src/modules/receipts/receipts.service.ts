@@ -617,6 +617,7 @@ export class ReceiptsService {
       extraCurrency: receipt.extraCurrency,
       note: receipt.note,
       pricing: receipt.pricing,
+      setPrices: receipt.status === 'draft' ? {} : await this.pricesSetBy(em, receipt),
       sourceFile: receipt.sourceFile,
       lines: lines.map((line) => ({
         id: line.id,
@@ -647,6 +648,21 @@ export class ReceiptsService {
       postedAt: receipt.postedAt?.toISOString() ?? null,
       postedByName: receipt.postedByName,
     }
+  }
+
+  /** The model prices posting wrote, read back from the price revision it made (`setPrices` names it so). */
+  private async pricesSetBy(em: EntityManager, receipt: Receipt): Promise<Record<string, Record<string, number>>> {
+    const rows: { product_id: string; price_type_id: string; new_amount: string }[] = await em.query(
+      `SELECT l.product_id, l.price_type_id, l.new_amount
+       FROM price_revisions r JOIN price_revision_lines l ON l.revision_id = r.id
+       WHERE r.summary = $1 AND l.variant_id IS NULL AND l.location_id IS NULL AND l.new_amount IS NOT NULL`,
+      [`${receipt.number} kirimidan`],
+    )
+    const set: Record<string, Record<string, number>> = {}
+    for (const row of rows) {
+      ;(set[row.product_id] ??= {})[row.price_type_id] = Number(row.new_amount)
+    }
+    return set
   }
 
   /** The models on a receipt with all their variants, in size order, for the quantity matrix. */

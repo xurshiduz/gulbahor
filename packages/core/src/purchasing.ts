@@ -209,6 +209,8 @@ export interface ReceiptDto {
   note: string | null
   /** What the receipt says of its own prices, by price type id. */
   pricing: Record<string, ReceiptPricing>
+  /** On a posted receipt, the prices its posting set: product id → price type id → amount. */
+  setPrices: Record<string, Record<string, number>>
   sourceFile: string | null
   lines: ReceiptLineDto[]
   expenses: ReceiptExpenseDto[]

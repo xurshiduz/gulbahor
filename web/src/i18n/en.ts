@@ -912,6 +912,8 @@ export const en: Dictionary = {
     emptyHint: "Enter goods by hand or upload the supplier's Excel file.",
     addProduct: 'Add product',
     addProductPlaceholder: 'Add product: name, article or barcode',
+    findLines: 'Find among this receipt’s models: name or article',
+    findCount: '{{shown}} / {{total}} models',
     scanHint: 'or read it with a scanner',
     emptyLines: 'Add goods: find them in the search above or scan their barcode.',
     noLines: 'No goods on the receipt',

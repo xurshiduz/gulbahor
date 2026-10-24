@@ -336,6 +336,8 @@ export function blockPrices(
   known: PriceLookupResult[string] | undefined,
   pricing: Record<string, ReceiptPricing>,
   cost: number | null,
+  /** On a posted receipt, what its posting set, by price type: shown as it was, nothing worked out again. */
+  posted?: Record<string, number>,
 ): FieldPrice[] {
   const fields: FieldPrice[] = []
   let retailLeft: number | null = null
@@ -347,6 +349,17 @@ export function blockPrices(
     const standing = known?.prices[type.id] ?? null
     const typed = typedPrice(block, type.id, own)
     const basis = { cost, retail: own ? null : retailLeft }
+    if (posted) {
+      const price = posted[type.id] ?? null
+      fields.push({
+        type,
+        typed: null,
+        worked: { price, formula: null, source: null, rule: null, offered: null },
+        standing,
+        basis,
+      })
+      continue
+    }
     const worked = receiptPrice({
       typed,
       receipt: known ? pricing[type.id] : { skip: true, formula: null, all: false },

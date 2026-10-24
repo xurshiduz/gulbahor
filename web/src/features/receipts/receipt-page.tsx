@@ -3,7 +3,10 @@ import {
   EXPENSE_BASES,
   EXPENSE_BASIS_LABELS,
   formatMoney,
+  matchScore,
+  queryKeys,
   RECEIPT_STATUS_LABELS,
+  searchKey,
   receiptInputSchema,
   todayIn,
   toIsoDate,
@@ -33,6 +36,7 @@ import {
   Copy,
   MoreHorizontal,
   Plus,
+  Search,
   Tags,
   Trash2,
   TriangleAlert,
@@ -235,7 +239,8 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
   const markups = useQuery({
     queryKey: ['pricing', 'formulas', productIds],
     queryFn: () => api.post<PriceLookupResult>('/pricing/formulas', { productIds }),
-    enabled: status === 'draft' && can('products.prices') && productIds.length > 0,
+    // A posted receipt reads them too: beside what it set, the price that stands now is shown faintly.
+    enabled: can('products.prices') && productIds.length > 0,
     placeholderData: keepPreviousData,
     meta: { silent: true },
   })
@@ -281,12 +286,33 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
     blockPrices(
       block,
       fieldTypes,
-      editable ? markups.data?.[block.productId] : undefined,
+      editable || status !== 'draft' ? markups.data?.[block.productId] : undefined,
       header.pricing,
       unitCosts.get(block.productId) ?? bareCost(header, block, book),
+      status === 'draft' ? undefined : (receipt?.setPrices[block.productId] ?? {}),
     ),
   )
   const pricedTypes = [fieldTypes.retail, ...fieldTypes.others].filter((type): type is PriceTypeDto => !!type)
+
+  // A long receipt is looked through by name or SKU; the blocks not found are only hidden, never left out.
+  const [find, setFind] = useState('')
+  const shownKeys = useMemo(() => {
+    const keys = queryKeys(find)
+    if (!keys.length) {
+      return null
+    }
+    return new Set(
+      blocks
+        .filter((block) => {
+          const product = products.get(block.productId)
+          const text = product
+            ? searchKey([product.name, product.sku, ...product.variants.map((variant) => variant.sku)].join(' '))
+            : ''
+          return matchScore(keys, text) > 0
+        })
+        .map((block) => block.key),
+    )
+  }, [find, blocks, products])
 
   // ── Adding goods ──
   const addProduct = async (productId: string, variantId?: string) => {
@@ -806,6 +832,25 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
                 </div>
               </Card>
 
+              {blocks.length > 1 ? (
+                <div className="flex items-center gap-3">
+                  <div className="relative max-w-xl flex-1" data-enter-skip>
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-3" />
+                    <Input
+                      value={find}
+                      onChange={(event) => setFind(event.target.value)}
+                      placeholder={t('receipts.findLines')}
+                      className="pl-8"
+                    />
+                  </div>
+                  {shownKeys ? (
+                    <span className="text-xs text-ink-3">
+                      {t('receipts.findCount', { shown: shownKeys.size, total: blocks.length })}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               {editable ? (
                 <div className="flex items-center gap-3">
                   <ProductPicker
@@ -832,7 +877,7 @@ function ReceiptForm({ receipt, attributes, priceTypes, locations, onReloaded }:
 
               {blocks.map((block, index) => {
                 const product = products.get(block.productId)
-                return product ? (
+                return product && (!shownKeys || shownKeys.has(block.key)) ? (
                   <BlockCard
                     key={block.key}
                     block={block}

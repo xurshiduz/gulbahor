@@ -902,6 +902,8 @@ export const uz = {
     emptyHint: 'Tovarni qo‘lda kiriting yoki yetkazib beruvchining Excel faylini yuklang.',
     addProduct: 'Tovar qo‘shish',
     addProductPlaceholder: 'Tovar qo‘shish: nom, artikul yoki shtrix-kod',
+    findLines: 'Shu kirimdagi modellardan qidirish: nom yoki artikul',
+    findCount: '{{shown}} / {{total}} model',
     scanHint: 'yoki skaner bilan o‘qing',
     emptyLines: 'Tovar qo‘shing: yuqoridagi qidiruvdan toping yoki shtrix-kodini skanerlang.',
     noLines: 'Kirimda tovar yo‘q',

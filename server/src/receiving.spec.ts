@@ -162,6 +162,8 @@ describe('Receiving', () => {
       expect(small + medium).toBe(inSom(1865))
       expect([small, medium]).toEqual([inSom(1119), inSom(746)])
       expect([denim, parka]).toEqual([inSom(3024), inSom(3215)])
+      // The prices posting set are read back with the receipt, so a posted one shows them.
+      expect(Object.values(posted.body.setPrices[tshirt.id])).toContain(90_000_00)
 
       const stock = await stockOf(alpha, tshirt.id)
       expect(stock.variants.map((variant) => [variant.qty, variant.costUzs])).toEqual([
