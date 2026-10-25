@@ -49,7 +49,8 @@ export const PinInput = forwardRef<HTMLInputElement, PinInputProps>(function Pin
   }, [refused])
 
   return (
-    <div className="relative inline-flex" data-pin>
+    // A PIN is typed by hand, never by a reader: the number pad comes up at once (`lib/soft-keyboard.ts`).
+    <div className="relative inline-flex" data-pin data-keyboard-free>
       {/* Keyed by the refusals so that each one starts the shake anew; the field itself stays put and keeps the cursor. */}
       <div
         key={refused}
