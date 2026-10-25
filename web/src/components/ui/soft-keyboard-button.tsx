@@ -7,7 +7,7 @@ import { isTouch, toggleSoftKeyboard, useSoftKeyboard } from '@/lib/soft-keyboar
 
 /**
  * On a touch screen fields take the cursor with the keyboard kept down; this brings it up for the field in use.
- * Every screen with fields has it, the sign-in included — without it a phone could not type a password at all.
+ * The sign-in screens need none: their fields bring the keyboard up by themselves (`data-keyboard-free`).
  */
 export function SoftKeyboardButton() {
   const { t } = useTranslation()

@@ -51,7 +51,8 @@ export function installSoftKeyboard(): void {
   document.addEventListener(
     'focusin',
     (event) => {
-      if (!isField(event.target) || event.target === askedFor) {
+      // The sign-in screens have no reader to type for them: their fields bring the keyboard up as anywhere else.
+      if (!isField(event.target) || event.target === askedFor || event.target.closest('[data-keyboard-free]')) {
         return
       }
       if (askedFor) {

@@ -12,7 +12,6 @@ import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
-import { SoftKeyboardButton } from '@/components/ui/soft-keyboard-button'
 import { pickLanguage } from '@/i18n'
 import { api, ApiError } from '@/lib/api'
 
@@ -84,8 +83,7 @@ export function AuthLayout({
 }) {
   const { i18n } = useTranslation()
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-5">
-      <SoftKeyboardButton />
+    <div data-keyboard-free className="flex min-h-screen flex-col items-center justify-center gap-6 p-5">
       <div className="flex items-center gap-2.5">
         <img src="/logo.png" alt={APP_NAME} className="h-36 w-auto object-contain dark:hidden" />
         <img src="/logo-light.png" alt={APP_NAME} className="hidden h-28 w-auto object-contain dark:block" />
