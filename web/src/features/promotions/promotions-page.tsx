@@ -612,7 +612,7 @@ function ProductList({
                     }}
                     className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] hover:bg-sunken"
                   >
-                    <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{item.sku}</span>
+                    <span className="font-code min-w-20 shrink-0 text-xs whitespace-nowrap text-ink-3">{item.sku}</span>
                     <span className="min-w-0 flex-1 truncate">{item.name}</span>
                   </button>
                 ))}

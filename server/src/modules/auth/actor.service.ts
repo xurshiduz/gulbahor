@@ -15,7 +15,8 @@ export interface AccessClaims {
 export const ACCESS_COOKIE = 'gb_at'
 export const REFRESH_COOKIE = 'gb_rt'
 export const ACCESS_TTL_SECONDS = 15 * 60
-export const REFRESH_TTL_DAYS = 30
+// Renewed on every use: only a device left unused this long has to sign in again (an app on a phone stays in).
+export const REFRESH_TTL_DAYS = 90
 
 type ActorWithoutIp = Omit<Actor, 'ip'>
 

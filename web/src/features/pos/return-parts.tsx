@@ -4,6 +4,7 @@ import {
   paymentLabel,
   returnShare,
   type ReturnableDto,
+  type ReturnCandidateDto,
   type ReturnDto,
   type SaleLineDto,
   type AnyCurrency,
@@ -68,20 +69,49 @@ export function ReturnPicker({ code, current, mayAsk, onPick, onClose }: ReturnP
   const [reason, setReason] = useState(current?.reason ?? '')
   const bodyRef = useRef<HTMLDivElement>(null)
 
-  const lookup = (value: string) => {
-    if (!value.trim() || busy) {
-      return
-    }
+  // Receipts that sold what was typed (an SKU, a barcode), when it is not a receipt's number or a tag.
+  const [candidates, setCandidates] = useState<ReturnCandidateDto[] | null>(null)
+
+  const open = (code: string, lineId?: string) => {
     setBusy(true)
-    api
-      .get<ReturnableDto>('/returns/lookup', { code: value.trim() })
+    return api
+      .get<ReturnableDto>('/returns/lookup', { code })
       .then((result) => {
         setFound(result)
-        setQty(preset(result))
+        const line = lineId ? result.sale.lines.find((item) => item.id === lineId && leftOf(item) > 0) : null
+        setQty(line ? { [line.id]: Math.min(1, leftOf(line)) } : preset(result))
         setText('')
+        setCandidates(null)
       })
-      .catch((error: unknown) => toast.error(error instanceof ApiError ? error.message : String(error)))
       .finally(() => setBusy(false))
+  }
+
+  const lookup = (value: string) => {
+    const code = value.trim()
+    if (!code || busy) {
+      return
+    }
+    open(code).catch((error: unknown) => {
+      if (!(error instanceof ApiError) || error.status !== 404) {
+        toast.error(error instanceof ApiError ? error.message : String(error))
+        return
+      }
+      // Not a receipt: the goods themselves, by SKU or barcode — every receipt that sold them, newest first.
+      setBusy(true)
+      api
+        .get<ReturnCandidateDto[]>('/returns/find', { code })
+        .then((list) => {
+          if (list.length === 1) {
+            return open(list[0].number, list[0].lineId)
+          }
+          if (!list.length) {
+            toast.error(t('pos.returnNoneFound'))
+          }
+          setCandidates(list.length ? list : null)
+        })
+        .catch((failure: unknown) => toast.error(failure instanceof ApiError ? failure.message : String(failure)))
+        .finally(() => setBusy(false))
+    })
   }
 
   // A receipt found: on to the quantities.
@@ -169,6 +199,40 @@ export function ReturnPicker({ code, current, mayAsk, onPick, onClose }: ReturnP
           />
           {busy ? <Spinner className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2" /> : null}
         </div>
+
+        {!found && candidates ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-xs text-ink-3">{t('pos.returnCandidates', { count: candidates.length })}</p>
+            <ul className="flex max-h-96 flex-col overflow-y-auto rounded-md border border-line">
+              {candidates.map((item) => (
+                <li key={item.lineId} className="border-b border-line last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => void open(item.number, item.lineId).catch(() => undefined)}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] hover:bg-sunken focus-visible:bg-sunken focus-visible:outline-none"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium">{item.number}</span>
+                      <span className="text-ink-3">
+                        {' '}
+                        · {formatDateTime(item.soldAt)} · {item.locationName}
+                      </span>
+                      {item.customerName ? <span className="text-ink-3"> · {item.customerName}</span> : null}
+                      <span className="block text-xs text-ink-2">
+                        {item.productName}
+                        {item.label ? ` · ${item.label}` : ''} · <span className="font-code">{item.sku}</span>
+                      </span>
+                    </span>
+                    <span className="tabular shrink-0 text-right text-xs text-ink-2">
+                      {t('pos.returnLeft', { left: formatNumber(item.left), qty: formatNumber(item.qty) })}
+                      <span className="block font-medium text-ink">{money(item.total)}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {found ? (
           <Form id="return-pick" onSubmit={confirm}>

@@ -129,7 +129,7 @@ export function StockPage() {
         cell: ({ row }) => {
           const [first, ...rest] = row.original.barcodes
           return first ? (
-            <span data-barcodes className="inline-flex items-center gap-1">
+            <span data-barcodes className="inline-flex items-center gap-1 whitespace-nowrap">
               <CopyText text={first} />
               {rest.length ? (
                 <span className="text-ink-3" title={row.original.barcodes.join('\n')}>

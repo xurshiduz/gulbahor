@@ -314,6 +314,12 @@ describe('Returns', () => {
         accounts: [{ accountId: cardId, method: 'card', name: 'Humo', last4: '3073', left: som(200_000) }],
         account: 0,
       })
+      // Brought back without the receipt: found by what was sold, the newest receipt first.
+      const bySku = (await cashier.get('/api/returns/find').query({ code: found.sale.lines[0].sku }).expect(200)).body
+      expect(bySku[0]).toMatchObject({ saleId: sale.id, lineId: sale.lines[0].id, left: 1 })
+      expect((await beta.get('/api/returns/find').query({ code: found.sale.lines[0].sku }).expect(200)).body).toEqual(
+        [],
+      )
 
       const back = { saleId: sale.id, lines: [{ saleLineId: sale.lines[0].id, qty: 1 }], total: som(300_000) }
       const allCash = await giveBack({ ...back, refunds: [cash(som(300_000))] }, cashier)

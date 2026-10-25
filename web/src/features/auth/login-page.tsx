@@ -12,6 +12,7 @@ import { Field } from '@/components/ui/field'
 import { applyServerErrors, Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
+import { SoftKeyboardButton } from '@/components/ui/soft-keyboard-button'
 import { pickLanguage } from '@/i18n'
 import { api, ApiError } from '@/lib/api'
 
@@ -40,10 +41,26 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
     <AuthLayout title={t('auth.title')} subtitle={t('auth.subtitle')}>
       <Form onSubmit={form.handleSubmit((input) => mutation.mutate(input))}>
         <Field label={t('auth.login')} error={errors.login?.message}>
-          {(id) => <Input id={id} autoFocus autoCapitalize="none" autoComplete="username" invalid={!!errors.login} {...form.register('login')} />}
+          {(id) => (
+            <Input
+              id={id}
+              autoFocus
+              autoCapitalize="none"
+              autoComplete="username"
+              invalid={!!errors.login}
+              {...form.register('login')}
+            />
+          )}
         </Field>
         <Field label={t('auth.password')} error={errors.password?.message}>
-          {(id) => <PasswordInput id={id} autoComplete="current-password" invalid={!!errors.password} {...form.register('password')} />}
+          {(id) => (
+            <PasswordInput
+              id={id}
+              autoComplete="current-password"
+              invalid={!!errors.password}
+              {...form.register('password')}
+            />
+          )}
         </Field>
         <Button type="submit" variant="primary" loading={mutation.isPending} className="mt-1 h-10">
           {t('auth.signIn')}
@@ -54,15 +71,28 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
 }
 
 /** The frame shared by the screens shown before the app itself: sign-in, first password, setup. */
-export function AuthLayout({ title, subtitle, children, wide }: { title: string; subtitle?: string; children: ReactNode; wide?: boolean }) {
+export function AuthLayout({
+  title,
+  subtitle,
+  children,
+  wide,
+}: {
+  title: string
+  subtitle?: string
+  children: ReactNode
+  wide?: boolean
+}) {
   const { i18n } = useTranslation()
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-5">
+      <SoftKeyboardButton />
       <div className="flex items-center gap-2.5">
         <img src="/logo.png" alt={APP_NAME} className="h-36 w-auto object-contain dark:hidden" />
         <img src="/logo-light.png" alt={APP_NAME} className="hidden h-28 w-auto object-contain dark:block" />
       </div>
-      <div className={`w-full rounded-xl border border-line bg-surface p-6 shadow-card ${wide ? 'max-w-2xl' : 'max-w-sm'}`}>
+      <div
+        className={`w-full rounded-xl border border-line bg-surface p-6 shadow-card ${wide ? 'max-w-2xl' : 'max-w-sm'}`}
+      >
         <h1 className="text-base font-semibold">{title}</h1>
         {subtitle ? <p className="mt-1 mb-5 text-xs text-ink-3">{subtitle}</p> : <div className="mb-5" />}
         {children}

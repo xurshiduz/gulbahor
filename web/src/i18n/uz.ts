@@ -1138,7 +1138,8 @@ export const uz = {
     rateTo: 'Yangi kurs',
     rateMove: 'Narxlar {{percent}} o‘zgaradi',
     relabelTitle: '{{count}} ta tovarning narxi o‘zgardi. Etiketkalarni chop etasizmi?',
-    relabelHint: 'Javondagi etiketkalarda eski narx turibdi. Hozir chop etmasangiz ham bo‘ladi: kassa yangi narxni oladi.',
+    relabelHint:
+      'Javondagi etiketkalarda eski narx turibdi. Hozir chop etmasangiz ham bo‘ladi: kassa yangi narxni oladi.',
     relabel: 'Etiketkalarni chop etish',
     title: 'Narxlar',
     tabList: 'Narxlar',
@@ -1293,9 +1294,11 @@ export const uz = {
     install: 'Kompyuterga o‘rnatish',
     step1: 'Faylni do‘kon kompyuteriga o‘tkazing (fleshka, Telegram yoki shu kompyuterning o‘zida).',
     step2: 'Ikki marta bosib oching. Kerakli hamma narsani o‘zi yuklab oladi, administrator huquqi kerak emas.',
-    step3: 'Bir daqiqada bu sahifada agent «Ulangan» bo‘ladi. Kompyuter yonganda o‘zi ishga tushadi va o‘zi yangilanadi.',
+    step3:
+      'Bir daqiqada bu sahifada agent «Ulangan» bo‘ladi. Kompyuter yonganda o‘zi ishga tushadi va o‘zi yangilanadi.',
     byHand: 'Qo‘lda o‘rnatish',
-    byHandHint: 'Windows bo‘lmagan kompyuterda: agent papkasidagi README bo‘yicha o‘rnating va shu matnni agent.json fayliga yozing.',
+    byHandHint:
+      'Windows bo‘lmagan kompyuterda: agent papkasidagi README bo‘yicha o‘rnating va shu matnni agent.json fayliga yozing.',
     keyOnce:
       'Faylda kalit bor: uni begona odamga bermang. Oyna yopilgach, qayta yuklab olish uchun «Kompyuterga o‘rnatish» yangi kalit beradi.',
     keyDone: 'Tayyor',
@@ -1311,7 +1314,8 @@ export const uz = {
     port: 'Port',
     labelSize: 'Etiketka o‘lchami',
     rfid: 'RFID chipga yozadi',
-    rfidHint: 'Yoqilsa, har etiketkaning chipiga donaning o‘z kodi yoziladi — darvoza va kassa o‘quvchisi uni shu kod bilan taniydi. Faqat RFID modulli printer va chipli etiketka uchun; oddiy qog‘oz etiketkada o‘chiq qoldiring.',
+    rfidHint:
+      'Yoqilsa, har etiketkaning chipiga donaning o‘z kodi yoziladi — darvoza va kassa o‘quvchisi uni shu kod bilan taniydi. Faqat RFID modulli printer va chipli etiketka uchun; oddiy qog‘oz etiketkada o‘chiq qoldiring.',
     connection: 'Ulanish',
     viaUsb: 'USB (shu kompyuterga)',
     viaNetwork: 'Tarmoq (IP manzil)',
@@ -1319,12 +1323,16 @@ export const uz = {
     usbPick: 'Printerni tanlang',
     usbTag: 'USB',
     usbHint: 'Agent kompyuterida Windows ko‘rgan printerlar. USB orqali ulanganlari tepada.',
-    usbNone: 'Kompyuterda printer topilmadi: kabelni ulang va printer drayverini o‘rnating, bir daqiqada shu yerda chiqadi.',
+    usbNone:
+      'Kompyuterda printer topilmadi: kabelni ulang va printer drayverini o‘rnating, bir daqiqada shu yerda chiqadi.',
+    usbNoDriver:
+      'USB printer ko‘rinmayapti: Windows unga drayver o‘rnatmagan. CP30 drayverini o‘rnating (yoki Windows’da «Generic / Text Only» printerini USB portiga qo‘shing) — bir daqiqada shu yerda chiqadi.',
     usbOffline: 'Agent ulanmagan: printerlar ro‘yxati agent ulanganda chiqadi.',
     usbPickAgent: 'Avval agentni tanlang.',
     pickUsb: 'Printerni tanlang',
     receiptPrinter: 'Chek printeri',
-    receiptPrinterHint: 'Kompyuterning asosiy printeri qilinadi: «Savdo» yorlig‘idan ochilgan kassa chekni oynasiz shu printerga chiqaradi.',
+    receiptPrinterHint:
+      'Kompyuterning asosiy printeri qilinadi: «Savdo» yorlig‘idan ochilgan kassa chekni oynasiz shu printerga chiqaradi.',
     receiptPrinterNone: 'Tanlanmagan',
     test: 'Sinov etiketkasi',
     testSent: 'Sinov etiketkasi printerga yuborildi',
@@ -1550,7 +1558,10 @@ export const uz = {
     returnTitle: 'Qaytarish',
     left: 'Qoldi',
     dropTender: 'Olib tashlash',
-    returnFind: 'Chek raqami yoki RFID belgi',
+    returnFind: 'Chek raqami, artikul, shtrix-kod yoki RFID belgi',
+    returnNoneFound: 'Bu tovar sotilgan chek topilmadi',
+    returnCandidates: 'Shu tovar sotilgan cheklar ({{count}} ta), eng yangisi tepada:',
+    returnLeft: '{{left}} / {{qty}} qaytarsa bo‘ladi',
     returnSold: 'Sotilgan',
     returnQty: 'Qaytadi',
     returnValue: 'Summa',

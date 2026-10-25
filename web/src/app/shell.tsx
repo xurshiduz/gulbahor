@@ -19,7 +19,6 @@ import {
   Coffee,
   Monitor,
   Moon,
-  Keyboard,
   Menu as MenuIcon,
   PanelLeftClose,
   PanelLeftOpen,
@@ -46,7 +45,7 @@ import { cn } from '@/lib/cn'
 import { HotkeyScope, useHotkey } from '@/lib/hotkeys'
 import { announce, useFocusBeacon } from '@/lib/notify'
 import { useShopEvent } from '@/lib/realtime'
-import { isTouch, toggleSoftKeyboard, useSoftKeyboard } from '@/lib/soft-keyboard'
+import { SoftKeyboardButton } from '@/components/ui/soft-keyboard-button'
 
 import { CommandPalette } from './command-palette'
 import { mayOpen, NAVIGATION, type NavItem } from './navigation'
@@ -104,10 +103,8 @@ export function Shell() {
   const [collapsed, setCollapsed] = useCollapsed()
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
-  const touch = useMemo(isTouch, [])
   const myShops = useMyShops()
   const [globalShop, setGlobalShop] = useGlobalShop()
-  const keyboardUp = useSoftKeyboard()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   // Money taken from or paid to a customer, from whatever screen is in view.
@@ -281,22 +278,7 @@ export function Shell() {
 
   return (
     <div className="flex h-full bg-canvas">
-      {touch ? (
-        // Pressed without taking the cursor out of the field it is for.
-        <button
-          type="button"
-          aria-label={t('nav.keyboard')}
-          aria-pressed={keyboardUp}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={toggleSoftKeyboard}
-          className={cn(
-            'fixed right-3 bottom-3 z-30 flex size-11 items-center justify-center rounded-full border border-line shadow-float',
-            keyboardUp ? 'bg-accent text-white' : 'bg-surface text-ink-2',
-          )}
-        >
-          <Keyboard className="size-5" />
-        </button>
-      ) : null}
+      <SoftKeyboardButton />
       {narrow ? (
         drawer ? (
           <>

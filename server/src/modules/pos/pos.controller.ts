@@ -19,6 +19,7 @@ import {
   type PosCustomerDto,
   type PosItemDto,
   type ReturnableDto,
+  type ReturnCandidateDto,
   type ReturnDto,
   type ReturnInput,
   type ReturnListItemDto,
@@ -219,6 +220,16 @@ export class ReturnsController {
     @Query(zod(returnLookupSchema)) query: { code: string },
   ): Promise<ReturnableDto> {
     return this.returns.lookup(actor, query.code)
+  }
+
+  /** The receipts that sold goods with this SKU or barcode, newest first: for goods brought back without one. */
+  @Get('find')
+  @Can('pos.return')
+  find(
+    @CurrentActor() actor: Actor,
+    @Query(zod(returnLookupSchema)) query: { code: string },
+  ): Promise<ReturnCandidateDto[]> {
+    return this.returns.find(actor, query.code)
   }
 
   @Get(':id')

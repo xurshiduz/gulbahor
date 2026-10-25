@@ -142,7 +142,7 @@ export const ProductPicker = forwardRef<HTMLInputElement, ProductPickerProps>(fu
                 className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-[13px] data-[highlighted=true]:bg-sunken"
               >
                 {items.some((other) => other.image) ? <Thumb image={product.image} className="size-8" /> : null}
-                <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{product.sku}</span>
+                <span className="font-code min-w-20 shrink-0 text-xs whitespace-nowrap text-ink-3">{product.sku}</span>
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium">{product.name}</span>
                   {product.brandName || product.categoryName ? (

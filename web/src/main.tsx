@@ -20,6 +20,12 @@ import { installSoftKeyboard } from './lib/soft-keyboard'
 configureValidationMessages()
 installSoftKeyboard()
 
+// Installable as an app (on a phone's home screen, or as a window of its own). Only where it is served for real:
+// the dev server's own reloading is left alone.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js').catch(() => undefined))
+}
+
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
     <AppErrorBoundary>

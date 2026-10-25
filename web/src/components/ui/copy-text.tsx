@@ -33,13 +33,14 @@ export function CopyText({ text, className }: { text: string; className?: string
       title={t('common.copyHint')}
       onClick={(event) => void copy(event)}
       className={cn(
-        'group/copy font-code -mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 text-left transition-colors',
+        // Never cut short: a code half shown is a code that cannot be read off or checked.
+        'group/copy font-code -mx-1 inline-flex shrink-0 items-center gap-1 rounded px-1 text-left whitespace-nowrap transition-colors',
         'hover:bg-accent-soft hover:text-accent-ink',
         done && 'bg-ok-soft text-ok hover:bg-ok-soft hover:text-ok',
         className,
       )}
     >
-      <span className="truncate">{text}</span>
+      <span>{text}</span>
       {done ? (
         <Check className="size-3 shrink-0" />
       ) : (

@@ -1442,7 +1442,9 @@ function Till({ context, registers, onSwitch }: TillProps) {
                         className="flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1 text-left text-[13px] data-[highlighted=true]:bg-sunken"
                       >
                         {results.some((found) => found.image) ? <Thumb image={item.image} className="size-9" /> : null}
-                        <span className="font-code w-20 shrink-0 truncate text-xs text-ink-3">{item.sku}</span>
+                        <span className="font-code min-w-20 shrink-0 text-xs whitespace-nowrap text-ink-3">
+                          {item.sku}
+                        </span>
                         <span className="min-w-0 flex-1 truncate">
                           <span className="font-medium">{item.name}</span>
                           {item.label ? <span className="text-ink-2"> · {item.label}</span> : null}

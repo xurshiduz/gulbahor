@@ -589,7 +589,9 @@ function KeyDialog({ agent, onClose }: { agent: AgentKeyDto; onClose: () => void
  */
 function localChoices(printers: AgentLocalPrinter[], chosen: string | null, usb: string) {
   const isUsb = (printer: AgentLocalPrinter) => /^USB/i.test(printer.port ?? '')
-  const sorted = [...printers].sort((a, b) => Number(isUsb(b)) - Number(isUsb(a)) || a.name.localeCompare(b.name))
+  const sorted = realPrinters(printers).sort(
+    (a, b) => Number(isUsb(b)) - Number(isUsb(a)) || a.name.localeCompare(b.name),
+  )
   const options = sorted.map((printer) => ({
     value: printer.name,
     label: isUsb(printer) ? `${printer.name} · ${usb} (${printer.port})` : printer.name,
@@ -597,6 +599,15 @@ function localChoices(printers: AgentLocalPrinter[], chosen: string | null, usb:
   return chosen && !options.some((option) => option.value === chosen)
     ? [{ value: chosen, label: chosen }, ...options]
     : options
+}
+
+// Windows' own printers that print to a file, a fax or an app: "Microsoft Print to PDF", "Microsoft XPS Document
+// Writer", "OneNote", "Fax". None of them is paper, so none is offered.
+const VIRTUAL_PORT = /^(PORTPROMPT:|nul:|FILE:|SHRFAX:|XPSPort:|PDF|OneNote|Microsoft\.Office\.OneNote)/i
+const VIRTUAL_NAME = /(Print to PDF|XPS Document Writer|OneNote|^Fax$|Send To)/i
+
+export function realPrinters(printers: AgentLocalPrinter[]): AgentLocalPrinter[] {
+  return printers.filter((printer) => !VIRTUAL_PORT.test(printer.port ?? '') && !VIRTUAL_NAME.test(printer.name))
 }
 
 interface PrinterValues {
@@ -756,9 +767,9 @@ function PrinterFormDialog({
                 ? t('devices.usbPickAgent')
                 : !agent.online
                   ? t('devices.usbOffline')
-                  : agent.localPrinters.length
+                  : realPrinters(agent.localPrinters).some((printer) => /^USB/i.test(printer.port ?? ''))
                     ? t('devices.usbHint')
-                    : t('devices.usbNone')
+                    : t('devices.usbNoDriver')
             }
             error={errors.queue?.message}
             required

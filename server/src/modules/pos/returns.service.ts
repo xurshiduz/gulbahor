@@ -19,6 +19,7 @@ import {
   variantLabel,
   type Page,
   type ReturnableDto,
+  type ReturnCandidateDto,
   type ReturnDto,
   type ReturnInput,
   type ReturnListItemDto,
@@ -168,6 +169,63 @@ export class ReturnsService {
         noExchange: buyer ? !!(await rulesOf(em, [buyer])).get(buyer.id)?.noExchange : false,
         caps: await this.caps(em, sale),
       }
+    })
+  }
+
+  /**
+   * Receipts that sold goods with this SKU (the model's or the size's) or barcode and have some of them still out,
+   * newest first: the buyer has the goods but not the receipt.
+   */
+  async find(actor: Actor, code: string): Promise<ReturnCandidateDto[]> {
+    return this.db.tenant(actor.orgId, async ({ em }) => {
+      const text = code.trim()
+      const rows: {
+        sale_id: string
+        number: string
+        sold_at: Date
+        location_name: string
+        customer_name: string | null
+        line_id: string
+        name: string
+        sku: string
+        value_names: string[]
+        qty: number
+        returned_qty: number
+        total: number
+      }[] = await em.query(
+        `SELECT s.id AS sale_id, s.number, s.sold_at, l.name AS location_name, s.customer_name,
+                sl.id AS line_id, p.name, v.sku, array_remove(ARRAY[a1.name, a2.name, a3.name], NULL) AS value_names,
+                sl.qty::float8 AS qty, sl.returned_qty::float8 AS returned_qty, sl.total::float8 AS total
+         FROM sale_lines sl
+         JOIN sales s ON s.id = sl.sale_id
+         JOIN locations l ON l.id = s.location_id
+         JOIN product_variants v ON v.id = sl.variant_id
+         JOIN products p ON p.id = v.product_id
+         LEFT JOIN attribute_values a1 ON a1.id = v.value1_id
+         LEFT JOIN attribute_values a2 ON a2.id = v.value2_id
+         LEFT JOIN attribute_values a3 ON a3.id = v.value3_id
+         WHERE s.status = 'completed' AND sl.qty > sl.returned_qty
+           AND (s.location_id = ANY($2::uuid[]) OR $3)
+           AND (upper(v.sku) = upper($1) OR upper(p.sku) = upper($1)
+                OR EXISTS (SELECT 1 FROM variant_barcodes b WHERE b.variant_id = v.id AND b.code = $1))
+         ORDER BY s.sold_at DESC, sl.position
+         LIMIT 30`,
+        [text, actor.locationIds, actor.allLocations],
+      )
+      return rows.map((row) => ({
+        saleId: row.sale_id,
+        number: row.number,
+        soldAt: new Date(row.sold_at).toISOString(),
+        locationName: row.location_name,
+        customerName: row.customer_name,
+        lineId: row.line_id,
+        productName: row.name,
+        label: variantLabel(row.value_names),
+        sku: row.sku,
+        qty: row.qty,
+        left: Math.round((row.qty - row.returned_qty) * 1000) / 1000,
+        total: row.total,
+      }))
     })
   }
 

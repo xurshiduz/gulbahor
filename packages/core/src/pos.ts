@@ -1070,6 +1070,23 @@ export type ReturnInput = z.infer<typeof returnInputSchema>
 
 export const returnLookupSchema = z.object({ code: z.string().trim().min(1).max(64) })
 
+/** A receipt that sold goods with this SKU or barcode and still has some of them to bring back. */
+export interface ReturnCandidateDto {
+  saleId: string
+  number: string
+  soldAt: string
+  locationName: string
+  customerName: string | null
+  /** The line that matched: what it sold, and how much of it is still out. */
+  lineId: string
+  productName: string
+  label: string | null
+  sku: string
+  qty: number
+  left: number
+  total: number
+}
+
 export const returnListQuerySchema = listQuerySchema.extend({
   locationId: idSchema.optional(),
   shiftId: idSchema.optional(),
