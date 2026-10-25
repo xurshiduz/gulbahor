@@ -67,7 +67,7 @@ export function StockPage() {
   const seesCost = can('stock.cost')
   const [open, setOpen] = useState<Set<string>>(() => new Set())
   const [over, setOver] = useState<Over | null>(null)
-  const [statsShown, setStatsShown] = usePreference<boolean>('catalog.stats', true)
+  const [statsShown, setStatsShown] = usePreference<boolean>('catalog.stats', false)
   const tab: Tab = search.status === 'archived' ? 'archived' : search.presence
   const toggle = (productId: string) =>
     setOpen((current) => {
